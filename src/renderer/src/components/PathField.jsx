@@ -25,6 +25,7 @@ export default function PathField({
   value,
   onChange,
   onEnter,
+  onValidChange,
   accent = '#ff6b9d',
   placeholder,
   autoFocus,
@@ -33,10 +34,12 @@ export default function PathField({
   const [entries, setEntries] = useState([])
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const [valid, setValid] = useState(null) // null = unknown/empty, true/false = real dir or not
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const blurTimer = useRef(null)
   const reqId = useRef(0)
+  const validReqId = useRef(0)
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus()
@@ -44,6 +47,18 @@ export default function PathField({
   }, [autoFocus])
 
   const { parent, partial, sep } = splitPath(value)
+
+  // Live "is this a real directory?" check on the full value, so the field can
+  // tell you the path actually exists before you launch (it no longer silently
+  // falls back to home). Guarded against out-of-order async with validReqId.
+  useEffect(() => {
+    const v = String(value || '').trim()
+    if (!v) { setValid(null); onValidChange?.(null); return }
+    const id = ++validReqId.current
+    window.sush?.dirExists?.({ path: lookupPath(v) })
+      .then(res => { if (id === validReqId.current) { setValid(!!res?.exists); onValidChange?.(!!res?.exists) } })
+      .catch(() => { if (id === validReqId.current) { setValid(false); onValidChange?.(false) } })
+  }, [value, onValidChange])
 
   // Re-list whenever the parent directory changes (not on every keystroke of the
   // leaf name). reqId guards against out-of-order async responses.
@@ -112,8 +127,15 @@ export default function PathField({
 
   return (
     <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-      <div className="sush-omni flex items-center" style={{ height: 42, gap: 10 }}>
-        <Icon name="folder" size={16} color={accent} />
+      <div
+        className="sush-omni flex items-center"
+        style={{
+          height: 42,
+          gap: 10,
+          borderColor: valid === false ? 'rgba(255,83,112,0.55)' : undefined
+        }}
+      >
+        <Icon name="folder" size={16} color={valid === false ? '#ff5370' : accent} />
         <input
           ref={inputRef}
           value={value}
@@ -129,6 +151,14 @@ export default function PathField({
         {suggestions.length > 0 && (
           <span style={{ flexShrink: 0, color: '#5a646d', fontSize: 10, fontWeight: 700, userSelect: 'none' }}>
             Tab ↹
+          </span>
+        )}
+        {valid === true && (
+          <Icon name="check" size={15} color="#7ee787" strokeWidth={2.6} style={{ flexShrink: 0 }} />
+        )}
+        {valid === false && (
+          <span title="No such directory" style={{ flexShrink: 0, color: '#ff5370', fontSize: 10.5, fontWeight: 800, userSelect: 'none' }}>
+            not found
           </span>
         )}
       </div>

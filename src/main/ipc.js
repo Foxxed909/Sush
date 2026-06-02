@@ -251,16 +251,33 @@ async function getGitStatus(cwd) {
   }
 }
 
-function listDirectory(target) {
-  const dir = resolveStartCwd(target)
+function isDirectory(target) {
+  const candidate = target && String(target).trim()
+  if (!candidate) return false
   try {
-    const entries = readdirSync(dir, { withFileTypes: true })
+    return existsSync(candidate) && statSync(candidate).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+// List the children of an EXACT path. Unlike resolveStartCwd this never falls
+// back to the home directory — a partial or non-existent path (e.g. while the
+// user is still typing) returns no entries instead of silently listing ~,
+// which previously surfaced as "fake" suggestions unrelated to the typed path.
+function listDirectory(target) {
+  const candidate = target == null ? '' : String(target).trim()
+  if (!isDirectory(candidate)) {
+    return { path: candidate, entries: [], exists: false }
+  }
+  try {
+    const entries = readdirSync(candidate, { withFileTypes: true })
       .filter(entry => entry.name !== '.git' && entry.name !== 'node_modules')
       .map(entry => ({ name: entry.name, dir: entry.isDirectory() }))
       .sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1))
-    return { path: dir, entries }
+    return { path: candidate, entries, exists: true }
   } catch (err) {
-    return { path: dir, entries: [], error: err.message }
+    return { path: candidate, entries: [], exists: false, error: err.message }
   }
 }
 
@@ -603,6 +620,7 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:git-status', (event, { cwd }) => getGitStatus(cwd))
   ipcMain.handle('sush:list-dir', (event, { path }) => listDirectory(path))
+  ipcMain.handle('sush:dir-exists', (event, { path }) => ({ path, exists: isDirectory(path) }))
   ipcMain.handle('sush:memory-list', (event, { cwd }) => listMemoryNotes(cwd))
   ipcMain.handle('sush:memory-read', (event, { cwd, name }) => readMemoryNote(cwd, name))
   ipcMain.handle('sush:memory-write', (event, { cwd, name, content }) => writeMemoryNote(cwd, name, content))

@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('sush', {
   homeDir: () => ipcRenderer.invoke('sush:home-dir'),
   gitStatus: (payload) => ipcRenderer.invoke('sush:git-status', payload),
   listDir: (payload) => ipcRenderer.invoke('sush:list-dir', payload),
+  dirExists: (payload) => ipcRenderer.invoke('sush:dir-exists', payload),
   memoryList: (payload) => ipcRenderer.invoke('sush:memory-list', payload),
   memoryRead: (payload) => ipcRenderer.invoke('sush:memory-read', payload),
   memoryWrite: (payload) => ipcRenderer.invoke('sush:memory-write', payload)

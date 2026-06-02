@@ -12,6 +12,7 @@ function pathLabel(cwd) {
 
 export default function NewSessionModal({ accent, activeCwd, recentSessions = [], onLaunch, onClose }) {
   const [cwd, setCwd] = useState(activeCwd || '')
+  const [cwdValid, setCwdValid] = useState(null)
   const [counts, setCounts] = useState({ shell: 1 })
 
   // Fall back to the home directory if we don't have an active path yet.
@@ -53,7 +54,10 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const oneEach = () => setCounts(Object.fromEntries(AGENTS.slice(0, MAX_SESSIONS).map(a => [a.id, 1])))
   const clearAll = () => setCounts({})
 
-  const canLaunch = total > 0 && !!cwd.trim()
+  // cwdValid is null until the first existence check resolves; treat null as
+  // "not yet known, allow" so the button isn't disabled on a freshly-prefilled
+  // active cwd, but block an explicit "not found" (false).
+  const canLaunch = total > 0 && !!cwd.trim() && cwdValid !== false
 
   const launch = () => {
     if (!canLaunch) return
@@ -122,6 +126,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               value={cwd}
               onChange={setCwd}
               onEnter={launch}
+              onValidChange={setCwdValid}
               accent={accent}
               autoFocus
               placeholder="C:\path\to\project — type to browse"
