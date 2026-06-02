@@ -13,7 +13,8 @@ function createWindow() {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      webviewTag: true // powers the in-app Browser panel
     },
     titleBarStyle: 'hidden'
   })
@@ -37,6 +38,17 @@ app.whenReady().then(() => {
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+// The in-app Browser uses <webview>, whose guest pages get their own
+// webContents. Keep target=_blank / window.open links from spawning bare
+// Electron windows: open external http(s) links in the system browser instead.
+app.on('web-contents-created', (_event, contents) => {
+  if (contents.getType() !== 'webview') return
+  contents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url)
+    return { action: 'deny' }
   })
 })
 

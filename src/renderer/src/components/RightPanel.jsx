@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import Seducia from './Seducia'
+import Browser from './Browser'
 import { rgba, accentVars } from '../lib/ui'
 
 const TABS = [
   { id: 'agent', label: 'Agent', icon: 'sparkles' },
+  { id: 'browser', label: 'Browser', icon: 'globe' },
   { id: 'changes', label: 'Changes', icon: 'gitBranch' },
   { id: 'files', label: 'Files', icon: 'file' },
   { id: 'memory', label: 'Memory', icon: 'book' }
@@ -60,7 +62,7 @@ export default function RightPanel({
       }}
     >
       {/* Tab header */}
-      <div className="flex items-center" style={{ gap: 4, padding: '8px 8px', borderBottom: `1px solid ${rgba(accent, 0.1)}` }}>
+      <div className="flex items-center" style={{ gap: 4, rowGap: 6, flexWrap: 'wrap', padding: '8px 8px', borderBottom: `1px solid ${rgba(accent, 0.1)}` }}>
         {TABS.map(t => {
           const active = tab === t.id
           return (
@@ -71,7 +73,7 @@ export default function RightPanel({
               style={{
                 gap: 6,
                 height: 30,
-                padding: '0 10px',
+                padding: '0 9px',
                 borderRadius: 8,
                 border: `1px solid ${active ? rgba(accent, 0.45) : 'transparent'}`,
                 background: active ? rgba(accent, 0.12) : 'transparent',
@@ -113,6 +115,10 @@ export default function RightPanel({
             onClose={onClose}
           />
         )}
+        {/* Kept mounted so the page (and your scroll/login state) survives tab switches. */}
+        <div style={{ position: 'absolute', inset: 0, display: tab === 'browser' ? 'block' : 'none' }}>
+          <Browser accent={accent} />
+        </div>
         {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={(p) => onRun(`edit "${p}"`)} />}
         {tab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={(p) => onRun(`edit "${p}"`)} />}
         {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
