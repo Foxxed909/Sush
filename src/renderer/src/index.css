@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent: #ff6b9d;
+  --accent-a06: rgba(255, 107, 157, 0.06);
+  --accent-a10: rgba(255, 107, 157, 0.10);
+  --accent-a16: rgba(255, 107, 157, 0.16);
+  --accent-a22: rgba(255, 107, 157, 0.22);
+  --accent-a35: rgba(255, 107, 157, 0.35);
+  --accent-a55: rgba(255, 107, 157, 0.55);
+}
+
+body {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  background: #0d0d0d;
+  color: #f0f0f0;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.xterm {
+  height: 100%;
+  padding: 8px;
+}
+
+.xterm-viewport {
+  overflow-y: auto !important;
+}
+
+/* ---- Scrollbars ---- */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--accent-a22); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-a55); background-clip: padding-box; }
+.sush-scroll { scrollbar-width: thin; scrollbar-color: var(--accent-a22) transparent; }
+
+/* ---- Animations ---- */
+@keyframes sush-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sush-fade-up { animation: sush-fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes sush-spin { to { transform: rotate(360deg); } }
+.sush-spin { animation: sush-spin 0.9s linear infinite; transform-origin: center; }
+
+@keyframes sush-orb-pulse {
+  0%, 100% { box-shadow: 0 0 18px var(--accent-a35); }
+  50% { box-shadow: 0 0 30px var(--accent-a55); }
+}
+.sush-orb { animation: sush-orb-pulse 2.6s ease-in-out infinite; }
+
+/* ---- Quick action tiles ---- */
+.sush-tile {
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.sush-tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-a55) !important;
+  box-shadow: 0 14px 30px rgba(0,0,0,0.45), 0 0 0 1px var(--accent-a16);
+}
+.sush-tile:active { transform: translateY(-1px); }
+.sush-tile-icon { transition: background .16s ease, box-shadow .16s ease; }
+.sush-tile:hover .sush-tile-icon { box-shadow: 0 0 18px var(--accent-a35); }
+.sush-tile-arrow { opacity: 0; transition: opacity .16s ease, transform .16s ease; }
+.sush-tile:hover .sush-tile-arrow { opacity: 1; transform: translateX(3px); }
+
+/* ---- List rows (workdirs / recent) ---- */
+.sush-row {
+  transition: transform .14s ease, border-color .14s ease, background .14s ease;
+}
+.sush-row:hover {
+  transform: translateX(3px);
+  border-color: var(--accent-a35) !important;
+  background: var(--accent-a06) !important;
+}
+.sush-row-arrow { opacity: 0; transition: opacity .14s ease, transform .14s ease; }
+.sush-row:hover .sush-row-arrow { opacity: 1; transform: translateX(2px); }
+
+/* ---- Buttons ---- */
+.sush-btn { transition: transform .14s ease, box-shadow .14s ease, filter .14s ease; }
+.sush-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.06); }
+.sush-btn:active:not(:disabled) { transform: translateY(0); }
+
+.sush-icon-btn { transition: background .14s ease, border-color .14s ease, color .14s ease, transform .14s ease; }
+.sush-icon-btn:hover {
+  border-color: var(--accent-a55) !important;
+  background: var(--accent-a16) !important;
+  color: var(--accent) !important;
+}
+.sush-icon-btn:active { transform: scale(0.94); }
+
+/* ---- Omnibox ---- */
+.sush-omni {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: #07090b;
+  border: 1px solid #1c232a;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.sush-omni:focus-within {
+  border-color: var(--accent-a55);
+  box-shadow: 0 0 0 3px var(--accent-a10);
+}
+
+/* ---- File tree rows ---- */
+.sush-tree-row { transition: background .12s ease, color .12s ease; }
+.sush-tree-row:hover { background: var(--accent-a06) !important; color: var(--accent) !important; }
+
+/* ---- Mini buttons (presets) ---- */
+.sush-mini-btn { transition: border-color .14s ease, color .14s ease, background .14s ease; }
+.sush-mini-btn:hover { border-color: var(--accent-a55) !important; color: var(--accent) !important; background: var(--accent-a06) !important; }
+
+/* ---- Session rail items ---- */
+.sush-session { transition: border-color .14s ease, background .14s ease, transform .14s ease; }
+.sush-session:hover { border-color: var(--accent-a35) !important; }
+.sush-session-close { opacity: 0; transition: opacity .14s ease, background .14s ease, color .14s ease; }
+.sush-session:hover .sush-session-close { opacity: 1; }
+.sush-session-close:hover { background: var(--accent-a16) !important; color: var(--accent) !important; }

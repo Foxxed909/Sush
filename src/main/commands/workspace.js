@@ -1,0 +1,240 @@
+import { shell as electronShell } from 'electron'
+import { execFile, execFileSync, execSync } from 'child_process'
+import { existsSync, readFileSync, statSync } from 'fs'
+import { homedir } from 'os'
+import { basename, resolve } from 'path'
+import { promisify } from 'util'
+import { ok, err, ansi } from './_helpers'
+
+const execFileAsync = promisify(execFile)
+const SERVE_SCRIPT_PRIORITY = ['dev', 'start', 'serve', 'preview']
+
+function expandPath(target, cwd) {
+  if (!target || target === '~') return homedir()
+  if (target.startsWith('~/') || target.startsWith('~\\')) {
+    return resolve(homedir(), target.slice(2))
+  }
+  return resolve(cwd, target)
+}
+
+function directoryOrError(target, cwd, commandName) {
+  const next = expandPath(target, cwd)
+  if (!existsSync(next)) return { error: `${commandName}: no such directory: ${target || next}` }
+  try {
+    if (!statSync(next).isDirectory()) return { error: `${commandName}: not a directory: ${target || next}` }
+  } catch {
+    return { error: `${commandName}: cannot access: ${target || next}` }
+  }
+  return { cwd: next }
+}
+
+function commandPath(tool) {
+  const name = String(tool ?? '').trim()
+  if (!name) return null
+  try {
+    if (process.platform === 'win32') {
+      return execFileSync('where.exe', [name], { encoding: 'utf8', windowsHide: true }).trim()
+    }
+    return execFileSync('sh', ['-lc', `command -v ${JSON.stringify(name)}`], { encoding: 'utf8' }).trim()
+  } catch {
+    return null
+  }
+}
+
+function readPackage(cwd) {
+  const file = resolve(cwd, 'package.json')
+  if (!existsSync(file)) return null
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function listeningPorts() {
+  const raw = execSync('netstat -ano -p TCP', { encoding: 'utf8', windowsHide: true })
+  return raw.split('\n')
+    .map(line => {
+      if (!line.includes('LISTENING')) return null
+      const parts = line.trim().split(/\s+/)
+      const port = parts[1]?.match(/:(\d+)$/)?.[1]
+      const pid = parts[4]
+      if (!port || !/^\d+$/.test(pid ?? '')) return null
+      return { address: parts[1], port, pid }
+    })
+    .filter(Boolean)
+}
+
+export const home = {
+  name: 'home',
+  description: 'Open the Sush dashboard',
+  usage: 'home',
+  async run() {
+    return {
+      ...ok('Dashboard'),
+      action: { name: 'open-home' }
+    }
+  }
+}
+
+export const work = {
+  name: 'work',
+  description: 'Open or switch to a working directory',
+  usage: 'work <path>',
+  async run(args, ctx) {
+    const target = args.join(' ')
+    const result = directoryOrError(target, ctx.cwd, 'work')
+    if (result.error) return err(result.error)
+    ctx.setCwd(result.cwd)
+    return {
+      ...ok(`workspace: ${result.cwd}`),
+      cwd: result.cwd,
+      action: { name: 'open-workspace', cwd: result.cwd, label: basename(result.cwd) || result.cwd }
+    }
+  }
+}
+
+export const recent = {
+  name: 'recent',
+  description: 'Show recent Sush sessions',
+  usage: 'recent',
+  aliases: ['recents'],
+  async run() {
+    return {
+      ...ok('Recent sessions'),
+      action: { name: 'show-recents' }
+    }
+  }
+}
+
+export const open = {
+  name: 'open',
+  description: 'Open a file or folder with Windows',
+  usage: 'open <path>',
+  async run(args, ctx) {
+    const target = args.join(' ')
+    if (!target) return err('open: missing path')
+    const path = expandPath(target, ctx.cwd)
+    if (!existsSync(path)) return err(`open: path not found: ${target}`)
+    const message = await electronShell.openPath(path)
+    if (message) return err(`open: ${message}`)
+    return ok(`opened: ${path}`)
+  }
+}
+
+export const edit = {
+  name: 'edit',
+  description: 'Open a file or folder in an editor',
+  usage: 'edit <path>',
+  async run(args, ctx) {
+    const target = args.join(' ')
+    if (!target) return err('edit: missing path')
+    const path = expandPath(target, ctx.cwd)
+    if (!existsSync(path)) return err(`edit: path not found: ${target}`)
+
+    const codePath = commandPath('code')
+    if (codePath) {
+      execFile('code', [path], { cwd: ctx.cwd, windowsHide: true }, () => {})
+      return ok(`editing: ${path}`)
+    }
+
+    const message = await electronShell.openPath(path)
+    if (message) return err(`edit: ${message}`)
+    return ok(`opened: ${path}`)
+  }
+}
+
+export const serve = {
+  name: 'serve',
+  description: 'Start the detected project dev server',
+  usage: 'serve',
+  async run(_, ctx) {
+    const pkg = readPackage(ctx.cwd)
+    if (!pkg?.scripts) return err('serve: no package.json scripts found in this directory')
+    const script = SERVE_SCRIPT_PRIORITY.find(name => pkg.scripts[name])
+    if (!script) return err(`serve: no script found (${SERVE_SCRIPT_PRIORITY.join(', ')})`)
+    const input = `npm run ${script}`
+    return {
+      ...ok(`starting: ${input}`),
+      action: { name: 'passthrough', input, cwd: ctx.cwd }
+    }
+  }
+}
+
+export const ports = {
+  name: 'ports',
+  description: 'List listening TCP ports',
+  usage: 'ports',
+  aliases: ['port'],
+  async run() {
+    try {
+      const entries = listeningPorts()
+      if (!entries.length) return ok(ansi.dim('No listening ports found'))
+      const rows = entries
+        .sort((a, b) => Number(a.port) - Number(b.port))
+        .map(entry => `${ansi.cyan(entry.port.padEnd(6))} ${entry.address.padEnd(28)} PID ${entry.pid}`)
+      return ok([ansi.bold(ansi.pink('LISTENING PORTS')), ...rows].join('\r\n'))
+    } catch (e) {
+      return err(`ports: ${e.message}`)
+    }
+  }
+}
+
+export const clone = {
+  name: 'clone',
+  description: 'Clone a GitHub repository',
+  usage: 'clone <owner/repo> [dir]',
+  async run(args, ctx) {
+    if (!args.length) return err('clone: missing repository')
+    try {
+      const { stdout, stderr } = await execFileAsync('gh', ['repo', 'clone', ...args], {
+        cwd: ctx.cwd,
+        timeout: 120000,
+        encoding: 'utf8',
+        windowsHide: true
+      })
+      return ok((stdout + stderr).trimEnd() || `cloned: ${args[0]}`)
+    } catch (e) {
+      const msg = (e.stderr || e.message || '').trim()
+      return err(`clone: ${msg}`)
+    }
+  }
+}
+
+export const doctor = {
+  name: 'doctor',
+  description: 'Check the Sush workspace environment',
+  usage: 'doctor',
+  async run(_, ctx) {
+    const tools = ['powershell.exe', 'cmd.exe', 'node', 'npm', 'git', 'gh']
+    const lines = [
+      ansi.bold(ansi.pink('SUSH DOCTOR')),
+      `${ansi.cyan('cwd')} ${existsSync(ctx.cwd) ? ctx.cwd : `${ctx.cwd} (missing)`}`
+    ]
+
+    for (const tool of tools) {
+      const found = commandPath(tool)
+      lines.push(`${ansi.cyan(tool.padEnd(14))} ${found ? found.split(/\r?\n/)[0] : ansi.red('missing')}`)
+    }
+
+    try {
+      const count = listeningPorts().length
+      lines.push(`${ansi.cyan('listening ports')} ${count}`)
+    } catch (e) {
+      lines.push(`${ansi.cyan('listening ports')} ${ansi.red(e.message)}`)
+    }
+
+    return ok(lines.join('\r\n'))
+  }
+}
+
+export const where = {
+  name: 'where',
+  description: 'Resolve an executable path',
+  usage: 'where <tool>',
+  async run([tool]) {
+    if (!tool) return err('where: missing tool name')
+    const found = commandPath(tool)
+    return found ? ok(found) : err(`where: ${tool} not found`)
+  }
+}
