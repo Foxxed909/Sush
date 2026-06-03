@@ -12,6 +12,7 @@ export default function Terminal({
   fontSize,
   fontFamily,
   cursorStyle,
+  broadcastTabIds,
   onNewTab,
   onCommand,
   onSessionState,
@@ -30,7 +31,7 @@ export default function Terminal({
     copyNoticeTimerRef.current = setTimeout(() => setCopyNotice(''), 1000)
   }, [])
 
-  const { fit, focus, pasteText, search, searchPrev, clearSearch, getSelection, clear } = useTerminal({
+  const { fit, focus, pasteText, search, searchPrev, clearSearch, getSelection, clear, startRecording, stopRecording, isRecording } = useTerminal({
     containerRef,
     tabId,
     theme,
@@ -39,6 +40,7 @@ export default function Terminal({
     fontSize,
     fontFamily,
     cursorStyle,
+    broadcastTabIds,
     onAutoCopy: handleAutoCopy,
     onCommand,
     onSessionState,
@@ -88,7 +90,7 @@ export default function Terminal({
         inset: 0,
         overflow: 'hidden',
         // Keep inactive terminals in layout (just hidden) so they retain real
-        // dimensions — avoids xterm scroll-sync errors when a swarm mounts many
+        // dimensions -- avoids xterm scroll-sync errors when a swarm mounts many
         // at once, and makes switching between them instant.
         visibility: active ? 'visible' : 'hidden',
         zIndex: active ? 2 : 1,
@@ -116,6 +118,25 @@ export default function Terminal({
           }}
         >
           {copyNotice}
+        </div>
+      )}
+
+      {/* Session recording indicator + controls */}
+      {active && (
+        <div style={{ position: 'absolute', top: 8, right: 12, zIndex: 120, display: 'flex', alignItems: 'center', gap: 5 }}>
+          {isRecording && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,83,112,0.15)', border: '1px solid rgba(255,83,112,0.4)', borderRadius: 6, padding: '3px 8px', fontSize: 10, fontWeight: 800, color: '#ff5370' }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#ff5370', animation: 'sush-blink 1s step-start infinite' }} />
+              REC
+            </span>
+          )}
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            title={isRecording ? 'Stop recording & download' : 'Start session recording'}
+            style={{ width: 24, height: 24, borderRadius: 5, border: `1px solid ${isRecording ? 'rgba(255,83,112,0.4)' : 'rgba(255,255,255,0.08)'}`, background: isRecording ? 'rgba(255,83,112,0.1)' : 'rgba(0,0,0,0.4)', color: isRecording ? '#ff5370' : '#4a5560', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900 }}
+          >
+            ●
+          </button>
         </div>
       )}
 

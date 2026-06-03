@@ -14,6 +14,10 @@ const TABS = [
   { id: 'history', label: 'History', icon: 'clock' },
   { id: 'snippets', label: 'Snippets', icon: 'layers' },
   { id: 'ports', label: 'Ports', icon: 'ports' },
+  { id: 'docker', label: 'Docker', icon: 'layers' },
+  { id: 'api', label: 'API', icon: 'globe' },
+  { id: 'env', label: 'Env', icon: 'key' },
+  { id: 'ssh', label: 'SSH', icon: 'lock' },
   { id: 'regex', label: 'Regex', icon: 'spark' },
   { id: 'markdown', label: 'Preview', icon: 'fileText' },
   { id: 'stats', label: 'Stats', icon: 'activity' },
@@ -55,9 +59,11 @@ export default function RightPanel({
   onFocus,
   onOpenLauncher,
   onClose,
+  onNewTab,
   settings = {},
   planId = 'free',
-  commandHistory = []
+  commandHistory = [],
+  style = {}
 }) {
   const [mdPath, setMdPath] = useState(null)
 
@@ -75,9 +81,9 @@ export default function RightPanel({
       className="shrink-0 flex flex-col"
       style={{
         ...accentVars(accent),
-        width: 360,
-        minWidth: 300,
-        maxWidth: '42vw',
+        width: style.width ?? 360,
+        minWidth: 280,
+        maxWidth: '55vw',
         background: '#090b0d',
         borderLeft: `1px solid ${rgba(accent, 0.16)}`
       }}
@@ -142,13 +148,17 @@ export default function RightPanel({
         <div style={{ position: 'absolute', inset: 0, display: tab === 'browser' ? 'block' : 'none' }}>
           <Browser accent={accent} />
         </div>
-        {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
+        {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} settings={settings} />}
         {tab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
         {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
         {tab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
         {tab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} settings={settings} />}
         {tab === 'snippets' && <SnippetsTab accent={accent} onRun={onRun} />}
         {tab === 'ports' && <PortsTab accent={accent} onRun={onRun} />}
+        {tab === 'docker' && <DockerTab accent={accent} onRun={onRun} />}
+        {tab === 'api' && <ApiTesterTab accent={accent} />}
+        {tab === 'env' && <EnvManagerTab accent={accent} cwd={activeCwd} />}
+        {tab === 'ssh' && <SshTab accent={accent} onNewTab={onNewTab} onRun={onRun} />}
         {tab === 'regex' && <RegexTab accent={accent} />}
         {tab === 'markdown' && <MarkdownTab accent={accent} cwd={activeCwd} initialPath={mdPath} />}
         {tab === 'stats' && <StatsTab accent={accent} />}
@@ -187,20 +197,106 @@ function TabHeader({ accent, icon, title, sub, onRefresh, right }) {
   )
 }
 
-// ---------- Changes ----------
-function ChangesTab({ accent, cwd, onOpenFile }) {
+// ---------- Changes + Git Commit Helper ----------
+async function aiSuggestCommit(files, settings) {
+  const summary = files.slice(0, 20).map(f => `${f.status} ${f.path}`).join('\n')
+  const prompt = `Write a concise git commit message (under 72 chars, imperative mood) for these changes:\n${summary}\nRespond with ONLY the commit message, no quotes or explanation.`
+  if (settings.anthropicKey) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
+    })
+    const d = await res.json()
+    return d.content?.[0]?.text?.trim() || null
+  }
+  if (settings.openaiKey) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
+    })
+    const d = await res.json()
+    return d.choices?.[0]?.message?.content?.trim() || null
+  }
+  return null
+}
+
+function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [staged, setStaged] = useState(new Set())
+  const [commitMsg, setCommitMsg] = useState('')
+  const [committing, setCommitting] = useState(false)
+  const [commitResult, setCommitResult] = useState(null)
+  const [suggesting, setSuggesting] = useState(false)
 
   const load = () => {
     if (!cwd) { setData({ repo: false, files: [] }); setLoading(false); return }
     setLoading(true)
-    window.sush?.gitStatus?.({ cwd }).then(res => { setData(res); setLoading(false) }).catch(() => { setData({ repo: false, files: [] }); setLoading(false) })
+    window.sush?.gitStatus?.({ cwd })
+      .then(res => { setData(res); setLoading(false) })
+      .catch(() => { setData({ repo: false, files: [] }); setLoading(false) })
   }
-  useEffect(() => { load() }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); setStaged(new Set()); setCommitMsg(''); setCommitResult(null) }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) return <PanelEmpty icon="gitBranch" accent={accent}>Reading changes…</PanelEmpty>
+  const toggleStage = async (f) => {
+    const key = f.path
+    const isStaged = staged.has(key)
+    if (isStaged) {
+      await window.sush?.gitUnstage?.({ cwd, file: f.path })
+      setStaged(prev => { const n = new Set(prev); n.delete(key); return n })
+    } else {
+      await window.sush?.gitStage?.({ cwd, file: f.path })
+      setStaged(prev => new Set([...prev, key]))
+    }
+    load()
+  }
+
+  const stageAll = async () => {
+    await window.sush?.gitStage?.({ cwd, file: '.' })
+    setStaged(new Set((data?.files || []).map(f => f.path)))
+    load()
+  }
+
+  const commit = async () => {
+    if (!commitMsg.trim()) return
+    setCommitting(true)
+    setCommitResult(null)
+    try {
+      const res = await window.sush?.gitCommit?.({ cwd, message: commitMsg.trim() })
+      setCommitResult(res)
+      if (res?.ok) { setCommitMsg(''); setStaged(new Set()); load() }
+    } catch (e) {
+      setCommitResult({ ok: false, error: e.message })
+    } finally {
+      setCommitting(false)
+    }
+  }
+
+  const suggestMessage = async () => {
+    const hasKey = !!(settings.anthropicKey || settings.openaiKey)
+    if (!hasKey) { setCommitMsg('Add an API key in Settings to use AI suggest'); return }
+    setSuggesting(true)
+    try {
+      const files = data?.files || []
+      const text = await aiSuggestCommit(files, settings)
+      if (text) setCommitMsg(text)
+    } catch {}
+    finally { setSuggesting(false) }
+  }
+
+  if (loading) return <PanelEmpty icon="gitBranch" accent={accent}>Reading changes...</PanelEmpty>
   if (!data?.repo) return <PanelEmpty icon="gitBranch" accent={accent} hint="Open a session inside a git repository to see its working-tree changes here.">Not a git repository</PanelEmpty>
+
+  const stagedFiles = (data.files || []).filter(f => {
+    const rs = f.rawStatus || '  '
+    return rs[0] !== ' ' && rs[0] !== '?'
+  })
+  const unstagedFiles = (data.files || []).filter(f => {
+    const rs = f.rawStatus || '  '
+    return rs === '??' || rs[1] !== ' '
+  })
 
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
@@ -211,28 +307,78 @@ function ChangesTab({ accent, cwd, onOpenFile }) {
         sub={`${data.files.length} change${data.files.length === 1 ? '' : 's'}`}
         onRefresh={load}
       />
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 8 }}>
-        {data.files.length ? data.files.map(f => {
-          const meta = statusMeta(f.status)
-          return (
-            <button
-              key={f.path}
-              onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))}
-              title={f.path}
-              className="sush-row flex items-center"
-              style={{ gap: 10, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: 'transparent', color: '#cdd5dc', padding: '6px 8px', cursor: 'pointer' }}
-            >
-              <span style={{ width: 18, textAlign: 'center', fontSize: 11, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
-              <span style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ display: 'block', fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileName(f.path)}</span>
-                <span style={{ display: 'block', fontSize: 10, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.path}</span>
-              </span>
-            </button>
-          )
-        }) : (
-          <PanelEmpty icon="check" accent={accent}>Working tree clean</PanelEmpty>
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 8, paddingBottom: 0 }}>
+        {stagedFiles.length > 0 && (
+          <>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: '#c3e88d', textTransform: 'uppercase', letterSpacing: 0.7, padding: '4px 6px 2px' }}>Staged ({stagedFiles.length})</div>
+            {stagedFiles.map(f => {
+              const meta = statusMeta(f.status)
+              return (
+                <div key={`s-${f.path}`} className="flex items-center" style={{ gap: 6, borderRadius: 8, background: 'rgba(195,232,141,0.06)', padding: '4px 6px', marginBottom: 2 }}>
+                  <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
+                  <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#cdd5dc', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0, fontWeight: 700 }}>{f.path}</button>
+                  <button onClick={() => toggleStage(f)} title="Unstage" style={{ fontSize: 10, color: '#5a646d', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>−</button>
+                </div>
+              )
+            })}
+          </>
         )}
+        {unstagedFiles.length > 0 && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 6px 2px' }}>
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: '#ffcb6b', textTransform: 'uppercase', letterSpacing: 0.7, flex: 1 }}>Unstaged ({unstagedFiles.length})</span>
+              <button onClick={stageAll} style={{ fontSize: 9.5, color: accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Stage all</button>
+            </div>
+            {unstagedFiles.map(f => {
+              const meta = statusMeta(f.status)
+              return (
+                <div key={`u-${f.path}`} className="flex items-center" style={{ gap: 6, padding: '4px 6px', marginBottom: 2 }}>
+                  <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
+                  <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#9aa3ab', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}>{f.path}</button>
+                  <button onClick={() => toggleStage(f)} title="Stage" style={{ fontSize: 10, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0, fontWeight: 800 }}>+</button>
+                </div>
+              )
+            })}
+          </>
+        )}
+        {!data.files.length && <PanelEmpty icon="check" accent={accent}>Working tree clean</PanelEmpty>}
       </div>
+
+      {/* Commit panel */}
+      {data.repo && (
+        <div style={{ padding: '8px 10px', borderTop: '1px solid #1b2127', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {commitResult && (
+            <div style={{ fontSize: 10.5, padding: '4px 8px', borderRadius: 6, background: commitResult.ok ? 'rgba(195,232,141,0.1)' : 'rgba(255,83,112,0.1)', color: commitResult.ok ? '#c3e88d' : '#ff5370', border: `1px solid ${commitResult.ok ? 'rgba(195,232,141,0.25)' : 'rgba(255,83,112,0.25)'}` }}>
+              {commitResult.ok ? (commitResult.output || 'Committed!') : commitResult.error}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 5 }}>
+            <input
+              value={commitMsg}
+              onChange={e => setCommitMsg(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && commit()}
+              placeholder="Commit message..."
+              spellCheck={false}
+              style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#f1f4f6', fontSize: 11.5, outline: 'none' }}
+            />
+            <button
+              onClick={suggestMessage}
+              disabled={suggesting}
+              title="AI suggest"
+              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: suggesting ? '#3f4852' : accent, cursor: suggesting ? 'default' : 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}
+            >
+              {suggesting ? '...' : '✦'}
+            </button>
+          </div>
+          <button
+            onClick={commit}
+            disabled={!commitMsg.trim() || committing}
+            style={{ padding: '6px 0', borderRadius: 7, border: 'none', background: (commitMsg.trim() && !committing) ? accent : '#1c2126', color: (commitMsg.trim() && !committing) ? '#0a0a0a' : '#3f4852', fontSize: 12, fontWeight: 800, cursor: (commitMsg.trim() && !committing) ? 'pointer' : 'default' }}
+          >
+            {committing ? 'Committing...' : 'Commit'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -258,7 +404,7 @@ function TreeLevel({ path, depth, accent, onOpenFile }) {
     return () => { alive = false }
   }, [path])
 
-  if (entries === null) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5 }}>…</div>
+  if (entries === null) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5 }}>...</div>
   if (!entries.length) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5 }}>empty</div>
   return entries.map(entry => (
     <TreeNode key={entry.name} parent={path} entry={entry} depth={depth} accent={accent} onOpenFile={onOpenFile} />
@@ -380,14 +526,14 @@ function MemoryTab({ accent, cwd }) {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') createNote(newName); if (e.key === 'Escape') { setCreating(false); setNewName('') } }}
-              placeholder="note name…"
+              placeholder="note name..."
               spellCheck={false}
               style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12.5 }}
             />
           </div>
         )}
         {notes === null ? (
-          <PanelEmpty icon="book" accent={accent}>Loading…</PanelEmpty>
+          <PanelEmpty icon="book" accent={accent}>Loading...</PanelEmpty>
         ) : notes.length ? notes.map(note => (
           <button
             key={note.name}
@@ -433,7 +579,7 @@ function ScriptsTab({ accent, cwd, onRun }) {
       <TabHeader accent={accent} icon="rocket" title="npm Scripts" sub={data?.name || 'package.json'} onRefresh={load} />
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
         {!data ? (
-          <PanelEmpty icon="rocket" accent={accent}>Loading…</PanelEmpty>
+          <PanelEmpty icon="rocket" accent={accent}>Loading...</PanelEmpty>
         ) : !keys.length ? (
           <PanelEmpty icon="rocket" accent={accent} hint="No scripts found in package.json. Navigate to a project directory first.">No scripts</PanelEmpty>
         ) : keys.map(name => (
@@ -508,7 +654,7 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Filter history…"
+            placeholder="Filter history..."
             spellCheck={false}
             style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12 }}
           />
@@ -533,7 +679,7 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
                 title="Explain this command"
                 style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: `1px solid ${explanations[cmd] ? rgba(accent, 0.4) : '#20272e'}`, background: explanations[cmd] ? rgba(accent, 0.1) : 'transparent', color: explanations[cmd] ? accent : '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}
               >
-                {explaining.has(cmd) ? '…' : '?'}
+                {explaining.has(cmd) ? '...' : '?'}
               </button>
             </div>
             {explanations[cmd] && (
@@ -608,7 +754,7 @@ function StatsTab({ accent }) {
     return () => clearInterval(intervalRef.current)
   }, [load])
 
-  if (!stats && !statErr) return <PanelEmpty icon="activity" accent={accent}>Loading system stats…</PanelEmpty>
+  if (!stats && !statErr) return <PanelEmpty icon="activity" accent={accent}>Loading system stats...</PanelEmpty>
   if (statErr) return <PanelEmpty icon="activity" accent={accent} hint={statErr}>Stats unavailable</PanelEmpty>
 
   const cpuPct = stats.cpu?.load ?? 0
@@ -792,7 +938,7 @@ function PortsTab({ accent, onRun }) {
     window.sush?.openExternal?.({ url: `http://localhost:${port}` })
   }, [])
 
-  if (!data) return <PanelEmpty icon="ports" accent={accent}>Scanning ports…</PanelEmpty>
+  if (!data) return <PanelEmpty icon="ports" accent={accent}>Scanning ports...</PanelEmpty>
 
   const ports = data.ports ?? []
   const counts = { all: ports.length }
@@ -973,7 +1119,7 @@ function SnippetsTab({ accent, onRun }) {
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Tab') { e.preventDefault(); cmdRef.current?.focus() } if (e.key === 'Escape') cancel() }}
-            placeholder="Name (e.g. Start dev server)…"
+            placeholder="Name (e.g. Start dev server)..."
             spellCheck={false}
             style={{ padding: '6px 9px', background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 7, color: '#f1f4f6', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box' }}
           />
@@ -982,7 +1128,7 @@ function SnippetsTab({ accent, onRun }) {
             value={newCmd}
             onChange={e => setNewCmd(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addSnippet(); if (e.key === 'Escape') cancel() }}
-            placeholder="Command (e.g. npm run dev)…"
+            placeholder="Command (e.g. npm run dev)..."
             spellCheck={false}
             style={{ padding: '6px 9px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#d4dbe1', fontSize: 11.5, fontFamily: 'monospace', outline: 'none', width: '100%', boxSizing: 'border-box' }}
           />
@@ -999,7 +1145,7 @@ function SnippetsTab({ accent, onRun }) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search snippets…"
+            placeholder="Search snippets..."
             spellCheck={false}
             style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12 }}
           />
@@ -1088,7 +1234,7 @@ function RegexTab({ accent }) {
           <input
             value={pattern}
             onChange={e => setPattern(e.target.value)}
-            placeholder="pattern…"
+            placeholder="pattern..."
             spellCheck={false}
             style={{ flex: 1, background: 'transparent', border: 'none', color: error ? '#ff5370' : '#f1f4f6', outline: 'none', fontSize: 13.5, fontFamily: 'monospace' }}
           />
@@ -1120,7 +1266,7 @@ function RegexTab({ accent }) {
           <textarea
             value={testStr}
             onChange={e => setTestStr(e.target.value)}
-            placeholder="Paste text to test against…"
+            placeholder="Paste text to test against..."
             spellCheck={false}
             style={{ flex: 1, padding: '6px 10px', background: '#0a0c0f', border: 'none', borderTop: '1px solid #141a1f', color: '#9aa3ab', outline: 'none', resize: 'none', fontSize: 12, lineHeight: 1.65, fontFamily: 'monospace' }}
           />
@@ -1150,11 +1296,488 @@ function RegexTab({ accent }) {
                     <span style={{ color: '#3f4852', marginLeft: 'auto', flexShrink: 0 }}>@{m.index}</span>
                   </div>
                 ))}
-                {matches.length > 12 && <div style={{ fontSize: 10, color: '#3f4852' }}>…{matches.length - 12} more matches</div>}
+                {matches.length > 12 && <div style={{ fontSize: 10, color: '#3f4852' }}>...{matches.length - 12} more matches</div>}
               </div>
             )}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Docker ----------
+function DockerTab({ accent, onRun }) {
+  const [data, setData] = useState(null)
+  const [logs, setLogs] = useState({})
+  const [loadingLogs, setLoadingLogs] = useState(new Set())
+  const [stopping, setStopping] = useState(new Set())
+  const intervalRef = useRef(null)
+
+  const load = useCallback(() => {
+    window.sush?.dockerPs?.()
+      .then(res => setData(res))
+      .catch(() => setData({ ok: false, containers: [], error: 'Docker not available' }))
+  }, [])
+
+  useEffect(() => {
+    load()
+    intervalRef.current = setInterval(load, 5000)
+    return () => clearInterval(intervalRef.current)
+  }, [load])
+
+  const fetchLogs = async (id) => {
+    if (loadingLogs.has(id)) return
+    if (logs[id]) { setLogs(p => { const n = { ...p }; delete n[id]; return n }); return }
+    setLoadingLogs(prev => new Set([...prev, id]))
+    try {
+      const res = await window.sush?.dockerLogs?.({ id, tail: 80 })
+      setLogs(p => ({ ...p, [id]: res?.logs || '(no logs)' }))
+    } catch {}
+    finally { setLoadingLogs(prev => { const n = new Set(prev); n.delete(id); return n }) }
+  }
+
+  const stop = async (id) => {
+    setStopping(prev => new Set([...prev, id]))
+    try {
+      await window.sush?.dockerStop?.({ id })
+      setTimeout(load, 800)
+    } catch {}
+    finally { setStopping(prev => { const n = new Set(prev); n.delete(id); return n }) }
+  }
+
+  const shell = (id) => onRun?.(`docker exec -it ${id} /bin/sh`)
+
+  if (!data) return <PanelEmpty icon="layers" accent={accent}>Connecting to Docker...</PanelEmpty>
+  if (!data.ok && data.error) return <PanelEmpty icon="layers" accent={accent} hint={data.error}>Docker unavailable</PanelEmpty>
+
+  const containers = data.containers ?? []
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader accent={accent} icon="layers" title="Docker" sub={`${containers.length} running container${containers.length !== 1 ? 's' : ''}`} onRefresh={load} />
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 8 }}>
+        {!containers.length ? (
+          <PanelEmpty icon="layers" accent={accent} hint="No containers are currently running.">No containers</PanelEmpty>
+        ) : containers.map(c => {
+          const id = c.ID || c.Names || 'unknown'
+          const name = c.Names || c.Name || id
+          const image = c.Image || ''
+          const status = c.Status || c.State || ''
+          const ports = c.Ports || ''
+          const isStopping = stopping.has(id)
+          const hasLogs = !!logs[id]
+          const isLoadingLogs = loadingLogs.has(id)
+
+          return (
+            <div key={id} style={{ marginBottom: 8, border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 9px' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c3e88d', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#d4dbe1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                  <div style={{ fontSize: 10, color: '#5a646d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image}</div>
+                </div>
+                <button onClick={() => fetchLogs(id)} title={hasLogs ? 'Hide logs' : 'View logs'} disabled={isLoadingLogs} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${hasLogs ? rgba(accent, 0.4) : '#20272e'}`, background: hasLogs ? rgba(accent, 0.1) : 'transparent', color: hasLogs ? accent : '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
+                  {isLoadingLogs ? '...' : '≡'}
+                </button>
+                <button onClick={() => shell(id)} title="Open shell" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="terminal" size={12} />
+                </button>
+                <button onClick={() => stop(id)} disabled={isStopping} title="Stop container" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid rgba(255,83,112,0.2)', background: 'rgba(255,83,112,0.06)', color: isStopping ? '#3f2020' : '#ff5370', cursor: isStopping ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="stop" size={11} />
+                </button>
+              </div>
+              {ports && <div style={{ padding: '0 9px 5px', fontSize: 9.5, color: '#5a646d', fontFamily: 'monospace' }}>{ports}</div>}
+              {status && <div style={{ padding: '0 9px 5px', fontSize: 9, color: '#3f4852' }}>{status}</div>}
+              {hasLogs && (
+                <pre style={{ margin: 0, padding: '8px 10px', background: '#070909', borderTop: '1px solid #141a1f', fontSize: 10, lineHeight: 1.65, color: '#9aa3ab', maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                  {logs[id]}
+                </pre>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---------- API Tester ----------
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+
+function ApiTesterTab({ accent }) {
+  const [method, setMethod] = useState('GET')
+  const [url, setUrl] = useState('')
+  const [headersText, setHeadersText] = useState('Content-Type: application/json')
+  const [body, setBody] = useState('')
+  const [response, setResponse] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const abortRef = useRef(null)
+
+  const send = async () => {
+    if (!url.trim() || loading) return
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    setLoading(true)
+    setResponse(null)
+    const start = Date.now()
+
+    try {
+      const headers = {}
+      headersText.split('\n').forEach(line => {
+        const i = line.indexOf(':')
+        if (i > 0) headers[line.slice(0, i).trim()] = line.slice(i + 1).trim()
+      })
+      const opts = { method, headers, signal: controller.signal }
+      if (!['GET', 'HEAD'].includes(method) && body.trim()) opts.body = body
+
+      const res = await fetch(url.trim(), opts)
+      const elapsed = Date.now() - start
+      const respHeaders = {}
+      res.headers.forEach((v, k) => { respHeaders[k] = v })
+      let text = ''
+      try { text = await res.text() } catch {}
+      setResponse({ status: res.status, statusText: res.statusText, headers: respHeaders, body: text, elapsed })
+    } catch (e) {
+      if (e.name !== 'AbortError') setResponse({ error: e.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const statusColor = response?.status ? (response.status < 300 ? '#c3e88d' : response.status < 400 ? '#ffcb6b' : '#ff5370') : accent
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader accent={accent} icon="globe" title="API Tester" sub="HTTP request builder" />
+
+      <div style={{ padding: '8px 10px', borderBottom: '1px solid #1b2127', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Method + URL */}
+        <div style={{ display: 'flex', gap: 5 }}>
+          <select
+            value={method}
+            onChange={e => setMethod(e.target.value)}
+            style={{ padding: '5px 7px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: accent, fontSize: 11, fontWeight: 800, outline: 'none', cursor: 'pointer' }}
+          >
+            {HTTP_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <input
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && send()}
+            placeholder="https://api.example.com/endpoint"
+            spellCheck={false}
+            style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#f1f4f6', fontSize: 11, outline: 'none', fontFamily: 'monospace' }}
+          />
+        </div>
+        {/* Headers */}
+        <textarea
+          value={headersText}
+          onChange={e => setHeadersText(e.target.value)}
+          placeholder="Headers (one per line, Name: value)"
+          spellCheck={false}
+          rows={2}
+          style={{ padding: '5px 8px', background: '#070909', border: '1px solid #1b2127', borderRadius: 7, color: '#9aa3ab', fontSize: 10.5, outline: 'none', resize: 'none', fontFamily: 'monospace', lineHeight: 1.6 }}
+        />
+        {/* Body */}
+        {!['GET', 'HEAD'].includes(method) && (
+          <textarea
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            placeholder='{"key": "value"}'
+            spellCheck={false}
+            rows={3}
+            style={{ padding: '5px 8px', background: '#070909', border: '1px solid #1b2127', borderRadius: 7, color: '#9aa3ab', fontSize: 10.5, outline: 'none', resize: 'none', fontFamily: 'monospace', lineHeight: 1.6 }}
+          />
+        )}
+        <button
+          onClick={loading ? () => abortRef.current?.abort() : send}
+          style={{ padding: '6px 0', borderRadius: 7, border: 'none', background: loading ? 'rgba(255,83,112,0.1)' : (url.trim() ? accent : '#1c2126'), color: loading ? '#ff5370' : (url.trim() ? '#0a0a0a' : '#3f4852'), fontSize: 12, fontWeight: 800, cursor: url.trim() ? 'pointer' : 'default' }}
+        >
+          {loading ? 'Cancel' : 'Send'}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 8 }}>
+        {!response && !loading && <PanelEmpty icon="globe" accent={accent} hint="Fill in a URL and click Send.">No response yet</PanelEmpty>}
+        {response?.error && <div style={{ padding: 10, color: '#ff5370', fontSize: 12 }}>{response.error}</div>}
+        {response && !response.error && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#0f1318', border: `1px solid ${statusColor}44`, borderRadius: 8 }}>
+              <span style={{ fontSize: 15, fontWeight: 900, color: statusColor, fontFamily: 'monospace' }}>{response.status}</span>
+              <span style={{ fontSize: 11, color: '#9aa3ab' }}>{response.statusText}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: '#5a646d' }}>{response.elapsed}ms</span>
+            </div>
+            {Object.keys(response.headers).length > 0 && (
+              <div style={{ padding: '6px 8px', background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 8 }}>
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: '#3f4852', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Response Headers</div>
+                {Object.entries(response.headers).slice(0, 12).map(([k, v]) => (
+                  <div key={k} style={{ fontSize: 10, fontFamily: 'monospace', color: '#69737d', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: accent }}>{k}</span>: {v}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ padding: '6px 8px', background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 8 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, color: '#3f4852', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Body</div>
+              <pre style={{ margin: 0, fontSize: 10.5, lineHeight: 1.65, color: '#c5cdd5', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 300, overflowY: 'auto' }}>
+                {(() => {
+                  try { return JSON.stringify(JSON.parse(response.body), null, 2) } catch { return response.body || '(empty)' }
+                })()}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Env Manager ----------
+function EnvManagerTab({ accent, cwd }) {
+  const [pairs, setPairs] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveResult, setSaveResult] = useState(null)
+  const [visible, setVisible] = useState(new Set())
+  const [envPath, setEnvPath] = useState(null)
+
+  const load = useCallback(async () => {
+    if (!cwd) return
+    const p = cwd.includes('\\') ? `${cwd}\\.env` : `${cwd}/.env`
+    setEnvPath(p)
+    setLoading(true)
+    try {
+      const res = await window.sush?.readFile?.({ path: p })
+      if (res?.ok) {
+        const parsed = res.content.split('\n').filter(line => line.trim() && !line.trim().startsWith('#')).map((line, i) => {
+          const eq = line.indexOf('=')
+          if (eq < 0) return { id: i, key: line.trim(), value: '' }
+          return { id: i, key: line.slice(0, eq).trim(), value: line.slice(eq + 1) }
+        })
+        setPairs(parsed)
+      } else {
+        setPairs([])
+      }
+    } catch {}
+    finally { setLoading(false) }
+  }, [cwd])
+
+  useEffect(() => { load() }, [load])
+
+  const save = async () => {
+    if (!envPath) return
+    setSaving(true); setSaveResult(null)
+    const content = pairs.filter(p => p.key.trim()).map(p => `${p.key}=${p.value}`).join('\n') + '\n'
+    try {
+      const res = await window.sush?.writeFile?.({ path: envPath, content })
+      setSaveResult(res?.ok ? 'Saved!' : (res?.error || 'Save failed'))
+    } catch (e) {
+      setSaveResult(e.message)
+    } finally {
+      setSaving(false)
+      setTimeout(() => setSaveResult(null), 2000)
+    }
+  }
+
+  const addPair = () => setPairs(p => [...p, { id: Date.now(), key: '', value: '' }])
+  const delPair = (id) => setPairs(p => p.filter(x => x.id !== id))
+  const setPairKey = (id, key) => setPairs(p => p.map(x => x.id === id ? { ...x, key } : x))
+  const setPairValue = (id, val) => setPairs(p => p.map(x => x.id === id ? { ...x, value: val } : x))
+  const toggleVisible = (id) => setVisible(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
+
+  if (!cwd) return <PanelEmpty icon="key" accent={accent}>No active directory</PanelEmpty>
+
+  const isSecret = (key) => /key|secret|token|password|pass|pwd|auth|api_key/i.test(key)
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader
+        accent={accent}
+        icon="key"
+        title=".env Manager"
+        sub={envPath ? envPath.split(/[\\/]/).slice(-2).join('/') : '.env'}
+        onRefresh={load}
+        right={
+          <button onClick={addPair} title="Add variable" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.1), color: accent, cursor: 'pointer' }}>
+            <Icon name="plus" size={14} strokeWidth={2.4} />
+          </button>
+        }
+      />
+
+      {loading && <PanelEmpty icon="key" accent={accent}>Loading .env...</PanelEmpty>}
+
+      {!loading && (
+        <>
+          <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 8 }}>
+            {!pairs.length ? (
+              <PanelEmpty icon="key" accent={accent} hint="No .env found. Press + to create variables.">No variables</PanelEmpty>
+            ) : pairs.map(p => {
+              const secret = isSecret(p.key)
+              const shown = visible.has(p.id)
+              return (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                  <input
+                    value={p.key}
+                    onChange={e => setPairKey(p.id, e.target.value)}
+                    placeholder="KEY"
+                    spellCheck={false}
+                    style={{ width: 110, padding: '4px 7px', background: '#0f1318', border: `1px solid ${rgba(accent, 0.2)}`, borderRadius: 6, color: accent, fontSize: 11, fontFamily: 'monospace', outline: 'none', fontWeight: 700 }}
+                  />
+                  <span style={{ color: '#3f4852', flexShrink: 0 }}>=</span>
+                  <input
+                    value={p.value}
+                    onChange={e => setPairValue(p.id, e.target.value)}
+                    type={secret && !shown ? 'password' : 'text'}
+                    placeholder="value"
+                    spellCheck={false}
+                    style={{ flex: 1, minWidth: 0, padding: '4px 7px', background: '#070909', border: '1px solid #1b2127', borderRadius: 6, color: '#d4dbe1', fontSize: 11, fontFamily: 'monospace', outline: 'none' }}
+                  />
+                  {secret && (
+                    <button onClick={() => toggleVisible(p.id)} title={shown ? 'Hide' : 'Show'} style={{ width: 24, height: 24, borderRadius: 5, border: '1px solid #20272e', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon name={shown ? 'eyeOff' : 'eye'} size={11} />
+                    </button>
+                  )}
+                  <button onClick={() => delPair(p.id)} style={{ width: 24, height: 24, borderRadius: 5, border: '1px solid #1b2127', background: 'transparent', color: '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon name="trash" size={10} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          <div style={{ padding: '8px 10px', borderTop: '1px solid #1b2127' }}>
+            {saveResult && (
+              <div style={{ fontSize: 10.5, color: saveResult === 'Saved!' ? '#c3e88d' : '#ff5370', marginBottom: 5 }}>{saveResult}</div>
+            )}
+            <button
+              onClick={save}
+              disabled={saving}
+              style={{ width: '100%', padding: '6px 0', borderRadius: 7, border: 'none', background: saving ? '#1c2126' : accent, color: saving ? '#3f4852' : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: saving ? 'default' : 'pointer' }}
+            >
+              {saving ? 'Saving...' : 'Save .env'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------- SSH Quick-Connect ----------
+const SSH_PROFILES_KEY = 'sush-ssh-profiles'
+function loadSshProfiles() {
+  try { return JSON.parse(localStorage.getItem(SSH_PROFILES_KEY) ?? '[]') } catch { return [] }
+}
+
+function SshTab({ accent, onNewTab, onRun }) {
+  const [profiles, setProfiles] = useState(loadSshProfiles)
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState({ label: '', user: '', host: '', port: '22', keyPath: '' })
+  const labelRef = useRef(null)
+
+  useEffect(() => { if (creating) labelRef.current?.focus() }, [creating])
+
+  const persist = (next) => {
+    setProfiles(next)
+    localStorage.setItem(SSH_PROFILES_KEY, JSON.stringify(next))
+  }
+
+  const save = () => {
+    const { label, user, host } = form
+    if (!host.trim()) return
+    const entry = {
+      id: `ssh-${Date.now()}`,
+      label: label.trim() || `${user ? user + '@' : ''}${host}`,
+      user: user.trim(),
+      host: host.trim(),
+      port: form.port.trim() || '22',
+      keyPath: form.keyPath.trim()
+    }
+    persist([...profiles, entry])
+    setCreating(false)
+    setForm({ label: '', user: '', host: '', port: '22', keyPath: '' })
+  }
+
+  const del = (id) => persist(profiles.filter(p => p.id !== id))
+
+  const connect = (p) => {
+    const parts = ['ssh']
+    if (p.user) parts.push(`${p.user}@${p.host}`)
+    else parts.push(p.host)
+    if (p.port && p.port !== '22') parts.push('-p', p.port)
+    if (p.keyPath) parts.push('-i', p.keyPath)
+    const cmd = parts.join(' ')
+    if (onNewTab) onNewTab({ command: cmd })
+    else onRun?.(cmd)
+  }
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader
+        accent={accent}
+        icon="lock"
+        title="SSH Profiles"
+        sub={`${profiles.length} saved`}
+        right={
+          <button onClick={() => setCreating(true)} title="Add profile" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.1), color: accent, cursor: 'pointer' }}>
+            <Icon name="plus" size={14} strokeWidth={2.4} />
+          </button>
+        }
+      />
+
+      {creating && (
+        <div style={{ padding: '10px 10px 8px', borderBottom: '1px solid #1b2127', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[
+            { key: 'label', ph: 'Label (optional)...' },
+            { key: 'host', ph: 'Host / IP *' },
+            { key: 'user', ph: 'Username (optional)' },
+            { key: 'port', ph: 'Port (default 22)' },
+            { key: 'keyPath', ph: 'Key path (~/.ssh/id_rsa)' }
+          ].map(({ key, ph }, i) => (
+            <input
+              key={key}
+              ref={i === 0 ? labelRef : undefined}
+              value={form[key]}
+              onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setCreating(false) }}
+              placeholder={ph}
+              spellCheck={false}
+              style={{ padding: '5px 8px', background: '#0f1318', border: `1px solid ${key === 'host' ? rgba(accent, 0.3) : '#20272e'}`, borderRadius: 7, color: '#f1f4f6', fontSize: 11, outline: 'none', fontFamily: key === 'keyPath' || key === 'host' ? 'monospace' : 'inherit' }}
+            />
+          ))}
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button onClick={() => setCreating(false)} style={{ padding: '4px 11px', borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#69737d', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={save} disabled={!form.host.trim()} style={{ padding: '4px 11px', borderRadius: 6, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.12), color: accent, fontSize: 11, fontWeight: 700, cursor: form.host.trim() ? 'pointer' : 'default', opacity: form.host.trim() ? 1 : 0.5 }}>Save</button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
+        {!profiles.length ? (
+          <PanelEmpty icon="lock" accent={accent} hint="Save SSH connection details for one-click access. Press + to add.">No SSH profiles</PanelEmpty>
+        ) : profiles.map(p => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 6, border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318' }}>
+            <Icon name="lock" size={14} color={accent} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#d4dbe1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</div>
+              <div style={{ fontSize: 10, color: '#5a646d', fontFamily: 'monospace', marginTop: 1 }}>
+                {p.user ? `${p.user}@` : ''}{p.host}{p.port !== '22' ? `:${p.port}` : ''}
+              </div>
+            </div>
+            <button
+              onClick={() => connect(p)}
+              title="Connect"
+              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.1), color: accent, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="enter" size={13} />
+            </button>
+            <button onClick={() => del(p.id)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="trash" size={11} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -1296,7 +1919,7 @@ function MarkdownTab({ accent, cwd, initialPath }) {
           value={path}
           onChange={e => setPath(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && load(path)}
-          placeholder={cwd ? `${cwd}/README.md` : 'Path to .md file…'}
+          placeholder={cwd ? `${cwd}/README.md` : 'Path to .md file...'}
           spellCheck={false}
           style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#f1f4f6', fontSize: 11, outline: 'none', fontFamily: 'monospace' }}
         />
@@ -1305,7 +1928,7 @@ function MarkdownTab({ accent, cwd, initialPath }) {
           disabled={loading}
           style={{ padding: '5px 11px', borderRadius: 7, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.1), color: accent, fontSize: 11, fontWeight: 700, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1 }}
         >
-          {loading ? '…' : 'Load'}
+          {loading ? '...' : 'Load'}
         </button>
       </div>
 

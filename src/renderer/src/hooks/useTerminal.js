@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import React, { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -14,6 +14,7 @@ export function useTerminal({
   fontSize = 14,
   fontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
   cursorStyle = 'block',
+  broadcastTabIds,
   onAutoCopy,
   onCommand,
   onSessionState,
@@ -26,9 +27,13 @@ export function useTerminal({
   const onCommandRef = useRef(onCommand)
   const onSessionStateRef = useRef(onSessionState)
   const onReadyRef = useRef(onReady)
+  const broadcastTabIdsRef = useRef(broadcastTabIds)
+  const recordingRef = useRef(false)
+  const recordStartRef = useRef(0)
+  const recordEventsRef = useRef([])
   // initialCwd is only consumed once, when the PTY first spawns. Keep it in a ref
   // so that later cwd updates (the shell reports its directory via OSC7 on every
-  // `cd`) don't land in the create-effect's dependency array — otherwise each
+  // `cd`) don't land in the create-effect's dependency array -- otherwise each
   // directory change would dispose and recreate the xterm instance, wiping the
   // visible buffer and re-running startPty.
   const initialCwdRef = useRef(initialCwd)
@@ -53,6 +58,10 @@ export function useTerminal({
     initialCwdRef.current = initialCwd
   }, [initialCwd])
 
+  useEffect(() => {
+    broadcastTabIdsRef.current = broadcastTabIds
+  }, [broadcastTabIds])
+
   const resizePty = useCallback(() => {
     const term = termRef.current
     if (!term) return
@@ -60,7 +69,7 @@ export function useTerminal({
   }, [tabId])
 
   // Fitting can throw if the renderer's dimensions aren't ready yet (e.g. when a
-  // swarm mounts many terminals at once). Swallow it — the ResizeObserver retries.
+  // swarm mounts many terminals at once). Swallow it -- the ResizeObserver retries.
   const safeFit = useCallback(() => {
     try { fitAddonRef.current?.fit() } catch {}
   }, [])
@@ -106,7 +115,12 @@ export function useTerminal({
     }
 
     const removeDataListener = window.sush.onPtyData(({ tabId: incomingTabId, data }) => {
-      if (incomingTabId === tabId) term.write(data)
+      if (incomingTabId !== tabId) return
+      term.write(data)
+      if (recordingRef.current) {
+        const ts = (Date.now() - recordStartRef.current) / 1000
+        recordEventsRef.current.push([ts, 'o', data])
+      }
     })
 
     const removeExitListener = window.sush.onPtyExit(({ tabId: incomingTabId, exitCode }) => {
@@ -132,7 +146,7 @@ export function useTerminal({
           const snap = command
           longRunTimer = setTimeout(() => {
             if (!document.hasFocus()) {
-              sushNotify('Still running…', snap.slice(0, 80))
+              sushNotify('Still running...', snap.slice(0, 80))
               pendingNotifCmd = snap
             }
           }, 5000)
@@ -148,6 +162,13 @@ export function useTerminal({
         commandBuffer += data
       }
       window.sush.ptyInput({ tabId, data })
+      // Broadcast to other tabs if broadcast mode is active
+      const bcastIds = broadcastTabIdsRef.current
+      if (bcastIds && bcastIds.length > 1) {
+        for (const id of bcastIds) {
+          if (id !== tabId) window.sush.ptyInput({ tabId: id, data })
+        }
+      }
     })
 
     const selectionDisposable = term.onSelectionChange(() => {
@@ -277,5 +298,31 @@ export function useTerminal({
     termRef.current?.focus()
   }, [])
 
-  return { term: termRef, fit, focus, pasteText, search, searchPrev, clearSearch, getSelection, clear }
+  const [isRecording, setIsRecording] = useState(false)
+
+  const startRecording = useCallback(() => {
+    recordingRef.current = true
+    recordStartRef.current = Date.now()
+    recordEventsRef.current = []
+    setIsRecording(true)
+  }, [])
+
+  const stopRecording = useCallback(() => {
+    recordingRef.current = false
+    setIsRecording(false)
+    const term = termRef.current
+    const header = JSON.stringify({ version: 2, width: term?.cols ?? 80, height: term?.rows ?? 24, timestamp: Math.floor(recordStartRef.current / 1000) })
+    const events = recordEventsRef.current.map(e => JSON.stringify(e)).join('\n')
+    const content = header + '\n' + events + '\n'
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sush-recording-${Date.now()}.cast`
+    a.click()
+    URL.revokeObjectURL(url)
+    recordEventsRef.current = []
+  }, [])
+
+  return { term: termRef, fit, focus, pasteText, search, searchPrev, clearSearch, getSelection, clear, startRecording, stopRecording, isRecording }
 }

@@ -40,7 +40,7 @@ function targetName(id) {
 
 function describeSessions(tabs) {
   const running = tabs.filter(t => t.status !== 'exited')
-  if (!running.length) return "Nothing is running yet. Tell me what to launch — e.g. "build team here" or "3 claude"."
+  if (!running.length) return "Nothing is running yet. Tell me what to launch -- e.g. 'build team here' or '3 claude'."
   const byAgent = new Map()
   running.forEach(t => {
     const id = t.agentId || 'shell'
@@ -50,7 +50,7 @@ function describeSessions(tabs) {
   const parts = [...byAgent.entries()].map(([id, list]) => `${list.length}× ${agentById(id)?.label || 'Terminal'}`)
   const groups = new Set(running.map(t => t.groupId).filter(Boolean)).size
   const groupNote = groups ? ` across ${groups} workspace${groups === 1 ? '' : 's'}` : ''
-  return `${running.length} session${running.length === 1 ? '' : 's'} live${groupNote}: ${parts.join(', ')}. Say "tell claude …" to prompt one, or "focus codex" to jump to it.`
+  return `${running.length} session${running.length === 1 ? '' : 's'} live${groupNote}: ${parts.join(', ')}. Say "tell claude ..." to prompt one, or "focus codex" to jump to it.`
 }
 
 function buildTeam() {
@@ -157,6 +157,24 @@ function speak(text, voiceSettings = {}) {
   window.speechSynthesis.speak(utt)
 }
 
+// ElevenLabs TTS: fetch streaming audio and play it.
+async function elevenLabsSpeak(text, apiKey, voiceId) {
+  if (!text || !apiKey || !voiceId) return
+  try {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+      method: 'POST',
+      headers: { 'xi-api-key': apiKey, 'content-type': 'application/json', 'accept': 'audio/mpeg' },
+      body: JSON.stringify({ text: text.slice(0, 500), model_id: 'eleven_monolingual_v1', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+    })
+    if (!res.ok) return
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const audio = new Audio(url)
+    audio.play()
+    audio.onended = () => URL.revokeObjectURL(url)
+  } catch {}
+}
+
 const QUICK = [
   { label: 'Build team', send: 'build team here' },
   { label: 'Status', send: 'status' },
@@ -190,7 +208,7 @@ export default function Seducia({
   const [streaming, setStreaming] = useState(false)
   const [aiMessages, setAiMessages] = useState([]) // { role: 'user'|'assistant', content: '' }
   const [log, setLog] = useState([
-    { id: 0, role: 'seducia', text: "I'm Seducia. I can spin up agents ("build team in Rooms"), prompt them ("tell claude to run the tests"), or jump to one ("focus codex"). Tap the mic for voice.", streaming: false }
+    { id: 0, role: 'seducia', text: "I'm Seducia. I can spin up agents ('build team in Rooms'), prompt them ('tell claude to run the tests'), or jump to one ('focus codex'). Tap the mic for voice.", streaming: false }
   ])
   const inputRef = useRef(null)
   const scrollRef = useRef(null)
@@ -233,7 +251,7 @@ export default function Seducia({
       const targets = runningTargets(tabs, intent.target)
       if (!targets.length) {
         onPrompt && null
-        return `No ${targetName(intent.target)} running right now — say "${intent.target === 'all' ? 'build team here' : intent.target + ' here'}" first.`
+        return `No ${targetName(intent.target)} running right now -- say "${intent.target === 'all' ? 'build team here' : intent.target + ' here'}" first.`
       }
       const where = targets.length > 1 ? ` (${targets.length} sessions)` : ''
       onPrompt?.({ target: intent.target, text: intent.text })
@@ -279,7 +297,7 @@ export default function Seducia({
         updateLast(msgId, { text: full.replace(/ACTION:[^\n]*/g, '').trim(), streaming: true })
       }
     } catch (e) {
-      full = e.message?.includes('401') ? "Invalid API key — check Settings." : `AI error: ${e.message}`
+      full = e.message?.includes('401') ? "Invalid API key -- check Settings." : `AI error: ${e.message}`
       updateLast(msgId, { text: full, streaming: false })
       setStreaming(false)
       return true
@@ -299,13 +317,14 @@ export default function Seducia({
     updateLast(msgId, { text: finalText, streaming: false })
     setStreaming(false)
 
-    // TTS: speak the Seducia reply.
+    // TTS: prefer ElevenLabs if configured, fall back to Web Speech API.
     if (voiceEnabled && settings.ttsEnabled) {
-      speak(finalText.replace(/ACTION:[^\n]*/g, '').trim(), {
-        rate: settings.ttsRate,
-        pitch: settings.ttsPitch,
-        voiceURI: settings.ttsVoice
-      })
+      const ttsText = finalText.replace(/ACTION:[^\n]*/g, '').trim()
+      if (settings.elevenLabsKey && settings.elevenLabsVoice) {
+        elevenLabsSpeak(ttsText, settings.elevenLabsKey, settings.elevenLabsVoice)
+      } else {
+        speak(ttsText, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
+      }
     }
 
     setAiMessages([...newHistory, { role: 'assistant', content: full }])
@@ -333,7 +352,7 @@ export default function Seducia({
     } else if (intent.type === 'prompt') {
       const targets = runningTargets(tabs, intent.target)
       if (!targets.length) {
-        response = `No ${targetName(intent.target)} running right now — say "${intent.target === 'all' ? 'build team here' : intent.target + ' here'}" and I'll launch one first.`
+        response = `No ${targetName(intent.target)} running right now -- say "${intent.target === 'all' ? 'build team here' : intent.target + ' here'}" and I'll launch one first.`
       } else {
         const where = targets.length > 1 ? ` (${targets.length} of them)` : ''
         response = `Sending to ${targetName(intent.target)}${where}: "${intent.text}".`
@@ -342,13 +361,13 @@ export default function Seducia({
     } else if (intent.type === 'focus') {
       const targets = runningTargets(tabs, intent.target)
       if (!targets.length) {
-        response = `No ${targetName(intent.target)} to focus — nothing by that name is running.`
+        response = `No ${targetName(intent.target)} to focus -- nothing by that name is running.`
       } else {
         response = `Jumping to ${targetName(intent.target)}.`
         onFocus?.(intent.target)
       }
     } else if (intent.type === 'launch') {
-      response = `On it — spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}. They'll open as a workspace.`
+      response = `On it -- spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}. They'll open as a workspace.`
       onLaunch({ cwd: intent.cwd, agents: intent.agents, groupLabel: intent.groupLabel })
     } else if (intent.type === 'open-launcher') {
       response = 'Opening the launcher so you can dial in the swarm.'
@@ -361,7 +380,11 @@ export default function Seducia({
     push('seducia', response)
 
     if (voiceEnabled && settings.ttsEnabled) {
-      speak(response, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
+      if (settings.elevenLabsKey && settings.elevenLabsVoice) {
+        elevenLabsSpeak(response, settings.elevenLabsKey, settings.elevenLabsVoice)
+      } else {
+        speak(response, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
+      }
     }
   }, [streaming, aiEnabled, activeCwd, dirs, tabs, push, handleAI, onPrompt, onFocus, onLaunch, onOpenLauncher, onRun, voiceEnabled, settings])
 
@@ -538,7 +561,7 @@ export default function Seducia({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handle(value) }
             }}
-            placeholder={listening ? 'Listening…' : streaming ? 'Seducia is thinking…' : 'Launch, prompt, or ask anything…'}
+            placeholder={listening ? 'Listening...' : streaming ? 'Seducia is thinking...' : 'Launch, prompt, or ask anything...'}
             disabled={streaming}
             spellCheck={false}
             style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}

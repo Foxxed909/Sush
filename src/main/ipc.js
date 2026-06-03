@@ -1,6 +1,6 @@
 ﻿import { ipcMain, app, clipboard } from 'electron'
 import { execFile, execFileSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, watch as fsWatch } from 'fs'
 import { join } from 'path'
 import { promisify } from 'util'
 import { fileURLToPath } from 'url'
@@ -16,6 +16,7 @@ import { homedir } from 'os'
 const contexts = new Map()
 const abortControllers = new Map()
 const ptySessions = new Map()
+const fileWatchers = new Map()
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
 
 const WELCOME_BANNER = [
@@ -244,6 +245,7 @@ async function getGitStatus(cwd) {
     })
     const files = stdout.split('\n').filter(Boolean).map(line => ({
       status: (line.slice(0, 2).trim() || '??'),
+      rawStatus: line.slice(0, 2),
       path: line.slice(3).replace(/^"|"$/g, '')
     }))
     return { repo: true, dir, branch, files }
@@ -810,6 +812,115 @@ export function registerIpcHandlers(win) {
     } catch (e) {
       return { ok: false, error: e.message }
     }
+  })
+
+  // ── Git Commit Helpers ────────────────────────────────────────────────────
+  ipcMain.handle('sush:git-stage', async (event, { cwd, file }) => {
+    const dir = resolveStartCwd(cwd)
+    try {
+      await execFileAsync('git', ['-c', 'core.quotepath=false', 'add', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:git-unstage', async (event, { cwd, file }) => {
+    const dir = resolveStartCwd(cwd)
+    try {
+      await execFileAsync('git', ['-c', 'core.quotepath=false', 'restore', '--staged', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+      return { ok: true }
+    } catch (e) {
+      try {
+        await execFileAsync('git', ['reset', 'HEAD', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+        return { ok: true }
+      } catch (e2) {
+        return { ok: false, error: e2.message }
+      }
+    }
+  })
+
+  ipcMain.handle('sush:git-commit', async (event, { cwd, message }) => {
+    const dir = resolveStartCwd(cwd)
+    const msg = String(message || '').trim()
+    if (!msg) return { ok: false, error: 'Empty commit message' }
+    try {
+      const { stdout } = await execFileAsync('git', ['commit', '-m', msg], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+      return { ok: true, output: stdout.trim() }
+    } catch (e) {
+      const out = ((e.stdout || '') + (e.stderr || '')).trim()
+      return { ok: false, error: out || e.message }
+    }
+  })
+
+  ipcMain.handle('sush:git-diff-staged', async (event, { cwd }) => {
+    const dir = resolveStartCwd(cwd)
+    try {
+      const { stdout } = await execFileAsync('git', ['diff', '--cached', '--stat'], { cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 1024 * 1024 })
+      return { ok: true, diff: stdout.trim() }
+    } catch (e) {
+      return { ok: false, diff: '', error: e.message }
+    }
+  })
+
+  // ── Docker ────────────────────────────────────────────────────────────────
+  ipcMain.handle('sush:docker-ps', async () => {
+    try {
+      const { stdout } = await execFileAsync('docker', ['ps', '--format', '{{json .}}'], { windowsHide: true, encoding: 'utf8', timeout: 10000 })
+      const containers = stdout.trim().split('\n').filter(Boolean).map(line => {
+        try { return JSON.parse(line) } catch { return null }
+      }).filter(Boolean)
+      return { ok: true, containers }
+    } catch (e) {
+      return { ok: false, containers: [], error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:docker-stop', async (event, { id }) => {
+    if (!id || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(String(id))) return { ok: false, error: 'Invalid container ID' }
+    try {
+      await execFileAsync('docker', ['stop', String(id)], { windowsHide: true, encoding: 'utf8', timeout: 30000 })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:docker-logs', async (event, { id, tail = 100 }) => {
+    if (!id || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(String(id))) return { ok: false, logs: '', error: 'Invalid container ID' }
+    try {
+      const { stdout, stderr } = await execFileAsync('docker', ['logs', '--tail', String(Math.min(500, Math.max(1, Number(tail) || 100))), String(id)], { windowsHide: true, encoding: 'utf8', timeout: 10000 })
+      return { ok: true, logs: (stdout + stderr).trim() }
+    } catch (e) {
+      const out = ((e.stdout || '') + (e.stderr || '')).trim()
+      return { ok: false, logs: out, error: e.message }
+    }
+  })
+
+  // ── File Watcher ──────────────────────────────────────────────────────────
+  ipcMain.handle('sush:watch-path', (event, { watchId, path: watchPath }) => {
+    if (!watchId || !watchPath) return { ok: false, error: 'Missing watchId or path' }
+    if (fileWatchers.has(watchId)) {
+      try { fileWatchers.get(watchId).close() } catch {}
+      fileWatchers.delete(watchId)
+    }
+    try {
+      const watcher = fsWatch(watchPath, { recursive: false }, (eventType, filename) => {
+        if (!win.isDestroyed()) win.webContents.send('sush:file-changed', { watchId, path: watchPath, filename, eventType })
+      })
+      fileWatchers.set(watchId, watcher)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:unwatch-path', (event, { watchId }) => {
+    if (fileWatchers.has(watchId)) {
+      try { fileWatchers.get(watchId).close() } catch {}
+      fileWatchers.delete(watchId)
+    }
+    return { ok: true }
   })
 }
 

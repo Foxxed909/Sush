@@ -57,15 +57,18 @@ function usePathSuggestions(input) {
   return { suggestions, complete, hasToken: !!token }
 }
 
-export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, onTogglePanel, rightOpen, busy }) {
+export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, onTogglePanel, rightOpen, busy, broadcastMode, onToggleBroadcast, splitMode, onToggleSplit, settings = {} }) {
   const [value, setValue] = useState('')
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
+  const [aiSuggestion, setAiSuggestion] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const blurTimer = useRef(null)
+  const aiTimer = useRef(null)
 
   const { suggestions, complete, hasToken } = usePathSuggestions(value)
 
@@ -87,6 +90,36 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  const fetchAiSuggestion = useCallback(async (input) => {
+    const hasKey = !!(settings.anthropicKey || settings.openaiKey)
+    if (!hasKey || !input.trim() || input.length < 3) { setAiSuggestion(''); return }
+    setAiLoading(true)
+    try {
+      const prompt = `Complete this shell command or path in 1 line. Reply with ONLY the completion (no explanation):\n${input}`
+      let text = null
+      if (settings.anthropicKey) {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
+        })
+        const d = await res.json()
+        text = d.content?.[0]?.text?.trim()
+      } else if (settings.openaiKey) {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
+        })
+        const d = await res.json()
+        text = d.choices?.[0]?.message?.content?.trim()
+      }
+      if (text && text.startsWith(input)) setAiSuggestion(text)
+      else if (text) setAiSuggestion(input + text)
+    } catch {}
+    finally { setAiLoading(false) }
+  }, [settings.anthropicKey, settings.openaiKey])
+
   const submit = async (e) => {
     if (e) e.preventDefault()
     const input = value.trim()
@@ -94,14 +127,19 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     setHistory(prev => [input, ...prev.filter(i => i !== input)].slice(0, 25))
     setHistoryIndex(-1)
     setShowSuggestions(false)
+    setAiSuggestion('')
     setValue('')
     await onRun(input)
   }
 
   const handleChange = (e) => {
-    setValue(e.target.value)
+    const v = e.target.value
+    setValue(v)
     setHistoryIndex(-1)
     setShowSuggestions(true)
+    setAiSuggestion('')
+    clearTimeout(aiTimer.current)
+    aiTimer.current = setTimeout(() => fetchAiSuggestion(v), 700)
   }
 
   const handleKeyDown = (e) => {
@@ -111,6 +149,8 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     if (vis && e.key === 'ArrowUp' && suggestions.length) { e.preventDefault(); setActiveIdx(a => Math.max(a - 1, 0)); return }
     if (vis && e.key === 'Tab') { e.preventDefault(); setValue(complete(suggestions[activeIdx])); return }
     if (vis && e.key === 'Escape') { e.preventDefault(); setShowSuggestions(false); return }
+    // Accept AI suggestion with Tab when path dropdown not visible
+    if (!vis && e.key === 'Tab' && aiSuggestion) { e.preventDefault(); setValue(aiSuggestion); setAiSuggestion(''); return }
 
     // History navigation when no suggestions visible.
     if (!vis && e.key === 'ArrowUp') {
@@ -166,18 +206,29 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
         {/* Input */}
         <div className="sush-omni flex items-center" style={{ flex: 1, minWidth: 0, gap: 9, position: 'relative' }}>
           <Icon name="command" size={14} color={busy ? accent : '#5a646d'} className={busy ? 'sush-spin' : undefined} />
-          <input
-            ref={inputRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onFocus={openSuggestions}
-            onBlur={closeSuggestions}
-            placeholder="Smart command, path, or shell…"
-            spellCheck={false}
-            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
-          />
-          {!value && (
+          <div style={{ flex: 1, minWidth: 0, position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
+            <input
+              ref={inputRef}
+              value={value}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onFocus={openSuggestions}
+              onBlur={() => { closeSuggestions(); setTimeout(() => setAiSuggestion(''), 200) }}
+              placeholder="Smart command, path, or shell..."
+              spellCheck={false}
+              style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
+            />
+            {/* AI ghost suggestion */}
+            {aiSuggestion && !showSuggestions && (
+              <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#3f4852', pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%', zIndex: 0 }}>
+                {aiSuggestion}
+              </span>
+            )}
+          </div>
+          {aiSuggestion && !showSuggestions && (
+            <span style={{ fontSize: 9.5, color: '#3f4852', flexShrink: 0, userSelect: 'none' }}>Tab</span>
+          )}
+          {!value && !aiSuggestion && (
             <span className="flex items-center" style={{ gap: 3, color: '#3f4852', fontSize: 10, fontWeight: 700, flexShrink: 0, userSelect: 'none' }}>
               <kbd style={kbdStyle}>Ctrl</kbd><kbd style={kbdStyle}>L</kbd>
             </span>
@@ -215,6 +266,30 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           {busy ? 'Running' : 'Run'}
           {!busy && <Icon name="enter" size={13} strokeWidth={2.2} color="#0a0a0a" style={{ marginLeft: 4 }} />}
         </button>
+
+        {/* Broadcast toggle */}
+        {onToggleBroadcast && (
+          <button
+            type="button"
+            title={broadcastMode ? 'Broadcast ON -- input goes to all tabs (Ctrl+Shift+B)' : 'Broadcast mode off (Ctrl+Shift+B)'}
+            onClick={onToggleBroadcast}
+            style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : '#20272e'}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : '#11151a', color: broadcastMode ? '#ff5370' : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="radio" size={14} />
+          </button>
+        )}
+
+        {/* Split pane toggle */}
+        {onToggleSplit && (
+          <button
+            type="button"
+            title={splitMode ? 'Exit split pane (Ctrl+Shift+H)' : 'Split pane (Ctrl+Shift+H)'}
+            onClick={onToggleSplit}
+            style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${splitMode ? rgba(accent, 0.45) : '#20272e'}`, background: splitMode ? rgba(accent, 0.1) : '#11151a', color: splitMode ? accent : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name="layout" size={14} />
+          </button>
+        )}
 
         {/* Panel toggle */}
         <button

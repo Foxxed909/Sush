@@ -180,10 +180,15 @@ export default function App() {
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [commandHistory, setCommandHistory] = useState([])
+  const [broadcastMode, setBroadcastMode] = useState(false)
+  const [splitMode, setSplitMode] = useState(false)
+  const [splitTabId, setSplitTabId] = useState(null)
+  const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
   const pendingPtyRef = useRef(new Map())
   const tabsRef = useRef(tabs)
   const activeIdRef = useRef(activeId)
   const closeTabRef = useRef(null)
+  const rightDragRef = useRef(null)
 
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
@@ -275,6 +280,19 @@ export default function App() {
       if (ctrl && (key === '?' || (e.shiftKey && key === '/'))) { e.preventDefault(); setShowShortcuts(prev => !prev) }
       // Ctrl+Shift+Z → zen mode
       if (ctrl && e.shiftKey && key === 'z') { e.preventDefault(); setZenMode(prev => !prev) }
+      // Ctrl+Shift+H → split pane
+      if (ctrl && e.shiftKey && key === 'h') {
+        e.preventDefault()
+        setSplitMode(prev => {
+          if (!prev) {
+            const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
+            if (others.length) setSplitTabId(others[0].id)
+          }
+          return !prev
+        })
+      }
+      // Ctrl+Shift+B → broadcast mode
+      if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
       // Ctrl+T → new tab
       if (ctrl && key === 't') { e.preventDefault(); openTab(profiles[0]) }
       // Ctrl+W → close active tab
@@ -286,6 +304,23 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('sush-right-open', rightOpen ? '1' : '0') }, [rightOpen])
   useEffect(() => { localStorage.setItem('sush-right-tab', rightTab) }, [rightTab])
+  useEffect(() => { localStorage.setItem('sush-right-width', String(rightWidth)) }, [rightWidth])
+
+  const startRightDrag = useCallback((e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = rightWidth
+    const onMove = (ev) => {
+      const delta = startX - ev.clientX
+      setRightWidth(Math.max(280, Math.min(700, startWidth + delta)))
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [rightWidth])
 
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
@@ -389,7 +424,7 @@ export default function App() {
     )
   }, [])
 
-  // Seducia "tell claude …" — type a prompt into every matching live agent.
+  // Seducia "tell claude ..." -- type a prompt into every matching live agent.
   const sendAgentPrompt = useCallback(({ target, text }) => {
     const body = String(text ?? '').trim()
     if (!body) return
@@ -399,7 +434,7 @@ export default function App() {
       if (tab.status === 'running') {
         window.sush.ptyInput({ tabId: tab.id, data: `${body}\r` })
       } else {
-        // Not booted yet — queue so it fires when the shell signals ready.
+        // Not booted yet -- queue so it fires when the shell signals ready.
         pendingPtyRef.current.set(tab.id, body)
       }
     })
@@ -408,7 +443,7 @@ export default function App() {
     setView('terminal')
   }, [liveTargets])
 
-  // Seducia "focus codex" — bring the matching live agent to the foreground.
+  // Seducia "focus codex" -- bring the matching live agent to the foreground.
   const focusAgent = useCallback((target) => {
     const match = liveTargets(target)[0]
     if (!match) return
@@ -642,32 +677,86 @@ export default function App() {
             onTogglePanel={() => setRightOpen(prev => !prev)}
             rightOpen={rightOpen}
             busy={smartBusy}
+            broadcastMode={broadcastMode}
+            onToggleBroadcast={() => setBroadcastMode(prev => !prev)}
+            splitMode={splitMode}
+            onToggleSplit={() => {
+              setSplitMode(prev => {
+                if (!prev) {
+                  const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
+                  if (others.length) setSplitTabId(others[0].id)
+                }
+                return !prev
+              })
+            }}
+            settings={settings}
           />
           )}
 
           <div className="flex-1 relative overflow-hidden">
-            {tabs.map(tab => {
-              const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
-              const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-              const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
-              return (
-                <Terminal
-                  key={tab.id}
-                  tabId={tab.id}
-                  theme={t}
-                  profile={prof}
-                  active={tab.id === activeId}
-                  initialCwd={tab.cwd}
-                  fontSize={fontSize}
-                  fontFamily={fontFamily}
-                  cursorStyle={cursorStyle}
-                  onSessionState={(state) => handleSessionState(tab.id, state)}
-                  onReady={(state) => handleTerminalReady(tab.id, state)}
-                  onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
-                  onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
-                />
-              )
-            })}
+            {splitMode ? (
+              <div style={{ display: 'flex', height: '100%' }}>
+                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                  {tabs.filter(tab => tab.id === activeId).map(tab => {
+                    const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
+                    const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
+                    const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                    return (
+                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={true}
+                        initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
+                        broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                        onSessionState={(state) => handleSessionState(tab.id, state)}
+                        onReady={(state) => handleTerminalReady(tab.id, state)}
+                        onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
+                        onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                      />
+                    )
+                  })}
+                </div>
+                <div style={{ width: 1, background: rgba(accent, 0.2), flexShrink: 0 }} />
+                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                  {tabs.filter(tab => tab.id === (splitTabId || tabs.find(t => t.id !== activeId)?.id)).map(tab => {
+                    const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
+                    const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
+                    const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                    return (
+                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={true}
+                        initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
+                        broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                        onSessionState={(state) => handleSessionState(tab.id, state)}
+                        onReady={(state) => handleTerminalReady(tab.id, state)}
+                        onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
+                        onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              tabs.map(tab => {
+                const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
+                const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
+                const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                return (
+                  <Terminal
+                    key={tab.id}
+                    tabId={tab.id}
+                    theme={t}
+                    profile={prof}
+                    active={tab.id === activeId}
+                    initialCwd={tab.cwd}
+                    fontSize={fontSize}
+                    fontFamily={fontFamily}
+                    cursorStyle={cursorStyle}
+                    broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                    onSessionState={(state) => handleSessionState(tab.id, state)}
+                    onReady={(state) => handleTerminalReady(tab.id, state)}
+                    onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
+                    onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                  />
+                )
+              })
+            )}
 
             {view === 'home' && (
               <HomeDashboard
@@ -729,23 +818,32 @@ export default function App() {
         </div>
 
         {rightOpen && !zenMode && (
-          <RightPanel
-            accent={accent}
-            tab={rightTab}
-            onTab={setRightTab}
-            activeCwd={activeTab?.cwd}
-            tabs={tabs}
-            recentSessions={recentSessions}
-            onLaunch={launchSessions}
-            onRun={runSmartInput}
-            onPrompt={sendAgentPrompt}
-            onFocus={focusAgent}
-            onOpenLauncher={() => setShowLauncher(true)}
-            onClose={() => setRightOpen(false)}
-            settings={settings}
-            planId={planId}
-            commandHistory={commandHistory}
-          />
+          <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+            {/* Drag handle */}
+            <div
+              onMouseDown={startRightDrag}
+              style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', zIndex: 10 }}
+            />
+            <RightPanel
+              accent={accent}
+              tab={rightTab}
+              onTab={setRightTab}
+              activeCwd={activeTab?.cwd}
+              tabs={tabs}
+              recentSessions={recentSessions}
+              onLaunch={launchSessions}
+              onRun={runSmartInput}
+              onPrompt={sendAgentPrompt}
+              onFocus={focusAgent}
+              onOpenLauncher={() => setShowLauncher(true)}
+              onClose={() => setRightOpen(false)}
+              onNewTab={(options) => openTab(profiles[0], options)}
+              settings={settings}
+              planId={planId}
+              commandHistory={commandHistory}
+              style={{ width: rightWidth }}
+            />
+          </div>
         )}
       </div>
 

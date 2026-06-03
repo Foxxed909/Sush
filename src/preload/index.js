@@ -48,5 +48,19 @@ contextBridge.exposeInMainWorld('sush', {
   getTabMeta: (payload) => ipcRenderer.invoke('sush:get-tab-meta', payload),
   getSystemStats: () => ipcRenderer.invoke('sush:get-system-stats'),
   getPorts: () => ipcRenderer.invoke('sush:get-ports'),
-  killPid: (payload) => ipcRenderer.invoke('sush:kill-pid', payload)
+  killPid: (payload) => ipcRenderer.invoke('sush:kill-pid', payload),
+  gitStage: (payload) => ipcRenderer.invoke('sush:git-stage', payload),
+  gitUnstage: (payload) => ipcRenderer.invoke('sush:git-unstage', payload),
+  gitCommit: (payload) => ipcRenderer.invoke('sush:git-commit', payload),
+  gitDiffStaged: (payload) => ipcRenderer.invoke('sush:git-diff-staged', payload),
+  dockerPs: () => ipcRenderer.invoke('sush:docker-ps'),
+  dockerStop: (payload) => ipcRenderer.invoke('sush:docker-stop', payload),
+  dockerLogs: (payload) => ipcRenderer.invoke('sush:docker-logs', payload),
+  watchPath: (payload) => ipcRenderer.invoke('sush:watch-path', payload),
+  unwatchPath: (payload) => ipcRenderer.invoke('sush:unwatch-path', payload),
+  onFileChanged: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('sush:file-changed', listener)
+    return () => ipcRenderer.removeListener('sush:file-changed', listener)
+  }
 })

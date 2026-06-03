@@ -16,10 +16,10 @@ function formatTime(value) {
 }
 
 function greeting(h) {
-  if (h < 5) return { hi: ‘Still up’, sub: "The terminal’s ready when you are." }
-  if (h < 12) return { hi: ‘Good morning’, sub: ‘A fresh shell awaits.’ }
-  if (h < 18) return { hi: ‘Good afternoon’, sub: ‘Pick up where you left off.’ }
-  return { hi: ‘Good evening’, sub: "Let’s get something running." }
+  if (h < 5) return { hi: 'Still up', sub: "The terminal's ready when you are." }
+  if (h < 12) return { hi: 'Good morning', sub: 'A fresh shell awaits.' }
+  if (h < 18) return { hi: 'Good afternoon', sub: 'Pick up where you left off.' }
+  return { hi: 'Good evening', sub: "Let's get something running." }
 }
 
 function useLiveClock() {
@@ -379,7 +379,7 @@ function NpmScriptsSection({ accent, cwd, onRun }) {
   useEffect(() => {
     if (!cwd) { setScripts(null); return }
     window.sush?.getNpmScripts?.({ cwd })
-      .then(res => { if (res?.ok && Object.keys(res.scripts || {}).length) setScripts(res.scripts) else setScripts(null) })
+      .then(res => { if (res?.ok && Object.keys(res.scripts || {}).length) { setScripts(res.scripts) } else { setScripts(null) } })
       .catch(() => setScripts(null))
   }, [cwd])
 
