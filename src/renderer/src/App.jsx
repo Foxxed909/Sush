@@ -14,6 +14,7 @@ import ShortcutsHelp from './components/ShortcutsHelp'
 import { themes, defaultTheme } from './themes'
 import { accentVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
+import JsonViewer from './components/JsonViewer'
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
 const OLD_COMMAND_RECENTS_KEY = 'sush-recents'
@@ -713,9 +714,15 @@ export default function App() {
                     ×
                   </button>
                 </div>
-                <pre style={{ margin: 0, padding: 12, color: '#d4dbe1', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, lineHeight: 1.5 }}>
-                  {stripAnsi(smartResult.output)}
-                </pre>
+                {(() => {
+                  const raw = stripAnsi(smartResult.output).trim()
+                  const jsonView = smartResult.type !== 'error' && <JsonViewer content={raw} accent={accent} />
+                  return jsonView || (
+                    <pre style={{ margin: 0, padding: 12, color: '#d4dbe1', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, lineHeight: 1.5 }}>
+                      {raw}
+                    </pre>
+                  )
+                })()}
               </div>
             )}
           </div>

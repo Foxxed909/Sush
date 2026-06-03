@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import Seducia from './Seducia'
 import Browser from './Browser'
@@ -14,6 +14,8 @@ const TABS = [
   { id: 'history', label: 'History', icon: 'clock' },
   { id: 'snippets', label: 'Snippets', icon: 'layers' },
   { id: 'ports', label: 'Ports', icon: 'ports' },
+  { id: 'regex', label: 'Regex', icon: 'spark' },
+  { id: 'markdown', label: 'Preview', icon: 'fileText' },
   { id: 'stats', label: 'Stats', icon: 'activity' },
 ]
 
@@ -57,6 +59,17 @@ export default function RightPanel({
   planId = 'free',
   commandHistory = []
 }) {
+  const [mdPath, setMdPath] = useState(null)
+
+  const handleOpenFile = useCallback((p) => {
+    if (p.toLowerCase().endsWith('.md')) {
+      setMdPath(p)
+      onTab('markdown')
+    } else {
+      onRun(`edit "${p}"`)
+    }
+  }, [onRun, onTab])
+
   return (
     <aside
       className="shrink-0 flex flex-col"
@@ -129,13 +142,15 @@ export default function RightPanel({
         <div style={{ position: 'absolute', inset: 0, display: tab === 'browser' ? 'block' : 'none' }}>
           <Browser accent={accent} />
         </div>
-        {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={(p) => onRun(`edit "${p}"`)} />}
-        {tab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={(p) => onRun(`edit "${p}"`)} />}
+        {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
+        {tab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
         {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
         {tab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
-        {tab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} />}
+        {tab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} settings={settings} />}
         {tab === 'snippets' && <SnippetsTab accent={accent} onRun={onRun} />}
         {tab === 'ports' && <PortsTab accent={accent} onRun={onRun} />}
+        {tab === 'regex' && <RegexTab accent={accent} />}
+        {tab === 'markdown' && <MarkdownTab accent={accent} cwd={activeCwd} initialPath={mdPath} />}
         {tab === 'stats' && <StatsTab accent={accent} />}
       </div>
     </aside>
@@ -440,10 +455,49 @@ function ScriptsTab({ accent, cwd, onRun }) {
   )
 }
 
-// ---------- Command History ----------
-function HistoryTab({ accent, history, onRun }) {
+// ---------- Command History + Explainer ----------
+async function explainCommand(cmd, settings) {
+  const prompt = `Explain this shell command in 1-2 concise sentences for a developer. Be direct.\n\nCommand: ${cmd}`
+  if (settings.anthropicKey) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 120, messages: [{ role: 'user', content: prompt }] })
+    })
+    const d = await res.json()
+    return d.content?.[0]?.text?.trim() || null
+  }
+  if (settings.openaiKey) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 120, messages: [{ role: 'user', content: prompt }] })
+    })
+    const d = await res.json()
+    return d.choices?.[0]?.message?.content?.trim() || null
+  }
+  return null
+}
+
+function HistoryTab({ accent, history, onRun, settings = {} }) {
   const [search, setSearch] = useState('')
+  const [explanations, setExplanations] = useState({})
+  const [explaining, setExplaining] = useState(new Set())
   const displayed = history.filter(cmd => !search || cmd.toLowerCase().includes(search.toLowerCase())).slice().reverse()
+  const hasKey = !!(settings.anthropicKey || settings.openaiKey)
+
+  const explain = async (cmd) => {
+    if (explanations[cmd]) { setExplanations(p => { const n = { ...p }; delete n[cmd]; return n }); return }
+    setExplaining(p => new Set([...p, cmd]))
+    try {
+      const text = hasKey ? await explainCommand(cmd, settings) : null
+      setExplanations(p => ({ ...p, [cmd]: text || (hasKey ? 'Could not explain' : 'Add an API key in Settings to use this.') }))
+    } catch (e) {
+      setExplanations(p => ({ ...p, [cmd]: `Error: ${e.message}` }))
+    } finally {
+      setExplaining(p => { const n = new Set(p); n.delete(cmd); return n })
+    }
+  }
 
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
@@ -464,16 +518,30 @@ function HistoryTab({ accent, history, onRun }) {
         {!displayed.length ? (
           <PanelEmpty icon="clock" accent={accent} hint="Commands you run in the active session will appear here.">No history yet</PanelEmpty>
         ) : displayed.map((cmd, i) => (
-          <button
-            key={i}
-            onClick={() => onRun(cmd)}
-            title={`Run: ${cmd}`}
-            className="sush-row flex items-center"
-            style={{ gap: 9, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 8, background: '#0f1318', color: '#9aa3ab', padding: '6px 10px', marginBottom: 5, cursor: 'pointer', fontFamily: 'monospace', fontSize: 11.5 }}
-          >
-            <Icon name="chevronRight" size={11} color="#3f4852" />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{cmd}</span>
-          </button>
+          <div key={i} style={{ marginBottom: 5 }}>
+            <div className="flex items-center" style={{ gap: 6, border: '1px solid #1b2127', borderRadius: 8, background: '#0f1318', padding: '5px 6px 5px 10px' }}>
+              <Icon name="chevronRight" size={11} color="#3f4852" />
+              <button
+                onClick={() => onRun(cmd)}
+                title={`Run: ${cmd}`}
+                style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#9aa3ab', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}
+              >
+                {cmd}
+              </button>
+              <button
+                onClick={() => explain(cmd)}
+                title="Explain this command"
+                style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: `1px solid ${explanations[cmd] ? rgba(accent, 0.4) : '#20272e'}`, background: explanations[cmd] ? rgba(accent, 0.1) : 'transparent', color: explanations[cmd] ? accent : '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}
+              >
+                {explaining.has(cmd) ? '…' : '?'}
+              </button>
+            </div>
+            {explanations[cmd] && (
+              <div style={{ padding: '6px 10px 6px 12px', fontSize: 11.5, color: '#8a939c', lineHeight: 1.55, borderLeft: `2px solid ${rgba(accent, 0.35)}`, marginLeft: 4, marginTop: 3 }}>
+                {explanations[cmd]}
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>
@@ -972,6 +1040,281 @@ function SnippetsTab({ accent, onRun }) {
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Regex Tester ----------
+function RegexTab({ accent }) {
+  const [pattern, setPattern] = useState('')
+  const [flags, setFlags] = useState('g')
+  const [testStr, setTestStr] = useState('')
+
+  const { matches, highlighted, error } = useMemo(() => {
+    if (!pattern) return { matches: [], highlighted: testStr ? [{ text: testStr, match: false }] : [], error: null }
+    try {
+      const gFlags = flags.includes('g') ? flags : flags + 'g'
+      const ms = [...testStr.matchAll(new RegExp(pattern, gFlags))]
+      const parts = []
+      let last = 0
+      for (const m of ms) {
+        if (m.index > last) parts.push({ text: testStr.slice(last, m.index), match: false })
+        parts.push({ text: m[0], match: true, groups: m.slice(1) })
+        last = m.index + m[0].length
+      }
+      if (last < testStr.length) parts.push({ text: testStr.slice(last), match: false })
+      return { matches: ms, highlighted: parts.length ? parts : [{ text: testStr, match: false }], error: null }
+    } catch (e) {
+      return { matches: [], highlighted: [], error: e.message }
+    }
+  }, [pattern, flags, testStr])
+
+  const toggleFlag = (f) => setFlags(prev => prev.includes(f) ? prev.replace(f, '') : prev + f)
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader
+        accent={accent}
+        icon="spark"
+        title="Regex Tester"
+        sub={pattern && !error ? `${matches.length} match${matches.length !== 1 ? 'es' : ''}` : 'Live pattern tester'}
+      />
+
+      <div style={{ padding: '10px 10px 8px', borderBottom: '1px solid #1b2127', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {/* Pattern input styled like /regex/ */}
+        <div className="sush-omni flex items-center" style={{ gap: 6, height: 36, borderColor: error ? 'rgba(255,83,112,0.4)' : undefined }}>
+          <span style={{ color: '#5a646d', fontSize: 15, fontFamily: 'monospace', fontWeight: 800, paddingLeft: 2, flexShrink: 0 }}>/</span>
+          <input
+            value={pattern}
+            onChange={e => setPattern(e.target.value)}
+            placeholder="pattern…"
+            spellCheck={false}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: error ? '#ff5370' : '#f1f4f6', outline: 'none', fontSize: 13.5, fontFamily: 'monospace' }}
+          />
+          <span style={{ color: '#5a646d', fontSize: 15, fontFamily: 'monospace', fontWeight: 800, paddingRight: 4, flexShrink: 0 }}>/{flags}</span>
+        </div>
+
+        {/* Flags row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {['g', 'i', 'm', 's'].map(f => (
+            <button
+              key={f}
+              onClick={() => toggleFlag(f)}
+              style={{ width: 26, height: 22, borderRadius: 5, border: `1px solid ${flags.includes(f) ? rgba(accent, 0.4) : '#20272e'}`, background: flags.includes(f) ? rgba(accent, 0.12) : 'transparent', color: flags.includes(f) ? accent : '#3f4852', fontSize: 11, fontWeight: 800, fontFamily: 'monospace', cursor: 'pointer' }}
+            >
+              {f}
+            </button>
+          ))}
+          {error
+            ? <span style={{ fontSize: 10, color: '#ff5370', marginLeft: 6, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{error}</span>
+            : pattern && <span style={{ fontSize: 10.5, color: matches.length ? accent : '#3f4852', marginLeft: 6, fontWeight: 700 }}>{matches.length} match{matches.length !== 1 ? 'es' : ''}</span>
+          }
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Test string area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ padding: '5px 10px 3px', fontSize: 9.5, fontWeight: 800, color: '#3f4852', textTransform: 'uppercase', letterSpacing: 0.6 }}>Test string</div>
+          <textarea
+            value={testStr}
+            onChange={e => setTestStr(e.target.value)}
+            placeholder="Paste text to test against…"
+            spellCheck={false}
+            style={{ flex: 1, padding: '6px 10px', background: '#0a0c0f', border: 'none', borderTop: '1px solid #141a1f', color: '#9aa3ab', outline: 'none', resize: 'none', fontSize: 12, lineHeight: 1.65, fontFamily: 'monospace' }}
+          />
+        </div>
+
+        {/* Match highlights + group list */}
+        {testStr && pattern && !error && (
+          <div style={{ borderTop: '1px solid #1b2127', maxHeight: '40%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {highlighted.length > 0 && (
+              <div style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.9, wordBreak: 'break-all', borderBottom: '1px solid #141a1f' }}>
+                {highlighted.map((p, i) =>
+                  p.match
+                    ? <mark key={i} style={{ background: rgba(accent, 0.28), color: accent, borderRadius: 3, padding: '0 1px' }}>{p.text}</mark>
+                    : <span key={i} style={{ color: '#5a646d' }}>{p.text}</span>
+                )}
+              </div>
+            )}
+            {matches.length > 0 && (
+              <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {matches.slice(0, 12).map((m, i) => (
+                  <div key={i} style={{ fontSize: 10.5, display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                    <span style={{ color: accent, fontWeight: 700, flexShrink: 0 }}>#{i + 1}</span>
+                    <code style={{ color: '#c3e88d', fontFamily: 'monospace' }}>{m[0] || '(empty)'}</code>
+                    {m.length > 1 && m.slice(1).map((g, gi) => (
+                      <code key={gi} style={{ color: '#82aaff', fontFamily: 'monospace' }}>${gi + 1}:{g ?? '∅'}</code>
+                    ))}
+                    <span style={{ color: '#3f4852', marginLeft: 'auto', flexShrink: 0 }}>@{m.index}</span>
+                  </div>
+                ))}
+                {matches.length > 12 && <div style={{ fontSize: 10, color: '#3f4852' }}>…{matches.length - 12} more matches</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Markdown Preview ----------
+function parseInline(text, accent) {
+  const parts = []
+  let rest = String(text)
+  let k = 0
+  while (rest.length) {
+    let m
+    if ((m = rest.match(/^`([^`]+)`/))) {
+      parts.push(<code key={k++} style={{ background: '#1b2127', color: '#c3e88d', padding: '1px 5px', borderRadius: 4, fontSize: '0.88em' }}>{m[1]}</code>)
+      rest = rest.slice(m[0].length); continue
+    }
+    if ((m = rest.match(/^\*\*([^*]+)\*\*/))) {
+      parts.push(<strong key={k++} style={{ color: '#f1f4f6', fontWeight: 800 }}>{m[1]}</strong>)
+      rest = rest.slice(m[0].length); continue
+    }
+    if ((m = rest.match(/^\*([^*]+)\*/))) {
+      parts.push(<em key={k++} style={{ fontStyle: 'italic', color: '#d4dbe1' }}>{m[1]}</em>)
+      rest = rest.slice(m[0].length); continue
+    }
+    if ((m = rest.match(/^~~([^~]+)~~/))) {
+      parts.push(<span key={k++} style={{ textDecoration: 'line-through', color: '#5a646d' }}>{m[1]}</span>)
+      rest = rest.slice(m[0].length); continue
+    }
+    if ((m = rest.match(/^\[([^\]]+)\]\(([^)]+)\)/))) {
+      const url = m[2]
+      parts.push(<a key={k++} href="#" onClick={e => { e.preventDefault(); window.sush?.openExternal?.({ url }) }} style={{ color: accent, textDecoration: 'underline', cursor: 'pointer' }}>{m[1]}</a>)
+      rest = rest.slice(m[0].length); continue
+    }
+    parts.push(rest[0])
+    rest = rest.slice(1)
+  }
+  return parts
+}
+
+function renderMarkdown(content, accent) {
+  const lines = content.split('\n')
+  const out = []
+  let i = 0
+  let listItems = []
+  let listType = null
+
+  const flushList = () => {
+    if (!listItems.length) return
+    const Tag = listType === 'ul' ? 'ul' : 'ol'
+    out.push(<Tag key={`list-${i}`} style={{ paddingLeft: 20, margin: '5px 0', color: '#c5cdd5', fontSize: 12.5 }}>{listItems}</Tag>)
+    listItems = []; listType = null
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    if (line.startsWith('```')) {
+      flushList()
+      const code = []; i++
+      while (i < lines.length && !lines[i].startsWith('```')) { code.push(lines[i]); i++ }
+      out.push(<pre key={`pre${i}`} style={{ background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 8, padding: '10px 12px', margin: '8px 0', fontSize: 11.5, overflowX: 'auto', color: '#c3e88d', fontFamily: 'monospace', lineHeight: 1.6 }}><code>{code.join('\n')}</code></pre>)
+      i++; continue
+    }
+
+    const hM = line.match(/^(#{1,6})\s+(.+)/)
+    if (hM) {
+      flushList()
+      const lvl = hM[1].length
+      const sz = [20, 17, 15, 13.5, 12.5, 12][lvl - 1]
+      out.push(<div key={`h${i}`} style={{ fontSize: sz, fontWeight: 800, color: lvl === 1 ? accent : '#f1f4f6', marginTop: lvl < 3 ? 14 : 10, marginBottom: 4, lineHeight: 1.3 }}>{parseInline(hM[2], accent)}</div>)
+      i++; continue
+    }
+
+    if (/^-{3,}$/.test(line.trim()) || /^\*{3,}$/.test(line.trim())) {
+      flushList()
+      out.push(<hr key={`hr${i}`} style={{ border: 'none', borderTop: '1px solid #1b2127', margin: '10px 0' }} />)
+      i++; continue
+    }
+
+    if (line.startsWith('> ')) {
+      flushList()
+      out.push(<div key={`bq${i}`} style={{ borderLeft: `3px solid ${rgba(accent, 0.5)}`, paddingLeft: 10, margin: '4px 0', color: '#8a939c', fontSize: 12.5, fontStyle: 'italic' }}>{parseInline(line.slice(2), accent)}</div>)
+      i++; continue
+    }
+
+    const ulM = line.match(/^[-*]\s+(.+)/)
+    if (ulM) {
+      if (listType !== 'ul') flushList(); listType = 'ul'
+      listItems.push(<li key={`li${i}`} style={{ marginBottom: 2 }}>{parseInline(ulM[1], accent)}</li>)
+      i++; continue
+    }
+
+    const olM = line.match(/^\d+\.\s+(.+)/)
+    if (olM) {
+      if (listType !== 'ol') flushList(); listType = 'ol'
+      listItems.push(<li key={`li${i}`} style={{ marginBottom: 2 }}>{parseInline(olM[1], accent)}</li>)
+      i++; continue
+    }
+
+    if (!line.trim()) { flushList(); out.push(<div key={`sp${i}`} style={{ height: 7 }} />); i++; continue }
+
+    flushList()
+    out.push(<p key={`p${i}`} style={{ margin: '3px 0', fontSize: 12.5, lineHeight: 1.75, color: '#c5cdd5' }}>{parseInline(line, accent)}</p>)
+    i++
+  }
+  flushList()
+  return out
+}
+
+function MarkdownTab({ accent, cwd, initialPath }) {
+  const [path, setPath] = useState(initialPath ?? '')
+  const [content, setContent] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [mdError, setMdError] = useState(null)
+
+  const load = useCallback(async (p) => {
+    const target = (p ?? path).trim()
+    if (!target) return
+    setLoading(true); setMdError(null)
+    try {
+      const res = await window.sush?.readFile?.({ path: target })
+      if (res?.ok) { setContent(res.content); setPath(target) }
+      else setMdError(res?.error || 'Could not read file')
+    } catch (e) { setMdError(e.message) }
+    finally { setLoading(false) }
+  }, [path])
+
+  // Auto-load when initialPath changes (e.g. clicking a .md file in Files tab)
+  useEffect(() => {
+    if (initialPath) { setPath(initialPath); load(initialPath) }
+  }, [initialPath]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader accent={accent} icon="fileText" title="Preview" sub={content ? fileName(path) : 'Markdown'} />
+
+      <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderBottom: '1px solid #1b2127' }}>
+        <input
+          value={path}
+          onChange={e => setPath(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && load(path)}
+          placeholder={cwd ? `${cwd}/README.md` : 'Path to .md file…'}
+          spellCheck={false}
+          style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#f1f4f6', fontSize: 11, outline: 'none', fontFamily: 'monospace' }}
+        />
+        <button
+          onClick={() => load(path)}
+          disabled={loading}
+          style={{ padding: '5px 11px', borderRadius: 7, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.1), color: accent, fontSize: 11, fontWeight: 700, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1 }}
+        >
+          {loading ? '…' : 'Load'}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: '10px 14px' }}>
+        {mdError && <div style={{ color: '#ff5370', fontSize: 12, padding: '6px 0' }}>{mdError}</div>}
+        {content !== null && !mdError
+          ? renderMarkdown(content, accent)
+          : !mdError && <PanelEmpty icon="fileText" accent={accent} hint="Type a path above and press Enter, or click a .md file in the Files tab.">No file loaded</PanelEmpty>
+        }
       </div>
     </div>
   )

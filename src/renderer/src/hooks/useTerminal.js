@@ -96,6 +96,14 @@ export function useTerminal({
     let copyTimer = null
     let lastCopiedSelection = ''
     let commandBuffer = ''
+    let longRunTimer = null
+    let pendingNotifCmd = null
+
+    const sushNotify = (title, body) => {
+      if (!('Notification' in window)) return
+      // Electron renderer always has permission granted
+      try { new Notification(title, { body, silent: true }) } catch {}
+    }
 
     const removeDataListener = window.sush.onPtyData(({ tabId: incomingTabId, data }) => {
       if (incomingTabId === tabId) term.write(data)
@@ -113,12 +121,29 @@ export function useTerminal({
     const inputDisposable = term.onData((data) => {
       if (data === '\r') {
         const command = commandBuffer.trim()
-        if (command) onCommandRef.current?.(command)
+        // Notify completion of a previously flagged long command
+        if (pendingNotifCmd) {
+          sushNotify('Command finished', pendingNotifCmd.slice(0, 80))
+          pendingNotifCmd = null
+        }
+        if (command) {
+          onCommandRef.current?.(command)
+          if (longRunTimer) clearTimeout(longRunTimer)
+          const snap = command
+          longRunTimer = setTimeout(() => {
+            if (!document.hasFocus()) {
+              sushNotify('Still running…', snap.slice(0, 80))
+              pendingNotifCmd = snap
+            }
+          }, 5000)
+        }
         commandBuffer = ''
       } else if (data === '\x7f') {
         commandBuffer = commandBuffer.slice(0, -1)
       } else if (data === '\x03') {
         commandBuffer = ''
+        if (longRunTimer) { clearTimeout(longRunTimer); longRunTimer = null }
+        pendingNotifCmd = null
       } else if (data >= ' ' && !data.startsWith('\x1b')) {
         commandBuffer += data
       }
@@ -174,6 +199,7 @@ export function useTerminal({
     return () => {
       cancelAnimationFrame(rafId)
       if (copyTimer) clearTimeout(copyTimer)
+      if (longRunTimer) clearTimeout(longRunTimer)
       inputDisposable.dispose()
       selectionDisposable.dispose()
       removeDataListener()
