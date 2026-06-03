@@ -12,7 +12,7 @@ function splitPath(value) {
   return { parent: v.slice(0, lastSlash) || sep, partial: v.slice(lastSlash + 1), sep }
 }
 
-// "C:" on its own is the drive's current dir, not its root — normalise so the
+// "C:" on its own is the drive's current dir, not its root -- normalise so the
 // listing is predictable.
 function lookupPath(parent) {
   return /^[A-Za-z]:$/.test(parent) ? `${parent}\\` : parent

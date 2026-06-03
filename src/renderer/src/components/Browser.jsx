@@ -10,7 +10,7 @@ const DEFAULT_URL = 'https://duckduckgo.com'
 function normalizeUrl(input) {
   const v = String(input || '').trim()
   if (!v) return ''
-  if (/^[a-z]+:\/\//i.test(v)) return v // already has a scheme (http, https, file, about…)
+  if (/^[a-z]+:\/\//i.test(v)) return v // already has a scheme (http, https, file, about...)
   if (/^:\d+/.test(v)) return `http://localhost${v}` // ":5173" → localhost preview
   if (/^localhost(:\d+)?(\/.*)?$/i.test(v)) return `http://${v}`
   if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/.*)?$/.test(v)) return `http://${v}`
@@ -132,7 +132,7 @@ export default function Browser({ accent }) {
               if (e.key === 'Enter') { e.preventDefault(); navigate(address) }
               if (e.key === 'Escape') { e.preventDefault(); e.currentTarget.blur() }
             }}
-            placeholder="Search or enter address — try :5173 for a dev server"
+            placeholder="Search or enter address -- try :5173 for a dev server"
             spellCheck={false}
             autoComplete="off"
             style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#e6ebef', outline: 'none', fontSize: 12 }}

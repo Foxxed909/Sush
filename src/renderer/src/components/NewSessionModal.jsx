@@ -129,7 +129,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               onValidChange={setCwdValid}
               accent={accent}
               autoFocus
-              placeholder="C:\path\to\project — type to browse"
+              placeholder="C:\path\to\project -- type to browse"
             />
           </div>
           {dirChips.length > 0 && (

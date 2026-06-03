@@ -8,7 +8,7 @@ function JsonNode({ value, depth, accent }) {
   if (typeof value === 'boolean') return <span style={{ color: '#82aaff' }}>{String(value)}</span>
   if (typeof value === 'number') return <span style={{ color: '#ffcb6b' }}>{value}</span>
   if (typeof value === 'string') {
-    const display = value.length > 120 ? value.slice(0, 120) + '…' : value
+    const display = value.length > 120 ? value.slice(0, 120) + '...' : value
     return <span style={{ color: '#c3e88d' }}>"{display}"</span>
   }
 
@@ -20,7 +20,7 @@ function JsonNode({ value, depth, accent }) {
           onClick={() => setOpen(o => !o)}
           style={{ cursor: 'pointer', color: '#69737d', userSelect: 'none' }}
         >
-          {open ? '[' : `[ … ${value.length} item${value.length !== 1 ? 's' : ''} ]`}
+          {open ? '[' : `[ ... ${value.length} item${value.length !== 1 ? 's' : ''} ]`}
         </span>
         {open && (
           <>
@@ -32,7 +32,7 @@ function JsonNode({ value, depth, accent }) {
               </div>
             ))}
             {value.length > 200 && (
-              <div style={{ paddingLeft: 16, color: '#3f4852', fontSize: 10.5 }}>… {value.length - 200} more items</div>
+              <div style={{ paddingLeft: 16, color: '#3f4852', fontSize: 10.5 }}>... {value.length - 200} more items</div>
             )}
             <span style={{ color: '#69737d' }}>]</span>
           </>
@@ -50,7 +50,7 @@ function JsonNode({ value, depth, accent }) {
           onClick={() => setOpen(o => !o)}
           style={{ cursor: 'pointer', color: '#69737d', userSelect: 'none' }}
         >
-          {open ? '{' : `{ … ${keys.length} key${keys.length !== 1 ? 's' : ''} }`}
+          {open ? '{' : `{ ... ${keys.length} key${keys.length !== 1 ? 's' : ''} }`}
         </span>
         {open && (
           <>

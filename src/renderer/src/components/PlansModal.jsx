@@ -7,7 +7,7 @@ function Check({ yes, val, fmt }) {
   if (fmt) return <span style={{ fontSize: 11.5, fontWeight: 700, color: '#cdd5dc' }}>{fmt(val)}</span>
   return yes
     ? <Icon name="check" size={14} color="#7ee787" strokeWidth={2.8} />
-    : <span style={{ color: '#3f4852', fontSize: 16, lineHeight: 1 }}>—</span>
+    : <span style={{ color: '#3f4852', fontSize: 16, lineHeight: 1 }}>--</span>
 }
 
 export default function PlansModal({ accent, currentPlan, onSelect, onClose }) {
@@ -112,7 +112,7 @@ export default function PlansModal({ accent, currentPlan, onSelect, onClose }) {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11.5, color: '#4a5560' }}>
-          Billing and payments coming soon. Plans are currently in preview — select one to unlock features.
+          Billing and payments coming soon. Plans are currently in preview -- select one to unlock features.
         </div>
       </div>
     </div>

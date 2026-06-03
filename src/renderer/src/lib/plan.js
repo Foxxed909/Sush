@@ -122,7 +122,7 @@ export const PLANS = {
     name: 'King',
     price: 250,
     color: '#ffd54f',
-    desc: 'Enterprise — everything',
+    desc: 'Enterprise -- everything',
     features: {
       maxTabs: Infinity,
       allThemes: true,
@@ -180,7 +180,7 @@ export const FEATURE_ROWS = [
   { key: 'secrets',        label: 'Secrets manager'      },
   { key: 'seduciaAI',      label: 'Seducia AI (API key)' },
   { key: 'voiceMode',      label: 'Voice / Jarvis mode'  },
-  { key: 'maxAgents',      label: 'Agent sessions',      fmt: v => v === Infinity ? 'Unlimited' : v === 0 ? '—' : `Up to ${v}` },
+  { key: 'maxAgents',      label: 'Agent sessions',      fmt: v => v === Infinity ? 'Unlimited' : v === 0 ? '--' : `Up to ${v}` },
   { key: 'tools',          label: 'Bundled TOOLS'        },
   { key: 'teamWorkspaces', label: 'Team workspaces'      },
   { key: 'prioritySupport',label: 'Priority support'     },

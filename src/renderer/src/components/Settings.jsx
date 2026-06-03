@@ -126,7 +126,7 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
           </Section>
 
           {/* AI */}
-          <Section title="AI — Seducia" accent={accent}>
+          <Section title="AI -- Seducia" accent={accent}>
             {!plan.features.seduciaAI && (
               <div style={{ fontSize: 11.5, color: '#76808a', background: 'rgba(255,183,77,0.06)', border: '1px solid rgba(255,183,77,0.18)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>
                 AI mode requires <strong style={{ color: '#ffb74d' }}>Quiet</strong> plan or higher.{' '}

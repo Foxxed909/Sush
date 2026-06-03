@@ -37,7 +37,7 @@ export default function TitleBar({ accent, onSettings }) {
 
         <div className="flex" style={{ gap: 8, marginLeft: 4 }}>
           {[
-            { action: 'minimize', symbol: '–', color: '#ffbd2e' },
+            { action: 'minimize', symbol: '-', color: '#ffbd2e' },
             { action: 'maximize', symbol: '⤢', color: '#28ca42' },
             { action: 'close', symbol: '×', color: '#ff5f57' }
           ].map(({ action, symbol, color }) => (

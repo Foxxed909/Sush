@@ -80,7 +80,7 @@ export default function CommandPalette({ accent, onClose, onAction, onRun }) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Search commands and actions…"
+            placeholder="Search commands and actions..."
             spellCheck={false}
             style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
           />

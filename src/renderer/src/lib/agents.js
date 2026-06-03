@@ -1,6 +1,6 @@
 // Agents that can be launched into a session. `command` is typed into the
 // shell once it boots (null = a plain terminal). `mono` + `color` render the
-// monogram badge. Add your own CLIs here — the launcher picks them up.
+// monogram badge. Add your own CLIs here -- the launcher picks them up.
 export const AGENTS = [
   { id: 'shell', label: 'Terminal', command: null, mono: '>_', color: '#8b9bb0', desc: 'Plain shell' },
   { id: 'claude', label: 'Claude Code', command: 'claude', mono: 'C', color: '#d97757', desc: 'Anthropic CLI' },

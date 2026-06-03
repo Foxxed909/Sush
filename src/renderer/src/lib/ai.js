@@ -1,5 +1,5 @@
 // Thin wrappers around AI provider streaming APIs.
-// Runs in the Electron renderer — no CORS restrictions apply.
+// Runs in the Electron renderer -- no CORS restrictions apply.
 
 const ANTHROPIC_MODEL = 'claude-opus-4-8'
 const OPENAI_MODEL = 'gpt-4o'
@@ -10,7 +10,7 @@ function sedusiaSystemPrompt(tabs, activeCwd) {
     ? running.map(t => `  • ${t.agentId || 'shell'} @ ${t.cwd || 'unknown'} [${t.status}]`).join('\n')
     : '  (none running)'
 
-  return `You are Seducia, an AI session orchestrator embedded in Sush — a custom terminal app.
+  return `You are Seducia, an AI session orchestrator embedded in Sush -- a custom terminal app.
 Speak casually, confidently, briefly (1-3 sentences).
 After your message, if an action is needed, output exactly one line: ACTION:<json>
 
