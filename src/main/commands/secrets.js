@@ -2,14 +2,16 @@ import { ok, err, ansi } from './_helpers'
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
+import { homedir, hostname } from 'os'
 import { mkdirSync } from 'fs'
 
 const STORE_PATH = join(homedir(), '.sush', 'secrets.json')
 const KEY_SALT = 'sush-secrets-v1'
 
 function getKey() {
-  const machineId = process.env.COMPUTERNAME || 'sush'
+  // os.hostname() is cross-platform; COMPUTERNAME is Windows-only and was causing
+  // identical keys on every non-Windows install when it fell back to the literal 'sush'.
+  const machineId = hostname() || 'sush-host'
   return scryptSync(`${machineId}-${KEY_SALT}`, KEY_SALT, 32)
 }
 
@@ -32,9 +34,11 @@ function encrypt(val) {
 }
 
 function decrypt(val) {
-  const [ivHex, encHex] = val.split(':')
-  const iv = Buffer.from(ivHex, 'hex')
-  const enc = Buffer.from(encHex, 'hex')
+  const parts = String(val ?? '').split(':')
+  if (parts.length < 2 || !parts[0] || !parts[1]) throw new Error('malformed secret value')
+  const iv = Buffer.from(parts[0], 'hex')
+  const enc = Buffer.from(parts[1], 'hex')
+  if (iv.length !== 16) throw new Error('invalid IV length')
   const decipher = createDecipheriv('aes-256-cbc', getKey(), iv)
   return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8')
 }

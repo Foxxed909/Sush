@@ -5,7 +5,7 @@ import { promisify } from 'util'
 import { ok, err, ansi } from './_helpers'
 
 const execFileAsync = promisify(execFile)
-const TOOLS_DIR = 'C:\\Users\\WhitePC\\Rooms\\Coderoom\\Vibe\\VibeHacking\\TOOLS'
+const TOOLS_DIR = process.env.SUSH_TOOLS_DIR || ''
 
 function listTools() {
   try {

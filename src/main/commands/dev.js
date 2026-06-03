@@ -1,4 +1,5 @@
-import { execFile, execSync } from 'child_process'
+import { execFile } from 'child_process'
+import { existsSync } from 'fs'
 import { writeFile, mkdir } from 'fs/promises'
 import { resolve, join } from 'path'
 import { promisify } from 'util'
@@ -40,7 +41,13 @@ export const launch = {
   async run([app]) {
     if (!app) return err('launch: missing app name or path')
     try {
-      await execFileAsync('cmd', ['/c', 'start', '', app], { windowsHide: true })
+      if (process.platform === 'win32') {
+        await execFileAsync('cmd', ['/c', 'start', '', app], { windowsHide: true })
+      } else if (process.platform === 'darwin') {
+        await execFileAsync('open', [app])
+      } else {
+        await execFileAsync('xdg-open', [app])
+      }
       return ok(ansi.green(`launching: ${app}`))
     } catch (e) {
       return err(`launch: ${e.message}`)
@@ -54,10 +61,9 @@ export const docker = {
   usage: 'docker <subcommand> [args...]',
   async run(args, ctx) {
     if (!args.length) return ok(dockerHelp())
-    const cmd = `docker ${args.join(' ')}`
     try {
-      const out = execSync(cmd, { encoding: 'utf8', cwd: ctx.cwd })
-      return ok(out.trimEnd())
+      const { stdout, stderr } = await execFileAsync('docker', args, { encoding: 'utf8', cwd: ctx.cwd, windowsHide: true })
+      return ok((stdout + stderr).trimEnd())
     } catch (e) {
       return err(e.stderr || e.message)
     }
@@ -71,21 +77,26 @@ export const pkg = {
   async run([sub, ...rest], ctx) {
     if (!sub) return ok(pkgHelp())
     const pkgName = rest.join(' ')
+
+    const needsName = ['install', 'remove', 'update']
+    if (needsName.includes(sub) && !pkgName) return err(`pkg ${sub}: missing package name`)
+
     const managers = detectManagers(ctx.cwd)
     if (!managers.length) return err('pkg: no package manager detected in current directory')
 
     const mgr = managers[0]
     const cmds = {
-      npm: { install: `npm install ${pkgName}`, remove: `npm uninstall ${pkgName}`, list: 'npm list --depth=0', update: `npm update ${pkgName}` },
-      pip: { install: `pip install ${pkgName}`, remove: `pip uninstall -y ${pkgName}`, list: 'pip list', update: `pip install --upgrade ${pkgName}` },
-      cargo: { install: `cargo add ${pkgName}`, remove: `cargo remove ${pkgName}`, list: 'cargo tree --depth 1', update: `cargo update ${pkgName}` },
-      choco: { install: `choco install ${pkgName} -y`, remove: `choco uninstall ${pkgName} -y`, list: 'choco list --local-only', update: `choco upgrade ${pkgName} -y` }
+      npm: { install: ['npm', 'install', pkgName], remove: ['npm', 'uninstall', pkgName], list: ['npm', 'list', '--depth=0'], update: ['npm', 'update', pkgName] },
+      pip: { install: ['pip', 'install', pkgName], remove: ['pip', 'uninstall', '-y', pkgName], list: ['pip', 'list'], update: ['pip', 'install', '--upgrade', pkgName] },
+      cargo: { install: ['cargo', 'add', pkgName], remove: ['cargo', 'remove', pkgName], list: ['cargo', 'tree', '--depth', '1'], update: ['cargo', 'update', pkgName] },
+      choco: { install: ['choco', 'install', pkgName, '-y'], remove: ['choco', 'uninstall', pkgName, '-y'], list: ['choco', 'list', '--local-only'], update: ['choco', 'upgrade', pkgName, '-y'] }
     }
-    const action = cmds[mgr]?.[sub]
-    if (!action) return err(`pkg: unknown subcommand '${sub}'`)
+    const cmdArgs = cmds[mgr]?.[sub]
+    if (!cmdArgs) return err(`pkg: unknown subcommand '${sub}'`)
     try {
-      const out = execSync(action, { encoding: 'utf8', cwd: ctx.cwd })
-      return ok(`${ansi.dim(`[${mgr}]`)} ${out.trimEnd()}`)
+      const [file, ...args] = cmdArgs.filter(Boolean)
+      const { stdout, stderr } = await execFileAsync(file, args, { encoding: 'utf8', cwd: ctx.cwd, windowsHide: true })
+      return ok(`${ansi.dim(`[${mgr}]`)} ${(stdout + stderr).trimEnd()}`)
     } catch (e) {
       return err(e.stderr || e.message)
     }
@@ -93,7 +104,6 @@ export const pkg = {
 }
 
 function detectManagers(cwd) {
-  const { existsSync } = require('fs')
   const mgrs = []
   if (existsSync(join(cwd, 'package.json'))) mgrs.push('npm')
   if (existsSync(join(cwd, 'requirements.txt')) || existsSync(join(cwd, 'setup.py'))) mgrs.push('pip')
@@ -112,7 +122,7 @@ async function nodeScaffold(dest, name) {
 
 async function reactScaffold(dest, name) {
   await mkdir(dest, { recursive: true })
-  execSync(`npm create vite@latest "${dest}" -- --template react`, { stdio: 'ignore' })
+  await execFileAsync('npm', ['create', 'vite@latest', dest, '--', '--template', 'react'], { windowsHide: true })
 }
 
 async function pythonScaffold(dest, name) {
@@ -124,7 +134,7 @@ async function pythonScaffold(dest, name) {
 }
 
 async function rustScaffold(dest, name) {
-  execSync(`cargo new "${dest}"`, { stdio: 'ignore' })
+  await execFileAsync('cargo', ['new', dest], { windowsHide: true })
 }
 
 function dockerHelp() {

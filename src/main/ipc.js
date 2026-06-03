@@ -561,15 +561,16 @@ export function registerIpcHandlers(win) {
     const command = registry.get(cmd)
 
     if (!command) {
-      // Passthrough â€” run as real system command
+      // Passthrough — run as real system command (no shell: prevents injection via metacharacters)
       const ac = new AbortController()
       abortControllers.set(tabId, ac)
       try {
-        const { stdout, stderr } = await execWithAbort(input, {
+        const { stdout, stderr } = await execFileAsync(cmd, args, {
           cwd: ctx.cwd,
           timeout: 30000,
           signal: ac.signal,
-          encoding: 'utf8'
+          encoding: 'utf8',
+          windowsHide: true
         })
         return { output: (stdout + stderr).trimEnd() || '\x1b[2m(no output)\x1b[0m', type: 'success' }
       } catch (e) {

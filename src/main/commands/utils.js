@@ -1,4 +1,5 @@
 import { execFileSync } from 'child_process'
+import { app } from 'electron'
 import { ok, err, ansi } from './_helpers'
 import { registry } from '../shell/registry'
 
@@ -47,7 +48,7 @@ export const version = {
   async run() {
     return ok([
       ansi.bold(ansi.pink('Sush')),
-      `Version: ${ansi.cyan('1.0.0')}`,
+      `Version: ${ansi.cyan(app.getVersion())}`,
       `Shell:   ${ansi.dim('sh')}`,
       `Runtime: ${ansi.dim(process.version)}`
     ].join('\r\n'))

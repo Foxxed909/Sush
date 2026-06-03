@@ -171,11 +171,11 @@ export default function App() {
   const [smartResult, setSmartResult] = useState(null)
   const pendingPtyRef = useRef(new Map())
   const tabsRef = useRef(tabs)
+  const activeIdRef = useRef(activeId)
   const closeTabRef = useRef(null)
 
-  useEffect(() => {
-    tabsRef.current = tabs
-  }, [tabs])
+  useEffect(() => { tabsRef.current = tabs }, [tabs])
+  useEffect(() => { activeIdRef.current = activeId }, [activeId])
 
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
@@ -431,10 +431,12 @@ export default function App() {
         setActiveId(fresh.id)
         return [fresh]
       }
-      if (id === activeId) setActiveId(next[next.length - 1].id)
+      // Use the ref instead of the closed-over activeId so rapid closes (e.g.
+      // closeGroup) always read the most recent value, not a stale snapshot.
+      if (id === activeIdRef.current) setActiveId(next[next.length - 1].id)
       return next
     })
-  }, [activeId, profiles, rememberSession, tabs])
+  }, [profiles, rememberSession, tabs])
 
   useEffect(() => {
     closeTabRef.current = closeTab

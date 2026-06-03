@@ -1,9 +1,8 @@
-import { execFileSync } from 'child_process'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { ok, err, ansi } from './_helpers'
 
-function runGh(args, cwd) {
-  return execFileSync('gh', args, { encoding: 'utf8', cwd, windowsHide: true }).trimEnd()
-}
+const execFileAsync = promisify(execFile)
 
 export const gh = {
   name: 'gh',
@@ -12,8 +11,13 @@ export const gh = {
   async run([sub, ...args], ctx) {
     if (!sub) return ok(ghHelp())
     try {
-      const out = runGh([sub, ...args], ctx.cwd)
-      return ok(out || ansi.dim('(no output)'))
+      const { stdout } = await execFileAsync('gh', [sub, ...args], {
+        encoding: 'utf8',
+        cwd: ctx.cwd,
+        windowsHide: true,
+        timeout: 60000
+      })
+      return ok(stdout.trimEnd() || ansi.dim('(no output)'))
     } catch (e) {
       const msg = (e.stderr || e.message || '').trim()
       if (msg.includes('not logged in') || msg.includes('not found')) {
