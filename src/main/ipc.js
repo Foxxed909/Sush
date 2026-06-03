@@ -763,5 +763,53 @@ export function registerIpcHandlers(win) {
     return { ok: true }
   })
   ipcMain.handle('sush:get-tab-meta', (event, { tabId }) => tabMeta.get(tabId) ?? {})
+
+  // ── Port Manager ─────────────────────────────────────────────────────────
+  ipcMain.handle('sush:get-ports', async () => {
+    try {
+      const [connections, procs] = await Promise.all([
+        si.networkConnections().catch(() => []),
+        si.processes().catch(() => ({ list: [] }))
+      ])
+      const procMap = new Map((procs.list || []).map(p => [p.pid, p.name]))
+      const seen = new Set()
+      const ports = []
+
+      for (const c of connections) {
+        const isListening = c.state === 'LISTEN' || c.state === 'listening'
+        if (!isListening) continue
+        const port = String(c.localPort || '')
+        if (!port || seen.has(port)) continue
+        seen.add(port)
+        const pid = c.pid ? Number(c.pid) : null
+        ports.push({
+          port,
+          address: c.localAddress || '*',
+          pid,
+          process: c.process || (pid ? (procMap.get(pid) ?? '') : ''),
+          protocol: (c.protocol || 'tcp').toLowerCase()
+        })
+      }
+
+      return { ok: true, ports: ports.sort((a, b) => Number(a.port) - Number(b.port)) }
+    } catch (e) {
+      return { ok: false, ports: [], error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:kill-pid', async (event, { pid }) => {
+    const n = Number(pid)
+    if (!n || !Number.isInteger(n) || n <= 1) return { ok: false, error: 'Invalid PID' }
+    try {
+      if (process.platform === 'win32') {
+        await execFileAsync('taskkill', ['/PID', String(n), '/F'], { windowsHide: true, encoding: 'utf8' })
+      } else {
+        process.kill(n, 'SIGTERM')
+      }
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
 }
 

@@ -12,6 +12,8 @@ const TABS = [
   { id: 'memory', label: 'Memory', icon: 'book' },
   { id: 'scripts', label: 'Scripts', icon: 'rocket' },
   { id: 'history', label: 'History', icon: 'clock' },
+  { id: 'snippets', label: 'Snippets', icon: 'layers' },
+  { id: 'ports', label: 'Ports', icon: 'ports' },
   { id: 'stats', label: 'Stats', icon: 'activity' },
 ]
 
@@ -132,6 +134,8 @@ export default function RightPanel({
         {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
         {tab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
         {tab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} />}
+        {tab === 'snippets' && <SnippetsTab accent={accent} onRun={onRun} />}
+        {tab === 'ports' && <PortsTab accent={accent} onRun={onRun} />}
         {tab === 'stats' && <StatsTab accent={accent} />}
       </div>
     </aside>
@@ -647,6 +651,327 @@ function StatsTab({ accent }) {
           </StatCard>
         )}
 
+      </div>
+    </div>
+  )
+}
+
+// ---------- Port Manager ----------
+const DEV_PORTS = new Set([
+  3000, 3001, 3002, 3003, 3004, 3005,
+  4000, 4200, 4321,
+  5000, 5173, 5174, 5175, 5176,
+  6006, 7000, 7070,
+  8000, 8080, 8081, 8082, 8083, 8888,
+  9000, 9001, 9229,
+  24678
+])
+
+const APP_KEYWORDS = ['node', 'bun', 'deno', 'python', 'python3', 'ruby', 'go', 'java', 'php', 'dotnet', 'vite', 'next', 'nuxt', 'cargo', 'uvicorn', 'gunicorn', 'puma', 'rails', 'flask', 'django', 'fastapi', 'express', 'esbuild']
+const SVC_KEYWORDS = ['nginx', 'apache', 'httpd', 'postgres', 'mysqld', 'redis', 'mongod', 'rabbitmq', 'elastic', 'kafka', 'zookeeper', 'memcached', 'grafana', 'prometheus', 'caddy']
+
+function categorizePort(port, processName) {
+  const p = Number(port)
+  const name = (processName || '').toLowerCase()
+  if (p < 1024) return 'system'
+  if (SVC_KEYWORDS.some(k => name.includes(k))) return 'service'
+  if (APP_KEYWORDS.some(k => name.includes(k))) return 'app'
+  if (DEV_PORTS.has(p)) return 'app'
+  return 'system'
+}
+
+const CAT = {
+  app:     { label: 'App',     color: '#c3e88d', bg: 'rgba(195,232,141,0.1)', border: 'rgba(195,232,141,0.22)' },
+  service: { label: 'Service', color: '#82aaff', bg: 'rgba(130,170,255,0.1)', border: 'rgba(130,170,255,0.22)' },
+  system:  { label: 'System',  color: '#69737d', bg: 'rgba(105,115,125,0.1)', border: 'rgba(105,115,125,0.22)' }
+}
+
+const FILTER_OPTS = ['all', 'app', 'service', 'system']
+
+function PortsTab({ accent, onRun }) {
+  const [data, setData] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [killing, setKilling] = useState(new Set())
+  const intervalRef = useRef(null)
+
+  const load = useCallback(() => {
+    window.sush?.getPorts?.()
+      .then(res => setData(res))
+      .catch(() => setData({ ok: false, ports: [] }))
+  }, [])
+
+  useEffect(() => {
+    load()
+    intervalRef.current = setInterval(load, 3000)
+    return () => clearInterval(intervalRef.current)
+  }, [load])
+
+  const killPort = useCallback(async (pid, port) => {
+    setKilling(prev => new Set([...prev, port]))
+    try {
+      if (pid) {
+        await window.sush?.killPid?.({ pid })
+      } else {
+        onRun?.(`kill ${port}`)
+      }
+      setTimeout(load, 600)
+    } finally {
+      setKilling(prev => { const n = new Set(prev); n.delete(port); return n })
+    }
+  }, [load, onRun])
+
+  const openInBrowser = useCallback((port) => {
+    window.sush?.openExternal?.({ url: `http://localhost:${port}` })
+  }, [])
+
+  if (!data) return <PanelEmpty icon="ports" accent={accent}>Scanning ports…</PanelEmpty>
+
+  const ports = data.ports ?? []
+  const counts = { all: ports.length }
+  for (const f of ['app', 'service', 'system']) {
+    counts[f] = ports.filter(p => categorizePort(p.port, p.process) === f).length
+  }
+  const filtered = filter === 'all' ? ports : ports.filter(p => categorizePort(p.port, p.process) === filter)
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader
+        accent={accent}
+        icon="ports"
+        title="Port Manager"
+        sub={`${ports.length} listening · auto-refreshes`}
+        onRefresh={load}
+      />
+
+      {/* Filter bar */}
+      <div style={{ display: 'flex', gap: 5, padding: '8px 10px 4px', borderBottom: '1px solid #141a1f' }}>
+        {FILTER_OPTS.map(f => {
+          const active = filter === f
+          const catInfo = f !== 'all' ? CAT[f] : null
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                padding: '3px 9px',
+                borderRadius: 7,
+                border: `1px solid ${active ? (catInfo?.border ?? rgba(accent, 0.45)) : '#20272e'}`,
+                background: active ? (catInfo?.bg ?? rgba(accent, 0.12)) : 'transparent',
+                color: active ? (catInfo?.color ?? accent) : '#5a646d',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                textTransform: 'capitalize'
+              }}
+            >
+              {f === 'all' ? `All (${counts.all})` : `${CAT[f].label} (${counts[f]})`}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 8 }}>
+        {!filtered.length ? (
+          <PanelEmpty
+            icon="ports"
+            accent={accent}
+            hint={filter !== 'all' ? `No ${filter} ports are currently listening.` : 'No listening ports found.'}
+          >
+            No {filter === 'all' ? '' : CAT[filter]?.label + ' '}ports
+          </PanelEmpty>
+        ) : filtered.map(p => {
+          const cat = categorizePort(p.port, p.process)
+          const c = CAT[cat]
+          const isKilling = killing.has(p.port)
+          const isHttp = Number(p.port) < 65535
+
+          return (
+            <div
+              key={`${p.port}-${p.pid ?? 'x'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 9px', marginBottom: 5, border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318' }}
+            >
+              {/* Port */}
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: accent, minWidth: 44, flexShrink: 0, fontFamily: 'monospace' }}>
+                {p.port}
+              </span>
+
+              {/* Process info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: p.process ? '#d4dbe1' : '#3f4852', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.process || 'unknown'}
+                </div>
+                {p.pid && (
+                  <div style={{ fontSize: 9.5, color: '#3f4852', marginTop: 1 }}>PID {p.pid} · {p.protocol}</div>
+                )}
+              </div>
+
+              {/* Category badge */}
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: c.color, background: c.bg, border: `1px solid ${c.border}`, padding: '2px 6px', borderRadius: 5, flexShrink: 0, letterSpacing: 0.3 }}>
+                {c.label}
+              </span>
+
+              {/* Open in browser */}
+              {isHttp && (
+                <button
+                  onClick={() => openInBrowser(p.port)}
+                  title={`Open localhost:${p.port} in browser`}
+                  style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: `1px solid ${rgba(accent, 0.25)}`, background: rgba(accent, 0.07), color: accent, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Icon name="globe" size={12} />
+                </button>
+              )}
+
+              {/* Kill */}
+              <button
+                onClick={() => killPort(p.pid, p.port)}
+                disabled={isKilling}
+                title={`Kill port ${p.port}`}
+                style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: '1px solid rgba(255,83,112,0.2)', background: isKilling ? 'transparent' : 'rgba(255,83,112,0.07)', color: isKilling ? '#3f2020' : '#ff5370', cursor: isKilling ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Icon name="stop" size={11} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Command Snippets ----------
+const SNIPPETS_KEY = 'sush-snippets'
+
+function loadSnippets() {
+  try { return JSON.parse(localStorage.getItem(SNIPPETS_KEY) ?? '[]') } catch { return [] }
+}
+
+function SnippetsTab({ accent, onRun }) {
+  const [snippets, setSnippets] = useState(loadSnippets)
+  const [search, setSearch] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newCmd, setNewCmd] = useState('')
+  const nameRef = useRef(null)
+  const cmdRef = useRef(null)
+
+  useEffect(() => { if (creating) nameRef.current?.focus() }, [creating])
+
+  const persist = (next) => {
+    setSnippets(next)
+    localStorage.setItem(SNIPPETS_KEY, JSON.stringify(next))
+  }
+
+  const addSnippet = () => {
+    const name = newName.trim()
+    const command = newCmd.trim()
+    if (!name || !command) return
+    persist([...snippets, { id: `snip-${Date.now()}`, name, command }])
+    setCreating(false)
+    setNewName('')
+    setNewCmd('')
+  }
+
+  const deleteSnippet = (id) => persist(snippets.filter(s => s.id !== id))
+
+  const cancel = () => { setCreating(false); setNewName(''); setNewCmd('') }
+
+  const displayed = snippets.filter(s =>
+    !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.command.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader
+        accent={accent}
+        icon="layers"
+        title="Snippets"
+        sub={`${snippets.length} saved command${snippets.length !== 1 ? 's' : ''}`}
+        right={
+          <button
+            onClick={() => setCreating(true)}
+            title="New snippet"
+            className="sush-icon-btn flex items-center justify-center"
+            style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.1), color: accent, cursor: 'pointer' }}
+          >
+            <Icon name="plus" size={14} strokeWidth={2.4} />
+          </button>
+        }
+      />
+
+      {creating && (
+        <div style={{ padding: '10px 10px 8px', borderBottom: '1px solid #1b2127', display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <input
+            ref={nameRef}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Tab') { e.preventDefault(); cmdRef.current?.focus() } if (e.key === 'Escape') cancel() }}
+            placeholder="Name (e.g. Start dev server)…"
+            spellCheck={false}
+            style={{ padding: '6px 9px', background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 7, color: '#f1f4f6', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box' }}
+          />
+          <input
+            ref={cmdRef}
+            value={newCmd}
+            onChange={e => setNewCmd(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addSnippet(); if (e.key === 'Escape') cancel() }}
+            placeholder="Command (e.g. npm run dev)…"
+            spellCheck={false}
+            style={{ padding: '6px 9px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#d4dbe1', fontSize: 11.5, fontFamily: 'monospace', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+          />
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button onClick={cancel} style={{ padding: '4px 11px', borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#69737d', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={addSnippet} disabled={!newName.trim() || !newCmd.trim()} style={{ padding: '4px 11px', borderRadius: 6, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.12), color: accent, fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: (!newName.trim() || !newCmd.trim()) ? 0.5 : 1 }}>Save</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: '8px 10px 0' }}>
+        <div className="sush-omni flex items-center" style={{ height: 34, gap: 8 }}>
+          <Icon name="search" size={13} color="#5a646d" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search snippets…"
+            spellCheck={false}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12 }}
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
+        {!displayed.length ? (
+          <PanelEmpty
+            icon="layers"
+            accent={accent}
+            hint={snippets.length ? 'No snippets match your search.' : 'Save frequently-used commands for quick access. Press + to create one.'}
+          >
+            {snippets.length ? 'No matches' : 'No snippets yet'}
+          </PanelEmpty>
+        ) : displayed.map(s => (
+          <div
+            key={s.id}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 6, border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318' }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#d4dbe1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+              <div style={{ fontSize: 10.5, color: '#5a646d', fontFamily: 'monospace', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.command}</div>
+            </div>
+            <button
+              onClick={() => onRun?.(s.command)}
+              title="Run"
+              style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 7, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: accent, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="arrowRight" size={13} />
+            </button>
+            <button
+              onClick={() => deleteSnippet(s.id)}
+              title="Delete"
+              style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon name="trash" size={11} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )
