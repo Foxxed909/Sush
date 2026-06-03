@@ -5,7 +5,8 @@ import { promisify } from 'util'
 import { ok, err, ansi } from './_helpers'
 
 const execFileAsync = promisify(execFile)
-const TOOLS_DIR = process.env.SUSH_TOOLS_DIR || ''
+// SUSH_TOOLS_DIR env var overrides; falls back to bundled resources/tools shipped with the app.
+const TOOLS_DIR = process.env.SUSH_TOOLS_DIR || (process.resourcesPath ? require('path').join(process.resourcesPath, 'tools') : '')
 
 function listTools() {
   try {

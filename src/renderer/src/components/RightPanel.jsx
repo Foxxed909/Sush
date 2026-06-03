@@ -47,7 +47,9 @@ export default function RightPanel({
   onPrompt,
   onFocus,
   onOpenLauncher,
-  onClose
+  onClose,
+  settings = {},
+  planId = 'free'
 }) {
   return (
     <aside
@@ -113,6 +115,8 @@ export default function RightPanel({
             onFocus={onFocus}
             onOpenLauncher={onOpenLauncher}
             onClose={onClose}
+            settings={settings}
+            planId={planId}
           />
         )}
         {/* Kept mounted so the page (and your scroll/login state) survives tab switches. */}

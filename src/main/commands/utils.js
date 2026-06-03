@@ -57,18 +57,21 @@ export const version = {
 
 export const notify = {
   name: 'notify',
-  description: 'Send a Windows system notification',
+  description: 'Send a system notification',
   usage: 'notify "<message>"',
   async run(args) {
     const msg = args.join(' ')
     if (!msg) return err('notify: missing message')
     try {
-      execFileSync('powershell', [
-        '-NoProfile',
-        '-Command',
-        'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show($args[0], "Sush")',
-        msg
-      ], { stdio: 'ignore', windowsHide: true })
+      if (process.platform === 'win32') {
+        execFileSync('powershell', ['-NoProfile', '-Command',
+          `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${msg.replace(/'/g, "''")}', 'Sush')`
+        ], { stdio: 'ignore', windowsHide: true })
+      } else if (process.platform === 'darwin') {
+        execFileSync('osascript', ['-e', `display notification "${msg.replace(/"/g, '\\"')}" with title "Sush"`])
+      } else {
+        execFileSync('notify-send', ['Sush', msg])
+      }
       return ok(ansi.green(`notification sent: ${msg}`))
     } catch (e) {
       return err(`notify: ${e.message}`)

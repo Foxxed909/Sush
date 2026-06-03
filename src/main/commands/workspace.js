@@ -1,10 +1,11 @@
 import { shell as electronShell } from 'electron'
-import { execFile, execFileSync, execSync } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import { existsSync, readFileSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { basename, resolve } from 'path'
 import { promisify } from 'util'
 import { ok, err, ansi } from './_helpers'
+import { getListeningPorts } from './system'
 
 const execFileAsync = promisify(execFile)
 const SERVE_SCRIPT_PRIORITY = ['dev', 'start', 'serve', 'preview']
@@ -52,17 +53,7 @@ function readPackage(cwd) {
 }
 
 function listeningPorts() {
-  const raw = execSync('netstat -ano -p TCP', { encoding: 'utf8', windowsHide: true })
-  return raw.split('\n')
-    .map(line => {
-      if (!line.includes('LISTENING')) return null
-      const parts = line.trim().split(/\s+/)
-      const port = parts[1]?.match(/:(\d+)$/)?.[1]
-      const pid = parts[4]
-      if (!port || !/^\d+$/.test(pid ?? '')) return null
-      return { address: parts[1], port, pid }
-    })
-    .filter(Boolean)
+  return getListeningPorts()
 }
 
 export const home = {

@@ -1,17 +1,14 @@
 import si from 'systeminformation'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { ok, err, ansi } from './_helpers'
 
 export const top5 = {
   name: 'top5',
   description: 'Top 5 CPU and memory consuming processes',
   usage: 'top5',
-  async run(_, ctx) {
+  async run() {
     const procs = await si.processes()
-    const byCpu = [...procs.list]
-      .sort((a, b) => b.cpu - a.cpu)
-      .slice(0, 5)
-
+    const byCpu = [...procs.list].sort((a, b) => b.cpu - a.cpu).slice(0, 5)
     const header = ansi.bold(ansi.pink('TOP 5 PROCESSES'))
     const divider = ansi.dim('─'.repeat(55))
     const colHead = ansi.dim(`${'PID'.padEnd(8)}${'NAME'.padEnd(25)}${'CPU%'.padEnd(10)}MEM%`)
@@ -27,12 +24,9 @@ export const sysinfo = {
   description: 'Show system information',
   usage: 'sysinfo',
   async run() {
-    const [os, cpu, mem, disk] = await Promise.all([
-      si.osInfo(), si.cpu(), si.mem(), si.fsSize()
-    ])
-    const totalDisk = disk.reduce((a, d) => a + d.size, 0)
-    const usedDisk = disk.reduce((a, d) => a + d.used, 0)
-
+    const [os, cpu, mem, disk] = await Promise.all([si.osInfo(), si.cpu(), si.mem(), si.fsSize()])
+    const totalDisk = (disk ?? []).reduce((a, d) => a + (d.size ?? 0), 0)
+    const usedDisk = (disk ?? []).reduce((a, d) => a + (d.used ?? 0), 0)
     const lines = [
       ansi.bold(ansi.pink('SYSTEM INFO')),
       ansi.dim('─'.repeat(40)),
@@ -52,13 +46,11 @@ export const envCmd = {
   name: 'env',
   description: 'Show or get environment variables',
   usage: 'env [get <key>]',
-  async run([sub, key], ctx) {
+  async run([sub, key]) {
     if (sub === 'get') {
       if (!key) return err('env get: missing key')
       const val = process.env[key]
-      return val !== undefined
-        ? ok(`${ansi.cyan(key)}=${val}`)
-        : err(`env: '${key}' not set`)
+      return val !== undefined ? ok(`${ansi.cyan(key)}=${val}`) : err(`env: '${key}' not set`)
     }
     const lines = Object.entries(process.env)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -67,27 +59,24 @@ export const envCmd = {
   }
 }
 
+// Cross-platform port scanner.
 export const scan = {
   name: 'scan',
   description: 'List active listening ports',
   usage: 'scan',
   async run() {
     try {
-      const raw = execSync('netstat -ano -p TCP', { encoding: 'utf8' })
-      const lines = raw.split('\n')
-        .filter(l => l.includes('LISTENING'))
-        .map(l => {
-          const parts = l.trim().split(/\s+/)
-          return `${ansi.pink(parts[1]?.padEnd(30) ?? '')}  PID: ${ansi.cyan(parts[4] ?? '')}`
-        })
-      if (!lines.length) return ok(ansi.dim('No listening ports found'))
-      return ok([ansi.bold(ansi.pink('LISTENING PORTS')), ansi.dim('─'.repeat(50)), ...lines].join('\r\n'))
+      const entries = getListeningPorts()
+      if (!entries.length) return ok(ansi.dim('No listening ports found'))
+      const rows = entries.map(e => `${ansi.pink((e.port).padEnd(8))}  ${(e.address ?? '').padEnd(26)}  PID: ${ansi.cyan(e.pid ?? '')}`)
+      return ok([ansi.bold(ansi.pink('LISTENING PORTS')), ansi.dim('─'.repeat(50)), ...rows].join('\r\n'))
     } catch (e) {
       return err(`scan: ${e.message}`)
     }
   }
 }
 
+// Cross-platform kill-by-port.
 export const kill = {
   name: 'kill',
   description: 'Kill process on a port',
@@ -96,14 +85,16 @@ export const kill = {
     const normalizedPort = normalizePort(port)
     if (!normalizedPort) return err('kill: missing or invalid port number')
     try {
-      const raw = execSync(`netstat -ano -p TCP`, { encoding: 'utf8' })
-      const pids = new Set()
-      raw.split('\n').forEach(l => {
-        const entry = parseListeningPortPid(l)
-        if (entry?.port === normalizedPort) pids.add(entry.pid)
-      })
+      const entries = getListeningPorts()
+      const pids = new Set(entries.filter(e => e.port === normalizedPort).map(e => e.pid).filter(Boolean))
       if (!pids.size) return err(`kill: nothing listening on port ${normalizedPort}`)
-      for (const pid of pids) execSync(`taskkill /PID ${pid} /F`, { encoding: 'utf8' })
+      for (const pid of pids) {
+        if (process.platform === 'win32') {
+          execFileSync('taskkill', ['/PID', pid, '/F'], { encoding: 'utf8', windowsHide: true })
+        } else {
+          process.kill(Number(pid), 'SIGTERM')
+        }
+      }
       return ok(ansi.green(`killed process(es) on port ${normalizedPort}: ${[...pids].join(', ')}`))
     } catch (e) {
       return err(`kill: ${e.message}`)
@@ -135,12 +126,50 @@ export function normalizePort(port) {
   return String(value)
 }
 
-export function parseListeningPortPid(line) {
-  if (!line.includes('LISTENING')) return null
-  const parts = line.trim().split(/\s+/)
-  const localAddress = parts[1]
-  const pid = parts[4]
-  const port = localAddress?.match(/:(\d+)$/)?.[1]
-  if (!port || !/^\d+$/.test(pid ?? '')) return null
-  return { port, pid }
+// Returns [{ port, address, pid }] for all listening TCP ports, cross-platform.
+export function getListeningPorts() {
+  if (process.platform === 'win32') {
+    const raw = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8', windowsHide: true })
+    return raw.split('\n').map(line => {
+      if (!line.includes('LISTENING')) return null
+      const parts = line.trim().split(/\s+/)
+      const address = parts[1]
+      const port = address?.match(/:(\d+)$/)?.[1]
+      const pid = parts[4]
+      if (!port || !/^\d+$/.test(pid ?? '')) return null
+      return { port, address, pid }
+    }).filter(Boolean)
+  }
+
+  // macOS / Linux: use ss (Linux) or netstat (macOS)
+  try {
+    if (process.platform === 'linux') {
+      const raw = execFileSync('ss', ['-tlnpH'], { encoding: 'utf8' })
+      return raw.split('\n').map(line => {
+        const parts = line.trim().split(/\s+/)
+        if (parts.length < 4) return null
+        const address = parts[3]
+        const port = address?.match(/:(\d+)$/)?.[1] || address?.match(/\*:(\d+)$/)?.[1]
+        const pidMatch = line.match(/pid=(\d+)/)
+        const pid = pidMatch?.[1] ?? ''
+        if (!port) return null
+        return { port, address, pid }
+      }).filter(Boolean)
+    }
+    // macOS
+    const raw = execFileSync('netstat', ['-an', '-p', 'tcp'], { encoding: 'utf8' })
+    return raw.split('\n').map(line => {
+      if (!line.includes('LISTEN')) return null
+      const parts = line.trim().split(/\s+/)
+      const address = parts[3]
+      const port = address?.match(/[.:](\d+)$/)?.[1]
+      if (!port) return null
+      return { port, address, pid: '' }
+    }).filter(Boolean)
+  } catch {
+    return []
+  }
 }
+
+// Legacy named export used by workspace.js
+export { getListeningPorts as parseListeningPortPid }

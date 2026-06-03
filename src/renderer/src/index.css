@@ -57,6 +57,9 @@ body {
 @keyframes sush-spin { to { transform: rotate(360deg); } }
 .sush-spin { animation: sush-spin 0.9s linear infinite; transform-origin: center; }
 
+@keyframes sush-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.sush-blink { animation: sush-blink 0.8s step-start infinite; }
+
 @keyframes sush-orb-pulse {
   0%, 100% { box-shadow: 0 0 18px var(--accent-a35); }
   50% { box-shadow: 0 0 30px var(--accent-a55); }

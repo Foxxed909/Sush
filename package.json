@@ -37,8 +37,23 @@
     "directories": {
       "output": "dist"
     },
+    "extraResources": [
+      {
+        "from": "resources/tools",
+        "to": "tools",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Development"
     }
   }
 }

@@ -8,8 +8,10 @@ import HomeDashboard from './components/HomeDashboard'
 import SmartCommandBar from './components/SmartCommandBar'
 import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
+import PlansModal from './components/PlansModal'
 import { themes, defaultTheme } from './themes'
 import { accentVars } from './lib/ui'
+import { loadPlan, savePlan } from './lib/plan'
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
 const OLD_COMMAND_RECENTS_KEY = 'sush-recents'
@@ -163,6 +165,8 @@ export default function App() {
   const [showProfiles, setShowProfiles] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showLauncher, setShowLauncher] = useState(false)
+  const [showPlans, setShowPlans] = useState(false)
+  const [planId, setPlanId] = useState(loadPlan)
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('sush-right-open') === '1')
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
   const [settings, setSettings] = useState(loadSettings)
@@ -680,6 +684,8 @@ export default function App() {
             onFocus={focusAgent}
             onOpenLauncher={() => setShowLauncher(true)}
             onClose={() => setRightOpen(false)}
+            settings={settings}
+            planId={planId}
           />
         )}
       </div>
@@ -701,6 +707,16 @@ export default function App() {
           onChange={saveSettings}
           onClose={() => setShowSettings(false)}
           accent={accent}
+          onUpgrade={() => { setShowSettings(false); setShowPlans(true) }}
+        />
+      )}
+
+      {showPlans && (
+        <PlansModal
+          accent={accent}
+          currentPlan={planId}
+          onSelect={(id) => { setPlanId(id); savePlan(id) }}
+          onClose={() => setShowPlans(false)}
         />
       )}
 
