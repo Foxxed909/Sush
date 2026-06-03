@@ -1,7 +1,7 @@
 // Thin wrappers around AI provider streaming APIs.
 // Runs in the Electron renderer — no CORS restrictions apply.
 
-const ANTHROPIC_MODEL = 'claude-opus-4-5'
+const ANTHROPIC_MODEL = 'claude-opus-4-8'
 const OPENAI_MODEL = 'gpt-4o'
 
 function sedusiaSystemPrompt(tabs, activeCwd) {

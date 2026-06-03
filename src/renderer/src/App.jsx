@@ -434,7 +434,7 @@ export default function App() {
   }, [])
 
   const closeTab = useCallback((id) => {
-    const closing = tabs.find(t => t.id === id)
+    const closing = tabsRef.current.find(t => t.id === id)
     if (closing?.cwd) rememberSession(closing)
 
     window.sush.closeTab({ tabId: id })
@@ -451,7 +451,7 @@ export default function App() {
       if (id === activeIdRef.current) setActiveId(next[next.length - 1].id)
       return next
     })
-  }, [profiles, rememberSession, tabs])
+  }, [profiles, rememberSession])
 
   useEffect(() => {
     closeTabRef.current = closeTab

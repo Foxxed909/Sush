@@ -45,5 +45,6 @@ contextBridge.exposeInMainWorld('sush', {
   getAllCommands: () => ipcRenderer.invoke('sush:get-all-commands'),
   sessionStats: () => ipcRenderer.invoke('sush:session-stats'),
   setTabMeta: (payload) => ipcRenderer.invoke('sush:set-tab-meta', payload),
-  getTabMeta: (payload) => ipcRenderer.invoke('sush:get-tab-meta', payload)
+  getTabMeta: (payload) => ipcRenderer.invoke('sush:get-tab-meta', payload),
+  getSystemStats: () => ipcRenderer.invoke('sush:get-system-stats')
 })

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import Seducia from './Seducia'
 import Browser from './Browser'
@@ -12,6 +12,7 @@ const TABS = [
   { id: 'memory', label: 'Memory', icon: 'book' },
   { id: 'scripts', label: 'Scripts', icon: 'rocket' },
   { id: 'history', label: 'History', icon: 'clock' },
+  { id: 'stats', label: 'Stats', icon: 'activity' },
 ]
 
 function joinPath(parent, name) {
@@ -131,6 +132,7 @@ export default function RightPanel({
         {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
         {tab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
         {tab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} />}
+        {tab === 'stats' && <StatsTab accent={accent} />}
       </div>
     </aside>
   )
@@ -237,8 +239,8 @@ function TreeLevel({ path, depth, accent, onOpenFile }) {
     return () => { alive = false }
   }, [path])
 
-  if (entries === null) return <div style={{ paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5, padding: '4px 0 4px' }}>…</div>
-  if (!entries.length) return <div style={{ paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5, padding: '4px 0' }}>empty</div>
+  if (entries === null) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5 }}>…</div>
+  if (!entries.length) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5 }}>empty</div>
   return entries.map(entry => (
     <TreeNode key={entry.name} parent={path} entry={entry} depth={depth} accent={accent} onOpenFile={onOpenFile} />
   ))
@@ -469,6 +471,182 @@ function HistoryTab({ accent, history, onRun }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{cmd}</span>
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------- System Stats ----------
+function fmtBytes(bytes) {
+  if (!bytes || bytes < 0) return '0 B'
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
+function fmtSpeed(bps) {
+  if (!bps || bps <= 0) return '0 B/s'
+  if (bps < 1024) return `${bps.toFixed(0)} B/s`
+  if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`
+  return `${(bps / (1024 * 1024)).toFixed(2)} MB/s`
+}
+
+function StatCard({ title, accent, children }) {
+  return (
+    <div style={{ border: '1px solid #1b2127', borderRadius: 10, background: '#0f1318', overflow: 'hidden' }}>
+      <div style={{ padding: '6px 10px', borderBottom: '1px solid #1b2127', fontSize: 10, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</div>
+      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+    </div>
+  )
+}
+
+function BarStat({ label, value, max, unit, accent, small = false }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  const color = pct > 80 ? '#ff5370' : pct > 60 ? '#ffcb6b' : accent
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: small ? 10 : 11, color: '#9aa3ab' }}>
+        <span>{label}</span>
+        {unit && <span style={{ color, fontWeight: 700 }}>{pct.toFixed(small ? 0 : 1)}{unit}</span>}
+      </div>
+      <div style={{ height: small ? 3 : 5, background: '#1b2127', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.6s ease' }} />
+      </div>
+    </div>
+  )
+}
+
+function StatsTab({ accent }) {
+  const [stats, setStats] = useState(null)
+  const [statErr, setStatErr] = useState(null)
+  const intervalRef = useRef(null)
+
+  const load = useCallback(() => {
+    window.sush?.getSystemStats?.()
+      .then(data => {
+        if (data?.error) { setStatErr(data.error) }
+        else { setStats(data); setStatErr(null) }
+      })
+      .catch(e => setStatErr(e.message))
+  }, [])
+
+  useEffect(() => {
+    load()
+    intervalRef.current = setInterval(load, 2000)
+    return () => clearInterval(intervalRef.current)
+  }, [load])
+
+  if (!stats && !statErr) return <PanelEmpty icon="activity" accent={accent}>Loading system stats…</PanelEmpty>
+  if (statErr) return <PanelEmpty icon="activity" accent={accent} hint={statErr}>Stats unavailable</PanelEmpty>
+
+  const cpuPct = stats.cpu?.load ?? 0
+  const memUsed = stats.memory?.used ?? 0
+  const memTotal = stats.memory?.total ?? 1
+  const swapTotal = stats.memory?.swapTotal ?? 0
+  const swapUsed = stats.memory?.swapUsed ?? 0
+  const uptimeH = Math.floor((stats.uptime ?? 0) / 3600)
+  const uptimeM = Math.floor(((stats.uptime ?? 0) % 3600) / 60)
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader
+        accent={accent}
+        icon="activity"
+        title="System Stats"
+        sub={`Uptime ${uptimeH}h ${uptimeM}m · live`}
+        onRefresh={load}
+      />
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+        <StatCard title="CPU" accent={accent}>
+          <BarStat label="Overall load" value={cpuPct} max={100} unit="%" accent={accent} />
+          {stats.cpu?.cores?.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px', marginTop: 2 }}>
+              {stats.cpu.cores.slice(0, 16).map((load, i) => (
+                <BarStat key={i} label={`C${i}`} value={load} max={100} unit="%" accent={accent} small />
+              ))}
+            </div>
+          )}
+        </StatCard>
+
+        <StatCard title="Memory" accent={accent}>
+          <BarStat
+            label={`${fmtBytes(memUsed)} / ${fmtBytes(memTotal)}`}
+            value={memUsed}
+            max={memTotal}
+            unit="%"
+            accent={accent}
+          />
+          {swapTotal > 0 && (
+            <BarStat
+              label={`Swap: ${fmtBytes(swapUsed)} / ${fmtBytes(swapTotal)}`}
+              value={swapUsed}
+              max={swapTotal}
+              unit="%"
+              accent={accent}
+              small
+            />
+          )}
+        </StatCard>
+
+        {stats.gpu?.filter(g => g.utilizationGpu != null || g.memUsed != null).map((gpu, i) => (
+          <StatCard key={i} title={gpu.name || `GPU ${i}`} accent={accent}>
+            {gpu.utilizationGpu != null && (
+              <BarStat label="GPU load" value={gpu.utilizationGpu} max={100} unit="%" accent={accent} />
+            )}
+            {gpu.memUsed != null && gpu.memTotal != null && gpu.memTotal > 0 && (
+              <BarStat
+                label={`VRAM: ${fmtBytes(gpu.memUsed * 1024 * 1024)} / ${fmtBytes(gpu.memTotal * 1024 * 1024)}`}
+                value={gpu.memUsed}
+                max={gpu.memTotal}
+                unit="%"
+                accent={accent}
+                small
+              />
+            )}
+            {gpu.temperatureGpu != null && (
+              <div style={{ fontSize: 10.5, color: gpu.temperatureGpu > 80 ? '#ff5370' : '#9aa3ab' }}>
+                Temp: <span style={{ fontWeight: 700 }}>{gpu.temperatureGpu}°C</span>
+              </div>
+            )}
+          </StatCard>
+        ))}
+
+        {stats.network?.length > 0 && (
+          <StatCard title="Network" accent={accent}>
+            {stats.network.map(n => (
+              <div key={n.iface} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="wifi" size={12} color="#5a646d" />
+                <span style={{ fontSize: 11, color: accent, fontWeight: 700, flexShrink: 0 }}>{n.iface}</span>
+                <span style={{ flex: 1 }} />
+                <span style={{ fontSize: 10.5, color: '#c3e88d' }}>↓ {fmtSpeed(n.rx_sec)}</span>
+                <span style={{ fontSize: 10.5, color: '#ff9aaa', marginLeft: 6 }}>↑ {fmtSpeed(n.tx_sec)}</span>
+              </div>
+            ))}
+            {stats.wifi?.filter(w => w.ssid).map((w, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 4, borderTop: '1px solid #1b2127' }}>
+                <Icon name="wifi" size={12} color={accent} />
+                <span style={{ fontSize: 11, color: '#d4dbe1', fontWeight: 700 }}>{w.ssid}</span>
+                {w.quality != null && <span style={{ fontSize: 10, color: '#69737d', marginLeft: 'auto' }}>{w.quality}%</span>}
+                {w.txRate != null && <span style={{ fontSize: 10, color: '#69737d' }}>{w.txRate} Mbps</span>}
+              </div>
+            ))}
+          </StatCard>
+        )}
+
+        {Object.keys(stats.sessions || {}).length > 0 && (
+          <StatCard title={`Terminal Sessions (${Object.keys(stats.sessions).length})`} accent={accent}>
+            {Object.entries(stats.sessions).map(([tabId, s]) => (
+              <div key={tabId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', borderBottom: '1px solid #141a1f' }}>
+                <Icon name="terminal" size={11} color={accent} />
+                <span style={{ fontSize: 10.5, color: '#d4dbe1', fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+                <span style={{ fontSize: 10, color: s.cpu > 20 ? '#ffcb6b' : '#69737d', flexShrink: 0 }}>CPU {s.cpu.toFixed(1)}%</span>
+                <span style={{ fontSize: 10, color: '#69737d', flexShrink: 0, marginLeft: 4 }}>{fmtBytes(s.memRss)}</span>
+              </div>
+            ))}
+          </StatCard>
+        )}
+
       </div>
     </div>
   )

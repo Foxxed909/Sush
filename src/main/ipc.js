@@ -1,5 +1,5 @@
 ﻿import { ipcMain, app, clipboard } from 'electron'
-import { exec, execFile, execFileSync } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { promisify } from 'util'
@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 
 const execFileAsync = promisify(execFile)
 import * as pty from 'node-pty'
+import si from 'systeminformation'
 import { registry } from './shell/registry'
 import { parseInput } from './shell/parser'
 import { ShellContext } from './shell/context'
@@ -454,15 +455,6 @@ function closeAllPtySessions() {
   for (const tabId of ptySessions.keys()) closePtySession(tabId)
 }
 
-function execWithAbort(cmd, options) {
-  return new Promise((resolve, reject) => {
-    const proc = exec(cmd, { ...options, shell: true, windowsHide: true }, (error, stdout, stderr) => {
-      if (error) { error.stdout = stdout; error.stderr = stderr; reject(error) }
-      else resolve({ stdout, stderr })
-    })
-    options.signal?.addEventListener('abort', () => { try { proc.kill() } catch {} })
-  })
-}
 
 function getContext(tabId) {
   const session = ptySessions.get(tabId)
@@ -633,8 +625,9 @@ export function registerIpcHandlers(win) {
 
   // ── File operations ──────────────────────────────────────────────────────
   ipcMain.handle('sush:read-file', async (event, { path: filePath }) => {
+    const { readFile: rf } = await import('fs/promises')
     try {
-      const content = readFileSync(String(filePath ?? ''), 'utf8')
+      const content = await rf(String(filePath ?? ''), 'utf8')
       return { ok: true, content }
     } catch (e) {
       return { ok: false, error: e.message }
@@ -672,9 +665,10 @@ export function registerIpcHandlers(win) {
   })
 
   ipcMain.handle('sush:get-npm-scripts', async (event, { cwd }) => {
+    const { readFile: rf } = await import('fs/promises')
     const pkgPath = join(resolveStartCwd(cwd), 'package.json')
     try {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+      const pkg = JSON.parse(await rf(pkgPath, 'utf8'))
       return { ok: true, name: pkg.name, scripts: pkg.scripts || {} }
     } catch (e) {
       return { ok: false, scripts: {}, error: e.message }
@@ -695,6 +689,70 @@ export function registerIpcHandlers(win) {
       sessions: ptySessions.size,
       uptime: Math.floor(process.uptime()),
       memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024)
+    }
+  })
+
+  ipcMain.handle('sush:get-system-stats', async () => {
+    try {
+      const [load, mem, graphics, netStats, wifi, processes] = await Promise.all([
+        si.currentLoad(),
+        si.mem(),
+        si.graphics().catch(() => ({ controllers: [] })),
+        si.networkStats().catch(() => []),
+        si.wifiConnections().catch(() => []),
+        si.processes().catch(() => ({ list: [] }))
+      ])
+
+      const sessionStats = {}
+      for (const [tabId, session] of ptySessions) {
+        const proc = (processes.list || []).find(p => p.pid === session.pid)
+        sessionStats[tabId] = {
+          pid: session.pid,
+          label: session.label,
+          cwd: session.cwd,
+          cpu: proc?.cpu ?? 0,
+          mem: proc?.mem ?? 0,
+          memRss: proc?.memRss ?? 0
+        }
+      }
+
+      return {
+        cpu: {
+          load: load.currentLoad ?? 0,
+          cores: (load.cpus ?? []).map(c => c.load ?? 0)
+        },
+        memory: {
+          total: mem.total ?? 0,
+          used: mem.used ?? 0,
+          available: mem.available ?? 0,
+          swapUsed: mem.swapused ?? 0,
+          swapTotal: mem.swaptotal ?? 0
+        },
+        gpu: (graphics.controllers ?? []).map(g => ({
+          name: g.model || 'GPU',
+          utilizationGpu: g.utilizationGpu ?? null,
+          memUsed: g.memUsed ?? null,
+          memTotal: g.memTotal ?? null,
+          temperatureGpu: g.temperatureGpu ?? null
+        })),
+        network: (Array.isArray(netStats) ? netStats : []).map(n => ({
+          iface: n.iface,
+          rx_bytes: n.rx_bytes ?? 0,
+          tx_bytes: n.tx_bytes ?? 0,
+          rx_sec: Math.max(0, n.rx_sec ?? 0),
+          tx_sec: Math.max(0, n.tx_sec ?? 0)
+        })),
+        wifi: (Array.isArray(wifi) ? wifi : []).map(w => ({
+          ssid: w.ssid,
+          signalLevel: w.signalLevel ?? null,
+          quality: w.quality ?? null,
+          txRate: w.txRate ?? null
+        })),
+        sessions: sessionStats,
+        uptime: Math.floor(process.uptime())
+      }
+    } catch (e) {
+      return { error: e.message }
     }
   })
 
