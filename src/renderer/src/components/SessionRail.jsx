@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useCallback, useEffect } from 'react'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
 
@@ -6,7 +6,7 @@ function shortPath(path) {
   if (!path) return ''
   const parts = String(path).split(/[\\/]/).filter(Boolean)
   if (parts.length <= 2) return path
-  return `${parts[parts.length - 2]}\\${parts[parts.length - 1]}`
+  return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`
 }
 
 function RailButton({ icon, label, active, accent, onClick }) {
@@ -30,7 +30,6 @@ function RailButton({ icon, label, active, accent, onClick }) {
   )
 }
 
-// Group consecutive-by-id tabs into ordered blocks (groups keep their first-seen slot).
 function buildBlocks(tabs) {
   const blocks = []
   const index = new Map()
@@ -49,64 +48,141 @@ function buildBlocks(tabs) {
   return blocks
 }
 
-function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSelect, onClose }) {
+// Per-session in-place rename: double-click the label to edit.
+function SessionLabel({ tab, onRename }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(tab.label)
+  const inputRef = useRef(null)
+
+  useEffect(() => { setVal(tab.label) }, [tab.label])
+  useEffect(() => { if (editing) { inputRef.current?.select(); inputRef.current?.focus() } }, [editing])
+
+  const commit = () => {
+    setEditing(false)
+    const trimmed = val.trim()
+    if (trimmed && trimmed !== tab.label) onRename(tab.id, trimmed)
+    else setVal(tab.label)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(tab.label) } }}
+        onClick={e => e.stopPropagation()}
+        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit' }}
+      />
+    )
+  }
+
+  return (
+    <span
+      style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: 800 }}
+      onDoubleClick={e => { e.stopPropagation(); setEditing(true) }}
+      title="Double-click to rename"
+    >
+      {tab.label}
+    </span>
+  )
+}
+
+function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSelect, onClose, onRename, onDuplicate, onPin, pinned }) {
+  const [ctxMenu, setCtxMenu] = useState(null)
   const exited = tab.status === 'exited'
   const dotColor = exited ? '#ff5370' : '#42d392'
+
+  const handleContextMenu = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  useEffect(() => {
+    if (!ctxMenu) return
+    const close = () => setCtxMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [ctxMenu])
+
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      draggable
-      {...dragHandlers}
-      onClick={() => onSelect(tab.id)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onSelect(tab.id)
-        }
-      }}
-      title={tab.cwd || tab.profileLabel}
-      className="sush-session group"
-      style={{
-        position: 'relative',
-        width: '100%',
-        display: 'grid',
-        gridTemplateColumns: 'auto 1fr auto',
-        gap: 10,
-        alignItems: 'center',
-        textAlign: 'left',
-        borderRadius: 11,
-        border: `1px solid ${active ? rgba(accent, 0.55) : over ? rgba(accent, 0.4) : '#1c232a'}`,
-        background: active ? rgba(accent, 0.1) : over ? '#11171c' : '#0e1216',
-        color: active ? '#f4f6f8' : '#aab2ba',
-        padding: '10px 11px',
-        marginLeft: indented ? 12 : 0,
-        cursor: 'pointer',
-        outline: over ? `1px dashed ${rgba(accent, 0.4)}` : 'none'
-      }}
-    >
-      {active && (
-        <span style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3, borderRadius: 3, background: accent, boxShadow: `0 0 10px ${accent}` }} />
-      )}
-      <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, boxShadow: exited ? 'none' : `0 0 7px ${rgba(dotColor, 0.8)}`, flexShrink: 0 }} />
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: 800 }}>
-          {tab.label}
-        </span>
-        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: '#69737d', marginTop: 3 }}>
-          {exited ? 'exited' : shortPath(tab.cwd) || tab.shellLabel || tab.shell}
-        </span>
-      </span>
-      <button
-        type="button"
-        title="Close session"
-        onClick={(event) => { event.stopPropagation(); onClose(tab.id) }}
-        className="sush-session-close flex items-center justify-center"
-        style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: '#69737d', cursor: 'pointer' }}
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        draggable
+        {...dragHandlers}
+        onClick={() => onSelect(tab.id)}
+        onContextMenu={handleContextMenu}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(tab.id) } }}
+        title={tab.cwd || tab.profileLabel}
+        className="sush-session group"
+        style={{
+          position: 'relative',
+          width: '100%',
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto',
+          gap: 10,
+          alignItems: 'center',
+          textAlign: 'left',
+          borderRadius: 11,
+          border: `1px solid ${active ? rgba(accent, 0.55) : over ? rgba(accent, 0.4) : pinned ? rgba(accent, 0.22) : '#1c232a'}`,
+          background: active ? rgba(accent, 0.1) : over ? '#11171c' : '#0e1216',
+          color: active ? '#f4f6f8' : '#aab2ba',
+          padding: '10px 11px',
+          marginLeft: indented ? 12 : 0,
+          cursor: 'pointer',
+          outline: over ? `1px dashed ${rgba(accent, 0.4)}` : 'none'
+        }}
       >
-        <Icon name="x" size={13} strokeWidth={2.2} />
-      </button>
-    </div>
+        {active && (
+          <span style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3, borderRadius: 3, background: accent, boxShadow: `0 0 10px ${accent}` }} />
+        )}
+        {pinned && !active && (
+          <span style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3, borderRadius: 3, background: rgba(accent, 0.4) }} />
+        )}
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, boxShadow: exited ? 'none' : `0 0 7px ${rgba(dotColor, 0.8)}`, flexShrink: 0 }} />
+        <span style={{ minWidth: 0 }}>
+          <SessionLabel tab={tab} onRename={onRename} />
+          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: '#69737d', marginTop: 3 }}>
+            {exited ? 'exited' : shortPath(tab.cwd) || tab.shellLabel || tab.shell}
+          </span>
+        </span>
+        <button
+          type="button"
+          title="Close session"
+          onClick={(event) => { event.stopPropagation(); onClose(tab.id) }}
+          className="sush-session-close flex items-center justify-center"
+          style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: '#69737d', cursor: 'pointer' }}
+        >
+          <Icon name="x" size={13} strokeWidth={2.2} />
+        </button>
+      </div>
+
+      {ctxMenu && (
+        <div
+          style={{ position: 'fixed', top: ctxMenu.y, left: ctxMenu.x, zIndex: 600, background: '#0f1318', border: '1px solid #20272e', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.6)', minWidth: 160, padding: 4 }}
+          onClick={e => e.stopPropagation()}
+        >
+          {[
+            { icon: 'refresh', label: 'Duplicate', action: () => onDuplicate?.(tab.id) },
+            { icon: pinned ? 'minus' : 'lock', label: pinned ? 'Unpin' : 'Pin', action: () => onPin?.(tab.id) },
+            { icon: 'trash', label: 'Close', action: () => { setCtxMenu(null); onClose(tab.id) }, danger: true },
+          ].map(item => (
+            <button
+              key={item.label}
+              onClick={() => { setCtxMenu(null); item.action() }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', border: 'none', background: 'transparent', color: item.danger ? '#ff5370' : '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, borderRadius: 7 }}
+            >
+              <Icon name={item.icon} size={13} color={item.danger ? '#ff5370' : '#8a939c'} strokeWidth={2} />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -123,11 +199,25 @@ export default function SessionRail({
   onClose,
   onCloseGroup,
   onReorder,
-  onProfiles
+  onProfiles,
+  onRename,
+  onDuplicate
 }) {
   const dragId = useRef(null)
   const [dragOver, setDragOver] = useState(null)
   const [collapsed, setCollapsed] = useState(() => new Set())
+  const [pinned, setPinned] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('sush-pinned-tabs') ?? '[]')) } catch { return new Set() }
+  })
+
+  const togglePin = useCallback((id) => {
+    setPinned(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      localStorage.setItem('sush-pinned-tabs', JSON.stringify([...next]))
+      return next
+    })
+  }, [])
 
   const dragHandlersFor = (tabId) => ({
     onDragStart: () => { dragId.current = tabId },
@@ -150,7 +240,14 @@ export default function SessionRail({
     })
   }
 
-  const blocks = buildBlocks(tabs)
+  // Sort: pinned first, then normal
+  const sortedTabs = [...tabs].sort((a, b) => {
+    const ap = pinned.has(a.id) ? 0 : 1
+    const bp = pinned.has(b.id) ? 0 : 1
+    return ap - bp
+  })
+
+  const blocks = buildBlocks(sortedTabs)
 
   return (
     <aside
@@ -199,6 +296,10 @@ export default function SessionRail({
                   dragHandlers={dragHandlersFor(tab.id)}
                   onSelect={onSelect}
                   onClose={onClose}
+                  onRename={onRename}
+                  onDuplicate={onDuplicate}
+                  onPin={togglePin}
+                  pinned={pinned.has(tab.id)}
                 />
               )
             }
@@ -209,12 +310,7 @@ export default function SessionRail({
             return (
               <div
                 key={block.id}
-                style={{
-                  border: `1px solid ${hasActive ? rgba(accent, 0.4) : '#171d23'}`,
-                  borderRadius: 13,
-                  background: hasActive ? rgba(accent, 0.05) : '#0b0e11',
-                  padding: 7
-                }}
+                style={{ border: `1px solid ${hasActive ? rgba(accent, 0.4) : '#171d23'}`, borderRadius: 13, background: hasActive ? rgba(accent, 0.05) : '#0b0e11', padding: 7 }}
               >
                 <div
                   className="flex items-center"
@@ -242,7 +338,6 @@ export default function SessionRail({
                     <Icon name="trash" size={13} strokeWidth={2} />
                   </button>
                 </div>
-
                 {!isCollapsed && (
                   <div className="flex flex-col" style={{ gap: 7 }}>
                     {block.tabs.map(tab => (
@@ -255,6 +350,10 @@ export default function SessionRail({
                         dragHandlers={dragHandlersFor(tab.id)}
                         onSelect={onSelect}
                         onClose={onClose}
+                        onRename={onRename}
+                        onDuplicate={onDuplicate}
+                        onPin={togglePin}
+                        pinned={pinned.has(tab.id)}
                       />
                     ))}
                   </div>

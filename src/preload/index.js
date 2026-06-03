@@ -35,5 +35,15 @@ contextBridge.exposeInMainWorld('sush', {
   dirExists: (payload) => ipcRenderer.invoke('sush:dir-exists', payload),
   memoryList: (payload) => ipcRenderer.invoke('sush:memory-list', payload),
   memoryRead: (payload) => ipcRenderer.invoke('sush:memory-read', payload),
-  memoryWrite: (payload) => ipcRenderer.invoke('sush:memory-write', payload)
+  memoryWrite: (payload) => ipcRenderer.invoke('sush:memory-write', payload),
+  // New in v2
+  readFile: (payload) => ipcRenderer.invoke('sush:read-file', payload),
+  writeFile: (payload) => ipcRenderer.invoke('sush:write-file', payload),
+  deleteFile: (payload) => ipcRenderer.invoke('sush:delete-file', payload),
+  openExternal: (payload) => ipcRenderer.invoke('sush:open-external', payload),
+  getNpmScripts: (payload) => ipcRenderer.invoke('sush:get-npm-scripts', payload),
+  getAllCommands: () => ipcRenderer.invoke('sush:get-all-commands'),
+  sessionStats: () => ipcRenderer.invoke('sush:session-stats'),
+  setTabMeta: (payload) => ipcRenderer.invoke('sush:set-tab-meta', payload),
+  getTabMeta: (payload) => ipcRenderer.invoke('sush:get-tab-meta', payload)
 })

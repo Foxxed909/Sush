@@ -6,8 +6,9 @@ import * as secrets from '../commands/secrets'
 import * as tools from '../commands/tools'
 import * as utils from '../commands/utils'
 import * as workspace from '../commands/workspace'
+import * as extras from '../commands/extras'
 
-const allModules = [workspace, fs, system, dev, gh, secrets, tools, utils]
+const allModules = [workspace, fs, system, dev, gh, secrets, tools, utils, extras]
 
 class CommandRegistry {
   constructor() {

@@ -9,7 +9,9 @@ const TABS = [
   { id: 'browser', label: 'Browser', icon: 'globe' },
   { id: 'changes', label: 'Changes', icon: 'gitBranch' },
   { id: 'files', label: 'Files', icon: 'file' },
-  { id: 'memory', label: 'Memory', icon: 'book' }
+  { id: 'memory', label: 'Memory', icon: 'book' },
+  { id: 'scripts', label: 'Scripts', icon: 'rocket' },
+  { id: 'history', label: 'History', icon: 'clock' },
 ]
 
 function joinPath(parent, name) {
@@ -49,7 +51,8 @@ export default function RightPanel({
   onOpenLauncher,
   onClose,
   settings = {},
-  planId = 'free'
+  planId = 'free',
+  commandHistory = []
 }) {
   return (
     <aside
@@ -126,6 +129,8 @@ export default function RightPanel({
         {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={(p) => onRun(`edit "${p}"`)} />}
         {tab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={(p) => onRun(`edit "${p}"`)} />}
         {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
+        {tab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
+        {tab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} />}
       </div>
     </aside>
   )
@@ -381,6 +386,89 @@ function MemoryTab({ accent, cwd }) {
         )) : (
           <PanelEmpty icon="book" accent={accent} hint="A local-first knowledge graph for this directory. Notes are markdown in .sushmemory, linked with [[wikilinks]].">No notes yet</PanelEmpty>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Scripts (npm/package.json) ----------
+function ScriptsTab({ accent, cwd, onRun }) {
+  const [data, setData] = useState(null)
+
+  const load = () => {
+    if (!cwd) { setData({ scripts: {} }); return }
+    window.sush?.getNpmScripts?.({ cwd })
+      .then(res => setData(res))
+      .catch(() => setData({ scripts: {} }))
+  }
+
+  useEffect(() => { load() }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scripts = data?.scripts ?? {}
+  const keys = Object.keys(scripts)
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader accent={accent} icon="rocket" title="npm Scripts" sub={data?.name || 'package.json'} onRefresh={load} />
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
+        {!data ? (
+          <PanelEmpty icon="rocket" accent={accent}>Loading…</PanelEmpty>
+        ) : !keys.length ? (
+          <PanelEmpty icon="rocket" accent={accent} hint="No scripts found in package.json. Navigate to a project directory first.">No scripts</PanelEmpty>
+        ) : keys.map(name => (
+          <button
+            key={name}
+            onClick={() => onRun(`npm run ${name}`)}
+            className="sush-row flex items-center"
+            style={{ gap: 10, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318', color: '#d8dee4', padding: '8px 11px', marginBottom: 7, cursor: 'pointer' }}
+          >
+            <Icon name="arrowRight" size={13} color={accent} />
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: accent }}>{name}</span>
+              <span style={{ display: 'block', fontSize: 10.5, color: '#5a646d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace', marginTop: 2 }}>{scripts[name]}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Command History ----------
+function HistoryTab({ accent, history, onRun }) {
+  const [search, setSearch] = useState('')
+  const displayed = history.filter(cmd => !search || cmd.toLowerCase().includes(search.toLowerCase())).slice().reverse()
+
+  return (
+    <div className="flex flex-col" style={{ height: '100%' }}>
+      <TabHeader accent={accent} icon="clock" title="History" sub={`${history.length} commands`} />
+      <div style={{ padding: '8px 10px 0' }}>
+        <div className="sush-omni flex items-center" style={{ height: 34, gap: 8 }}>
+          <Icon name="search" size={13} color="#5a646d" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filter history…"
+            spellCheck={false}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12 }}
+          />
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
+        {!displayed.length ? (
+          <PanelEmpty icon="clock" accent={accent} hint="Commands you run in the active session will appear here.">No history yet</PanelEmpty>
+        ) : displayed.map((cmd, i) => (
+          <button
+            key={i}
+            onClick={() => onRun(cmd)}
+            title={`Run: ${cmd}`}
+            className="sush-row flex items-center"
+            style={{ gap: 9, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 8, background: '#0f1318', color: '#9aa3ab', padding: '6px 10px', marginBottom: 5, cursor: 'pointer', fontFamily: 'monospace', fontSize: 11.5 }}
+          >
+            <Icon name="chevronRight" size={11} color="#3f4852" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{cmd}</span>
+          </button>
+        ))}
       </div>
     </div>
   )

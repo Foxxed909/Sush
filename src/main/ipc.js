@@ -476,10 +476,12 @@ function getContext(tabId) {
 
 async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }) {
   const trimmed = String(input ?? '').trim()
-  const parsed = parseInput(trimmed)
+  const ctx = getContext(tabId)
+  // Expand session aliases before parsing.
+  const expanded = ctx.expandAliases(trimmed)
+  const parsed = parseInput(expanded)
   if (!parsed) return { type: 'empty', output: '', handled: true }
 
-  const ctx = getContext(tabId)
   const { cmd, args } = parsed
   const command = registry.get(cmd)
 
@@ -628,5 +630,80 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:app-version', () => app.getVersion())
   ipcMain.handle('sush:home-dir', () => homedir())
+
+  // ── File operations ──────────────────────────────────────────────────────
+  ipcMain.handle('sush:read-file', async (event, { path: filePath }) => {
+    try {
+      const content = readFileSync(String(filePath ?? ''), 'utf8')
+      return { ok: true, content }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:write-file', async (event, { path: filePath, content }) => {
+    const { writeFile: wf } = await import('fs/promises')
+    try {
+      await wf(String(filePath ?? ''), String(content ?? ''), 'utf8')
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:delete-file', async (event, { path: filePath }) => {
+    const { rm: rmf } = await import('fs/promises')
+    try {
+      await rmf(String(filePath ?? ''), { recursive: true, force: true })
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:open-external', async (event, { url }) => {
+    const { shell: sh } = await import('electron')
+    try {
+      await sh.openExternal(String(url ?? ''))
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:get-npm-scripts', async (event, { cwd }) => {
+    const pkgPath = join(resolveStartCwd(cwd), 'package.json')
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+      return { ok: true, name: pkg.name, scripts: pkg.scripts || {} }
+    } catch (e) {
+      return { ok: false, scripts: {}, error: e.message }
+    }
+  })
+
+  ipcMain.handle('sush:get-all-commands', () => {
+    return registry.all().map(c => ({
+      name: c.name,
+      description: c.description || '',
+      usage: c.usage || c.name,
+      aliases: c.aliases || []
+    }))
+  })
+
+  ipcMain.handle('sush:session-stats', () => {
+    return {
+      sessions: ptySessions.size,
+      uptime: Math.floor(process.uptime()),
+      memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024)
+    }
+  })
+
+  // Pin/rename tab metadata (stored in main so it survives renderer reloads)
+  const tabMeta = new Map()
+  ipcMain.handle('sush:set-tab-meta', (event, { tabId, meta }) => {
+    tabMeta.set(tabId, { ...(tabMeta.get(tabId) ?? {}), ...meta })
+    return { ok: true }
+  })
+  ipcMain.handle('sush:get-tab-meta', (event, { tabId }) => tabMeta.get(tabId) ?? {})
 }
 

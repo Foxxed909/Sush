@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
 
@@ -15,13 +15,20 @@ function formatTime(value) {
   }
 }
 
-// Time-of-day greeting so Home feels like a proper welcome when Sush opens.
-function greeting() {
-  const h = new Date().getHours()
-  if (h < 5) return { hi: 'Still up', sub: 'The terminal’s ready when you are.' }
-  if (h < 12) return { hi: 'Good morning', sub: 'A fresh shell awaits.' }
-  if (h < 18) return { hi: 'Good afternoon', sub: 'Pick up where you left off.' }
-  return { hi: 'Good evening', sub: 'Let’s get something running.' }
+function greeting(h) {
+  if (h < 5) return { hi: ‘Still up’, sub: "The terminal’s ready when you are." }
+  if (h < 12) return { hi: ‘Good morning’, sub: ‘A fresh shell awaits.’ }
+  if (h < 18) return { hi: ‘Good afternoon’, sub: ‘Pick up where you left off.’ }
+  return { hi: ‘Good evening’, sub: "Let’s get something running." }
+}
+
+function useLiveClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+  return now
 }
 
 function SectionLabel({ icon, children, accent }) {
@@ -47,7 +54,9 @@ export default function HomeDashboard({
   onNewSession,
   onSeducia
 }) {
-  const greet = greeting()
+  const now = useLiveClock()
+  const greet = greeting(now.getHours())
+  const clockStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const active = tabs.find(tab => tab.status === 'running') || tabs[0]
   const cwdItems = [
     active?.cwd && { label: active.label, path: active.cwd },
@@ -105,8 +114,9 @@ export default function HomeDashboard({
               >
                 {greet.hi} <span style={{ color: accent, textShadow: `0 0 32px ${rgba(accent, 0.45)}` }}>·</span> Sush
               </div>
-              <div style={{ fontSize: 13.5, color: '#8a939c', marginTop: 7, fontWeight: 600 }}>
-                {greet.sub}
+              <div className="flex items-center" style={{ gap: 10, marginTop: 6 }}>
+                <span style={{ fontSize: 13.5, color: '#8a939c', fontWeight: 600 }}>{greet.sub}</span>
+                <span style={{ fontSize: 12, color: rgba(accent, 0.6), fontWeight: 800, background: rgba(accent, 0.08), borderRadius: 6, padding: '2px 8px', border: `1px solid ${rgba(accent, 0.15)}` }}>{clockStr}</span>
               </div>
               <div className="flex items-center" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                 <span
@@ -244,6 +254,9 @@ export default function HomeDashboard({
           </div>
         </section>
 
+        {/* npm Scripts quick-run (if package.json present) */}
+        <NpmScriptsSection accent={accent} cwd={active?.cwd} onRun={onRun} />
+
         {/* Workdirs + Recent */}
         <div
           style={{
@@ -357,6 +370,38 @@ export default function HomeDashboard({
         )}
       </div>
     </div>
+  )
+}
+
+function NpmScriptsSection({ accent, cwd, onRun }) {
+  const [scripts, setScripts] = useState(null)
+
+  useEffect(() => {
+    if (!cwd) { setScripts(null); return }
+    window.sush?.getNpmScripts?.({ cwd })
+      .then(res => { if (res?.ok && Object.keys(res.scripts || {}).length) setScripts(res.scripts) else setScripts(null) })
+      .catch(() => setScripts(null))
+  }, [cwd])
+
+  if (!scripts) return null
+  const keys = Object.keys(scripts).slice(0, 6)
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <SectionLabel icon="rocket" accent={accent}>npm scripts</SectionLabel>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {keys.map(name => (
+          <button
+            key={name}
+            onClick={() => onRun(`npm run ${name}`)}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', border: `1px solid ${rgba(accent, 0.25)}`, borderRadius: 8, background: '#0f1318', color: '#cdd5dc', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+          >
+            <Icon name="arrowRight" size={12} color={accent} />
+            {name}
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 

@@ -9,8 +9,10 @@ import SmartCommandBar from './components/SmartCommandBar'
 import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
 import PlansModal from './components/PlansModal'
+import CommandPalette from './components/CommandPalette'
+import ShortcutsHelp from './components/ShortcutsHelp'
 import { themes, defaultTheme } from './themes'
-import { accentVars } from './lib/ui'
+import { accentVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
@@ -173,6 +175,10 @@ export default function App() {
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartResult, setSmartResult] = useState(null)
+  const [zenMode, setZenMode] = useState(false)
+  const [showPalette, setShowPalette] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [commandHistory, setCommandHistory] = useState([])
   const pendingPtyRef = useRef(new Map())
   const tabsRef = useRef(tabs)
   const activeIdRef = useRef(activeId)
@@ -257,20 +263,25 @@ export default function App() {
 
   useEffect(() => {
     const handler = (e) => {
-      // Ctrl/Cmd+K → summon Seducia (Agent tab). Ctrl/Cmd+B → toggle the panel.
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setRightOpen(prev => (prev && rightTab === 'agent' ? false : true))
-        setRightTab('agent')
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
-        e.preventDefault()
-        setRightOpen(prev => !prev)
-      }
+      const ctrl = e.ctrlKey || e.metaKey
+      const key = e.key.toLowerCase()
+      // Ctrl/Cmd+K → summon Seducia. Ctrl/Cmd+B → toggle panel.
+      if (ctrl && key === 'k') { e.preventDefault(); setRightOpen(prev => (prev && rightTab === 'agent' ? false : true)); setRightTab('agent') }
+      if (ctrl && key === 'b') { e.preventDefault(); setRightOpen(prev => !prev) }
+      // Ctrl+P → command palette
+      if (ctrl && key === 'p' && !e.shiftKey) { e.preventDefault(); setShowPalette(prev => !prev) }
+      // Ctrl+? or Ctrl+Shift+/ → shortcuts
+      if (ctrl && (key === '?' || (e.shiftKey && key === '/'))) { e.preventDefault(); setShowShortcuts(prev => !prev) }
+      // Ctrl+Shift+Z → zen mode
+      if (ctrl && e.shiftKey && key === 'z') { e.preventDefault(); setZenMode(prev => !prev) }
+      // Ctrl+T → new tab
+      if (ctrl && key === 't') { e.preventDefault(); openTab(profiles[0]) }
+      // Ctrl+W → close active tab
+      if (ctrl && key === 'w') { e.preventDefault(); if (activeIdRef.current) closeTabRef.current?.(activeIdRef.current) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [rightTab])
+  }, [rightTab, profiles])
 
   useEffect(() => { localStorage.setItem('sush-right-open', rightOpen ? '1' : '0') }, [rightOpen])
   useEffect(() => { localStorage.setItem('sush-right-tab', rightTab) }, [rightTab])
@@ -518,10 +529,20 @@ export default function App() {
     pendingPtyRef.current.set(target.id, input)
   }, [activeId, findOrOpenCwd])
 
+  const renameTab = useCallback((id, label) => {
+    setTabs(prev => prev.map(t => t.id === id ? { ...t, label } : t))
+  }, [])
+
+  const duplicateTab = useCallback((id) => {
+    const tab = tabsRef.current.find(t => t.id === id)
+    if (!tab) return
+    const prof = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
+    openTab(prof, { cwd: tab.cwd, shell: tab.shell, label: `${tab.label} (copy)` })
+  }, [profiles, openTab])
+
   const applySmartAction = useCallback((action, result) => {
     if (!action) return
     if (action.name === 'open-home') {
-      // Navigation-only: don't leave a stale "Dashboard" output panel behind.
       setSmartResult(null)
       setHomeView('dashboard')
       setView('home')
@@ -533,15 +554,27 @@ export default function App() {
         : 'No recent sessions'
       setSmartResult(prev => ({ ...(prev ?? result), output }))
     } else if (action.name === 'open-workspace') {
-      // Opening a workspace switches to the terminal; the "workspace: ..." note is noise there.
       setSmartResult(null)
       findOrOpenCwd(action.cwd, { label: action.label })
     } else if (action.name === 'passthrough') {
-      // The command runs in the terminal itself, so drop the queued-echo output panel.
       setSmartResult(null)
       queuePtyCommand(action.input, action.cwd)
+    } else if (action.name === 'open-seducia') {
+      setRightTab('agent')
+      setRightOpen(true)
+    } else if (action.name === 'toggle-zen') {
+      setZenMode(prev => !prev)
+    } else if (action.name === 'open-palette') {
+      setShowPalette(true)
+    } else if (action.name === 'open-shortcuts') {
+      setShowShortcuts(true)
+    } else if (action.name === 'reload-app') {
+      window.location.reload()
+    } else if (action.name === 'duplicate-tab') {
+      const active = tabsRef.current.find(t => t.id === activeIdRef.current)
+      if (active) duplicateTab(active.id)
     }
-  }, [findOrOpenCwd, queuePtyCommand, recentSessions])
+  }, [findOrOpenCwd, queuePtyCommand, recentSessions, duplicateTab])
 
   const runSmartInput = useCallback(async (input) => {
     const command = input.trim()
@@ -562,11 +595,23 @@ export default function App() {
 
   const visibleSmartOutput = view === 'terminal' && smartResult?.output && smartResult.type !== 'passthrough'
 
+  const handlePaletteAction = useCallback((action) => {
+    if (action === 'new-session') setShowLauncher(true)
+    else if (action === 'open-seducia') { setRightTab('agent'); setRightOpen(true) }
+    else if (action === 'settings') setShowSettings(true)
+    else if (action === 'plans') setShowPlans(true)
+    else if (action === 'toggle-panel') setRightOpen(prev => !prev)
+    else if (action === 'zen') setZenMode(prev => !prev)
+    else if (action === 'shortcuts') setShowShortcuts(true)
+    else if (action === 'home') { setHomeView('dashboard'); setView('home') }
+  }, [])
+
   return (
     <div className="flex flex-col h-screen" style={{ ...accentVars(accent), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
-      <TitleBar accent={accent} onSettings={() => setShowSettings(true)} />
+      {!zenMode && <TitleBar accent={accent} onSettings={() => setShowSettings(true)} />}
 
       <div className="flex flex-1 min-h-0">
+        {!zenMode && (
         <SessionRail
           tabs={tabs}
           activeId={activeId}
@@ -581,9 +626,13 @@ export default function App() {
           onCloseGroup={closeGroup}
           onReorder={reorderTabs}
           onProfiles={() => setShowProfiles(true)}
+          onRename={renameTab}
+          onDuplicate={duplicateTab}
         />
+        )}
 
         <div className="flex flex-col flex-1 min-w-0">
+          {!zenMode && (
           <SmartCommandBar
             activeTab={activeTab}
             accent={accent}
@@ -593,6 +642,7 @@ export default function App() {
             rightOpen={rightOpen}
             busy={smartBusy}
           />
+          )}
 
           <div className="flex-1 relative overflow-hidden">
             {tabs.map(tab => {
@@ -613,6 +663,7 @@ export default function App() {
                   onSessionState={(state) => handleSessionState(tab.id, state)}
                   onReady={(state) => handleTerminalReady(tab.id, state)}
                   onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
+                  onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
                 />
               )
             })}
@@ -670,7 +721,7 @@ export default function App() {
           </div>
         </div>
 
-        {rightOpen && (
+        {rightOpen && !zenMode && (
           <RightPanel
             accent={accent}
             tab={rightTab}
@@ -686,9 +737,20 @@ export default function App() {
             onClose={() => setRightOpen(false)}
             settings={settings}
             planId={planId}
+            commandHistory={commandHistory}
           />
         )}
       </div>
+
+      {zenMode && (
+        <button
+          onClick={() => setZenMode(false)}
+          title="Exit Zen Mode (Ctrl+Shift+Z)"
+          style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 200, padding: '6px 14px', background: 'rgba(0,0,0,0.7)', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 8, color: accent, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
+        >
+          Exit Zen
+        </button>
+      )}
 
       {showProfiles && (
         <ProfileManager
@@ -727,6 +789,22 @@ export default function App() {
           recentSessions={recentSessions}
           onLaunch={launchSessions}
           onClose={() => setShowLauncher(false)}
+        />
+      )}
+
+      {showPalette && (
+        <CommandPalette
+          accent={accent}
+          onClose={() => setShowPalette(false)}
+          onAction={handlePaletteAction}
+          onRun={runSmartInput}
+        />
+      )}
+
+      {showShortcuts && (
+        <ShortcutsHelp
+          accent={accent}
+          onClose={() => setShowShortcuts(false)}
         />
       )}
 
