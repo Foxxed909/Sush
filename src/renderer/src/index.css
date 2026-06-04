@@ -47,6 +47,28 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-a55); background-clip: padding-box; }
 .sush-scroll { scrollbar-width: thin; scrollbar-color: var(--accent-a22) transparent; }
 
+/* ---- Horizontal panel tab strip ---- */
+.sush-htabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-a35) transparent;
+}
+.sush-htabs::-webkit-scrollbar { height: 6px; }
+.sush-htabs::-webkit-scrollbar-track { background: transparent; margin: 0 8px; }
+.sush-htabs::-webkit-scrollbar-thumb {
+  background: var(--accent-a35);
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+.sush-htabs::-webkit-scrollbar-thumb:hover { background: var(--accent-a55); }
+.sush-htabs > * { flex: 0 0 auto; }
+
 /* ---- Animations ---- */
 @keyframes sush-fade-up {
   from { opacity: 0; transform: translateY(10px); }
