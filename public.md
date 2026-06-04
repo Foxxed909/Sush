@@ -5,7 +5,7 @@ swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
 
 ---
 
-## Unreleased
+## 3.0.0 — "Minimata"
 
 ### Added
 - **Corner styles (Sharp / Rounded / Pill).** New `Settings ▸ Appearance ▸ Corners`

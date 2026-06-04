@@ -1,7 +1,8 @@
 {
   "name": "sush",
-  "version": "2.0.0",
-  "description": "Sush — custom terminal shell",
+  "version": "3.0.0",
+  "codename": "minimata",
+  "description": "Sush — custom terminal shell (Minimata)",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
