@@ -11,12 +11,15 @@ import si from 'systeminformation'
 import { registry } from './shell/registry'
 import { parseInput } from './shell/parser'
 import { ShellContext } from './shell/context'
+import { loadSushrc, readSushrcRaw, writeSushrcRaw, sushrcPath } from './shell/sushrc'
+import { ScrollbackStore } from './shell/scrollback'
 import { homedir } from 'os'
 
 const contexts = new Map()
 const abortControllers = new Map()
 const ptySessions = new Map()
 const fileWatchers = new Map()
+let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
 
 const WELCOME_BANNER = [
@@ -363,7 +366,13 @@ function sendPtyState(win, session) {
   })
 }
 
-function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId } = {}) {
+function buildRestoreBanner(text) {
+  const bar = '\x1b[38;2;120;130;140m' + '─'.repeat(20) + ' restored history ' + '─'.repeat(20) + '\x1b[0m'
+  const body = String(text).replace(/\n/g, '\r\n')
+  return `\r\n${bar}\r\n\x1b[2m${body}\x1b[0m\r\n${bar.replace('restored history', '─────────────────')}\r\n\r\n`
+}
+
+function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true } = {}) {
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
@@ -379,9 +388,23 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId } = {
     }
   }
 
+  // Load the user's .sushrc profile (aliases / env / startup / default cwd).
+  const sushrc = loadSushrc()
+
   const requestedShell = getDefaultShell(shellId)
-  const shellCwd = resolveStartCwd(cwd)
+  const shellCwd = resolveStartCwd(cwd ?? sushrc.settings.cwd)
   if (!win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: WELCOME_BANNER })
+
+  // Replay persisted scrollback for this workspace, if any.
+  if (persistScrollback && scrollback) {
+    const restored = scrollback.restoreFor(restoreKey)
+    if (restored && !win.isDestroyed()) {
+      win.webContents.send('sush:pty-data', { tabId, data: buildRestoreBanner(restored) })
+    }
+  }
+
+  const sushrcEnv = {}
+  for (const [k, v] of Object.entries(sushrc.env || {})) sushrcEnv[k] = String(v)
 
   const { proc, shell } = spawnPty(requestedShell, {
     cols,
@@ -389,6 +412,7 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId } = {
     cwd: shellCwd,
     env: {
       ...process.env,
+      ...sushrcEnv,
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
       SUSH: '1',
@@ -410,12 +434,29 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId } = {
     lastActiveAt: Date.now(),
     proc
   }
+  session.restoreKey = restoreKey || null
+  session.persistScrollback = !!persistScrollback
   ptySessions.set(tabId, session)
-  contexts.set(tabId, new ShellContext({ cwd: shellCwd }))
+  const ctx = new ShellContext({ cwd: shellCwd })
+  ctx.aliases = { ...sushrc.alias }   // .sushrc aliases feed the smart-command bar
+  contexts.set(tabId, ctx)
+  if (persistScrollback && scrollback) scrollback.attach(tabId, restoreKey)
   sendPtyState(win, session)
+
+  // Run .sushrc [startup] commands once the shell is ready.
+  const startupCmds = (sushrc.startup || []).filter(Boolean)
+  if (startupCmds.length) {
+    setTimeout(() => {
+      if (session.status !== 'running') return
+      for (const cmd of startupCmds) {
+        try { proc.write(`${cmd}\r`) } catch {}
+      }
+    }, 700)
+  }
 
   proc.onData((data) => {
     session.lastActiveAt = Date.now()
+    if (session.persistScrollback && scrollback) scrollback.append(tabId, data)
     const nextCwd = parseCwdFromOsc7(data)
     if (nextCwd && nextCwd !== session.cwd) {
       session.cwd = nextCwd
@@ -429,6 +470,7 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId } = {
   proc.onExit(({ exitCode, signal }) => {
     session.status = 'exited'
     session.lastActiveAt = Date.now()
+    if (session.persistScrollback && scrollback) scrollback.persist(tabId)
     sendPtyState(win, session)
     ptySessions.delete(tabId)
     if (!win.isDestroyed()) win.webContents.send('sush:pty-exit', { tabId, exitCode, signal })
@@ -449,6 +491,7 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId } = {
 function closePtySession(tabId) {
   const session = ptySessions.get(tabId)
   if (!session) return
+  if (session.persistScrollback && scrollback) scrollback.persist(tabId)
   ptySessions.delete(tabId)
   try { session.proc.kill() } catch {}
 }
@@ -518,7 +561,8 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
 }
 
 export function registerIpcHandlers(win) {
-  app.once('before-quit', closeAllPtySessions)
+  scrollback = new ScrollbackStore(app.getPath('userData'))
+  app.once('before-quit', () => { scrollback?.flush(); closeAllPtySessions() })
   if (process.platform === 'win32') ensurePowerShellBootstrap()
 
   ipcMain.handle('sush:pty-start', (event, payload) => {
@@ -624,6 +668,16 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:app-version', () => app.getVersion())
   ipcMain.handle('sush:home-dir', () => homedir())
+
+  // ── Scrollback (for session handoff cards) ────────────────────────────────
+  ipcMain.handle('sush:get-scrollback', (event, { tabId, chars }) => {
+    return { tabId, text: scrollback?.tail(tabId, chars) ?? '' }
+  })
+
+  // ── .sushrc profile ───────────────────────────────────────────────────────
+  ipcMain.handle('sush:sushrc-read', () => readSushrcRaw())
+  ipcMain.handle('sush:sushrc-write', (event, { content }) => writeSushrcRaw(content))
+  ipcMain.handle('sush:sushrc-path', () => ({ path: sushrcPath() }))
 
   // ── File operations ──────────────────────────────────────────────────────
   ipcMain.handle('sush:read-file', async (event, { path: filePath }) => {

@@ -229,3 +229,31 @@ export const where = {
     return found ? ok(found) : err(`where: ${tool} not found`)
   }
 }
+
+export const sushrc = {
+  name: 'sushrc',
+  description: 'Edit your .sushrc profile (aliases, env, startup)',
+  usage: 'sushrc',
+  aliases: ['profile'],
+  async run() {
+    return { ...ok('Opening .sushrc'), action: { name: 'open-sushrc' } }
+  }
+}
+
+export const handoff = {
+  name: 'handoff',
+  description: 'Hand off this session\'s context to another session',
+  usage: 'handoff',
+  async run() {
+    return { ...ok('Preparing handoff'), action: { name: 'handoff' } }
+  }
+}
+
+export const corners = {
+  name: 'corners',
+  description: 'Cycle the UI corner style (sharp / rounded / pill)',
+  usage: 'corners',
+  async run() {
+    return { ...ok('Cycling corner style'), action: { name: 'corners' } }
+  }
+}

@@ -28,7 +28,7 @@ const STATIC_ACTIONS = [
   { id: 'home', label: 'Go Home', description: 'Open the home dashboard', icon: 'home', action: 'home' },
 ]
 
-export default function CommandPalette({ accent, onClose, onAction, onRun }) {
+export default function CommandPalette({ accent, onClose, onAction, onRun, dynamicActions = [] }) {
   const [query, setQuery] = useState('')
   const [commands, setCommands] = useState([])
   const [idx, setIdx] = useState(0)
@@ -43,6 +43,7 @@ export default function CommandPalette({ accent, onClose, onAction, onRun }) {
     const q = query.trim()
     const all = [
       ...STATIC_ACTIONS.map(a => ({ ...a, type: 'action', score: fuzzyScore(q, a.label) + fuzzyScore(q, a.description) })),
+      ...dynamicActions.map(a => ({ ...a, type: 'action', score: fuzzyScore(q, a.label) + fuzzyScore(q, a.description) })),
       ...commands.map(c => ({ id: `cmd:${c.name}`, label: c.name, description: c.description, usage: c.usage, icon: 'terminal', type: 'command', score: fuzzyScore(q, c.name) + fuzzyScore(q, c.description) }))
     ]
     return all.filter(i => i.score > 0).sort((a, b) => b.score - a.score).slice(0, 20)
@@ -70,7 +71,7 @@ export default function CommandPalette({ accent, onClose, onAction, onRun }) {
     >
       <div
         className="sush-fade-up"
-        style={{ width: '100%', maxWidth: 580, background: '#0d1015', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 14, boxShadow: `0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px ${rgba(accent, 0.1)}`, overflow: 'hidden' }}
+        style={{ width: '100%', maxWidth: 580, background: '#0d1015', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 'var(--r-xl)', boxShadow: `0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px ${rgba(accent, 0.1)}`, overflow: 'hidden' }}
       >
         {/* Search input */}
         <div className="flex items-center" style={{ gap: 10, padding: '12px 16px', borderBottom: `1px solid ${rgba(accent, 0.12)}` }}>
@@ -111,7 +112,7 @@ export default function CommandPalette({ accent, onClose, onAction, onRun }) {
                 textAlign: 'left'
               }}
             >
-              <span style={{ width: 32, height: 32, borderRadius: 8, background: i === idx ? rgba(accent, 0.2) : '#141a20', border: `1px solid ${i === idx ? rgba(accent, 0.4) : '#1d242b'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: i === idx ? accent : '#8a939c' }}>
+              <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: i === idx ? rgba(accent, 0.2) : '#141a20', border: `1px solid ${i === idx ? rgba(accent, 0.4) : '#1d242b'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: i === idx ? accent : '#8a939c' }}>
                 <Icon name={item.icon} size={15} strokeWidth={2} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>

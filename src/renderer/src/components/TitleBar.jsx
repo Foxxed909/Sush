@@ -15,7 +15,7 @@ export default function TitleBar({ accent, onSettings }) {
           style={{
             width: 16,
             height: 16,
-            borderRadius: 5,
+            borderRadius: 'var(--r-sm)',
             background: `linear-gradient(150deg, ${accent}, ${rgba(accent, 0.4)})`,
             boxShadow: `0 0 10px ${rgba(accent, 0.5)}`
           }}

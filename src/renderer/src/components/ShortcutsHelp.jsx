@@ -30,8 +30,9 @@ const SECTIONS = [
     rows: [
       { keys: ['Ctrl', 'T'], label: 'New terminal tab' },
       { keys: ['Ctrl', 'W'], label: 'Close current tab' },
-      { keys: ['Ctrl', 'Tab'], label: 'Next tab' },
-      { keys: ['Ctrl', 'Shift', 'Tab'], label: 'Previous tab' },
+      { keys: ['Ctrl', 'Tab'], label: 'Quick switch (hold Ctrl, tap Tab)' },
+      { keys: ['Ctrl', 'Shift', 'Tab'], label: 'Quick switch backwards' },
+      { keys: ['F2'], label: 'Rename active session' },
       { keys: ['Double-click'], label: 'Rename session in rail' },
     ]
   },
@@ -56,6 +57,9 @@ const SECTIONS = [
       { keys: ['ping <host>'], label: 'Ping a host', isCmd: true },
       { keys: ['timer <secs>'], label: 'Start a countdown', isCmd: true },
       { keys: ['duplicate'], label: 'Duplicate current session', isCmd: true },
+      { keys: ['handoff'], label: 'Hand off session context', isCmd: true },
+      { keys: ['sushrc'], label: 'Edit your .sushrc profile', isCmd: true },
+      { keys: ['corners'], label: 'Cycle UI corner style', isCmd: true },
     ]
   }
 ]

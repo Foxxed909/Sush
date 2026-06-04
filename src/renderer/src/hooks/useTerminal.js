@@ -15,6 +15,8 @@ export function useTerminal({
   fontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
   cursorStyle = 'block',
   broadcastTabIds,
+  restoreKey,
+  persistScrollback = true,
   onAutoCopy,
   onCommand,
   onSessionState,
@@ -199,7 +201,9 @@ export function useTerminal({
         rows: term.rows,
         cwd: initialCwdRef.current,
         shellId: profile?.shell,
-        profileId: profile?.id
+        profileId: profile?.id,
+        restoreKey,
+        persistScrollback
       })
         .then((state) => {
           resizePty()

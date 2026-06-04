@@ -11,6 +11,9 @@ import RightPanel from './components/RightPanel'
 import PlansModal from './components/PlansModal'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsHelp from './components/ShortcutsHelp'
+import HandoffModal from './components/HandoffModal'
+import SushrcEditor from './components/SushrcEditor'
+import QuickSwitcher from './components/QuickSwitcher'
 import { themes, defaultTheme } from './themes'
 import { accentVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
@@ -184,14 +187,38 @@ export default function App() {
   const [splitMode, setSplitMode] = useState(false)
   const [splitTabId, setSplitTabId] = useState(null)
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
+  const [renamingId, setRenamingId] = useState(null)
+  const [handoffSource, setHandoffSource] = useState(null)
+  const [showSushrc, setShowSushrc] = useState(false)
+  const [switcher, setSwitcher] = useState(null)  // { order:[ids], index } when open
   const pendingPtyRef = useRef(new Map())
   const tabsRef = useRef(tabs)
   const activeIdRef = useRef(activeId)
   const closeTabRef = useRef(null)
   const rightDragRef = useRef(null)
+  const mruRef = useRef([])          // tab ids, most-recently-active first
+  const switcherRef = useRef(null)
 
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
+  useEffect(() => { switcherRef.current = switcher }, [switcher])
+
+  // Maintain a most-recently-used order of session ids for the Ctrl+Tab switcher.
+  useEffect(() => {
+    if (!activeId) return
+    mruRef.current = [activeId, ...mruRef.current.filter(id => id !== activeId)]
+  }, [activeId])
+
+  // Drop closed tabs out of the MRU list.
+  useEffect(() => {
+    const live = new Set(tabs.map(t => t.id))
+    mruRef.current = mruRef.current.filter(id => live.has(id))
+  }, [tabs])
+
+  // Apply the corner-style design token to the whole UI.
+  useEffect(() => {
+    document.body.dataset.corners = settings.cornerStyle ?? 'rounded'
+  }, [settings.cornerStyle])
 
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
@@ -301,6 +328,39 @@ export default function App() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [rightTab, profiles])
+
+  // F2 → rename active session. Ctrl+Tab → MRU quick switcher (hold Ctrl, tap Tab).
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'F2') {
+        e.preventDefault()
+        if (activeIdRef.current) { setView('terminal'); setRenamingId(activeIdRef.current) }
+        return
+      }
+      if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault()
+        const order = mruRef.current.length >= 2 ? [...mruRef.current] : tabsRef.current.map(t => t.id)
+        if (order.length < 2) return
+        setSwitcher(prev => {
+          if (!prev) return { order, index: e.shiftKey ? order.length - 1 : 1 }
+          const len = prev.order.length
+          const delta = e.shiftKey ? -1 : 1
+          return { ...prev, index: ((prev.index + delta) % len + len) % len }
+        })
+      }
+    }
+    const onKeyUp = (e) => {
+      if ((e.key === 'Control' || e.key === 'Meta') && switcherRef.current) {
+        const s = switcherRef.current
+        const id = s.order[s.index]
+        setSwitcher(null)
+        if (id) { setActiveId(id); setView('terminal') }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
+  }, [])
 
   useEffect(() => { localStorage.setItem('sush-right-open', rightOpen ? '1' : '0') }, [rightOpen])
   useEffect(() => { localStorage.setItem('sush-right-tab', rightTab) }, [rightTab])
@@ -576,6 +636,48 @@ export default function App() {
     openTab(prof, { cwd: tab.cwd, shell: tab.shell, label: `${tab.label} (copy)` })
   }, [profiles, openTab])
 
+  // Gather a portable context card for a session: cwd, branch, recent commands,
+  // and a tail of its output. Used by the handoff flow.
+  const buildHandoffCard = useCallback(async (sourceId) => {
+    const tab = tabsRef.current.find(t => t.id === sourceId)
+    if (!tab) return null
+    let branch = null, dirty = 0
+    if (tab.cwd) {
+      try {
+        const g = await window.sush.gitStatus({ cwd: tab.cwd })
+        if (g?.repo) { branch = g.branch; dirty = (g.files || []).length }
+      } catch {}
+    }
+    let scroll = ''
+    try { scroll = (await window.sush.getScrollback({ tabId: sourceId, chars: 1800 }))?.text || '' } catch {}
+    return { tab, branch, dirty, scroll, recent: commandHistory.slice(-6) }
+  }, [commandHistory])
+
+  // Deliver a handoff: copy the full card to the clipboard (rich paste) and paste
+  // a single safe line at the target session's prompt for the user to review/submit.
+  const performHandoff = useCallback(({ targetId, fullText, injectText, openNew, sourceCwd }) => {
+    window.sush.copyText(String(fullText || '')).catch(() => {})
+    const oneLine = String(injectText || '').replace(/\r?\n+/g, ' | ').trim()
+    if (openNew) {
+      const target = openTab(profiles[0], { cwd: sourceCwd || null, label: 'handoff', tag: `handoff-${Date.now()}` })
+      if (oneLine) setTimeout(() => window.sush.ptyInput({ tabId: target.id, data: oneLine }), 1200)
+    } else {
+      const target = tabsRef.current.find(t => t.id === targetId)
+      if (target) {
+        setActiveId(target.id)
+        setView('terminal')
+        if (oneLine) window.sush.ptyInput({ tabId: target.id, data: oneLine })
+      }
+    }
+    setHandoffSource(null)
+  }, [openTab, profiles])
+
+  const cycleCorners = useCallback(() => {
+    const order = ['rounded', 'sharp', 'pill']
+    const cur = settings.cornerStyle ?? 'rounded'
+    saveSettings({ ...settings, cornerStyle: order[(order.indexOf(cur) + 1) % order.length] })
+  }, [settings])
+
   const applySmartAction = useCallback((action, result) => {
     if (!action) return
     if (action.name === 'open-home') {
@@ -609,8 +711,16 @@ export default function App() {
     } else if (action.name === 'duplicate-tab') {
       const active = tabsRef.current.find(t => t.id === activeIdRef.current)
       if (active) duplicateTab(active.id)
+    } else if (action.name === 'open-sushrc') {
+      setSmartResult(null)
+      setShowSushrc(true)
+    } else if (action.name === 'handoff') {
+      setSmartResult(null)
+      if (activeIdRef.current) setHandoffSource(activeIdRef.current)
+    } else if (action.name === 'corners') {
+      cycleCorners()
     }
-  }, [findOrOpenCwd, queuePtyCommand, recentSessions, duplicateTab])
+  }, [findOrOpenCwd, queuePtyCommand, recentSessions, duplicateTab, cycleCorners])
 
   const runSmartInput = useCallback(async (input) => {
     const command = input.trim()
@@ -640,7 +750,33 @@ export default function App() {
     else if (action === 'zen') setZenMode(prev => !prev)
     else if (action === 'shortcuts') setShowShortcuts(true)
     else if (action === 'home') { setHomeView('dashboard'); setView('home') }
-  }, [])
+    else if (action === 'handoff') { if (activeIdRef.current) setHandoffSource(activeIdRef.current) }
+    else if (action === 'rename') { if (activeIdRef.current) { setView('terminal'); setRenamingId(activeIdRef.current) } }
+    else if (action === 'corners') cycleCorners()
+    else if (action === 'sushrc') setShowSushrc(true)
+    else if (action?.startsWith?.('session:')) {
+      const id = action.slice('session:'.length)
+      setActiveId(id); setView('terminal')
+    }
+  }, [cycleCorners])
+
+  // Dynamic palette entries: new actions + a jump-to-session for every open tab.
+  const paletteActions = useCallback(() => {
+    const base = [
+      { id: 'act-handoff', label: 'Hand Off Session', description: 'Pass this session\'s context to another (Ctrl+P)', icon: 'send', action: 'handoff' },
+      { id: 'act-rename', label: 'Rename Session', description: 'Rename the active session (F2)', icon: 'edit', action: 'rename' },
+      { id: 'act-corners', label: 'Cycle Corner Style', description: 'Sharp → Rounded → Pill', icon: 'layout', action: 'corners' },
+      { id: 'act-sushrc', label: 'Edit .sushrc Profile', description: 'Your shell-agnostic Sush profile', icon: 'fileText', action: 'sushrc' },
+    ]
+    const sessions = tabs.map(t => ({
+      id: `sess-${t.id}`,
+      label: `Go to: ${t.label}`,
+      description: t.cwd || t.profileLabel || t.shell,
+      icon: 'terminal',
+      action: `session:${t.id}`
+    }))
+    return [...base, ...sessions]
+  }, [tabs])
 
   return (
     <div className="flex flex-col h-screen" style={{ ...accentVars(accent), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
@@ -664,6 +800,10 @@ export default function App() {
           onProfiles={() => setShowProfiles(true)}
           onRename={renameTab}
           onDuplicate={duplicateTab}
+          renamingId={renamingId}
+          onRenameStart={setRenamingId}
+          onRenameEnd={() => setRenamingId(null)}
+          onHandoff={(id) => setHandoffSource(id)}
         />
         )}
 
@@ -705,6 +845,8 @@ export default function App() {
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={true}
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                        restoreKey={tab.cwd ? tabKey(tab) : null}
+                        persistScrollback={settings.persistScrollback !== false}
                         onSessionState={(state) => handleSessionState(tab.id, state)}
                         onReady={(state) => handleTerminalReady(tab.id, state)}
                         onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -723,6 +865,8 @@ export default function App() {
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={true}
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                        restoreKey={tab.cwd ? tabKey(tab) : null}
+                        persistScrollback={settings.persistScrollback !== false}
                         onSessionState={(state) => handleSessionState(tab.id, state)}
                         onReady={(state) => handleTerminalReady(tab.id, state)}
                         onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -749,6 +893,8 @@ export default function App() {
                     fontFamily={fontFamily}
                     cursorStyle={cursorStyle}
                     broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                    restoreKey={tab.cwd ? tabKey(tab) : null}
+                    persistScrollback={settings.persistScrollback !== false}
                     onSessionState={(state) => handleSessionState(tab.id, state)}
                     onReady={(state) => handleTerminalReady(tab.id, state)}
                     onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -875,6 +1021,7 @@ export default function App() {
           onClose={() => setShowSettings(false)}
           accent={accent}
           onUpgrade={() => { setShowSettings(false); setShowPlans(true) }}
+          onEditSushrc={() => { setShowSettings(false); setShowSushrc(true) }}
         />
       )}
 
@@ -900,6 +1047,7 @@ export default function App() {
       {showPalette && (
         <CommandPalette
           accent={accent}
+          dynamicActions={paletteActions()}
           onClose={() => setShowPalette(false)}
           onAction={handlePaletteAction}
           onRun={runSmartInput}
@@ -910,6 +1058,33 @@ export default function App() {
         <ShortcutsHelp
           accent={accent}
           onClose={() => setShowShortcuts(false)}
+        />
+      )}
+
+      {handoffSource && (
+        <HandoffModal
+          accent={accent}
+          sourceId={handoffSource}
+          tabs={tabs}
+          build={buildHandoffCard}
+          onSubmit={performHandoff}
+          onClose={() => setHandoffSource(null)}
+        />
+      )}
+
+      {showSushrc && (
+        <SushrcEditor
+          accent={accent}
+          onClose={() => setShowSushrc(false)}
+        />
+      )}
+
+      {switcher && (
+        <QuickSwitcher
+          accent={accent}
+          tabs={tabs}
+          order={switcher.order}
+          index={switcher.index}
         />
       )}
 

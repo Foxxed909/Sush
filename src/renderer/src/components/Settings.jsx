@@ -7,6 +7,7 @@ import { rgba } from '../lib/ui'
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
 const TTS_RATES = [0.75, 1.0, 1.1, 1.25, 1.5, 1.75]
+const CORNERS = [{ id: 'sharp', label: 'Sharp' }, { id: 'rounded', label: 'Rounded' }, { id: 'pill', label: 'Pill' }]
 
 function Label({ children }) {
   return <div style={{ color: '#76808a', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 7 }}>{children}</div>
@@ -70,7 +71,7 @@ function ApiKeyField({ label, value, onChange, accent, placeholder }) {
   )
 }
 
-export default function Settings({ settings, onChange, onClose, accent, onUpgrade }) {
+export default function Settings({ settings, onChange, onClose, accent, onUpgrade, onEditSushrc }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const plan = getPlan(loadPlan())
   const [voices, setVoices] = useState([])
@@ -216,6 +217,55 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                   </button>
                 ))}
               </div>
+            </Row>
+          </Section>
+
+          {/* Appearance */}
+          <Section title="Appearance" accent={accent}>
+            <Row>
+              <Label>Corners</Label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {CORNERS.map(c => {
+                  const on = (settings.cornerStyle ?? 'rounded') === c.id
+                  const demo = c.id === 'sharp' ? 2 : c.id === 'pill' ? 999 : 9
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => set('cornerStyle', c.id)}
+                      style={{ flex: 1, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: on ? rgba(accent, 0.1) : '#0f1318', color: on ? accent : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}`, borderRadius: 9 }}
+                    >
+                      <span style={{ width: 26, height: 16, background: on ? rgba(accent, 0.3) : '#2a333c', borderRadius: Math.min(demo, 8), border: `1px solid ${on ? accent : '#3a444e'}` }} />
+                      {c.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Row>
+            <Row>
+              <Label>Restore session history</Label>
+              <button
+                onClick={() => set('persistScrollback', settings.persistScrollback === false)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.persistScrollback !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.persistScrollback !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.persistScrollback !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="clock" size={14} strokeWidth={2} />
+                {settings.persistScrollback !== false ? 'Replaying recent output on reopen' : 'History restore off'}
+              </button>
+            </Row>
+          </Section>
+
+          {/* Profile */}
+          <Section title="Sush Profile" accent={accent}>
+            <Row>
+              <Label>.sushrc — aliases, env, startup</Label>
+              <button
+                onClick={() => onEditSushrc?.()}
+                className="sush-btn"
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderRadius: 9, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="fileText" size={14} color={accent} strokeWidth={2} />
+                Edit .sushrc profile
+                <Icon name="arrowRight" size={13} color="#5a646d" style={{ marginLeft: 'auto' }} />
+              </button>
             </Row>
           </Section>
 

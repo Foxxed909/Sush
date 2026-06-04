@@ -18,7 +18,7 @@ function RailButton({ icon, label, active, accent, onClick }) {
       style={{
         width: 36,
         height: 36,
-        borderRadius: 10,
+        borderRadius: 'var(--r-md)',
         border: `1px solid ${active ? accent : rgba(accent, 0.3)}`,
         background: active ? rgba(accent, 0.16) : '#12161a',
         color: active ? accent : '#c2cad1',
@@ -48,17 +48,20 @@ function buildBlocks(tabs) {
   return blocks
 }
 
-// Per-session in-place rename: double-click the label to edit.
-function SessionLabel({ tab, onRename }) {
+// Per-session in-place rename: double-click the label to edit, or trigger via the
+// context menu / F2 (editRequested), which the parent drives through renamingId.
+function SessionLabel({ tab, onRename, editRequested, onEditDone }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(tab.label)
   const inputRef = useRef(null)
 
   useEffect(() => { setVal(tab.label) }, [tab.label])
   useEffect(() => { if (editing) { inputRef.current?.select(); inputRef.current?.focus() } }, [editing])
+  useEffect(() => { if (editRequested) setEditing(true) }, [editRequested])
 
   const commit = () => {
     setEditing(false)
+    onEditDone?.()
     const trimmed = val.trim()
     if (trimmed && trimmed !== tab.label) onRename(tab.id, trimmed)
     else setVal(tab.label)
@@ -71,7 +74,7 @@ function SessionLabel({ tab, onRename }) {
         value={val}
         onChange={e => setVal(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(tab.label) } }}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(tab.label); onEditDone?.() } }}
         onClick={e => e.stopPropagation()}
         style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit' }}
       />
@@ -89,7 +92,7 @@ function SessionLabel({ tab, onRename }) {
   )
 }
 
-function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSelect, onClose, onRename, onDuplicate, onPin, pinned }) {
+function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSelect, onClose, onRename, onDuplicate, onPin, pinned, editRequested, onEditDone, onRenameStart, onHandoff }) {
   const [ctxMenu, setCtxMenu] = useState(null)
   const exited = tab.status === 'exited'
   const dotColor = exited ? '#ff5370' : '#42d392'
@@ -127,7 +130,7 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
           gap: 10,
           alignItems: 'center',
           textAlign: 'left',
-          borderRadius: 11,
+          borderRadius: 'var(--r-lg)',
           border: `1px solid ${active ? rgba(accent, 0.55) : over ? rgba(accent, 0.4) : pinned ? rgba(accent, 0.22) : '#1c232a'}`,
           background: active ? rgba(accent, 0.1) : over ? '#11171c' : '#0e1216',
           color: active ? '#f4f6f8' : '#aab2ba',
@@ -145,7 +148,7 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
         )}
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, boxShadow: exited ? 'none' : `0 0 7px ${rgba(dotColor, 0.8)}`, flexShrink: 0 }} />
         <span style={{ minWidth: 0 }}>
-          <SessionLabel tab={tab} onRename={onRename} />
+          <SessionLabel tab={tab} onRename={onRename} editRequested={editRequested} onEditDone={onEditDone} />
           <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: '#69737d', marginTop: 3 }}>
             {exited ? 'exited' : shortPath(tab.cwd) || tab.shellLabel || tab.shell}
           </span>
@@ -167,7 +170,10 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
           onClick={e => e.stopPropagation()}
         >
           {[
+            { icon: 'edit', label: 'Rename', action: () => onRenameStart?.(tab.id) },
+            { icon: 'send', label: 'Hand off…', action: () => onHandoff?.(tab.id) },
             { icon: 'refresh', label: 'Duplicate', action: () => onDuplicate?.(tab.id) },
+            { icon: 'copy', label: 'Copy path', action: () => { if (tab.cwd) window.sush?.copyText?.(tab.cwd) } },
             { icon: pinned ? 'minus' : 'lock', label: pinned ? 'Unpin' : 'Pin', action: () => onPin?.(tab.id) },
             { icon: 'trash', label: 'Close', action: () => { setCtxMenu(null); onClose(tab.id) }, danger: true },
           ].map(item => (
@@ -201,10 +207,15 @@ export default function SessionRail({
   onReorder,
   onProfiles,
   onRename,
-  onDuplicate
+  onDuplicate,
+  renamingId,
+  onRenameStart,
+  onRenameEnd,
+  onHandoff
 }) {
   const dragId = useRef(null)
   const [dragOver, setDragOver] = useState(null)
+  const [filter, setFilter] = useState('')
   const [collapsed, setCollapsed] = useState(() => new Set())
   const [pinned, setPinned] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('sush-pinned-tabs') ?? '[]')) } catch { return new Set() }
@@ -240,8 +251,12 @@ export default function SessionRail({
     })
   }
 
-  // Sort: pinned first, then normal
-  const sortedTabs = [...tabs].sort((a, b) => {
+  // Filter by label or path, then sort pinned first.
+  const q = filter.trim().toLowerCase()
+  const filteredTabs = q
+    ? tabs.filter(t => (t.label || '').toLowerCase().includes(q) || (t.cwd || '').toLowerCase().includes(q) || (t.groupLabel || '').toLowerCase().includes(q))
+    : tabs
+  const sortedTabs = [...filteredTabs].sort((a, b) => {
     const ap = pinned.has(a.id) ? 0 : 1
     const bp = pinned.has(b.id) ? 0 : 1
     return ap - bp
@@ -275,12 +290,37 @@ export default function SessionRail({
       <div className="flex-1 min-h-0 overflow-y-auto sush-scroll" style={{ padding: 12 }}>
         <div
           className="flex items-center"
-          style={{ gap: 8, color: '#6b747d', fontSize: 10.5, margin: '0 0 12px 2px', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}
+          style={{ gap: 8, color: '#6b747d', fontSize: 10.5, margin: '0 0 10px 2px', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}
         >
           Sessions
-          <span style={{ color: '#4b545d' }}>{tabs.length}</span>
+          <span style={{ color: '#4b545d' }}>{q ? `${sortedTabs.length}/${tabs.length}` : tabs.length}</span>
           <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${rgba(accent, 0.18)}, transparent)` }} />
         </div>
+
+        {tabs.length > 3 && (
+          <div
+            className="flex items-center"
+            style={{ gap: 7, marginBottom: 10, background: '#07090b', border: '1px solid #1c232a', borderRadius: 'var(--r-sm)', padding: '0 9px', height: 30 }}
+          >
+            <Icon name="search" size={12} color="#5a646d" strokeWidth={2} />
+            <input
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              placeholder="Filter sessions…"
+              spellCheck={false}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: '#d4dbe1', fontSize: 11.5, fontFamily: 'inherit' }}
+            />
+            {filter && (
+              <button onClick={() => setFilter('')} title="Clear" style={{ background: 'none', border: 'none', color: '#69737d', cursor: 'pointer', display: 'flex', padding: 0 }}>
+                <Icon name="x" size={12} strokeWidth={2.2} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {q && sortedTabs.length === 0 && (
+          <div style={{ fontSize: 11.5, color: '#5a646d', padding: '8px 2px' }}>No sessions match “{filter}”.</div>
+        )}
 
         <div className="flex flex-col" style={{ gap: 8 }}>
           {blocks.map(block => {
@@ -300,6 +340,10 @@ export default function SessionRail({
                   onDuplicate={onDuplicate}
                   onPin={togglePin}
                   pinned={pinned.has(tab.id)}
+                  editRequested={renamingId === tab.id}
+                  onEditDone={onRenameEnd}
+                  onRenameStart={onRenameStart}
+                  onHandoff={onHandoff}
                 />
               )
             }
@@ -310,7 +354,7 @@ export default function SessionRail({
             return (
               <div
                 key={block.id}
-                style={{ border: `1px solid ${hasActive ? rgba(accent, 0.4) : '#171d23'}`, borderRadius: 13, background: hasActive ? rgba(accent, 0.05) : '#0b0e11', padding: 7 }}
+                style={{ border: `1px solid ${hasActive ? rgba(accent, 0.4) : '#171d23'}`, borderRadius: 'var(--r-lg)', background: hasActive ? rgba(accent, 0.05) : '#0b0e11', padding: 7 }}
               >
                 <div
                   className="flex items-center"
@@ -354,6 +398,10 @@ export default function SessionRail({
                         onDuplicate={onDuplicate}
                         onPin={togglePin}
                         pinned={pinned.has(tab.id)}
+                        editRequested={renamingId === tab.id}
+                        onEditDone={onRenameEnd}
+                        onRenameStart={onRenameStart}
+                        onHandoff={onHandoff}
                       />
                     ))}
                   </div>

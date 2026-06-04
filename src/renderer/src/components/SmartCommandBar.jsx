@@ -198,7 +198,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           type="button"
           title="Home"
           onClick={() => onRun('home')}
-          style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.08), color: accent, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 32, height: 32, borderRadius: 'var(--r-btn)', border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.08), color: accent, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <Icon name="home" size={15} strokeWidth={2.2} />
         </button>
@@ -239,7 +239,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
         <span
           title={activeTab?.cwd || activeTab?.profileLabel || ''}
           className="flex items-center"
-          style={{ gap: 5, color: '#8a939c', fontSize: 11, background: '#0f1318', border: '1px solid #1d242b', borderRadius: 999, padding: '4px 10px', flexShrink: 0, maxWidth: 160 }}
+          style={{ gap: 5, color: '#8a939c', fontSize: 11, background: '#0f1318', border: '1px solid #1d242b', borderRadius: 'var(--r-pill)', padding: '4px 10px', flexShrink: 0, maxWidth: 160 }}
         >
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: accent, flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeTab?.label || 'Shell'}</span>
@@ -251,7 +251,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           title="Seducia (Ctrl+K)"
           onClick={onSeducia}
           className="sush-btn flex items-center"
-          style={{ gap: 6, height: 32, padding: '0 11px', borderRadius: 9, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.1), color: accent, fontWeight: 800, fontSize: 11.5, cursor: 'pointer', flexShrink: 0 }}
+          style={{ gap: 6, height: 32, padding: '0 11px', borderRadius: 'var(--r-btn)', border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.1), color: accent, fontWeight: 800, fontSize: 11.5, cursor: 'pointer', flexShrink: 0 }}
         >
           <Icon name="sparkles" size={13} strokeWidth={2} />
           Seducia
@@ -261,7 +261,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
         <button
           type="submit"
           disabled={busy}
-          style={{ gap: 6, height: 32, padding: '0 13px', border: 'none', borderRadius: 9, background: busy ? '#1c2126' : accent, color: busy ? '#7a838b' : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: busy ? 'default' : 'pointer', boxShadow: busy ? 'none' : `0 4px 14px ${rgba(accent, 0.3)}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}
+          style={{ gap: 6, height: 32, padding: '0 13px', border: 'none', borderRadius: 'var(--r-btn)', background: busy ? '#1c2126' : accent, color: busy ? '#7a838b' : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: busy ? 'default' : 'pointer', boxShadow: busy ? 'none' : `0 4px 14px ${rgba(accent, 0.3)}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}
         >
           {busy ? 'Running' : 'Run'}
           {!busy && <Icon name="enter" size={13} strokeWidth={2.2} color="#0a0a0a" style={{ marginLeft: 4 }} />}
@@ -273,7 +273,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
             type="button"
             title={broadcastMode ? 'Broadcast ON -- input goes to all tabs (Ctrl+Shift+B)' : 'Broadcast mode off (Ctrl+Shift+B)'}
             onClick={onToggleBroadcast}
-            style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : '#20272e'}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : '#11151a', color: broadcastMode ? '#ff5370' : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 32, height: 32, borderRadius: 'var(--r-btn)', border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : '#20272e'}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : '#11151a', color: broadcastMode ? '#ff5370' : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Icon name="radio" size={14} />
           </button>
@@ -285,7 +285,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
             type="button"
             title={splitMode ? 'Exit split pane (Ctrl+Shift+H)' : 'Split pane (Ctrl+Shift+H)'}
             onClick={onToggleSplit}
-            style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${splitMode ? rgba(accent, 0.45) : '#20272e'}`, background: splitMode ? rgba(accent, 0.1) : '#11151a', color: splitMode ? accent : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: 32, height: 32, borderRadius: 'var(--r-btn)', border: `1px solid ${splitMode ? rgba(accent, 0.45) : '#20272e'}`, background: splitMode ? rgba(accent, 0.1) : '#11151a', color: splitMode ? accent : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Icon name="layout" size={14} />
           </button>
@@ -296,7 +296,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           type="button"
           title={rightOpen ? 'Hide panel (Ctrl+B)' : 'Show panel (Ctrl+B)'}
           onClick={onTogglePanel}
-          style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${rightOpen ? rgba(accent, 0.45) : '#20272e'}`, background: rightOpen ? rgba(accent, 0.1) : '#11151a', color: rightOpen ? accent : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 32, height: 32, borderRadius: 'var(--r-btn)', border: `1px solid ${rightOpen ? rgba(accent, 0.45) : '#20272e'}`, background: rightOpen ? rgba(accent, 0.1) : '#11151a', color: rightOpen ? accent : '#76808a', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <Icon name="panel" size={15} />
         </button>
