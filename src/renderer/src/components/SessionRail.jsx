@@ -155,12 +155,16 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
         </span>
         <button
           type="button"
-          title="Close session"
-          onClick={(event) => { event.stopPropagation(); onClose(tab.id) }}
+          title={pinned ? 'Pinned — right-click to unpin or close' : 'Close session'}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (pinned) { handleContextMenu(event); return }
+            onClose(tab.id)
+          }}
           className="sush-session-close flex items-center justify-center"
-          style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: '#69737d', cursor: 'pointer' }}
+          style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: pinned ? '#5a646d' : '#69737d', cursor: 'pointer' }}
         >
-          <Icon name="x" size={13} strokeWidth={2.2} />
+          <Icon name={pinned ? 'lock' : 'x'} size={13} strokeWidth={2.2} />
         </button>
       </div>
 

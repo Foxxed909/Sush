@@ -3,6 +3,7 @@ import Icon from './Icons'
 import { rgba } from '../lib/ui'
 
 const DEFAULT_URL = 'https://duckduckgo.com'
+const WEB_URL = /^https?:\/\//i
 
 // Turn whatever the user typed into a loadable URL. Handles bare domains,
 // localhost / :port (great for previewing a dev server), IPs, and falls back to
@@ -10,7 +11,9 @@ const DEFAULT_URL = 'https://duckduckgo.com'
 function normalizeUrl(input) {
   const v = String(input || '').trim()
   if (!v) return ''
-  if (/^[a-z]+:\/\//i.test(v)) return v // already has a scheme (http, https, file, about...)
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) {
+    return WEB_URL.test(v) ? v : `https://duckduckgo.com/?q=${encodeURIComponent(v)}`
+  }
   if (/^:\d+/.test(v)) return `http://localhost${v}` // ":5173" → localhost preview
   if (/^localhost(:\d+)?(\/.*)?$/i.test(v)) return `http://${v}`
   if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/.*)?$/.test(v)) return `http://${v}`
@@ -31,10 +34,15 @@ export default function Browser({ accent }) {
   const initialSrc = useRef(DEFAULT_URL)
   const [address, setAddress] = useState(DEFAULT_URL)
   const [editing, setEditing] = useState(false)
+  const editingRef = useRef(false)
   const [loading, setLoading] = useState(false)
   const [canBack, setCanBack] = useState(false)
   const [canForward, setCanForward] = useState(false)
   const [secure, setSecure] = useState(true)
+
+  // Keep ref in sync so the stable event handlers below read current editing state
+  // without needing to tear down and re-attach listeners on every keystroke.
+  useEffect(() => { editingRef.current = editing }, [editing])
 
   useEffect(() => {
     const wv = webviewRef.current
@@ -50,7 +58,7 @@ export default function Browser({ accent }) {
     const onStop = () => { setLoading(false); syncNav() }
     const onNav = (e) => {
       if (e.url) {
-        if (!editing) setAddress(e.url)
+        if (!editingRef.current) setAddress(e.url)
         setSecure(/^https:/i.test(e.url))
       }
       syncNav()
@@ -69,7 +77,7 @@ export default function Browser({ accent }) {
       wv.removeEventListener('did-navigate-in-page', onNav)
       wv.removeEventListener('did-fail-load', onFail)
     }
-  }, [editing])
+  }, [])
 
   const navigate = (raw) => {
     const url = normalizeUrl(raw)

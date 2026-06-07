@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile)
 import * as pty from 'node-pty'
 import si from 'systeminformation'
 import { registry } from './shell/registry'
+import { clearTabTimer } from './commands/extras'
 import { parseInput } from './shell/parser'
 import { ShellContext } from './shell/context'
 import { loadSushrc, readSushrcRaw, writeSushrcRaw, sushrcPath } from './shell/sushrc'
@@ -21,8 +22,10 @@ const ptySessions = new Map()
 const fileWatchers = new Map()
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
+const SAFE_EXTERNAL_URL = /^https?:\/\//i
 
-const WELCOME_BANNER = [
+// Static art block sent immediately; boot lines are staggered in sendStaggeredBanner().
+const WELCOME_ART = [
   '\x1b[38;2;255;107;157m\x1b[1m',
   '   _____ _    _  _____ _    _',
   '  / ____| |  | |/ ____| |  | |',
@@ -30,9 +33,30 @@ const WELCOME_BANNER = [
   '  \\___ \\| |  | |\\___ \\|  __  |',
   '  ____) | |__| |____) | |  | |',
   ' |_____/ \\____/|_____/|_|  |_|',
-  '\x1b[0m',
-  ''
+  '\x1b[0m'
 ].join('\r\n')
+
+function buildBootLines(shellLabel, cwd) {
+  const folder = cwd.split(/[\\/]/).filter(Boolean).pop() || cwd
+  const dim = '\x1b[2m', reset = '\x1b[0m', pink = '\x1b[38;2;255;107;157m', cyan = '\x1b[36m', green = '\x1b[32m'
+  return [
+    `${dim}  ╭──────────────────────────────────────╮${reset}`,
+    `${dim}  │${reset}  ${pink}v3.0.0${reset}  ${dim}·${reset}  ${cyan}Minimata${reset}  ${dim}│${reset}`,
+    `${dim}  │${reset}  ${green}✓${reset} ${shellLabel}  ${dim}·${reset}  ${pink}${folder}${reset}  ${dim}│${reset}`,
+    `${dim}  ╰──────────────────────────────────────╯${reset}`,
+    ''
+  ]
+}
+
+function sendStaggeredBanner(win, tabId, shellLabel, cwd) {
+  if (!win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: WELCOME_ART + '\r\n' })
+  const lines = buildBootLines(shellLabel, cwd)
+  lines.forEach((line, i) => {
+    setTimeout(() => {
+      if (!win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: line + '\r\n' })
+    }, 60 + i * 55)
+  })
+}
 
 function commandExists(file) {
   if (process.platform !== 'win32') return true
@@ -393,7 +417,7 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
 
   const requestedShell = getDefaultShell(shellId)
   const shellCwd = resolveStartCwd(cwd ?? sushrc.settings.cwd)
-  if (!win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: WELCOME_BANNER })
+  sendStaggeredBanner(win, tabId, requestedShell.label, shellCwd)
 
   // Replay persisted scrollback for this workspace, if any.
   if (persistScrollback && scrollback) {
@@ -437,7 +461,7 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
   session.restoreKey = restoreKey || null
   session.persistScrollback = !!persistScrollback
   ptySessions.set(tabId, session)
-  const ctx = new ShellContext({ cwd: shellCwd })
+  const ctx = new ShellContext({ cwd: shellCwd, tabId })
   ctx.aliases = { ...sushrc.alias }   // .sushrc aliases feed the smart-command bar
   contexts.set(tabId, ctx)
   if (persistScrollback && scrollback) scrollback.attach(tabId, restoreKey)
@@ -492,7 +516,14 @@ function closePtySession(tabId) {
   const session = ptySessions.get(tabId)
   if (!session) return
   if (session.persistScrollback && scrollback) scrollback.persist(tabId)
+  clearTabTimer(tabId)   // Bug fix: clean up any pending timer for this session
   ptySessions.delete(tabId)
+  try {
+    if (process.platform === 'win32' && session.pid) {
+      execFileSync('taskkill', ['/PID', String(session.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      return
+    }
+  } catch {}
   try { session.proc.kill() } catch {}
 }
 
@@ -504,9 +535,13 @@ function closeAllPtySessions() {
 function getContext(tabId) {
   const session = ptySessions.get(tabId)
   if (!contexts.has(tabId)) {
-    contexts.set(tabId, new ShellContext({ cwd: session?.cwd ?? homedir() }))
+    const ctx = new ShellContext({ cwd: session?.cwd ?? homedir(), tabId })
+    // Populate aliases so alias expansion works even before the PTY session boots.
+    try { ctx.aliases = { ...loadSushrc().alias } } catch {}
+    contexts.set(tabId, ctx)
   }
   const ctx = contexts.get(tabId)
+  if (ctx.tabId !== tabId) ctx.tabId = tabId
   if (session?.cwd && ctx.cwd !== session.cwd) ctx.setCwd(session.cwd)
   return ctx
 }
@@ -527,7 +562,7 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
       return {
         type: 'passthrough',
         handled: false,
-        action: { name: 'passthrough', input: trimmed, cwd: ctx.cwd },
+        action: { name: 'passthrough', input: expanded, cwd: ctx.cwd },
         cwd: ctx.cwd
       }
     }
@@ -594,7 +629,9 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:run-command', async (event, { tabId, input, profileId }) => {
     const ctx = getContext(tabId)
-    const parsed = parseInput(input.trim())
+    // Expand aliases before parsing so alias commands route correctly.
+    const expanded = ctx.expandAliases(input.trim())
+    const parsed = parseInput(expanded)
     if (!parsed) return { output: '', type: 'empty' }
 
     const { cmd, args } = parsed
@@ -625,7 +662,7 @@ export function registerIpcHandlers(win) {
       }
     }
 
-    return runRegisteredCommand({ tabId, input, passthroughUnknown: false })
+    return runRegisteredCommand({ tabId, input: expanded, passthroughUnknown: false })
   })
 
   ipcMain.handle('sush:cancel-command', (event, { tabId }) => {
@@ -643,7 +680,7 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:new-tab', (event, { tabId, cwd }) => {
     const initialCwd = cwd || homedir()
-    contexts.set(tabId, new ShellContext({ cwd: initialCwd }))
+    contexts.set(tabId, new ShellContext({ cwd: initialCwd, tabId }))
     return { cwd: initialCwd }
   })
 
@@ -712,8 +749,10 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:open-external', async (event, { url }) => {
     const { shell: sh } = await import('electron')
+    const target = String(url ?? '')
+    if (!SAFE_EXTERNAL_URL.test(target)) return { ok: false, error: 'Only http(s) URLs can be opened externally' }
     try {
-      await sh.openExternal(String(url ?? ''))
+      await sh.openExternal(target)
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e.message }

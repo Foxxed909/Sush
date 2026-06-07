@@ -83,7 +83,7 @@ export const findCmd = {
     const root = resolve(ctx.cwd, dir ?? '.')
     if (!existsSync(root)) return err(`find: no such directory: ${dir ?? '.'}`)
     const results = []
-    const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\?/g, '.'), 'i')
+    const regex = new RegExp(globToRegex(pattern), 'i')
     async function walk(d, depth = 0) {
       if (depth > 8) return
       try {
@@ -114,17 +114,25 @@ export const grep = {
     if (!existsSync(path)) return err(`grep: no such file: ${file}`)
     try {
       const content = await readFile(path, 'utf8')
-      const regex = new RegExp(pattern, 'gi')
+      const regex = new RegExp(pattern, 'i')
+      const highlight = new RegExp(pattern, 'gi')
       const lines = content.split('\n')
       const matches = lines
         .map((line, i) => ({ line, num: i + 1, match: regex.test(line) }))
         .filter(r => r.match)
       if (!matches.length) return ok(ansi.dim(`No matches for "${pattern}" in ${file}`))
-      return ok(matches.map(r => `${ansi.dim(String(r.num).padStart(4))}: ${r.line.replace(new RegExp(`(${pattern})`, 'gi'), m => ansi.pink(m))}`).join('\r\n'))
+      return ok(matches.map(r => `${ansi.dim(String(r.num).padStart(4))}: ${r.line.replace(highlight, m => ansi.pink(m))}`).join('\r\n'))
     } catch (e) {
       return err(`grep: ${e.message}`)
     }
   }
+}
+
+function globToRegex(pattern) {
+  return String(pattern)
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.')
 }
 
 // ---------- diff ----------
@@ -211,13 +219,13 @@ export const b64 = {
   description: 'Base64 encode or decode',
   usage: 'b64 [encode|decode] <text>',
   async run([sub, ...rest]) {
-    const text = rest.join(' ')
-    if (!text && sub !== 'encode' && sub !== 'decode') {
-      // called as b64 <text>
-      const raw = [sub, ...rest].join(' ')
+    if (sub !== 'encode' && sub !== 'decode') {
+      // called as b64 <text> or b64 <multi word text>
+      const raw = [sub, ...rest].filter(Boolean).join(' ')
       if (!raw) return err('b64: missing text')
       return ok(Buffer.from(raw, 'utf8').toString('base64'))
     }
+    const text = rest.join(' ')
     if (!text) return err('b64: missing text')
     if (sub === 'encode') return ok(Buffer.from(text, 'utf8').toString('base64'))
     if (sub === 'decode') {
@@ -231,6 +239,22 @@ export const b64 = {
   }
 }
 
+const MATH_FUNCTIONS = new Set(['sqrt', 'pow', 'abs', 'floor', 'ceil', 'round', 'log', 'sin', 'cos', 'tan', 'min', 'max'])
+const MATH_CONSTANTS = new Map([['pi', 'Math.PI'], ['e', 'Math.E']])
+
+function toSafeMathExpression(expr) {
+  const input = String(expr ?? '').replace(/\bMath\./g, '')
+  if (/[^0-9+\-*/%.,()\sA-Za-z_]/.test(input)) {
+    throw new Error('unsupported character')
+  }
+  return input.replace(/\b[A-Za-z_][A-Za-z0-9_]*\b/g, (name) => {
+    const key = name.toLowerCase()
+    if (MATH_CONSTANTS.has(key)) return MATH_CONSTANTS.get(key)
+    if (MATH_FUNCTIONS.has(key)) return `Math.${key}`
+    throw new Error(`unsupported token '${name}'`)
+  })
+}
+
 // ---------- calc ----------
 export const calc = {
   name: 'calc',
@@ -240,23 +264,26 @@ export const calc = {
   async run(args) {
     const expr = args.join(' ').trim()
     if (!expr) return err('calc: missing expression')
-    // safe subset: allow numbers, operators, parens, spaces, Math functions
-    const safe = expr.replace(/[^0-9+\-*/%.()e\s]/gi, m => {
-      const allowed = ['Math', 'PI', 'E', 'sqrt', 'pow', 'abs', 'floor', 'ceil', 'round', 'log', 'sin', 'cos', 'tan', 'min', 'max']
-      return allowed.some(a => m === a) ? m : ''
-    })
     try {
+      const safe = toSafeMathExpression(expr)
       // eslint-disable-next-line no-new-func
-      const result = Function(`"use strict"; return (${safe.replace(/Math\./g, 'Math.')})`)()
+      const result = Function('Math', `"use strict"; return (${safe})`)(Math)
       return ok(`${ansi.dim(expr + ' =')} ${ansi.pink(String(result))}`)
-    } catch {
-      return err(`calc: cannot evaluate: ${expr}`)
+    } catch (e) {
+      return err(`calc: cannot evaluate: ${expr}${e.message ? ` (${e.message})` : ''}`)
     }
   }
 }
 
 // ---------- timer ----------
 const activeTimers = new Map()
+
+// Bug fix: expose cleanup so tab-close events can purge stale timer entries.
+export function clearTabTimer(tabId) {
+  if (!tabId) return
+  const id = activeTimers.get(tabId)
+  if (id) { clearTimeout(id); activeTimers.delete(tabId) }
+}
 
 export const timer = {
   name: 'timer',
@@ -640,5 +667,39 @@ export const duplicate = {
       ...ok('Duplicating session…'),
       action: { name: 'duplicate-tab', cwd: ctx.cwd }
     }
+  }
+}
+
+// ---------- session-info ----------
+export const sessionInfo = {
+  name: 'session-info',
+  description: 'Show info about the current session',
+  usage: 'session-info',
+  aliases: ['sinfo'],
+  async run(_, ctx) {
+    const uptime = Math.floor(process.uptime())
+    const memMB = Math.round(process.memoryUsage().rss / 1024 / 1024)
+    const lines = [
+      ansi.bold(ansi.pink('Session Info')),
+      ansi.dim('─'.repeat(36)),
+      `${ansi.cyan('Tab ID  ')} ${ctx.tabId || 'n/a'}`,
+      `${ansi.cyan('CWD     ')} ${ctx.cwd || homedir()}`,
+      `${ansi.cyan('Aliases ')} ${Object.keys(ctx.aliases || {}).length}`,
+      `${ansi.cyan('History ')} ${(ctx.history || []).length} commands`,
+      ansi.dim('─'.repeat(36)),
+      `${ansi.cyan('App uptime')} ${uptime}s`,
+      `${ansi.cyan('Memory    ')} ${memMB} MB (main process)`
+    ]
+    return ok(lines.join('\r\n'))
+  }
+}
+
+// ---------- handoff ----------
+export const handoff = {
+  name: 'handoff',
+  description: 'Hand off this session to another',
+  usage: 'handoff',
+  async run() {
+    return { ...ok('Opening handoff…'), action: { name: 'handoff' } }
   }
 }

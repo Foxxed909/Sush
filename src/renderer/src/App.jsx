@@ -14,6 +14,7 @@ import ShortcutsHelp from './components/ShortcutsHelp'
 import HandoffModal from './components/HandoffModal'
 import SushrcEditor from './components/SushrcEditor'
 import QuickSwitcher from './components/QuickSwitcher'
+import SplashScreen from './components/SplashScreen'
 import { themes, defaultTheme } from './themes'
 import { accentVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
@@ -50,7 +51,11 @@ function tabKey(tab) {
   const shell = tab.shell || 'powershell'
   const profileId = tab.profileId || 'powershell'
   const cwd = normalizePathKey(tab.cwd)
-  const base = cwd ? `${profileId}:${shell}:${cwd}` : `${profileId}:${shell}:new`
+  if (!cwd) {
+    const unique = tab.tag || tab.startedAt || tab.id
+    return `${profileId}:${shell}:new:${unique}`
+  }
+  const base = `${profileId}:${shell}:${cwd}`
   // Tagged sessions (agent launches / explicit swarms) stay unique so identical
   // shells in the same directory are never collapsed by dedupe.
   return tab.tag ? `${base}:${tab.tag}` : base
@@ -191,6 +196,10 @@ export default function App() {
   const [handoffSource, setHandoffSource] = useState(null)
   const [showSushrc, setShowSushrc] = useState(false)
   const [switcher, setSwitcher] = useState(null)  // { order:[ids], index } when open
+  const [splash, setSplash] = useState(true)
+  const [mounted, setMounted] = useState(false)
+  const [zoomIndicator, setZoomIndicator] = useState(null)  // transient font-size overlay
+  const smartDismissRef = useRef(null)
   const pendingPtyRef = useRef(new Map())
   const tabsRef = useRef(tabs)
   const activeIdRef = useRef(activeId)
@@ -202,6 +211,7 @@ export default function App() {
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
   useEffect(() => { switcherRef.current = switcher }, [switcher])
+  useEffect(() => { requestAnimationFrame(() => setMounted(true)) }, [])
 
   // Maintain a most-recently-used order of session ids for the Ctrl+Tab switcher.
   useEffect(() => {
@@ -268,8 +278,17 @@ export default function App() {
     })
   }, [])
 
-  const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0]
+  const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
+  const runningSessionCount = tabs.filter(t => t.status === 'running').length
+
+  // Auto-dismiss smart result after 8 seconds of inactivity.
+  useEffect(() => {
+    if (!smartResult) return
+    clearTimeout(smartDismissRef.current)
+    smartDismissRef.current = setTimeout(() => setSmartResult(null), 8000)
+    return () => clearTimeout(smartDismissRef.current)
+  }, [smartResult])
 
   const themeId = settings.themeId ?? activeProfile?.themeId ?? 'pink'
   const theme = themes[themeId] ?? defaultTheme
@@ -281,9 +300,23 @@ export default function App() {
   useEffect(() => {
     const handler = (e) => {
       if (!e.ctrlKey) return
-      if (e.key === '=' || e.key === '+') { e.preventDefault(); saveSettings({ ...settings, fontSize: Math.min((settings.fontSize ?? 14) + 1, 28) }) }
-      if (e.key === '-') { e.preventDefault(); saveSettings({ ...settings, fontSize: Math.max((settings.fontSize ?? 14) - 1, 8) }) }
-      if (e.key === '0') { e.preventDefault(); saveSettings({ ...settings, fontSize: 14 }) }
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault()
+        const next = Math.min((settings.fontSize ?? 14) + 1, 28)
+        saveSettings({ ...settings, fontSize: next })
+        setZoomIndicator(next); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+      }
+      if (e.key === '-') {
+        e.preventDefault()
+        const next = Math.max((settings.fontSize ?? 14) - 1, 8)
+        saveSettings({ ...settings, fontSize: next })
+        setZoomIndicator(next); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+      }
+      if (e.key === '0') {
+        e.preventDefault()
+        saveSettings({ ...settings, fontSize: 14 })
+        setZoomIndicator(14); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -320,6 +353,8 @@ export default function App() {
       }
       // Ctrl+Shift+B → broadcast mode
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
+      // Ctrl+Shift+D → duplicate active tab
+      if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
       // Ctrl+T → new tab
       if (ctrl && key === 't') { e.preventDefault(); openTab(profiles[0]) }
       // Ctrl+W → close active tab
@@ -633,7 +668,7 @@ export default function App() {
     const tab = tabsRef.current.find(t => t.id === id)
     if (!tab) return
     const prof = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
-    openTab(prof, { cwd: tab.cwd, shell: tab.shell, label: `${tab.label} (copy)` })
+    openTab(prof, { cwd: tab.cwd, shell: tab.shell, label: `${tab.label} (copy)`, tag: `copy-${Date.now()}` })
   }, [profiles, openTab])
 
   // Gather a portable context card for a session: cwd, branch, recent commands,
@@ -779,11 +814,12 @@ export default function App() {
   }, [tabs])
 
   return (
-    <div className="flex flex-col h-screen" style={{ ...accentVars(accent), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
-      {!zenMode && <TitleBar accent={accent} onSettings={() => setShowSettings(true)} />}
+    <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}`} style={{ ...accentVars(accent), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
+      {!zenMode && <TitleBar accent={accent} onSettings={() => setShowSettings(true)} sessionCount={runningSessionCount} />}
 
       <div className="flex flex-1 min-h-0">
         {!zenMode && (
+        <div data-glass className={!mounted ? 'sush-slide-right' : undefined} style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <SessionRail
           tabs={tabs}
           activeId={activeId}
@@ -805,10 +841,12 @@ export default function App() {
           onRenameEnd={() => setRenamingId(null)}
           onHandoff={(id) => setHandoffSource(id)}
         />
+        </div>
         )}
 
         <div className="flex flex-col flex-1 min-w-0">
           {!zenMode && (
+          <div data-glass className={!mounted ? 'sush-slide-down' : undefined}>
           <SmartCommandBar
             activeTab={activeTab}
             accent={accent}
@@ -831,6 +869,7 @@ export default function App() {
             }}
             settings={settings}
           />
+          </div>
           )}
 
           <div className="flex-1 relative overflow-hidden">
@@ -905,6 +944,7 @@ export default function App() {
             )}
 
             {view === 'home' && (
+              <div key="home-view" className="sush-reveal" style={{ position: 'absolute', inset: 0 }}>
               <HomeDashboard
                 tabs={tabs}
                 recentSessions={recentSessions}
@@ -917,6 +957,7 @@ export default function App() {
                 onNewSession={() => setShowLauncher(true)}
                 onSeducia={() => openRight('agent')}
               />
+              </div>
             )}
 
             {visibleSmartOutput && (
@@ -964,7 +1005,7 @@ export default function App() {
         </div>
 
         {rightOpen && !zenMode && (
-          <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+          <div data-glass className={!mounted ? 'sush-slide-left' : undefined} style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
             {/* Drag handle */}
             <div
               onMouseDown={startRightDrag}
@@ -1086,6 +1127,34 @@ export default function App() {
           order={switcher.order}
           index={switcher.index}
         />
+      )}
+
+      {splash && (
+        <SplashScreen accent={accent} onDone={() => setSplash(false)} />
+      )}
+
+      {/* Zoom size indicator — shows briefly when font size changes via Ctrl+/- */}
+      {zoomIndicator !== null && (
+        <div
+          className="sush-fade-up"
+          style={{
+            position: 'fixed',
+            bottom: 60,
+            right: 20,
+            zIndex: 500,
+            background: 'rgba(0,0,0,0.75)',
+            border: `1px solid ${rgba(accent, 0.35)}`,
+            borderRadius: 10,
+            padding: '8px 16px',
+            color: accent,
+            fontSize: 13,
+            fontWeight: 800,
+            pointerEvents: 'none',
+            backdropFilter: 'blur(8px)'
+          }}
+        >
+          {zoomIndicator}px
+        </div>
       )}
 
     </div>

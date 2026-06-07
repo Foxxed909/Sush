@@ -65,6 +65,9 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
   const [activeIdx, setActiveIdx] = useState(0)
   const [aiSuggestion, setAiSuggestion] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
+  const [gitBranch, setGitBranch] = useState(null)
+  const [historySearch, setHistorySearch] = useState(false)
+  const [historyQuery, setHistoryQuery] = useState('')
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const blurTimer = useRef(null)
@@ -72,18 +75,37 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
 
   const { suggestions, complete, hasToken } = usePathSuggestions(value)
 
+  // Bug fix: clear AI timer on unmount to prevent setState on destroyed component
+  useEffect(() => () => { clearTimeout(aiTimer.current); clearTimeout(blurTimer.current) }, [])
+
   useEffect(() => { setActiveIdx(0) }, [value])
   useEffect(() => {
     listRef.current?.children?.[activeIdx]?.scrollIntoView?.({ block: 'nearest' })
-  }, [activeIdx])
+  }, [activeIdx, suggestions])
 
-  // Ctrl+L to focus the bar.
+  // Feature: git branch chip — refresh when the active tab's cwd changes.
+  useEffect(() => {
+    if (!activeTab?.cwd) { setGitBranch(null); return }
+    let cancelled = false
+    window.sush.gitStatus?.({ cwd: activeTab.cwd })
+      .then(g => { if (!cancelled) setGitBranch(g?.repo ? g.branch : null) })
+      .catch(() => { if (!cancelled) setGitBranch(null) })
+    return () => { cancelled = true }
+  }, [activeTab?.cwd])
+
+  // Ctrl+L to focus the bar. Ctrl+R to open history search mode.
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
         e.preventDefault()
         inputRef.current?.focus()
         inputRef.current?.select()
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r') {
+        e.preventDefault()
+        setHistorySearch(prev => !prev)
+        setHistoryQuery('')
+        setTimeout(() => inputRef.current?.focus(), 50)
       }
     }
     window.addEventListener('keydown', handler)
@@ -100,7 +122,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
       if (settings.anthropicKey) {
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
-          headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
           body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
         })
         const d = await res.json()
@@ -122,8 +144,10 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
 
   const submit = async (e) => {
     if (e) e.preventDefault()
-    const input = value.trim()
+    let input = value.trim()
     if (!input || busy) return
+    // Auto-cd on bare absolute/home paths so typing a path navigates to it
+    if (/^([A-Za-z]:[/\\]|~[/\\]?$|~[/\\]|\/[^/])/.test(input)) input = `cd ${input}`
     setHistory(prev => [input, ...prev.filter(i => i !== input)].slice(0, 25))
     setHistoryIndex(-1)
     setShowSuggestions(false)
@@ -134,6 +158,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
 
   const handleChange = (e) => {
     const v = e.target.value
+    if (historySearch) { setHistoryQuery(v); return }
     setValue(v)
     setHistoryIndex(-1)
     setShowSuggestions(true)
@@ -143,6 +168,26 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
   }
 
   const handleKeyDown = (e) => {
+    // History search mode (Ctrl+R)
+    if (historySearch) {
+      if (e.key === 'Escape') { e.preventDefault(); setHistorySearch(false); setHistoryQuery(''); return }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        const matches = history.filter(h => h.toLowerCase().includes(historyQuery.toLowerCase()))
+        if (matches[0]) { setValue(matches[0]); setHistorySearch(false); setHistoryQuery('') }
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        const matches = history.filter(h => h.toLowerCase().includes(historyQuery.toLowerCase()))
+        const idx = matches.indexOf(value)
+        const next = idx < matches.length - 1 ? matches[idx + 1] : matches[0]
+        if (next) setValue(next)
+        return
+      }
+      return
+    }
+
     const vis = showSuggestions && suggestions.length > 0
 
     if (vis && e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(a => Math.min(a + 1, suggestions.length - 1)); return }
@@ -219,13 +264,13 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
               style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
             />
             {/* AI ghost suggestion */}
-            {aiSuggestion && !showSuggestions && (
+            {aiSuggestion && !visibleSuggestions && (
               <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#3f4852', pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%', zIndex: 0 }}>
                 {aiSuggestion}
               </span>
             )}
           </div>
-          {aiSuggestion && !showSuggestions && (
+          {aiSuggestion && !visibleSuggestions && (
             <span style={{ fontSize: 9.5, color: '#3f4852', flexShrink: 0, userSelect: 'none' }}>Tab</span>
           )}
           {!value && !aiSuggestion && (
@@ -244,6 +289,18 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: accent, flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeTab?.label || 'Shell'}</span>
         </span>
+
+        {/* Git branch chip */}
+        {gitBranch && (
+          <span
+            title={`Branch: ${gitBranch}`}
+            className="flex items-center"
+            style={{ gap: 4, color: '#5a9f7a', fontSize: 10, background: 'rgba(66,211,146,0.07)', border: '1px solid rgba(66,211,146,0.18)', borderRadius: 'var(--r-pill)', padding: '3px 8px', flexShrink: 0, maxWidth: 120 }}
+          >
+            <Icon name="gitBranch" size={10} strokeWidth={2.2} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{gitBranch}</span>
+          </span>
+        )}
 
         {/* Seducia */}
         <button
@@ -301,6 +358,51 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           <Icon name="panel" size={15} />
         </button>
       </form>
+
+      {/* History search dropdown (Ctrl+R) */}
+      {historySearch && (
+        <div
+          className="sush-scroll sush-fade-up"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 44,
+            right: 44,
+            zIndex: 210,
+            maxHeight: 220,
+            overflowY: 'auto',
+            background: '#0b0e11',
+            border: `1px solid ${rgba(accent, 0.35)}`,
+            borderTop: 'none',
+            borderRadius: '0 0 12px 12px',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+            padding: '4px 4px 6px'
+          }}
+        >
+          <div style={{ padding: '4px 9px 6px', borderBottom: '1px solid #1b2127', marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: '#5a646d', fontWeight: 700 }}>HISTORY SEARCH  </span>
+            <span style={{ fontSize: 10, color: accent, fontWeight: 700 }}>{historyQuery || '(type to filter)'}</span>
+          </div>
+          {history
+            .filter(h => !historyQuery || h.toLowerCase().includes(historyQuery.toLowerCase()))
+            .slice(0, 15)
+            .map((cmd, i) => (
+              <button
+                key={i}
+                type="button"
+                onMouseDown={() => { setValue(cmd); setHistorySearch(false); setHistoryQuery(''); inputRef.current?.focus() }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: value === cmd ? rgba(accent, 0.12) : 'transparent', color: '#b0b9c2', padding: '6px 9px', cursor: 'pointer', fontSize: 12.5 }}
+              >
+                <Icon name="clock" size={12} color="#3f4852" strokeWidth={2} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{cmd}</span>
+              </button>
+            ))
+          }
+          {history.filter(h => !historyQuery || h.toLowerCase().includes(historyQuery.toLowerCase())).length === 0 && (
+            <div style={{ padding: '8px 12px', color: '#3f4852', fontSize: 12 }}>No matching history</div>
+          )}
+        </div>
+      )}
 
       {/* Path autocomplete dropdown */}
       {visibleSuggestions && (
