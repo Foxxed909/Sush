@@ -1,10 +1,32 @@
 # Bug noticed — agent sessions don't resume after app restart
 
-**Status:** OPEN — needs implementation
+**Status:** ✅ FIXED — 2026-06-08 (Sush v3.2.1 "Sakura")
 **Reported:** 2026-06-08 (Sush v3.2.0 "Sakura")
 **Severity:** High (core workflow — agent sessions are the whole point of Sush)
-**Handoff:** This doc is written so another agent can pick it up cold. Read the
-"Root cause" and "Proposed fix" sections, then implement Layer A + Layer B.
+
+## Resolution (what shipped)
+
+Both layers were implemented:
+
+- **Layer A** — `bootCommand` is now persisted in the session layout
+  (`App.jsx` save effect) and restored in `loadSessionLayout` via
+  `makeTab(profile, { command, … })`.
+- **Layer B** — `agents.js` gained an optional `resumeCommand`; `claude` uses
+  `claude --continue`. On restore, `restoreBootCommand(item)` resolves an agent
+  tab to `resumeCommand ?? command`, so Claude tabs resume their prior
+  conversation in that cwd and other agents re-launch fresh (instead of opening a
+  bare shell). Codex/others get a fresh re-launch until a verified resume flag is
+  added next to `claude`.
+- **Opt-out** — Settings ▸ Appearance ▸ *Resume agent sessions on launch*
+  (`settings.resumeAgents`, default on). Off = restored tabs open a bare shell
+  (the old behavior), avoiding a swarm of agents auto-spawning on startup.
+
+The original analysis is kept below for reference.
+
+---
+
+**Handoff:** This doc was written so another agent could pick it up cold. Read the
+"Root cause" and "Proposed fix" sections.
 
 ---
 

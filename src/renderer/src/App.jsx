@@ -17,6 +17,7 @@ import SushrcEditor from './components/SushrcEditor'
 import QuickSwitcher from './components/QuickSwitcher'
 import SplashScreen from './components/SplashScreen'
 import { themes, defaultTheme } from './themes'
+import { agentById } from './lib/agents'
 import { accentVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
 import JsonViewer from './components/JsonViewer'
@@ -136,10 +137,24 @@ function loadRecentSessions() {
   }
 }
 
+// On restart the original PTY is gone, so a restored tab must re-launch its agent.
+// For agents that support resume we use `resumeCommand` (e.g. `claude --continue`)
+// so the previous conversation in that directory is picked up instead of starting
+// fresh; otherwise we re-launch the normal command, or fall back to the persisted
+// boot command. Plain shells (no agent / no command) stay bare.
+function restoreBootCommand(item) {
+  const agent = item.agentId && item.agentId !== 'shell' ? agentById(item.agentId) : null
+  if (agent) return agent.resumeCommand ?? agent.command ?? item.bootCommand ?? null
+  return item.bootCommand ?? null
+}
+
 function loadSessionLayout(profiles) {
   try {
     const saved = JSON.parse(localStorage.getItem(SESSION_LAYOUT_KEY) ?? '{}')
     if (!Array.isArray(saved.tabs) || !saved.tabs.length) throw new Error('empty layout')
+
+    // Honour the "resume agent sessions on launch" setting (default on).
+    const resumeAgents = loadSettings().resumeAgents !== false
 
     const tabs = dedupeTabs(saved.tabs.slice(0, 12).map(item => {
       const profile = profiles.find(p => p.id === item.profileId) ?? profiles[0]
@@ -150,6 +165,7 @@ function loadSessionLayout(profiles) {
         shell: item.shell,
         shellLabel: item.shellLabel,
         cwd: item.cwd,
+        command: resumeAgents ? restoreBootCommand(item) : null,
         agentId: item.agentId,
         tag: item.tag,
         groupId: item.groupId,
@@ -467,6 +483,7 @@ export default function App() {
         shell: tab.shell,
         shellLabel: tab.shellLabel,
         cwd: tab.cwd,
+        bootCommand: tab.bootCommand,
         agentId: tab.agentId,
         tag: tab.tag,
         groupId: tab.groupId,

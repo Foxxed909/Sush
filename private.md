@@ -14,6 +14,29 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 3.2.1 — implementation notes
+
+### Agent-session resume after restart (was `bugnoticed.md`)
+- **Root cause:** the session-layout persistence saved every tab field *except*
+  `bootCommand`, so restored agent tabs spawned a bare shell — the `claude` command
+  never re-ran. (The `bootCommand` pipeline itself — `makeTab` → `useTerminal`
+  `bootCommandRef` → `startPty` → `writeShellCommands` ~900ms after spawn — was fine.)
+- **Fix, Layer A:** persist `bootCommand` in the `SESSION_LAYOUT_KEY` save effect
+  and pass it back through `makeTab(profile, { command })` in `loadSessionLayout`.
+- **Fix, Layer B:** `agents.js` agents may declare a `resumeCommand`; `claude` uses
+  `claude --continue`. `restoreBootCommand(item)` (App.jsx) maps a restored tab by
+  `agentId` to `resumeCommand ?? command ?? bootCommand`, so Claude resumes its prior
+  conversation (keyed by cwd) and other agents re-launch fresh. Resolution is by
+  `agentId`, so the persisted `bootCommand` value drifting to the resume form across
+  saves is harmless (idempotent).
+- **Opt-out:** `settings.resumeAgents` (default on) gates the whole thing — read in
+  `loadSessionLayout` via `loadSettings()`. Off → restored tabs are bare shells (old
+  behavior), so users who don't want N agent CLIs auto-spawning on launch can disable
+  it. UI toggle in `Settings.jsx` (Appearance section).
+- **Note:** PTYs die with the app — there's no process to reattach to, so "resume" is
+  always a re-launch in resume mode, not a reconnect. Only `claude` has a verified
+  `resumeCommand`; add others as their resume syntax is confirmed.
+
 ## 3.2.0 — implementation notes
 
 ### Status bar (`components/StatusBar.jsx`)

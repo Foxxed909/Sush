@@ -4,9 +4,16 @@ const localPython = (dir, script) =>
 // Agents and CLI tools that can be launched into a session. `command` is typed
 // into the shell once it boots (null = a plain terminal). `mono` + `color`
 // render the monogram badge. Add your own CLIs here -- the launcher picks them up.
+//
+// `resumeCommand` (optional) is used instead of `command` when a session is
+// *restored* after an app restart, so the agent picks up its previous
+// conversation in that directory rather than starting fresh. Only set it for
+// CLIs that actually support resume; agents without it just re-launch fresh.
 export const AGENTS = [
   { id: 'shell', label: 'Terminal', command: null, mono: '>_', color: '#8b9bb0', desc: 'Plain shell' },
-  { id: 'claude', label: 'Claude Code', command: 'claude', mono: 'C', color: '#d97757', desc: 'Anthropic CLI' },
+  { id: 'claude', label: 'Claude Code', command: 'claude', resumeCommand: 'claude --continue', mono: 'C', color: '#d97757', desc: 'Anthropic CLI' },
+  // Other agents fall back to a fresh re-launch on restore. Add a verified
+  // `resumeCommand` here as each CLI's resume syntax is confirmed (e.g. codex).
   { id: 'codex', label: 'Codex', command: 'codex', mono: 'Cx', color: '#10a37f', desc: 'OpenAI CLI' },
   { id: 'gemini', label: 'Gemini', command: 'gemini', mono: 'G', color: '#4285f4', desc: 'Google CLI' },
   { id: 'opencode', label: 'OpenCode', command: 'opencode', mono: 'O', color: '#f59e0b', desc: 'OpenCode CLI' },

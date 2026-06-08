@@ -5,6 +5,18 @@ swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
 
 ---
 
+## 3.2.1 — "Sakura"
+
+### Fixed
+- **Agent sessions resume after an app restart.** Closing and reopening Sush used
+  to restore the tab but drop you at a bare shell — the agent never re-launched.
+  Restored Claude tabs now re-run `claude --continue` so the previous conversation
+  in that directory picks up where it left off; other agent CLIs re-launch instead
+  of leaving an empty shell. Toggle in **Settings ▸ Appearance ▸ Resume agent
+  sessions on launch** (on by default; turn off to restore bare shells).
+
+---
+
 ## 3.2.0 — "Sakura"
 
 ### Added — design & navigation polish

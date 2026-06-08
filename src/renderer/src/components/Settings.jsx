@@ -251,6 +251,20 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 {settings.persistScrollback !== false ? 'Replaying recent output on reopen' : 'History restore off'}
               </button>
             </Row>
+            <Row>
+              <Label>Resume agent sessions on launch</Label>
+              <button
+                onClick={() => set('resumeAgents', settings.resumeAgents === false)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.resumeAgents !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.resumeAgents !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.resumeAgents !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="terminal" size={14} strokeWidth={2} />
+                {settings.resumeAgents !== false ? 'Re-launching agents (claude --continue, …)' : 'Restored tabs open a bare shell'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+                When on, a restored Claude/Codex tab re-runs its CLI in resume mode so the
+                previous conversation continues. Applies on next launch.
+              </div>
+            </Row>
           </Section>
 
           {/* Profile */}
