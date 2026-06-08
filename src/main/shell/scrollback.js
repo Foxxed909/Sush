@@ -74,9 +74,10 @@ export class ScrollbackStore {
       try {
         const obj = {}
         // Cap how many workspaces we remember so the file can't grow unbounded.
+        // Slice only for the on-disk snapshot — don't mutate this.saved so that
+        // entries added after the timer was scheduled are never lost.
         const entries = [...this.saved.entries()].slice(-40)
         for (const [k, v] of entries) obj[k] = v
-        this.saved = new Map(entries)
         writeFileSync(this.file, JSON.stringify(obj), 'utf8')
       } catch {}
     }, 1500)

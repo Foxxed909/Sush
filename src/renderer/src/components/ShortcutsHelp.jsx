@@ -10,6 +10,8 @@ const SECTIONS = [
       { keys: ['Ctrl', 'B'], label: 'Toggle right panel' },
       { keys: ['Ctrl', 'P'], label: 'Command palette' },
       { keys: ['Ctrl', 'L'], label: 'Focus command bar' },
+      { keys: ['Ctrl', ','], label: 'Open Settings' },
+      { keys: ['Ctrl', 'Shift', 'Home'], label: 'Go to Home screen' },
       { keys: ['Ctrl', 'Shift', 'Z'], label: 'Toggle zen mode' },
       { keys: ['Ctrl', '?'], label: 'This help screen' },
     ]
@@ -30,8 +32,16 @@ const SECTIONS = [
     rows: [
       { keys: ['Ctrl', 'T'], label: 'New terminal tab' },
       { keys: ['Ctrl', 'W'], label: 'Close current tab' },
+      { keys: ['Ctrl', 'Shift', 'T'], label: 'Reopen last closed session' },
+      { keys: ['Ctrl', 'Shift', 'N'], label: 'New session launcher' },
+      { keys: ['Ctrl', '1-9'], label: 'Jump to session 1–9 (9 = last)' },
+      { keys: ['Ctrl', 'PgDn / PgUp'], label: 'Next / previous session' },
       { keys: ['Ctrl', 'Tab'], label: 'Quick switch (hold Ctrl, tap Tab)' },
       { keys: ['Ctrl', 'Shift', 'Tab'], label: 'Quick switch backwards' },
+      { keys: ['Ctrl', 'Shift', 'D'], label: 'Duplicate active session' },
+      { keys: ['Ctrl', 'Shift', 'H'], label: 'Toggle split pane' },
+      { keys: ['Alt', '← / →'], label: 'Focus left / right split pane' },
+      { keys: ['Ctrl', 'Shift', 'B'], label: 'Toggle broadcast mode' },
       { keys: ['F2'], label: 'Rename active session' },
       { keys: ['Double-click'], label: 'Rename session in rail' },
     ]

@@ -24,6 +24,10 @@ export function parseInput(input) {
   if (current) tokens.push(current)
   if (!tokens.length) return null
 
+  // Preserve the command's original casing. Registry lookup is case-insensitive
+  // (see registry.get), but passthrough to a real shell must keep the case the
+  // user typed -- e.g. `Python`, `Get-ChildItem`, or any case-sensitive binary
+  // on Linux/macOS would otherwise be mangled by a blanket toLowerCase().
   const [cmd, ...args] = tokens
-  return { cmd: cmd.toLowerCase(), args }
+  return { cmd, args }
 }

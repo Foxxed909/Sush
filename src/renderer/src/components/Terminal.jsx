@@ -8,7 +8,9 @@ export default function Terminal({
   theme,
   profile,
   active,
+  splitVisible,
   initialCwd,
+  bootCommand,
   fontSize,
   fontFamily,
   cursorStyle,
@@ -39,6 +41,7 @@ export default function Terminal({
     theme,
     profile,
     initialCwd,
+    bootCommand,
     fontSize,
     fontFamily,
     cursorStyle,
@@ -95,10 +98,11 @@ export default function Terminal({
         overflow: 'hidden',
         // Keep inactive terminals in layout (just hidden) so they retain real
         // dimensions -- avoids xterm scroll-sync errors when a swarm mounts many
-        // at once, and makes switching between them instant.
-        visibility: active ? 'visible' : 'hidden',
+        // at once, and makes switching between them instant. In split view both
+        // panes stay visible (splitVisible) even though only one is keyboard-active.
+        visibility: (active || splitVisible) ? 'visible' : 'hidden',
         zIndex: active ? 2 : 1,
-        pointerEvents: active ? 'auto' : 'none'
+        pointerEvents: (active || splitVisible) ? 'auto' : 'none'
       }}
       onContextMenu={handleContextMenu}
     >

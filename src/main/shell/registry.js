@@ -7,8 +7,9 @@ import * as tools from '../commands/tools'
 import * as utils from '../commands/utils'
 import * as workspace from '../commands/workspace'
 import * as extras from '../commands/extras'
+import * as more from '../commands/more'
 
-const allModules = [workspace, fs, system, dev, gh, secrets, tools, utils, extras]
+const allModules = [workspace, fs, system, dev, gh, secrets, tools, utils, extras, more]
 
 class CommandRegistry {
   constructor() {
@@ -23,7 +24,10 @@ class CommandRegistry {
     }
   }
 
-  get(name) { return this._map.get(name) }
+  get(name) {
+    if (name == null) return undefined
+    return this._map.get(name) ?? this._map.get(String(name).toLowerCase())
+  }
   all() { return [...new Set(this._map.values())] }
 }
 

@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process'
-import { app } from 'electron'
+import { app, Notification } from 'electron'
 import { ok, err, ansi } from './_helpers'
 import { registry } from '../shell/registry'
 
@@ -62,15 +62,21 @@ export const notify = {
   async run(args) {
     const msg = args.join(' ')
     if (!msg) return err('notify: missing message')
+    // Use Electron's native, NON-blocking notification. The previous Windows path
+    // popped a synchronous MessageBox via execFileSync, which froze the entire
+    // app (main process blocked) until the user clicked OK.
     try {
-      if (process.platform === 'win32') {
-        execFileSync('powershell', ['-NoProfile', '-Command',
-          `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('${msg.replace(/'/g, "''")}', 'Sush')`
-        ], { stdio: 'ignore', windowsHide: true })
-      } else if (process.platform === 'darwin') {
+      if (Notification.isSupported()) {
+        new Notification({ title: 'Sush', body: msg, silent: false }).show()
+        return ok(ansi.green(`notification sent: ${msg}`))
+      }
+      // Fallback for headless / unsupported environments.
+      if (process.platform === 'darwin') {
         execFileSync('osascript', ['-e', `display notification "${msg.replace(/"/g, '\\"')}" with title "Sush"`])
-      } else {
+      } else if (process.platform === 'linux') {
         execFileSync('notify-send', ['Sush', msg])
+      } else {
+        return err('notify: notifications are not supported on this system')
       }
       return ok(ansi.green(`notification sent: ${msg}`))
     } catch (e) {

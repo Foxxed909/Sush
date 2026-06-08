@@ -14,6 +14,68 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 3.2.0 — implementation notes
+
+### Status bar (`components/StatusBar.jsx`)
+- Self-contained: polls `getSystemStats` + `gitStatus` on a 4s interval and re-reads
+  git whenever the active cwd changes. Rendered in `App` after the main flex row,
+  hidden in zen mode. `activeTab` is passed as `null` on the Home view so it shows
+  "Home" instead of a stale session path. CPU/mem turn amber ≥60%, red ≥85%.
+
+### Command markers (`hooks/useTerminal.js`)
+- On every committed command (the `\r` branch of `term.onData`) we
+  `term.registerMarker(0)` + `registerDecoration({ marker, overviewRulerOptions })`
+  so a colored tick lands on xterm's overview ruler at the prompt line. Accent is
+  read from `accentRef` (kept in sync via a theme effect) because the create-effect
+  doesn't depend on `theme`. Wrapped in try/catch — marker registration can return
+  null if the buffer isn't ready.
+
+### Split-pane upgrades (`App.jsx` + `Terminal.jsx`)
+- New state: `splitRatio` (left fraction 0.2–0.8) and `focusedPane` ('left'|'right').
+- Panes use `flex: <ratio> 1 0%`; the divider is a 6px `col-resize` handle whose
+  `startSplitDrag` maps mouse X within the container (`splitContainerRef`) to a ratio.
+- The non-focused pane gets `grayscale + brightness` dimming + reduced opacity; the
+  focused pane gets an inset accent border. Clicking a pane sets focus; **Alt+←/→**
+  switches it (effect only active while `splitMode`).
+- `Terminal` gained a `splitVisible` prop so both split panes render visible even
+  though only the focused one is keyboard-`active` (drives xterm focus + the Ctrl+F
+  handler). Non-split tabs are unaffected.
+
+### Unified command palette (`App.jsx` `paletteActions` / `handlePaletteAction`)
+- `paletteActions()` now also emits: split/broadcast toggles, a `theme:<id>` entry
+  per registered theme, and a `recent:<cwd>` entry per recent session (on top of the
+  existing per-session `session:<id>` jumps). `handlePaletteAction` grew matching
+  `theme:` / `recent:` / `split` / `broadcast` branches. Theme switch writes
+  `settings.themeId` via `saveSettings`.
+
+## 3.1.0 — implementation notes
+
+### New commands module (`commands/more.js`)
+- Added `uuid`, `genpass`, `head`, `tail`, `tree`, `now`, `url`, `ip`, `gitlog`,
+  `json`. Registered by appending `more` to `allModules` in `shell/registry.js`.
+- All depend only on Node built-ins + `_helpers` (no Electron), so they're unit-
+  testable in isolation (verified by a throwaway ESM harness during development).
+- `gitlog` uses git's `%x1f` (unit-separator) field delimiter and splits on
+  `\x1f` — commit subjects never contain it, so no fragile parsing. Avoid putting
+  literal control bytes in source; always use the `%xNN` escape.
+- `ip` resolves the public address via `api.ipify.org` with a 5s `AbortSignal`
+  timeout and degrades to `(unavailable)` offline.
+
+### Bug fixes this round
+- **`notify` freeze:** the old Windows branch used `execFileSync` to pop a
+  `System.Windows.Forms.MessageBox`, which is modal *and synchronous* — it blocked
+  the Electron main process (and therefore every PTY + the whole UI) until the
+  user clicked OK. Replaced with `new Notification(...).show()` (non-blocking),
+  keeping `osascript`/`notify-send` only as fallbacks when `Notification.isSupported()`
+  is false.
+- **Case-insensitive dispatch:** `parser.js` used to `toLowerCase()` the command,
+  which would mangle case-sensitive passthrough targets. Parser now preserves the
+  original casing; `registry.get()` falls back to a lower-cased lookup so built-in
+  names still match regardless of typed case.
+- **`top5`:** coerces `cpu`/`mem`/`name`/`pid` with safe defaults before calling
+  `.toFixed`/`.slice` so a single undefined field can't throw the command.
+- **Boot banner version:** `buildBootLines` now reads `app.getVersion()`.
+
 ## This round — implementation notes
 
 ### Corner-style tokens

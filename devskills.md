@@ -17,7 +17,7 @@
   ElevenLabs TTS.
 
 ## Patterns used
-- **Custom shell layer:** a command registry intercepts ~40 built-ins before
+- **Custom shell layer:** a command registry intercepts ~50 built-ins before
   falling through to a real PTY; commands return `{ output, type, action?, cwd? }`
   where `action` drives renderer behavior (`open-workspace`, `passthrough`,
   `open-sushrc`, `handoff`, `corners`, …).
@@ -25,6 +25,15 @@
   OSC-7 cwd reporting, and `&&` compatibility for Windows PowerShell 5.1.
 - **CSS-variable theming:** accent + corner-radius tokens set on root/body and
   consumed by inline styles via `var(--…)`.
+- **xterm decorations:** `registerMarker` + `registerDecoration` overview-ruler
+  ticks mark where each command started (command markers).
+- **Split panes:** ratio-driven flex layout with a drag-to-resize divider,
+  focused/dimmed pane states, and `Alt+←/→` focus movement. Both panes stay
+  mounted (`splitVisible`) while only the focused one is keyboard-active.
+- **Command palette as keyboard spine:** one fuzzy surface (Ctrl+P) over built-in
+  commands, session jumps, recent workspaces, theme switching, and toggles.
+- **Persistent status bar:** cwd · git branch/dirty · shell · session count ·
+  live CPU/mem, polled from `getSystemStats` + `gitStatus`.
 - **Design-token toggles:** appearance settings (corners, theme, fonts, opacity)
   flow through a single `settings` object persisted to localStorage.
 - **IPC contract:** every capability = main `ipcMain.handle` + `preload`

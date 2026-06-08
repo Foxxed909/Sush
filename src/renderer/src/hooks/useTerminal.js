@@ -11,6 +11,7 @@ export function useTerminal({
   theme,
   profile,
   initialCwd,
+  bootCommand,
   fontSize = 14,
   fontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
   cursorStyle = 'block',
@@ -33,12 +34,16 @@ export function useTerminal({
   const recordingRef = useRef(false)
   const recordStartRef = useRef(0)
   const recordEventsRef = useRef([])
+  // Accent colour for command-start markers; kept in a ref so the create-effect
+  // (which doesn't depend on theme) always reads the current value.
+  const accentRef = useRef(theme?.ui?.accent ?? '#ff6b9d')
   // initialCwd is only consumed once, when the PTY first spawns. Keep it in a ref
   // so that later cwd updates (the shell reports its directory via OSC7 on every
   // `cd`) don't land in the create-effect's dependency array -- otherwise each
   // directory change would dispose and recreate the xterm instance, wiping the
   // visible buffer and re-running startPty.
   const initialCwdRef = useRef(initialCwd)
+  const bootCommandRef = useRef(bootCommand)
 
   useEffect(() => {
     onAutoCopyRef.current = onAutoCopy
@@ -61,8 +66,16 @@ export function useTerminal({
   }, [initialCwd])
 
   useEffect(() => {
+    bootCommandRef.current = bootCommand
+  }, [bootCommand])
+
+  useEffect(() => {
     broadcastTabIdsRef.current = broadcastTabIds
   }, [broadcastTabIds])
+
+  useEffect(() => {
+    accentRef.current = theme?.ui?.accent ?? '#ff6b9d'
+  }, [theme])
 
   const resizePty = useCallback(() => {
     const term = termRef.current
@@ -144,6 +157,18 @@ export function useTerminal({
         }
         if (command) {
           onCommandRef.current?.(command)
+          // Drop a marker on the overview ruler (right gutter) at the prompt line
+          // so you can see — and jump to — where each command started. Mirrors the
+          // command-block markers in Warp / VS Code's scrollbar.
+          try {
+            const marker = term.registerMarker(0)
+            if (marker) {
+              term.registerDecoration({
+                marker,
+                overviewRulerOptions: { color: accentRef.current, position: 'left' }
+              })
+            }
+          } catch {}
           if (longRunTimer) clearTimeout(longRunTimer)
           const snap = command
           longRunTimer = setTimeout(() => {
@@ -200,6 +225,7 @@ export function useTerminal({
         cols: term.cols,
         rows: term.rows,
         cwd: initialCwdRef.current,
+        bootCommand: bootCommandRef.current,
         shellId: profile?.shell,
         profileId: profile?.id,
         restoreKey,

@@ -76,7 +76,6 @@ export const work = {
     const target = args.join(' ')
     const result = directoryOrError(target, ctx.cwd, 'work')
     if (result.error) return err(result.error)
-    ctx.setCwd(result.cwd)
     return {
       ...ok(`workspace: ${result.cwd}`),
       cwd: result.cwd,
@@ -163,7 +162,7 @@ export const ports = {
       if (!entries.length) return ok(ansi.dim('No listening ports found'))
       const rows = entries
         .sort((a, b) => Number(a.port) - Number(b.port))
-        .map(entry => `${ansi.cyan(entry.port.padEnd(6))} ${entry.address.padEnd(28)} PID ${entry.pid}`)
+        .map(entry => `${ansi.cyan(entry.port.padEnd(6))} ${(entry.address ?? '').padEnd(28)} PID ${entry.pid ?? ''}`)
       return ok([ansi.bold(ansi.pink('LISTENING PORTS')), ...rows].join('\r\n'))
     } catch (e) {
       return err(`ports: ${e.message}`)

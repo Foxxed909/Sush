@@ -39,9 +39,12 @@ const WELCOME_ART = [
 function buildBootLines(shellLabel, cwd) {
   const folder = cwd.split(/[\\/]/).filter(Boolean).pop() || cwd
   const dim = '\x1b[2m', reset = '\x1b[0m', pink = '\x1b[38;2;255;107;157m', cyan = '\x1b[36m', green = '\x1b[32m'
+  // Read the version dynamically so the banner never drifts from package.json.
+  let version = ''
+  try { version = `v${app.getVersion()}` } catch { version = 'v3' }
   return [
     `${dim}  ╭──────────────────────────────────────╮${reset}`,
-    `${dim}  │${reset}  ${pink}v3.0.0${reset}  ${dim}·${reset}  ${cyan}Minimata${reset}  ${dim}│${reset}`,
+    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Minimata${reset}  ${dim}│${reset}`,
     `${dim}  │${reset}  ${green}✓${reset} ${shellLabel}  ${dim}·${reset}  ${pink}${folder}${reset}  ${dim}│${reset}`,
     `${dim}  ╰──────────────────────────────────────╯${reset}`,
     ''
@@ -396,7 +399,18 @@ function buildRestoreBanner(text) {
   return `\r\n${bar}\r\n\x1b[2m${body}\x1b[0m\r\n${bar.replace('restored history', '─────────────────')}\r\n\r\n`
 }
 
-function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true } = {}) {
+function normalizeBootCommand(command) {
+  const value = String(command ?? '').replace(/[\r\n]+/g, ' ').trim()
+  return value || null
+}
+
+function writeShellCommands(proc, commands) {
+  for (const command of commands.map(normalizeBootCommand).filter(Boolean)) {
+    try { proc.write(`${command}\r`) } catch {}
+  }
+}
+
+function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand } = {}) {
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
@@ -469,13 +483,13 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
 
   // Run .sushrc [startup] commands once the shell is ready.
   const startupCmds = (sushrc.startup || []).filter(Boolean)
-  if (startupCmds.length) {
+  const bootCmd = normalizeBootCommand(bootCommand)
+  const queuedBootCommands = [...startupCmds, bootCmd].filter(Boolean)
+  if (queuedBootCommands.length) {
     setTimeout(() => {
       if (session.status !== 'running') return
-      for (const cmd of startupCmds) {
-        try { proc.write(`${cmd}\r`) } catch {}
-      }
-    }, 700)
+      writeShellCommands(proc, queuedBootCommands)
+    }, 900)
   }
 
   proc.onData((data) => {

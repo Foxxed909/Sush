@@ -8,12 +8,15 @@ export const top5 = {
   usage: 'top5',
   async run() {
     const procs = await si.processes()
-    const byCpu = [...procs.list].sort((a, b) => b.cpu - a.cpu).slice(0, 5)
+    // systeminformation can return undefined cpu/mem/name on some platforms;
+    // coerce to safe values so a single missing field can't throw out the command.
+    const num = (v) => Number.isFinite(v) ? v : 0
+    const byCpu = [...(procs.list ?? [])].sort((a, b) => num(b.cpu) - num(a.cpu)).slice(0, 5)
     const header = ansi.bold(ansi.pink('TOP 5 PROCESSES'))
     const divider = ansi.dim('─'.repeat(55))
     const colHead = ansi.dim(`${'PID'.padEnd(8)}${'NAME'.padEnd(25)}${'CPU%'.padEnd(10)}MEM%`)
     const rows = byCpu.map(p =>
-      `${String(p.pid).padEnd(8)}${p.name.slice(0, 23).padEnd(25)}${p.cpu.toFixed(1).padEnd(10)}${p.mem.toFixed(1)}`
+      `${String(p.pid ?? '?').padEnd(8)}${String(p.name ?? 'unknown').slice(0, 23).padEnd(25)}${num(p.cpu).toFixed(1).padEnd(10)}${num(p.mem).toFixed(1)}`
     ).join('\r\n')
     return ok([header, divider, colHead, rows].join('\r\n'))
   }

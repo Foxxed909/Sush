@@ -6,6 +6,7 @@ import Settings from './components/Settings'
 import SessionRail from './components/SessionRail'
 import HomeDashboard from './components/HomeDashboard'
 import SmartCommandBar from './components/SmartCommandBar'
+import StatusBar from './components/StatusBar'
 import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
 import PlansModal from './components/PlansModal'
@@ -48,6 +49,7 @@ function normalizePathKey(cwd) {
 }
 
 function tabKey(tab) {
+  if (!tab) return 'none'
   const shell = tab.shell || 'powershell'
   const profileId = tab.profileId || 'powershell'
   const cwd = normalizePathKey(tab.cwd)
@@ -96,6 +98,7 @@ function makeTab(profile, options = {}) {
     shell,
     shellLabel: options.shellLabel ?? null,
     cwd,
+    bootCommand: options.command ?? null,
     agentId: options.agentId ?? null,
     tag: options.tag ?? null,
     groupId: options.groupId ?? null,
@@ -191,6 +194,8 @@ export default function App() {
   const [broadcastMode, setBroadcastMode] = useState(false)
   const [splitMode, setSplitMode] = useState(false)
   const [splitTabId, setSplitTabId] = useState(null)
+  const [splitRatio, setSplitRatio] = useState(0.5)   // left-pane fraction (0.2–0.8)
+  const [focusedPane, setFocusedPane] = useState('left')  // 'left' | 'right'
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
   const [renamingId, setRenamingId] = useState(null)
   const [handoffSource, setHandoffSource] = useState(null)
@@ -207,6 +212,8 @@ export default function App() {
   const rightDragRef = useRef(null)
   const mruRef = useRef([])          // tab ids, most-recently-active first
   const switcherRef = useRef(null)
+  const lastClosedRef = useRef([])   // stack of recently closed sessions (for reopen)
+  const splitContainerRef = useRef(null)  // the split flex row, for divider drag math
 
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
@@ -332,8 +339,9 @@ export default function App() {
       const ctrl = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
       // Ctrl/Cmd+K → summon Seducia. Ctrl/Cmd+B → toggle panel.
-      if (ctrl && key === 'k') { e.preventDefault(); setRightOpen(prev => (prev && rightTab === 'agent' ? false : true)); setRightTab('agent') }
-      if (ctrl && key === 'b') { e.preventDefault(); setRightOpen(prev => !prev) }
+      // (Guard with !shift so Ctrl+Shift+B doesn't also fire the panel toggle.)
+      if (ctrl && key === 'k' && !e.shiftKey) { e.preventDefault(); setRightOpen(prev => (prev && rightTab === 'agent' ? false : true)); setRightTab('agent') }
+      if (ctrl && key === 'b' && !e.shiftKey) { e.preventDefault(); setRightOpen(prev => !prev) }
       // Ctrl+P → command palette
       if (ctrl && key === 'p' && !e.shiftKey) { e.preventDefault(); setShowPalette(prev => !prev) }
       // Ctrl+? or Ctrl+Shift+/ → shortcuts
@@ -347,6 +355,7 @@ export default function App() {
           if (!prev) {
             const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
             if (others.length) setSplitTabId(others[0].id)
+            setFocusedPane('left')
           }
           return !prev
         })
@@ -355,10 +364,10 @@ export default function App() {
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
       // Ctrl+Shift+D → duplicate active tab
       if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
-      // Ctrl+T → new tab
-      if (ctrl && key === 't') { e.preventDefault(); openTab(profiles[0]) }
+      // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
+      if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); openTab(profiles[0]) }
       // Ctrl+W → close active tab
-      if (ctrl && key === 'w') { e.preventDefault(); if (activeIdRef.current) closeTabRef.current?.(activeIdRef.current) }
+      if (ctrl && key === 'w' && !e.shiftKey) { e.preventDefault(); if (activeIdRef.current) closeTabRef.current?.(activeIdRef.current) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -417,6 +426,36 @@ export default function App() {
     window.addEventListener('mouseup', onUp)
   }, [rightWidth])
 
+  // Drag the split divider to re-balance the two panes.
+  const startSplitDrag = useCallback((e) => {
+    e.preventDefault()
+    const container = splitContainerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const onMove = (ev) => {
+      const ratio = (ev.clientX - rect.left) / rect.width
+      setSplitRatio(Math.max(0.2, Math.min(0.8, ratio)))
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [])
+
+  // Alt+Left / Alt+Right moves keyboard focus between split panes.
+  useEffect(() => {
+    if (!splitMode) return
+    const handler = (e) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return
+      if (e.key === 'ArrowLeft') { e.preventDefault(); setFocusedPane('left') }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); setFocusedPane('right') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [splitMode])
+
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
     localStorage.setItem(SESSION_LAYOUT_KEY, JSON.stringify({
@@ -468,8 +507,6 @@ export default function App() {
     }
 
     const tab = makeTab(prof, options)
-    // Queue a boot command (e.g. `claude`) to auto-run once the shell is ready.
-    if (options.command) pendingPtyRef.current.set(tab.id, options.command)
     setTabs(prev => [...prev, tab])
     setActiveId(tab.id)
     setView('terminal')
@@ -567,22 +604,41 @@ export default function App() {
   const closeTab = useCallback((id) => {
     const closing = tabsRef.current.find(t => t.id === id)
     if (closing?.cwd) rememberSession(closing)
+    // Remember enough to reopen this session with Ctrl+Shift+T.
+    if (closing) {
+      lastClosedRef.current.push({
+        cwd: closing.cwd,
+        profileId: closing.profileId,
+        shell: closing.shell,
+        shellLabel: closing.shellLabel,
+        label: closing.label
+      })
+      if (lastClosedRef.current.length > 10) lastClosedRef.current.shift()
+    }
+
+    // Use the ref instead of the closed-over activeId so rapid closes (e.g.
+    // closeGroup) always read the most recent value, not a stale snapshot.
+    const wasActive = id === activeIdRef.current
 
     window.sush.closeTab({ tabId: id })
     setTabs(prev => {
       const next = prev.filter(t => t.id !== id)
       if (!next.length) {
-        const fresh = makeTab(profiles[0])
-        window.sush.newTab({ tabId: fresh.id, cwd: fresh.cwd })
-        setActiveId(fresh.id)
-        return [fresh]
+        // Last session closed: don't eagerly spawn a replacement terminal.
+        // Leave the workspace empty and let the user re-open from Home.
+        setActiveId(null)
+        return next
       }
-      // Use the ref instead of the closed-over activeId so rapid closes (e.g.
-      // closeGroup) always read the most recent value, not a stale snapshot.
-      if (id === activeIdRef.current) setActiveId(next[next.length - 1].id)
+      // Keep a sensible session selected for when the user returns, but we drop
+      // to Home below rather than throwing them into it.
+      if (wasActive) setActiveId(next[next.length - 1].id)
       return next
     })
-  }, [profiles, rememberSession])
+
+    // Closing the active session (or the last one) returns to the Home screen
+    // instead of auto-opening / switching into another terminal.
+    if (wasActive) { setHomeView('dashboard'); setView('home') }
+  }, [rememberSession])
 
   useEffect(() => {
     closeTabRef.current = closeTab
@@ -646,6 +702,18 @@ export default function App() {
       shellLabel: session.shellLabel
     })
   }, [findOrOpenCwd])
+
+  // Reopen the most recently closed session (Ctrl+Shift+T).
+  const reopenLastClosed = useCallback(() => {
+    const last = lastClosedRef.current.pop()
+    if (!last) { openTab(profiles[0]); return }
+    if (last.cwd) {
+      findOrOpenCwd(last.cwd, { label: last.label, profileId: last.profileId, shell: last.shell, shellLabel: last.shellLabel })
+    } else {
+      const prof = profiles.find(p => p.id === last.profileId) ?? profiles[0]
+      openTab(prof, { shell: last.shell, label: last.label })
+    }
+  }, [findOrOpenCwd, openTab, profiles])
 
   const queuePtyCommand = useCallback((input, cwd) => {
     const target = cwd ? findOrOpenCwd(cwd) : (tabsRef.current.find(tab => tab.id === activeId) ?? tabsRef.current[0])
@@ -789,11 +857,31 @@ export default function App() {
     else if (action === 'rename') { if (activeIdRef.current) { setView('terminal'); setRenamingId(activeIdRef.current) } }
     else if (action === 'corners') cycleCorners()
     else if (action === 'sushrc') setShowSushrc(true)
+    else if (action === 'broadcast') setBroadcastMode(prev => !prev)
+    else if (action === 'split') {
+      setSplitMode(prev => {
+        if (!prev) {
+          const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
+          if (others.length) setSplitTabId(others[0].id)
+          setFocusedPane('left')
+        }
+        return !prev
+      })
+    }
     else if (action?.startsWith?.('session:')) {
       const id = action.slice('session:'.length)
       setActiveId(id); setView('terminal')
     }
-  }, [cycleCorners])
+    else if (action?.startsWith?.('theme:')) {
+      const id = action.slice('theme:'.length)
+      saveSettings({ ...settings, themeId: id })
+    }
+    else if (action?.startsWith?.('recent:')) {
+      const cwd = action.slice('recent:'.length)
+      const s = recentSessions.find(r => r.cwd === cwd)
+      if (s) openRecentSession(s)
+    }
+  }, [cycleCorners, settings, recentSessions, openRecentSession])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
@@ -803,6 +891,10 @@ export default function App() {
       { id: 'act-corners', label: 'Cycle Corner Style', description: 'Sharp → Rounded → Pill', icon: 'layout', action: 'corners' },
       { id: 'act-sushrc', label: 'Edit .sushrc Profile', description: 'Your shell-agnostic Sush profile', icon: 'fileText', action: 'sushrc' },
     ]
+    base.push(
+      { id: 'act-split', label: 'Toggle Split Pane', description: 'Side-by-side terminals (Ctrl+Shift+H)', icon: 'layout', action: 'split' },
+      { id: 'act-broadcast', label: 'Toggle Broadcast', description: 'Type into all sessions at once (Ctrl+Shift+B)', icon: 'terminal', action: 'broadcast' },
+    )
     const sessions = tabs.map(t => ({
       id: `sess-${t.id}`,
       label: `Go to: ${t.label}`,
@@ -810,8 +902,64 @@ export default function App() {
       icon: 'terminal',
       action: `session:${t.id}`
     }))
-    return [...base, ...sessions]
-  }, [tabs])
+    const themeEntries = Object.values(themes).map(th => ({
+      id: `theme-${th.id}`,
+      label: `Theme: ${th.label}`,
+      description: th.id === themeId ? 'Active theme' : 'Switch color theme',
+      icon: 'layout',
+      action: `theme:${th.id}`
+    }))
+    const recents = recentSessions.map(r => ({
+      id: `recent-${r.cwd}`,
+      label: `Recent: ${r.label}`,
+      description: r.cwd,
+      icon: 'folder',
+      action: `recent:${r.cwd}`
+    }))
+    return [...base, ...sessions, ...recents, ...themeEntries]
+  }, [tabs, themeId, recentSessions])
+
+  // Power-user session shortcuts (v3.1):
+  //   Ctrl+1..8  jump to session N      Ctrl+9            jump to last session
+  //   Ctrl+PageDown / PageUp  next / previous session (sequential)
+  //   Ctrl+,     open Settings          Ctrl+Shift+N      new session launcher
+  //   Ctrl+Shift+T  reopen last closed  Ctrl+Shift+Home   go to Home screen
+  useEffect(() => {
+    const handler = (e) => {
+      const ctrl = e.ctrlKey || e.metaKey
+      if (!ctrl) return
+      const list = tabsRef.current
+
+      // Ctrl+1..9 → jump to session (9 = last). Plain Ctrl+digit only.
+      if (!e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key)) {
+        const n = Number(e.key)
+        const target = n === 9 ? list[list.length - 1] : list[n - 1]
+        if (target) { e.preventDefault(); selectTab(target.id) }
+        return
+      }
+
+      if (e.key === ',') { e.preventDefault(); setShowSettings(true); return }
+
+      if (e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); setShowLauncher(true); return }
+
+      if (e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); reopenLastClosed(); return }
+
+      if (e.key === 'PageDown' || e.key === 'PageUp') {
+        if (list.length < 2) return
+        e.preventDefault()
+        const idx = list.findIndex(t => t.id === activeIdRef.current)
+        const base = idx < 0 ? 0 : idx
+        const delta = e.key === 'PageDown' ? 1 : -1
+        const next = list[(base + delta + list.length) % list.length]
+        if (next) selectTab(next.id)
+        return
+      }
+
+      if (e.shiftKey && e.key === 'Home') { e.preventDefault(); setHomeView('dashboard'); setView('home') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [selectTab, reopenLastClosed])
 
   return (
     <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}`} style={{ ...accentVars(accent), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
@@ -863,6 +1011,7 @@ export default function App() {
                 if (!prev) {
                   const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
                   if (others.length) setSplitTabId(others[0].id)
+                  setFocusedPane('left')
                 }
                 return !prev
               })
@@ -874,15 +1023,24 @@ export default function App() {
 
           <div className="flex-1 relative overflow-hidden">
             {splitMode ? (
-              <div style={{ display: 'flex', height: '100%' }}>
-                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+              <div ref={splitContainerRef} style={{ display: 'flex', height: '100%' }}>
+                <div
+                  onMouseDown={() => setFocusedPane('left')}
+                  style={{
+                    flex: `${splitRatio} 1 0%`, position: 'relative', overflow: 'hidden',
+                    filter: focusedPane === 'left' ? 'none' : 'grayscale(0.35) brightness(0.62)',
+                    opacity: focusedPane === 'left' ? 1 : 0.62,
+                    transition: 'opacity .15s ease, filter .15s ease'
+                  }}
+                >
                   {tabs.filter(tab => tab.id === activeId).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
                     const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
                     return (
-                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={true}
+                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'left'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
+                        bootCommand={tab.bootCommand}
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
                         restoreKey={tab.cwd ? tabKey(tab) : null}
                         persistScrollback={settings.persistScrollback !== false}
@@ -893,16 +1051,32 @@ export default function App() {
                       />
                     )
                   })}
+                  {focusedPane === 'left' && (
+                    <div style={{ position: 'absolute', inset: 0, border: `2px solid ${rgba(accent, 0.55)}`, pointerEvents: 'none', zIndex: 60 }} />
+                  )}
                 </div>
-                <div style={{ width: 1, background: rgba(accent, 0.2), flexShrink: 0 }} />
-                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                <div
+                  onMouseDown={startSplitDrag}
+                  title="Drag to resize"
+                  style={{ width: 6, background: rgba(accent, 0.18), flexShrink: 0, cursor: 'col-resize' }}
+                />
+                <div
+                  onMouseDown={() => setFocusedPane('right')}
+                  style={{
+                    flex: `${1 - splitRatio} 1 0%`, position: 'relative', overflow: 'hidden',
+                    filter: focusedPane === 'right' ? 'none' : 'grayscale(0.35) brightness(0.62)',
+                    opacity: focusedPane === 'right' ? 1 : 0.62,
+                    transition: 'opacity .15s ease, filter .15s ease'
+                  }}
+                >
                   {tabs.filter(tab => tab.id === (splitTabId || tabs.find(t => t.id !== activeId)?.id)).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
                     const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
                     return (
-                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={true}
+                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'right'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
+                        bootCommand={tab.bootCommand}
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
                         restoreKey={tab.cwd ? tabKey(tab) : null}
                         persistScrollback={settings.persistScrollback !== false}
@@ -913,6 +1087,9 @@ export default function App() {
                       />
                     )
                   })}
+                  {focusedPane === 'right' && (
+                    <div style={{ position: 'absolute', inset: 0, border: `2px solid ${rgba(accent, 0.55)}`, pointerEvents: 'none', zIndex: 60 }} />
+                  )}
                 </div>
               </div>
             ) : (
@@ -928,6 +1105,7 @@ export default function App() {
                     profile={prof}
                     active={tab.id === activeId}
                     initialCwd={tab.cwd}
+                    bootCommand={tab.bootCommand}
                     fontSize={fontSize}
                     fontFamily={fontFamily}
                     cursorStyle={cursorStyle}
@@ -1033,6 +1211,17 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {!zenMode && (
+        <StatusBar
+          accent={accent}
+          activeTab={view === 'home' ? null : activeTab}
+          view={view}
+          sessionCount={tabs.length}
+          broadcastMode={broadcastMode}
+          splitMode={splitMode}
+        />
+      )}
 
       {zenMode && (
         <button

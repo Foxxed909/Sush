@@ -16,7 +16,18 @@ const SYNONYMS = {
   claude: ['claude'],
   codex: ['codex'],
   gemini: ['gemini'],
-  opencode: ['opencode', 'open code', 'oc']
+  opencode: ['opencode', 'open code'],
+  hermes: ['hermes'],
+  aipex: ['aipex', 'apx'],
+  trident: ['trident'],
+  bedrock: ['bedrock'],
+  quill: ['quill'],
+  razor: ['razor'],
+  serenity: ['serenity'],
+  sydney: ['sydney'],
+  ocp: ['ocp', 'open cli platform'],
+  erosion: ['erosion'],
+  evm: ['evm', 'environment monitor']
 }
 
 function agentIdFromToken(token) {

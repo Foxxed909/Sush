@@ -112,8 +112,10 @@ export const cd = {
     } catch {
       return err(`cd: cannot access: ${label}`)
     }
-    ctx.setCwd(next)
-    return ok('')
+    return {
+      ...ok(`changing directory: ${next}`),
+      action: { name: 'passthrough', input: buildCdPassthrough(next), cwd: ctx.cwd }
+    }
   }
 }
 
@@ -152,4 +154,17 @@ function formatBytes(bytes) {
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
+function quotePowerShellPath(path) {
+  return `'${String(path).replace(/'/g, "''")}'`
+}
+
+function quotePosixPath(path) {
+  return `'${String(path).replace(/'/g, "'\\''")}'`
+}
+
+function buildCdPassthrough(next) {
+  if (process.platform === 'win32') return `Set-Location -LiteralPath ${quotePowerShellPath(next)}`
+  return `cd ${quotePosixPath(next)}`
 }

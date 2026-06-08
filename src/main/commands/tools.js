@@ -1,28 +1,47 @@
-import { readdirSync } from 'fs'
+import { app } from 'electron'
+import { accessSync, readdirSync } from 'fs'
 import { join, extname, basename } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { ok, err, ansi } from './_helpers'
 
 const execFileAsync = promisify(execFile)
-// SUSH_TOOLS_DIR env var overrides; falls back to bundled resources/tools shipped with the app.
-const TOOLS_DIR = process.env.SUSH_TOOLS_DIR || (process.resourcesPath ? require('path').join(process.resourcesPath, 'tools') : '')
+const TOOL_EXTENSIONS = ['.py', '.ps1', '.bat', '.exe']
 
-function listTools() {
+function toolNamesIn(dir) {
   try {
-    return readdirSync(TOOLS_DIR)
-      .filter(f => ['.py', '.ps1', '.bat', '.exe'].includes(extname(f)) && !f.startsWith('_'))
+    return readdirSync(dir)
+      .filter(f => TOOL_EXTENSIONS.includes(extname(f)) && !f.startsWith('_'))
       .map(f => basename(f, extname(f)))
   } catch {
     return []
   }
 }
 
+function resolveToolsDir() {
+  if (process.env.SUSH_TOOLS_DIR) return process.env.SUSH_TOOLS_DIR
+
+  const candidates = [
+    process.resourcesPath ? join(process.resourcesPath, 'tools') : null,
+    join(app.getAppPath(), 'resources', 'tools'),
+    join(process.cwd(), 'resources', 'tools')
+  ].filter(Boolean)
+
+  return candidates.find(dir => toolNamesIn(dir).length > 0) ?? candidates[0] ?? ''
+}
+
+// SUSH_TOOLS_DIR env var overrides; otherwise use packaged extraResources or the
+// repo's resources/tools folder during electron-vite dev.
+const TOOLS_DIR = resolveToolsDir()
+
+function listTools() {
+  return toolNamesIn(TOOLS_DIR)
+}
+
 function resolveToolPath(name) {
-  const exts = ['.bat', '.py', '.ps1', '.exe']
-  for (const ext of exts) {
+  for (const ext of TOOL_EXTENSIONS) {
     const full = join(TOOLS_DIR, name + ext)
-    try { require('fs').accessSync(full); return { path: full, ext } } catch {}
+    try { accessSync(full); return { path: full, ext } } catch {}
   }
   return null
 }

@@ -105,7 +105,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             </span>
             <div>
               <div style={{ fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>New session</div>
-              <div style={{ fontSize: 11.5, color: '#76808a', marginTop: 2 }}>Pick a directory, then launch an agent or a swarm</div>
+              <div style={{ fontSize: 11.5, color: '#76808a', marginTop: 2 }}>Pick a directory, then launch agents or CLI tools</div>
             </div>
           </div>
           <button
@@ -163,9 +163,9 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             </div>
           )}
 
-          {/* Agents */}
+          {/* Agents and tools */}
           <div className="flex items-center justify-between" style={{ marginBottom: 14 }}>
-            <SectionLabel icon="spark" accent={accent} flush>Agents</SectionLabel>
+            <SectionLabel icon="spark" accent={accent} flush>Agents & tools</SectionLabel>
             <div className="flex items-center" style={{ gap: 8 }}>
               <button onClick={oneEach} className="sush-mini-btn" style={miniBtn(accent)}>1× each</button>
               <button onClick={clearAll} className="sush-mini-btn" style={miniBtn(accent)}>Clear</button>

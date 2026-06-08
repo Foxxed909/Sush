@@ -5,6 +5,69 @@ swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
 
 ---
 
+## 3.2.0 — "Sakura"
+
+### Added — design & navigation polish
+- **Bottom status bar.** A persistent strip shows the active directory, git branch
+  + dirty-file count, shell, live session count, and CPU / memory usage (color-
+  coded as load climbs). Updates every few seconds and follows the active session.
+- **Command markers.** Each command you run drops a marker on the terminal's
+  overview ruler (the right gutter), so you can see and scroll to where every
+  command started — like Warp's command blocks.
+- **Split-pane upgrades.** The split divider is now drag-to-resize, the inactive
+  pane dims (grayscale + dimmed) while the focused pane gets an accent border, and
+  **Alt+← / Alt+→** moves keyboard focus between panes. Both panes now stay live
+  on screen instead of only the active one.
+- **Unified command palette (Ctrl+P).** The palette is now the keyboard spine:
+  search and run built-in commands, jump to any open session, reopen a recent
+  workspace, switch color theme, toggle split / broadcast, and open settings — all
+  from one fuzzy search.
+
+### Keyboard shortcuts (added earlier this line)
+- `Ctrl+1`–`8` jump to session N · `Ctrl+9` last session.
+- `Ctrl+PgDn` / `Ctrl+PgUp` next / previous session.
+- `Ctrl+Shift+T` reopen last closed session · `Ctrl+Shift+N` new-session launcher.
+- `Ctrl+,` open Settings · `Ctrl+Shift+Home` go to Home.
+- `Alt+←` / `Alt+→` focus the left / right split pane.
+
+### Fixed
+- `Ctrl+Shift+B` (broadcast) no longer also fires the `Ctrl+B` panel toggle —
+  the plain `Ctrl+B/K/T/W` handlers now ignore the Shift variants.
+
+---
+
+## 3.1.0 — "Minimata"
+
+### Added — 10 new built-in commands
+- **`uuid [count]`** (alias `guid`) — generate one or more random v4 UUIDs.
+- **`genpass [length]`** (aliases `pw`, `pass`) — cryptographically strong random
+  password from a confusable-free character set (default 20 chars).
+- **`head <file> [n]`** / **`tail <file> [n]`** — show the first/last N lines of a
+  file (default 10).
+- **`tree [dir] [depth]`** — print a directory tree (auto-skips `node_modules`,
+  `.git`, `dist`, etc.), depth-limited and capped at 1000 entries.
+- **`now [epoch]`** (alias `date`) — current local/UTC/ISO time + Unix epoch, or
+  convert a given seconds/milliseconds timestamp to a readable date.
+- **`url <encode|decode> <text>`** — URL-encode/decode text (companion to `b64`).
+- **`ip`** — list local IPv4 interfaces and resolve your public IP.
+- **`gitlog [count]`** (alias `glog`) — compact, colorized recent git log.
+- **`json <file>`** (alias `jsonf`) — validate and pretty-print a JSON file, with a
+  precise parse error when it's invalid.
+
+### Fixed
+- **`notify` no longer freezes the app.** The Windows path popped a *synchronous*
+  Win32 MessageBox that blocked the entire main process until dismissed; it now
+  uses Electron's non-blocking native notification.
+- **Command lookup is case-insensitive** while preserving the original casing for
+  passthrough — `help LS` works, and case-sensitive binaries (e.g. `Python`,
+  `Get-ChildItem`) are no longer lower-cased before being run.
+- **`top5` is crash-proof** against missing CPU/memory/name fields returned by
+  `systeminformation` on some platforms.
+- The boot banner now reads the version from `package.json` instead of a
+  hard-coded string, so it can never drift.
+
+---
+
 ## 3.0.0 — "Minimata"
 
 ### Added

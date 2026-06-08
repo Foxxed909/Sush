@@ -276,6 +276,11 @@ export default function SessionRail({
         width: 236,
         minWidth: 196,
         maxWidth: '38vw',
+        // Fill the full height of the (stretched) wrapper so the scrollable list
+        // can engage flex-1; without this the aside sized to content and left a
+        // dead, seam-edged void below the session list.
+        flex: '1 1 auto',
+        minHeight: 0,
         background: '#090b0d',
         borderRight: `1px solid ${rgba(accent, 0.16)}`
       }}

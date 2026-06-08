@@ -1,8 +1,11 @@
 // Thin wrappers around AI provider streaming APIs.
 // Runs in the Electron renderer -- no CORS restrictions apply.
 
+import { AGENTS } from './agents'
+
 const ANTHROPIC_MODEL = 'claude-opus-4-8'
 const OPENAI_MODEL = 'gpt-4o'
+const AGENT_IDS = AGENTS.map(agent => agent.id).join(', ')
 
 function sedusiaSystemPrompt(tabs, activeCwd) {
   const running = tabs.filter(t => t.status !== 'exited')
@@ -16,13 +19,13 @@ After your message, if an action is needed, output exactly one line: ACTION:<jso
 
 Available actions:
 {"type":"launch","cwd":"/path","agents":[{"id":"claude","command":"claude","label":"Claude Code","count":1}],"groupLabel":"optional"}
-{"type":"prompt","target":"claude|codex|gemini|shell|all","text":"the message to send"}
-{"type":"focus","target":"claude|codex|gemini|shell"}
+{"type":"prompt","target":"one of: ${AGENT_IDS}, all","text":"the message to send"}
+{"type":"focus","target":"one of: ${AGENT_IDS}"}
 {"type":"status"}
 {"type":"run","input":"shell command to run"}
 {"type":"open-launcher"}
 
-Agent IDs: shell, claude, codex, gemini, opencode
+Agent IDs: ${AGENT_IDS}
 For cwd use the full path. If no path is specified, use activeCwd.
 
 Current state:
