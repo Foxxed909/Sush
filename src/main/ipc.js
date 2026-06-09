@@ -918,6 +918,24 @@ export function registerIpcHandlers(win) {
     }
   })
 
+  // Lightweight stats for the always-on status bar: CPU + memory only.
+  // Deliberately avoids si.graphics()/wifiConnections()/processes()/networkStats()
+  // — on Windows each of those spawns a child process (wmic/netsh/enumeration),
+  // and polling the heavy combined call every few seconds was a major CPU drain.
+  // The full get-system-stats stays for the (on-demand, gated) Stats panel.
+  ipcMain.handle('sush:get-system-stats-lite', async () => {
+    try {
+      const [load, mem] = await Promise.all([si.currentLoad(), si.mem()])
+      return {
+        cpu: { load: load.currentLoad ?? 0 },
+        memory: { total: mem.total ?? 0, used: mem.used ?? 0, available: mem.available ?? 0 },
+        uptime: Math.floor(process.uptime())
+      }
+    } catch (e) {
+      return { error: e.message }
+    }
+  })
+
   // Pin/rename tab metadata (stored in main so it survives renderer reloads)
   const tabMeta = new Map()
   ipcMain.handle('sush:set-tab-meta', (event, { tabId, meta }) => {

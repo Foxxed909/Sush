@@ -14,6 +14,27 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 3.5.1 — performance pass
+
+- **The big idle-CPU culprit was the status bar.** It polled `get-system-stats`
+  every 4s, which `Promise.all`'d `si.graphics()` + `si.wifiConnections()` +
+  `si.processes()` + `si.networkStats()` — on Windows each spawns a child process
+  (wmic/netsh/enumeration). Fix: new `sush:get-system-stats-lite` IPC that only
+  does `si.currentLoad()` + `si.mem()` (no spawns). The full handler stays for the
+  detailed Stats panel, which is now focus-gated and on a slower cadence.
+- **`hooks/usePolling.js`** — shared poller that only ticks while
+  `document.hasFocus() && !document.hidden`; stops on blur/minimize, resumes with
+  an immediate read on refocus. Used by StatusBar (4s lite) and RightPanel's
+  Stats (3s), Ports (4s), Docker (5s) tabs. The three RightPanel `setInterval`
+  blocks + their dead `intervalRef`s were removed.
+- **GPU terminal rendering.** `useTerminal.js` loads `@xterm/addon-webgl` *after*
+  `term.open()` (it needs a live context), wires `onContextLoss` → dispose (xterm
+  reverts to DOM), and disposes it in cleanup. New dependency:
+  `@xterm/addon-webgl@^0.18`.
+- **DevTools** no longer auto-opens in dev (`src/main/index.js`); gated behind
+  `SUSH_DEVTOOLS=1`, with a `before-input-event` handler so F12 / Ctrl+Shift+I
+  still toggle it on the frameless window.
+
 ## 3.5.0 — implementation notes
 
 ### Auto-alias miner

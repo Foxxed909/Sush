@@ -24,9 +24,20 @@ function createWindow() {
     return { action: 'deny' }
   })
 
+  // Frameless windows have no menu, so wire DevTools to F12 / Ctrl+Shift+I
+  // ourselves (it's no longer auto-opened — see below).
+  win.webContents.on('before-input-event', (_e, input) => {
+    if (input.type !== 'keyDown') return
+    const toggle = input.key === 'F12' ||
+      ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i')
+    if (toggle) win.webContents.toggleDevTools()
+  })
+
   if (process.env.NODE_ENV === 'development') {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
-    win.webContents.openDevTools({ mode: 'detach' })
+    // DevTools is a full second renderer — heavy in dev. Don't auto-open it;
+    // set SUSH_DEVTOOLS=1 (or just press F12 / Ctrl+Shift+I) when you need it.
+    if (process.env.SUSH_DEVTOOLS === '1') win.webContents.openDevTools({ mode: 'detach' })
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }

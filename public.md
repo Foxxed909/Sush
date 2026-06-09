@@ -5,6 +5,28 @@ swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
 
 ---
 
+## 3.5.1 — "Lexicon" (performance pass)
+
+The app is now **markedly lighter** — less idle CPU, far fewer background
+processes, and GPU-accelerated terminals — with every feature intact.
+
+### Faster / lighter
+- **GPU terminal rendering.** Terminals now paint via a WebGL canvas + glyph
+  atlas instead of mutating the DOM per line — typically **2–4× less CPU** on
+  heavy output and much better scaling across a swarm. Falls back to the DOM
+  renderer automatically if a GPU context isn't available.
+- **No more constant system-probing.** The status bar used to call a heavy
+  system-stats routine every 4s that spawned OS processes (GPU/Wi-Fi/process
+  enumeration) just to show CPU% and memory. It now uses a lightweight CPU+memory
+  read with **zero process spawns**.
+- **Background polling sleeps.** Every live dashboard (status bar, system stats,
+  ports, docker) now **pauses entirely when the window is unfocused or
+  minimized**, and resumes instantly when you come back. Cadences were also eased.
+- Dev builds no longer auto-open detached DevTools (a whole second renderer);
+  press **F12** / **Ctrl+Shift+I** when you want it.
+
+---
+
 ## 3.5.0 — "Lexicon"
 
 ### Added

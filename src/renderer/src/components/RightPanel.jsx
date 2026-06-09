@@ -3,6 +3,7 @@ import Icon from './Icons'
 import Seducia from './Seducia'
 import Browser from './Browser'
 import { rgba, accentVars } from '../lib/ui'
+import { usePolling } from '../hooks/usePolling'
 
 const TABS = [
   { id: 'agent', label: 'Agent', icon: 'sparkles' },
@@ -893,7 +894,6 @@ function BarStat({ label, value, max, unit, accent, small = false }) {
 function StatsTab({ accent }) {
   const [stats, setStats] = useState(null)
   const [statErr, setStatErr] = useState(null)
-  const intervalRef = useRef(null)
 
   const load = useCallback(() => {
     window.sush?.getSystemStats?.()
@@ -904,11 +904,9 @@ function StatsTab({ accent }) {
       .catch(e => setStatErr(e.message))
   }, [])
 
-  useEffect(() => {
-    load()
-    intervalRef.current = setInterval(load, 2000)
-    return () => clearInterval(intervalRef.current)
-  }, [load])
+  // Heavy combined stats (GPU/processes/network) — only polled while this panel
+  // is open AND the window is focused. Eased to 3s to keep the cost low.
+  usePolling(load, 3000)
 
   if (!stats && !statErr) return <PanelEmpty icon="activity" accent={accent}>Loading system stats...</PanelEmpty>
   if (statErr) return <PanelEmpty icon="activity" accent={accent} hint={statErr}>Stats unavailable</PanelEmpty>
@@ -1077,7 +1075,6 @@ function PortsTab({ accent, onRun }) {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [killing, setKilling] = useState(new Set())
-  const intervalRef = useRef(null)
 
   const load = useCallback(() => {
     window.sush?.getPorts?.()
@@ -1085,11 +1082,7 @@ function PortsTab({ accent, onRun }) {
       .catch(() => setData({ ok: false, ports: [] }))
   }, [])
 
-  useEffect(() => {
-    load()
-    intervalRef.current = setInterval(load, 3000)
-    return () => clearInterval(intervalRef.current)
-  }, [load])
+  usePolling(load, 4000)
 
   const killPort = useCallback(async (pid, port) => {
     setKilling(prev => new Set([...prev, port]))
@@ -1545,7 +1538,6 @@ function DockerTab({ accent, onRun }) {
   const [logs, setLogs] = useState({})
   const [loadingLogs, setLoadingLogs] = useState(new Set())
   const [stopping, setStopping] = useState(new Set())
-  const intervalRef = useRef(null)
 
   const load = useCallback(() => {
     window.sush?.dockerPs?.()
@@ -1553,11 +1545,7 @@ function DockerTab({ accent, onRun }) {
       .catch(() => setData({ ok: false, containers: [], error: 'Docker not available' }))
   }, [])
 
-  useEffect(() => {
-    load()
-    intervalRef.current = setInterval(load, 5000)
-    return () => clearInterval(intervalRef.current)
-  }, [load])
+  usePolling(load, 5000)
 
   const fetchLogs = async (id) => {
     if (loadingLogs.has(id)) return

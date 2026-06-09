@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
+import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 
 export function useTerminal({
@@ -110,6 +111,19 @@ export function useTerminal({
     term.loadAddon(searchAddon)
     term.loadAddon(new WebLinksAddon())
     term.open(containerRef.current)
+
+    // GPU renderer: paints the terminal as a single WebGL canvas with a glyph
+    // atlas instead of mutating the DOM per row — far less CPU on heavy output
+    // and across a swarm. Must load AFTER open() (needs a live context). On
+    // context loss (driver hiccup / GPU reset) we dispose it and xterm silently
+    // falls back to the DOM renderer.
+    let webglAddon = null
+    try {
+      webglAddon = new WebglAddon()
+      webglAddon.onContextLoss(() => { try { webglAddon?.dispose() } catch {}; webglAddon = null })
+      term.loadAddon(webglAddon)
+    } catch { webglAddon = null }
+
     try { fitAddon.fit() } catch {}
     term.focus()
 
@@ -257,6 +271,7 @@ export function useTerminal({
       removeExitListener()
       removeStateListener()
       resizeObserver.disconnect()
+      try { webglAddon?.dispose() } catch {}
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null

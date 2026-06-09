@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('sush', {
   setTabMeta: (payload) => ipcRenderer.invoke('sush:set-tab-meta', payload),
   getTabMeta: (payload) => ipcRenderer.invoke('sush:get-tab-meta', payload),
   getSystemStats: () => ipcRenderer.invoke('sush:get-system-stats'),
+  getSystemStatsLite: () => ipcRenderer.invoke('sush:get-system-stats-lite'),
   getPorts: () => ipcRenderer.invoke('sush:get-ports'),
   killPid: (payload) => ipcRenderer.invoke('sush:kill-pid', payload),
   gitStage: (payload) => ipcRenderer.invoke('sush:git-stage', payload),

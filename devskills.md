@@ -62,6 +62,16 @@
   tallies omnibar commands; crossing a threshold surfaces a one-at-a-time suggestion
   that, on accept, edits the user's real `.sushrc` (`hooks/useAutoAlias`). High-churn
   counters stay renderer-local (no IPC); only the accepted write crosses to main.
+- **Focus-gated polling:** `hooks/usePolling` ticks only while the window is
+  focused + visible — every live dashboard sleeps in the background. The default
+  for any recurring IPC poll; never `setInterval` a system probe unconditionally.
+- **Cheap vs. heavy IPC split:** keep a lite path for always-on widgets. The
+  status bar uses `get-system-stats-lite` (CPU+mem, no child processes); the heavy
+  `get-system-stats` (GPU/Wi-Fi/process enumeration — spawns OS processes) is only
+  for the on-demand Stats panel.
+- **GPU terminal:** xterm runs the WebGL renderer (`@xterm/addon-webgl`, loaded
+  after `term.open()`) with automatic DOM fallback on context loss — big CPU win
+  on heavy output and swarms.
 
 ## Conventions
 - Imperative commit messages; concise.

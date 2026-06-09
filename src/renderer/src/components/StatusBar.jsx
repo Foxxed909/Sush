@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
+import { usePolling } from '../hooks/usePolling'
 
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
 // live cpu/mem. Reuses the existing gitStatus + getSystemStats IPC. Polls on a
@@ -21,23 +22,20 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, broad
     return () => { cancelled = true }
   }, [cwd])
 
-  // System stats + a periodic git refresh (to catch dirty-count changes).
-  useEffect(() => {
-    let alive = true
-    const poll = () => {
-      window.sush.getSystemStats()
-        .then(s => { if (alive && s && !s.error) setStats(s) })
+  // System stats (lightweight: CPU + mem only) + a periodic git refresh to catch
+  // dirty-count changes. Polls only while the window is focused — pauses in the
+  // background. Uses the lite IPC so the status bar never spawns OS processes.
+  const poll = useCallback(() => {
+    window.sush.getSystemStatsLite()
+      .then(s => { if (s && !s.error) setStats(s) })
+      .catch(() => {})
+    if (cwd) {
+      window.sush.gitStatus({ cwd })
+        .then(g => setGit(g?.repo ? g : null))
         .catch(() => {})
-      if (cwd) {
-        window.sush.gitStatus({ cwd })
-          .then(g => { if (alive) setGit(g?.repo ? g : null) })
-          .catch(() => {})
-      }
     }
-    poll()
-    const id = setInterval(poll, 4000)
-    return () => { alive = false; clearInterval(id) }
   }, [cwd])
+  usePolling(poll, 4000)
 
   const cpu = stats ? Math.round(stats.cpu?.load ?? 0) : null
   const memPct = stats?.memory?.total
