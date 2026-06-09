@@ -9,6 +9,8 @@ import SmartCommandBar from './components/SmartCommandBar'
 import StatusBar from './components/StatusBar'
 import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
+import SeduciaOrb from './components/SeduciaOrb'
+import MissionControl from './components/MissionControl'
 import PlansModal from './components/PlansModal'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsHelp from './components/ShortcutsHelp'
@@ -18,8 +20,9 @@ import QuickSwitcher from './components/QuickSwitcher'
 import SplashScreen from './components/SplashScreen'
 import { themes, defaultTheme } from './themes'
 import { agentById } from './lib/agents'
-import { accentVars, rgba } from './lib/ui'
+import { accentVars, glassVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
+import { useAgentActivity } from './hooks/useAgentActivity'
 import JsonViewer from './components/JsonViewer'
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
@@ -198,6 +201,7 @@ export default function App() {
   const [showPlans, setShowPlans] = useState(false)
   const [planId, setPlanId] = useState(loadPlan)
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('sush-right-open') === '1')
+  const [seduciaOpen, setSeduciaOpen] = useState(false)
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
   const [settings, setSettings] = useState(loadSettings)
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
@@ -206,6 +210,7 @@ export default function App() {
   const [zenMode, setZenMode] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showMission, setShowMission] = useState(false)
   const [commandHistory, setCommandHistory] = useState([])
   const [broadcastMode, setBroadcastMode] = useState(false)
   const [splitMode, setSplitMode] = useState(false)
@@ -305,6 +310,9 @@ export default function App() {
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
   const runningSessionCount = tabs.filter(t => t.status === 'running').length
 
+  // Mission Control: live per-session state inferred from the PTY stream.
+  const { states: agentStates, summary: agentSummary } = useAgentActivity(tabs)
+
   // Auto-dismiss smart result after 8 seconds of inactivity.
   useEffect(() => {
     if (!smartResult) return
@@ -350,13 +358,21 @@ export default function App() {
     setRightOpen(true)
   }, [])
 
+  // Esc closes Mission Control (the board has no focused input to catch it).
+  useEffect(() => {
+    if (!showMission) return
+    const onEsc = (e) => { if (e.key === 'Escape') { e.preventDefault(); setShowMission(false) } }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [showMission])
+
   useEffect(() => {
     const handler = (e) => {
       const ctrl = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
       // Ctrl/Cmd+K → summon Seducia. Ctrl/Cmd+B → toggle panel.
       // (Guard with !shift so Ctrl+Shift+B doesn't also fire the panel toggle.)
-      if (ctrl && key === 'k' && !e.shiftKey) { e.preventDefault(); setRightOpen(prev => (prev && rightTab === 'agent' ? false : true)); setRightTab('agent') }
+      if (ctrl && key === 'k' && !e.shiftKey) { e.preventDefault(); setSeduciaOpen(prev => !prev) }
       if (ctrl && key === 'b' && !e.shiftKey) { e.preventDefault(); setRightOpen(prev => !prev) }
       // Ctrl+P → command palette
       if (ctrl && key === 'p' && !e.shiftKey) { e.preventDefault(); setShowPalette(prev => !prev) }
@@ -378,6 +394,8 @@ export default function App() {
       }
       // Ctrl+Shift+B → broadcast mode
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
+      // Ctrl+Shift+M → Mission Control (Ctrl+M alone is Enter in a terminal)
+      if (ctrl && e.shiftKey && key === 'm') { e.preventDefault(); setShowMission(prev => !prev) }
       // Ctrl+Shift+D → duplicate active tab
       if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
       // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
@@ -599,6 +617,15 @@ export default function App() {
     setActiveId(match.id)
     setView('terminal')
   }, [liveTargets])
+
+  // Mission Control: send raw input to one specific session (e.g. answering a
+  // blocked agent with "y" + Enter). Queues if the PTY hasn't booted yet.
+  const promptSession = useCallback((tabId, data) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    if (!tab) return
+    if (tab.status === 'running') window.sush.ptyInput({ tabId, data })
+    else pendingPtyRef.current.set(tabId, String(data).replace(/\r$/, ''))
+  }, [])
 
   const closeGroup = useCallback((groupId) => {
     if (!groupId) return
@@ -863,11 +890,12 @@ export default function App() {
 
   const handlePaletteAction = useCallback((action) => {
     if (action === 'new-session') setShowLauncher(true)
-    else if (action === 'open-seducia') { setRightTab('agent'); setRightOpen(true) }
+    else if (action === 'open-seducia') { setSeduciaOpen(true) }
     else if (action === 'settings') setShowSettings(true)
     else if (action === 'plans') setShowPlans(true)
     else if (action === 'toggle-panel') setRightOpen(prev => !prev)
     else if (action === 'zen') setZenMode(prev => !prev)
+    else if (action === 'mission') setShowMission(true)
     else if (action === 'shortcuts') setShowShortcuts(true)
     else if (action === 'home') { setHomeView('dashboard'); setView('home') }
     else if (action === 'handoff') { if (activeIdRef.current) setHandoffSource(activeIdRef.current) }
@@ -903,6 +931,7 @@ export default function App() {
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
     const base = [
+      { id: 'act-mission', label: 'Mission Control', description: 'Live board of every agent session (Ctrl+Shift+M)', icon: 'activity', action: 'mission' },
       { id: 'act-handoff', label: 'Hand Off Session', description: 'Pass this session\'s context to another (Ctrl+P)', icon: 'send', action: 'handoff' },
       { id: 'act-rename', label: 'Rename Session', description: 'Rename the active session (F2)', icon: 'edit', action: 'rename' },
       { id: 'act-corners', label: 'Cycle Corner Style', description: 'Sharp → Rounded → Pill', icon: 'layout', action: 'corners' },
@@ -979,8 +1008,16 @@ export default function App() {
   }, [selectTab, reopenLastClosed])
 
   return (
-    <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}`} style={{ ...accentVars(accent), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
-      {!zenMode && <TitleBar accent={accent} onSettings={() => setShowSettings(true)} sessionCount={runningSessionCount} />}
+    <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}`} style={{ ...accentVars(accent), ...(theme.ui.glass ? glassVars(theme.ui) : {}), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
+      {!zenMode && (
+        <TitleBar
+          accent={accent}
+          onSettings={() => setShowSettings(true)}
+          sessionCount={runningSessionCount}
+          themeId={themeId}
+          onThemeChange={(id) => saveSettings({ ...settings, themeId: id })}
+        />
+      )}
 
       <div className="flex flex-1 min-h-0">
         {!zenMode && (
@@ -1016,7 +1053,7 @@ export default function App() {
             activeTab={activeTab}
             accent={accent}
             onRun={runSmartInput}
-            onSeducia={() => openRight('agent')}
+            onSeducia={() => setSeduciaOpen(true)}
             onTogglePanel={() => setRightOpen(prev => !prev)}
             rightOpen={rightOpen}
             busy={smartBusy}
@@ -1150,7 +1187,7 @@ export default function App() {
                 onOpenRecent={openRecentSession}
                 onOpenTab={() => openTab(profiles[0])}
                 onNewSession={() => setShowLauncher(true)}
-                onSeducia={() => openRight('agent')}
+                onSeducia={() => setSeduciaOpen(true)}
               />
               </div>
             )}
@@ -1237,6 +1274,26 @@ export default function App() {
           sessionCount={tabs.length}
           broadcastMode={broadcastMode}
           splitMode={splitMode}
+          agentSummary={agentSummary}
+          onOpenMission={() => setShowMission(true)}
+        />
+      )}
+
+      {!zenMode && (
+        <SeduciaOrb
+          accent={accent}
+          open={seduciaOpen}
+          onOpenChange={setSeduciaOpen}
+          tabs={tabs}
+          recentSessions={recentSessions}
+          activeCwd={activeTab?.cwd}
+          onLaunch={launchSessions}
+          onRun={runSmartInput}
+          onPrompt={sendAgentPrompt}
+          onFocus={focusAgent}
+          onOpenLauncher={() => setShowLauncher(true)}
+          settings={settings}
+          planId={planId}
         />
       )}
 
@@ -1305,6 +1362,20 @@ export default function App() {
         <ShortcutsHelp
           accent={accent}
           onClose={() => setShowShortcuts(false)}
+        />
+      )}
+
+      {showMission && (
+        <MissionControl
+          accent={accent}
+          tabs={tabs}
+          states={agentStates}
+          summary={agentSummary}
+          onFocus={(id) => { setActiveId(id); setView('terminal'); setShowMission(false) }}
+          onClose={closeTab}
+          onCloseGroup={closeGroup}
+          onPrompt={promptSession}
+          onDismiss={() => setShowMission(false)}
         />
       )}
 

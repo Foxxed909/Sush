@@ -153,16 +153,19 @@ body {
 }
 .sush-splash-out { animation: sush-splash-out 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards; pointer-events: none; }
 
-/* ---- Glassmorphism UI ---- */
+/* ---- Glassmorphism UI ----
+   Frosted panels: a stronger blur + saturation lift makes the terminal read
+   through the chrome as a soft wash of colour. A 1px top highlight gives every
+   glass surface a faint lit edge (the "premium" tell). */
 .sush-glass-ui [data-glass] {
-  background: rgba(10, 14, 20, 0.52) !important;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: var(--glass-surface, rgba(10, 14, 20, 0.52)) !important;
+  backdrop-filter: blur(26px) saturate(185%);
+  -webkit-backdrop-filter: blur(26px) saturate(185%);
 }
 .sush-glass-ui .sush-omni {
-  background: rgba(6, 9, 13, 0.6) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--glass-omni, rgba(6, 9, 13, 0.6)) !important;
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
 }
 
 @keyframes sush-spin { to { transform: rotate(360deg); } }
@@ -176,6 +179,48 @@ body {
   50% { box-shadow: 0 0 30px var(--accent-a55); }
 }
 .sush-orb { animation: sush-orb-pulse 2.6s ease-in-out infinite; }
+
+/* ---- Seducia ambient orb (Jarvis) ---- */
+/* Idle: slow breathing glow. */
+@keyframes seducia-breathe {
+  0%, 100% { box-shadow: 0 0 22px var(--accent-a22), 0 8px 30px rgba(0,0,0,0.55); transform: scale(1); }
+  50% { box-shadow: 0 0 38px var(--accent-a35), 0 8px 30px rgba(0,0,0,0.55); transform: scale(1.03); }
+}
+.seducia-idle { animation: seducia-breathe 4s ease-in-out infinite; }
+/* Listening: tighter, brighter pulse. */
+@keyframes seducia-listen {
+  0%, 100% { box-shadow: 0 0 26px var(--accent-a55), 0 8px 30px rgba(0,0,0,0.55); transform: scale(1.04); }
+  50% { box-shadow: 0 0 46px var(--accent-a55), 0 8px 30px rgba(0,0,0,0.55); transform: scale(1.10); }
+}
+.seducia-listening { animation: seducia-listen 1.3s ease-in-out infinite; }
+/* Expanding rings while listening. */
+@keyframes seducia-ring {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+.seducia-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: seducia-ring 1.8s ease-out infinite;
+  pointer-events: none;
+}
+.seducia-ring.r2 { animation-delay: 0.6s; }
+.seducia-ring.r3 { animation-delay: 1.2s; }
+/* Speaking: equalizer bars. */
+@keyframes seducia-bar {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+.seducia-bar {
+  width: 3px; border-radius: 2px; background: #05070b;
+  transform-origin: center; animation: seducia-bar 0.7s ease-in-out infinite;
+}
+/* Expand/collapse of the conversation card. */
+@keyframes seducia-expand {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.seducia-card { animation: seducia-expand 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-origin: bottom right; }
 
 /* ---- Quick action tiles ---- */
 .sush-tile {
@@ -241,7 +286,42 @@ body {
 
 /* ---- Session rail items ---- */
 .sush-session { transition: border-color .14s ease, background .14s ease, transform .14s ease; }
-.sush-session:hover { border-color: var(--accent-a35) !important; }
+.sush-session:hover { border-color: var(--accent-a35) !important; transform: translateX(2px); }
 .sush-session-close { opacity: 0; transition: opacity .14s ease, background .14s ease, color .14s ease; }
 .sush-session:hover .sush-session-close { opacity: 1; }
 .sush-session-close:hover { background: var(--accent-a16) !important; color: var(--accent) !important; }
+
+/* ---- Theme switcher swatches (in-shell quick toggle) ---- */
+.sush-swatch {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  transition: transform .15s cubic-bezier(0.22,1,0.36,1), box-shadow .15s ease, border-color .15s ease;
+}
+.sush-swatch:hover { transform: scale(1.18); }
+.sush-swatch[data-active="true"] {
+  border-color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 0 10px var(--swatch-glow, transparent);
+}
+.sush-swatch-pop {
+  animation: sush-fade-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Faint lit top-edge for glass surfaces — adds depth without a hard border. */
+.sush-glass-ui [data-glass] { box-shadow: inset 0 1px 0 rgba(255,255,255,0.045); }
+
+/* ---- Mission Control board ---- */
+.sush-mc-row { transition: border-color .14s ease, background .14s ease; }
+.sush-mc-row:hover { border-color: var(--accent-a35) !important; background: var(--accent-a06); }
+.sush-mc-btn { transition: border-color .14s ease, background .14s ease, color .14s ease, transform .12s ease; }
+.sush-mc-btn:hover { border-color: var(--accent-a55) !important; color: var(--accent) !important; background: var(--accent-a10); }
+.sush-mc-btn:active { transform: scale(0.93); }
+@keyframes sush-pulse-dot {
+  0%   { box-shadow: 0 0 0 0 var(--pulse, rgba(255,255,255,0.5)); }
+  70%  { box-shadow: 0 0 0 5px rgba(0,0,0,0); }
+  100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+}
+.sush-pulse-dot { animation: sush-pulse-dot 1.8s ease-out infinite; }

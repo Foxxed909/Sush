@@ -5,7 +5,7 @@ import { rgba } from '../lib/ui'
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
 // live cpu/mem. Reuses the existing gitStatus + getSystemStats IPC. Polls on a
 // gentle 4s cadence; git is re-read whenever the active cwd changes too.
-export default function StatusBar({ accent, activeTab, view, sessionCount, broadcastMode, splitMode }) {
+export default function StatusBar({ accent, activeTab, view, sessionCount, broadcastMode, splitMode, agentSummary, onOpenMission }) {
   const cwd = activeTab?.cwd || null
   const shell = activeTab?.shellLabel || activeTab?.shell || null
   const [git, setGit] = useState(null)
@@ -45,8 +45,9 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, broad
     : null
   const dirty = git?.files?.length ?? 0
 
-  const seg = { display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px', height: '100%', borderRight: '1px solid #161b21' }
-  const segR = { ...seg, borderRight: 'none', borderLeft: '1px solid #161b21' }
+  const divider = rgba(accent, 0.1)
+  const seg = { display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px', height: '100%', borderRight: `1px solid ${divider}` }
+  const segR = { ...seg, borderRight: 'none', borderLeft: `1px solid ${divider}` }
   const dim = '#7a838b'
 
   const usageColor = (v) => v == null ? dim : v >= 85 ? '#ff5370' : v >= 60 ? '#ffcb6b' : '#8a939c'
@@ -57,10 +58,10 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, broad
       style={{
         display: 'flex',
         alignItems: 'center',
-        height: 24,
+        height: 26,
         flexShrink: 0,
-        background: '#0a0d11',
-        borderTop: `1px solid ${rgba(accent, 0.18)}`,
+        background: 'rgba(8,10,14,0.5)',
+        borderTop: `1px solid ${rgba(accent, 0.12)}`,
         fontSize: 11,
         color: dim,
         userSelect: 'none',
@@ -103,6 +104,28 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, broad
           <span style={{ color: '#c6cdd4' }}>{shell}</span>
         </span>
       )}
+
+      {/* agent activity — click to open Mission Control */}
+      {(() => {
+        const s = agentSummary || {}
+        const waiting = s.waiting || 0
+        const working = s.working || 0
+        const errored = s.error || 0
+        if (!waiting && !working && !errored) return null
+        const tone = waiting ? '#ffcb6b' : errored ? '#ff5370' : '#5fd3a8'
+        const text = waiting ? `${waiting} need you` : errored ? `${errored} error${errored === 1 ? '' : 's'}` : `${working} working`
+        return (
+          <button
+            className="sush-mc-btn"
+            onClick={onOpenMission}
+            title="Mission Control (Ctrl+Shift+M)"
+            style={{ ...segR, color: tone, fontWeight: 800, background: 'transparent', cursor: 'pointer', border: 'none', borderLeft: `1px solid ${divider}`, fontSize: 11 }}
+          >
+            <span className={waiting || working ? 'sush-pulse-dot' : undefined} style={{ width: 6, height: 6, borderRadius: '50%', background: tone, '--pulse': rgba(tone, 0.6) }} />
+            {text}
+          </button>
+        )
+      })()}
 
       {/* sessions */}
       <span style={segR}>

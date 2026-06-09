@@ -38,6 +38,22 @@
   flow through a single `settings` object persisted to localStorage.
 - **IPC contract:** every capability = main `ipcMain.handle` + `preload`
   `window.sush.*` method + renderer call. Keep the three in sync.
+- **Theme-driven CSS vars:** glass themes tune frosted-panel tint via
+  `--glass-surface`/`--glass-omni` (CSS falls back to defaults; `glassVars` emits
+  them only for `glass` themes), so one CSS rule serves many glass variants.
+- **CLI-backed AI (no key):** shell out to a logged-in CLI (`claude -p`) from
+  main via `spawn`, piping the whole prompt over **stdin** (zero argv injection
+  surface); Windows `.cmd` shims route through `cmd.exe /c`. Renderer treats it as
+  a single-yield streamer behind the same `getStreamer` interface.
+- **PTY-stream state inference (Mission Control):** one global `onPtyData`/`onPtyExit`
+  subscription feeds per-tab tail buffers in a **ref** (never re-render on bytes); a
+  low-frequency timer reclassifies output into `working/waiting/idle/error/done` and
+  commits only on change. Heuristic classifier strips ANSI, then matches spinner/prompt/
+  error signatures with a conservative priority order. Scales to a full swarm cheaply.
+- **Glass theme family:** chrome surfaces are translucent (`rgba`) so `data-glass`
+  wrappers can frost; presets share one glass recipe (`glassTint`/`glassOmni`/accent
+  border) and differ only in accent, reading as one product in many colors. In-shell
+  swatch switcher writes `settings.themeId` (same path as Settings) — no parallel state.
 
 ## Conventions
 - Imperative commit messages; concise.

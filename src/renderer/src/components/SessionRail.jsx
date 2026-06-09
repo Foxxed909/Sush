@@ -19,8 +19,8 @@ function RailButton({ icon, label, active, accent, onClick }) {
         width: 36,
         height: 36,
         borderRadius: 'var(--r-md)',
-        border: `1px solid ${active ? accent : rgba(accent, 0.3)}`,
-        background: active ? rgba(accent, 0.16) : '#12161a',
+        border: `1px solid ${active ? accent : rgba(accent, 0.18)}`,
+        background: active ? rgba(accent, 0.16) : rgba(accent, 0.05),
         color: active ? accent : '#c2cad1',
         cursor: 'pointer'
       }}
@@ -131,10 +131,11 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
           alignItems: 'center',
           textAlign: 'left',
           borderRadius: 'var(--r-lg)',
-          border: `1px solid ${active ? rgba(accent, 0.55) : over ? rgba(accent, 0.4) : pinned ? rgba(accent, 0.22) : '#1c232a'}`,
-          background: active ? rgba(accent, 0.1) : over ? '#11171c' : '#0e1216',
+          border: `1px solid ${active ? rgba(accent, 0.55) : over ? rgba(accent, 0.4) : pinned ? rgba(accent, 0.22) : rgba(accent, 0.1)}`,
+          background: active ? rgba(accent, 0.12) : over ? rgba(accent, 0.07) : 'rgba(255,255,255,0.018)',
           color: active ? '#f4f6f8' : '#aab2ba',
           padding: '10px 11px',
+          boxShadow: active ? `0 4px 16px ${rgba(accent, 0.14)}` : 'none',
           marginLeft: indented ? 12 : 0,
           cursor: 'pointer',
           outline: over ? `1px dashed ${rgba(accent, 0.4)}` : 'none'
@@ -170,7 +171,7 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
 
       {ctxMenu && (
         <div
-          style={{ position: 'fixed', top: ctxMenu.y, left: ctxMenu.x, zIndex: 600, background: '#0f1318', border: '1px solid #20272e', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.6)', minWidth: 160, padding: 4 }}
+          style={{ position: 'fixed', top: ctxMenu.y, left: ctxMenu.x, zIndex: 600, background: 'rgba(13,16,20,0.95)', backdropFilter: 'blur(18px) saturate(160%)', WebkitBackdropFilter: 'blur(18px) saturate(160%)', border: `1px solid ${rgba(accent, 0.2)}`, borderRadius: 'var(--r-lg)', boxShadow: '0 12px 38px rgba(0,0,0,0.6)', minWidth: 168, padding: 5 }}
           onClick={e => e.stopPropagation()}
         >
           {[
@@ -281,11 +282,11 @@ export default function SessionRail({
         // dead, seam-edged void below the session list.
         flex: '1 1 auto',
         minHeight: 0,
-        background: '#090b0d',
-        borderRight: `1px solid ${rgba(accent, 0.16)}`
+        background: 'transparent',
+        borderRight: `1px solid ${rgba(accent, 0.1)}`
       }}
     >
-      <div className="flex items-center" style={{ gap: 8, padding: 12, borderBottom: `1px solid ${rgba(accent, 0.1)}` }}>
+      <div className="flex items-center" style={{ gap: 8, padding: 12, borderBottom: `1px solid ${rgba(accent, 0.08)}` }}>
         <RailButton icon="home" label="Home" active={view === 'home'} accent={accent} onClick={onHome} />
         <RailButton
           icon="plus"
@@ -309,7 +310,7 @@ export default function SessionRail({
         {tabs.length > 3 && (
           <div
             className="flex items-center"
-            style={{ gap: 7, marginBottom: 10, background: '#07090b', border: '1px solid #1c232a', borderRadius: 'var(--r-sm)', padding: '0 9px', height: 30 }}
+            style={{ gap: 7, marginBottom: 10, background: 'rgba(0,0,0,0.22)', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 'var(--r-sm)', padding: '0 9px', height: 30 }}
           >
             <Icon name="search" size={12} color="#5a646d" strokeWidth={2} />
             <input
@@ -363,7 +364,7 @@ export default function SessionRail({
             return (
               <div
                 key={block.id}
-                style={{ border: `1px solid ${hasActive ? rgba(accent, 0.4) : '#171d23'}`, borderRadius: 'var(--r-lg)', background: hasActive ? rgba(accent, 0.05) : '#0b0e11', padding: 7 }}
+                style={{ border: `1px solid ${hasActive ? rgba(accent, 0.4) : rgba(accent, 0.1)}`, borderRadius: 'var(--r-lg)', background: hasActive ? rgba(accent, 0.06) : 'rgba(255,255,255,0.018)', padding: 7 }}
               >
                 <div
                   className="flex items-center"

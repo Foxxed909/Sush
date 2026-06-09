@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('sush', {
   windowControl: (action) => ipcRenderer.invoke('sush:window-control', action),
   appVersion: () => ipcRenderer.invoke('sush:app-version'),
   homeDir: () => ipcRenderer.invoke('sush:home-dir'),
+  seduciaCli: (payload) => ipcRenderer.invoke('sush:seducia-cli', payload),
   getScrollback: (payload) => ipcRenderer.invoke('sush:get-scrollback', payload),
   sushrcRead: () => ipcRenderer.invoke('sush:sushrc-read'),
   sushrcWrite: (payload) => ipcRenderer.invoke('sush:sushrc-write', payload),

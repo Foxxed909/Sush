@@ -99,8 +99,8 @@ export default function RightPanel({
         width: style.width ?? 360,
         minWidth: 280,
         maxWidth: '55vw',
-        background: '#090b0d',
-        borderLeft: `1px solid ${rgba(accent, 0.16)}`
+        background: 'transparent',
+        borderLeft: `1px solid ${rgba(accent, 0.1)}`
       }}
     >
       {/* Tab header — single horizontal scrolling strip with a custom scroll indicator */}
@@ -201,7 +201,7 @@ function TabStrip({ accent, tab, onTab, onClose }) {
 
   const fade = (side) => ({
     position: 'absolute', top: 0, bottom: 0, [side]: 0, width: 26, pointerEvents: 'none',
-    background: `linear-gradient(to ${side === 'left' ? 'right' : 'left'}, #090b0d, rgba(9,11,13,0))`,
+    background: `linear-gradient(to ${side === 'left' ? 'right' : 'left'}, rgba(6,8,11,0.85), rgba(6,8,11,0))`,
     opacity: edges[side] ? 1 : 0, transition: 'opacity .15s ease', zIndex: 2
   })
 
@@ -246,7 +246,7 @@ function TabStrip({ accent, tab, onTab, onClose }) {
         onClick={toggleCompact}
         title={compact ? 'Show tab labels' : 'Compact (icons only)'}
         className="sush-icon-btn flex items-center justify-center"
-        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${compact ? rgba(accent, 0.4) : '#20272e'}`, background: compact ? rgba(accent, 0.1) : '#11151a', color: compact ? accent : '#8a939c', cursor: 'pointer' }}
+        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${compact ? rgba(accent, 0.4) : rgba(accent, 0.14)}`, background: compact ? rgba(accent, 0.1) : rgba(accent, 0.04), color: compact ? accent : '#8a939c', cursor: 'pointer' }}
       >
         <Icon name="layout" size={15} />
       </button>
@@ -254,7 +254,7 @@ function TabStrip({ accent, tab, onTab, onClose }) {
         onClick={onClose}
         title="Collapse panel"
         className="sush-icon-btn flex items-center justify-center"
-        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer' }}
+        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${rgba(accent, 0.14)}`, background: rgba(accent, 0.04), color: '#8a939c', cursor: 'pointer' }}
       >
         <Icon name="panel" size={15} />
       </button>

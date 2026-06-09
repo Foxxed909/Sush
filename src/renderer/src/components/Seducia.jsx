@@ -428,7 +428,7 @@ export default function Seducia({
     try { rec.start() } catch { setListening(false) }
   }, [listening, voiceEnabled, handsFree, handle])
 
-  const hasAIKey = !!(settings.anthropicKey || settings.openaiKey)
+  const hasAIKey = settings.seduciaProvider === 'cli' || !!(settings.anthropicKey || settings.openaiKey)
 
   const body = (
     <div

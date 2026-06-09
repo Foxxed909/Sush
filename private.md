@@ -14,6 +14,75 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 3.4.0 — implementation notes
+
+### Mission Control (live agent board)
+- **Data layer is render-cheap on purpose.** `hooks/useAgentActivity.js` mounts a
+  *single* global `window.sush.onPtyData` / `onPtyExit` subscription and appends each
+  session's output into a per-tab tail buffer held in a **ref** (`TAIL_CHARS = 700`) —
+  so byte traffic never triggers a React render. A `setInterval` (`TICK_MS = 700`)
+  reclassifies every live tab and only `setState`s when a state actually changed. A
+  16-agent swarm therefore costs one cheap pass per tick, not a render per byte.
+- **Classifier** (`lib/agentActivity.js`, `classify(rec, now)`): priority order is
+  exited→(error|done) → working (output <1.5s old OR spinner/"esc to interrupt"
+  phrase) → waiting (settled AND a y/n or framed-prompt tail, but NOT a bare shell
+  prompt) → error (error/traceback tail, not a shell prompt) → idle. Deliberately
+  conservative so a busy agent never reads as "waiting." ANSI/control bytes stripped
+  before matching. **Heuristic** — real-CLI tuning expected.
+- **Wiring** (`App.jsx`): `Ctrl+Shift+M` (NOT `Ctrl+M` — that's CR in a terminal),
+  `Esc` to close, command-palette entry (`action: 'mission'`), and the `StatusBar`
+  badge (`agentSummary` + `onOpenMission` props). Actions reuse existing `closeTab` /
+  `closeGroup` / focus; `promptSession(tabId, data)` sends raw input to one session
+  (queues via `pendingPtyRef` if its PTY hasn't booted). The board groups tabs by
+  `groupId`/`groupLabel`, sorts "needs-you first."
+- **CSS:** appended a small block to `index.css` (`.sush-mc-row`, `.sush-mc-btn`,
+  `@keyframes sush-pulse-dot` driven by a `--pulse` custom prop) — no existing rules
+  touched.
+
+### Full app-shell redesign + glass theme family
+- **Root cause of the old "flat" look:** every chrome surface painted an *opaque* hex
+  background, so the `data-glass` wrappers in `App.jsx` had nothing to frost. Fix: made
+  TitleBar / SessionRail / SmartCommandBar / StatusBar / RightPanel backgrounds
+  translucent (`rgba(...)`) and rerouted borders/inactive states through `rgba(accent,…)`.
+- **New presets** (`themes/`): `pinkther.js`, `royal.js` (Sophisticated Purple),
+  `emerald.js`, `amber.js`, `midnight.js`, plus refined `glassdark.js`. All share the
+  glass recipe (`glassTint ~0.55`, `glassOmni ~0.66`, `border rgba(accent,0.14–0.16)`).
+  Registered in `themes/index.js`; `defaultTheme` is now `glassdark`.
+- **In-shell theme switcher** lives in `TitleBar.jsx` (palette icon → swatch popover),
+  writing straight to `settings.themeId` via the same `saveSettings` path as Settings /
+  command palette — no parallel state. `.sush-swatch` styles in `index.css`.
+- **Caveat:** non-glass legacy themes (dark/nord/dracula/…) now render transparent chrome
+  too, so they fall back to `xterm.background` showing through — fine but flatter than the
+  glass set. A tinted-chrome fallback for them is a possible follow-up.
+
+## 3.3.0 — implementation notes
+
+### Glass Dark theme (`themes/glassdark.js`)
+- Second `glass: true` theme. The glass CSS (`index.css` `.sush-glass-ui`) used to
+  hardcode the frosted-panel tint; it now reads `var(--glass-surface, <old default>)`
+  and `var(--glass-omni, <old default>)`. A theme can set `ui.glassTint` / `ui.glassOmni`
+  and `App` emits them as those vars via `glassVars(theme.ui)` (lib/ui.js), merged into
+  the root div style only when `theme.ui.glass`. The original `glass` theme sets neither,
+  so it falls back to the old values unchanged. `glassdark` sets darker tints.
+
+### Seducia via the `claude` CLI (no API key)
+- **Why:** users logged into the `claude` CLI shouldn't need to paste an API key (or pay
+  twice) to use Seducia. New `settings.seduciaProvider` = `'cli'` | `'key'` (default key).
+- **Main:** `runClaudeCli({prompt, cwd})` (ipc.js) resolves `claude` via `resolveExecutable`
+  (`where`/`which`), then `spawn`s it in `-p` (print) mode and writes the **entire** prompt
+  to **stdin** — so no untrusted text ever hits the command line (no shell, no injection).
+  Windows `.cmd`/`.bat` shims are routed through `cmd.exe /c` with constant flags only.
+  60s timeout, returns `{ok, text}` / `{ok:false, error}`. IPC: `sush:seducia-cli`.
+- **Renderer:** `streamClaudeCli` (lib/ai.js) flattens system prompt + full conversation
+  into one stdin prompt (stateless per call, like the HTTP streamers) and yields the reply
+  **once** (single-shot, not token streaming). `getStreamer` returns it when provider==='cli'.
+  ACTION-line parsing is unchanged, so launch/prompt/focus actions still work.
+- **UI:** Settings ▸ AI gained a Provider segmented toggle; the API-key fields are hidden
+  and replaced with a note when CLI is selected. Seducia's `hasAIKey` gate now also passes
+  when provider==='cli'.
+- **Note:** the CLI may invoke tools / read files in `cwd` (it's the full agent, not a chat
+  endpoint), so replies can be slower than the API path. Acceptable for orchestration.
+
 ## 3.2.1 — implementation notes
 
 ### Agent-session resume after restart (was `bugnoticed.md`)

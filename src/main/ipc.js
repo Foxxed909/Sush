@@ -1,5 +1,5 @@
 ﻿import { ipcMain, app, clipboard } from 'electron'
-import { execFile, execFileSync } from 'child_process'
+import { execFile, execFileSync, spawn } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, watch as fsWatch } from 'fs'
 import { join } from 'path'
 import { promisify } from 'util'
@@ -44,7 +44,7 @@ function buildBootLines(shellLabel, cwd) {
   try { version = `v${app.getVersion()}` } catch { version = 'v3' }
   return [
     `${dim}  ╭──────────────────────────────────────╮${reset}`,
-    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Minimata${reset}  ${dim}│${reset}`,
+    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Aurora  ${reset}  ${dim}│${reset}`,
     `${dim}  │${reset}  ${green}✓${reset} ${shellLabel}  ${dim}·${reset}  ${pink}${folder}${reset}  ${dim}│${reset}`,
     `${dim}  ╰──────────────────────────────────────╯${reset}`,
     ''
@@ -69,6 +69,56 @@ function commandExists(file) {
   } catch {
     return false
   }
+}
+
+// Resolve the absolute path of a CLI on PATH (first match). Returns null if not found.
+function resolveExecutable(name) {
+  const finder = process.platform === 'win32' ? 'where.exe' : 'which'
+  try {
+    const out = execFileSync(finder, [name], { encoding: 'utf8', windowsHide: true })
+    const first = out.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0]
+    return first || null
+  } catch {
+    return null
+  }
+}
+
+// Run the `claude` CLI in non-interactive print mode (-p), feeding the entire
+// prompt over stdin so no untrusted text ever lands on the command line (no
+// shell, no injection surface). Uses the user's existing `claude` login — no
+// API key required. Returns { ok, text } / { ok:false, error }.
+function runClaudeCli({ prompt, cwd }) {
+  const bin = resolveExecutable('claude')
+  if (!bin) return Promise.resolve({ ok: false, error: 'The `claude` CLI was not found on your PATH. Install it and run `claude` once to log in.' })
+
+  const isWin = process.platform === 'win32'
+  const isShim = /\.(cmd|bat)$/i.test(bin)
+  // Node can't exec a .cmd/.bat shim directly — route it through cmd.exe. The
+  // args are constant flags only (the path comes from `where`), so there is
+  // still no untrusted data on the command line.
+  const file = isWin && isShim ? (process.env.ComSpec || 'cmd.exe') : bin
+  const args = isWin && isShim ? ['/c', bin, '-p'] : ['-p']
+  const dir = isDirectory(cwd) ? cwd : undefined
+
+  return new Promise(resolve => {
+    let stdout = '', stderr = '', settled = false
+    const done = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve(result) } }
+    let child
+    try {
+      child = spawn(file, args, { cwd: dir, windowsHide: true })
+    } catch (e) {
+      return resolve({ ok: false, error: e.message })
+    }
+    const timer = setTimeout(() => { try { child.kill() } catch {} ; done({ ok: false, error: 'claude CLI timed out (60s).' }) }, 60000)
+    child.stdout.on('data', d => { stdout += d })
+    child.stderr.on('data', d => { stderr += d })
+    child.on('error', e => done({ ok: false, error: e.message }))
+    child.on('close', code => {
+      if (code === 0) done({ ok: true, text: stdout.trim() })
+      else done({ ok: false, error: (stderr.trim() || stdout.trim() || `claude exited with code ${code}`) })
+    })
+    try { child.stdin.write(prompt); child.stdin.end() } catch (e) { done({ ok: false, error: e.message }) }
+  })
 }
 
 function getDefaultShell(shellId = 'powershell') {
@@ -719,6 +769,9 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:app-version', () => app.getVersion())
   ipcMain.handle('sush:home-dir', () => homedir())
+
+  // ── Seducia via the local `claude` CLI (no API key) ───────────────────────
+  ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd }) => runClaudeCli({ prompt: String(prompt ?? ''), cwd }))
 
   // ── Scrollback (for session handoff cards) ────────────────────────────────
   ipcMain.handle('sush:get-scrollback', (event, { tabId, chars }) => {

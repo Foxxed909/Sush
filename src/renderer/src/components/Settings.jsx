@@ -3,10 +3,16 @@ import { themes } from '../themes'
 import Icon from './Icons'
 import { getPlan, loadPlan } from '../lib/plan'
 import { rgba } from '../lib/ui'
+import { fetchElevenVoices } from '../lib/voice'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
 const TTS_RATES = [0.75, 1.0, 1.1, 1.25, 1.5, 1.75]
+const ELEVEN_MODELS = [
+  { id: 'eleven_flash_v2_5', label: 'Flash v2.5 (fastest)' },
+  { id: 'eleven_turbo_v2_5', label: 'Turbo v2.5 (balanced)' },
+  { id: 'eleven_multilingual_v2', label: 'Multilingual v2 (richest)' }
+]
 const CORNERS = [{ id: 'sharp', label: 'Sharp' }, { id: 'rounded', label: 'Rounded' }, { id: 'pill', label: 'Pill' }]
 
 function Label({ children }) {
@@ -75,6 +81,8 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const plan = getPlan(loadPlan())
   const [voices, setVoices] = useState([])
+  const [elevenVoices, setElevenVoices] = useState([])
+  const [loadingVoices, setLoadingVoices] = useState(false)
 
   useEffect(() => {
     const load = () => setVoices(window.speechSynthesis?.getVoices() ?? [])
@@ -82,6 +90,16 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
     window.speechSynthesis?.addEventListener('voiceschanged', load)
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
   }, [])
+
+  const loadElevenVoices = async (key) => {
+    if (!key) { setElevenVoices([]); return }
+    setLoadingVoices(true)
+    const list = await fetchElevenVoices(key)
+    setElevenVoices(list)
+    setLoadingVoices(false)
+  }
+  // Pull the voice list once if a key is already saved.
+  useEffect(() => { if (settings.elevenLabsKey) loadElevenVoices(settings.elevenLabsKey) }, [])
 
   return (
     <div
@@ -134,20 +152,46 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 <span onClick={onUpgrade} style={{ color: accent, cursor: 'pointer', fontWeight: 700 }}>Upgrade →</span>
               </div>
             )}
-            <ApiKeyField
-              label="Anthropic API key"
-              value={settings.anthropicKey ?? ''}
-              onChange={v => set('anthropicKey', v)}
-              accent={accent}
-              placeholder="sk-ant-..."
-            />
-            <ApiKeyField
-              label="OpenAI API key"
-              value={settings.openaiKey ?? ''}
-              onChange={v => set('openaiKey', v)}
-              accent={accent}
-              placeholder="sk-..."
-            />
+            <Row>
+              <Label>Provider</Label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['key', 'API key'], ['cli', 'Claude CLI']].map(([val, lbl]) => {
+                  const current = settings.seduciaProvider === 'cli' ? 'cli' : 'key'
+                  const on = current === val
+                  return (
+                    <button
+                      key={val}
+                      onClick={() => set('seduciaProvider', val)}
+                      style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                    >
+                      {lbl}
+                    </button>
+                  )
+                })}
+              </div>
+            </Row>
+            {settings.seduciaProvider === 'cli' ? (
+              <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
+                Seducia drives your logged-in <strong style={{ color: accent }}>claude</strong> CLI — no API key, no extra billing. Run <strong style={{ color: '#e1e6ea' }}>claude</strong> once in a terminal to sign in. Replies arrive as a single message (not streamed token-by-token).
+              </div>
+            ) : (
+              <>
+                <ApiKeyField
+                  label="Anthropic API key"
+                  value={settings.anthropicKey ?? ''}
+                  onChange={v => set('anthropicKey', v)}
+                  accent={accent}
+                  placeholder="sk-ant-..."
+                />
+                <ApiKeyField
+                  label="OpenAI API key"
+                  value={settings.openaiKey ?? ''}
+                  onChange={v => set('openaiKey', v)}
+                  accent={accent}
+                  placeholder="sk-..."
+                />
+              </>
+            )}
           </Section>
 
           {/* Voice */}
@@ -182,13 +226,64 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 </Row>
                 {voices.length > 0 && (
                   <Row>
-                    <Label>Voice</Label>
+                    <Label>System voice (fallback)</Label>
                     <select value={settings.ttsVoice ?? ''} onChange={e => set('ttsVoice', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid #20272e`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
                       <option value="">System default</option>
                       {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
                     </select>
                   </Row>
                 )}
+
+                {/* ElevenLabs -- the real Jarvis voice */}
+                <div style={{ marginTop: 4, marginBottom: 14, paddingTop: 14, borderTop: '1px solid #1a1f25' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#cdd5dc', marginBottom: 4 }}>ElevenLabs voice</div>
+                  <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.5, marginBottom: 12 }}>
+                    Give Seducia a real, low-latency voice. Add a key, load voices, and pick one. Falls back to the system voice above if unset.
+                  </div>
+                  <ApiKeyField
+                    label="ElevenLabs API key"
+                    value={settings.elevenLabsKey ?? ''}
+                    onChange={v => { set('elevenLabsKey', v) }}
+                    accent={accent}
+                    placeholder="sk_..."
+                  />
+                  <Row>
+                    <button
+                      onClick={() => loadElevenVoices(settings.elevenLabsKey)}
+                      disabled={!settings.elevenLabsKey || loadingVoices}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, background: settings.elevenLabsKey ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.elevenLabsKey ? rgba(accent, 0.4) : '#20272e'}`, color: settings.elevenLabsKey ? accent : '#5a646d', cursor: settings.elevenLabsKey && !loadingVoices ? 'pointer' : 'default', fontSize: 12, fontWeight: 700 }}
+                    >
+                      <Icon name={loadingVoices ? 'sparkles' : 'volume2'} size={13} strokeWidth={2} className={loadingVoices ? 'sush-spin' : undefined} />
+                      {loadingVoices ? 'Loading voices...' : elevenVoices.length ? `Reload voices (${elevenVoices.length})` : 'Load voices'}
+                    </button>
+                  </Row>
+                  {elevenVoices.length > 0 && (
+                    <Row>
+                      <Label>ElevenLabs voice</Label>
+                      <select value={settings.elevenLabsVoice ?? ''} onChange={e => set('elevenLabsVoice', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid ${settings.elevenLabsVoice ? rgba(accent, 0.4) : '#20272e'}`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
+                        <option value="">Select a voice...</option>
+                        {elevenVoices.map(v => <option key={v.id} value={v.id}>{v.name}{v.category ? ` (${v.category})` : ''}</option>)}
+                      </select>
+                    </Row>
+                  )}
+                  <Row>
+                    <Label>Model</Label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {ELEVEN_MODELS.map(m => {
+                        const on = (settings.elevenLabsModel ?? 'eleven_flash_v2_5') === m.id
+                        return (
+                          <button key={m.id} onClick={() => set('elevenLabsModel', m.id)} title={m.label}
+                            style={{ flex: 1, padding: '6px 4px', borderRadius: 6, fontSize: 10.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#05070b' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}`, lineHeight: 1.2 }}>
+                            {m.label.split(' (')[0]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Row>
+                  <div style={{ fontSize: 10.5, color: '#5a646d', lineHeight: 1.5 }}>
+                    Tip: enable the wake word from the Seducia orb (the radio icon), then just say <strong style={{ color: '#aab3bb' }}>"Seducia"</strong> followed by a command. She'll stop talking the moment you speak.
+                  </div>
+                </div>
               </>
             )}
           </Section>

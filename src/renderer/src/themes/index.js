@@ -8,6 +8,36 @@ import { tokyonight } from './tokyonight'
 import { solarized } from './solarized'
 import { gruvbox } from './gruvbox'
 import { glass } from './glass'
+import { glassdark } from './glassdark'
+import { pinkther } from './pinkther'
+import { royal } from './royal'
+import { emerald } from './emerald'
+import { amber } from './amber'
+import { midnight } from './midnight'
 
-export const themes = { pink, dark, light, dracula, nord, catppuccin, tokyonight, solarized, gruvbox, glass }
-export const defaultTheme = pink
+// Premium glass family first (the toggleable, cohesive "same product, different
+// colour" set), then the classic flat palettes for back-compat.
+export const themes = {
+  glassdark,
+  pinkther,
+  royal,
+  emerald,
+  amber,
+  midnight,
+  glass,
+  pink,
+  dark,
+  light,
+  dracula,
+  nord,
+  catppuccin,
+  tokyonight,
+  solarized,
+  gruvbox
+}
+
+// IDs of the curated premium glass presets, in display order — used by the
+// in-shell theme switcher so it offers the family without the legacy palettes.
+export const presetThemeIds = ['glassdark', 'pinkther', 'royal', 'emerald', 'amber', 'midnight']
+
+export const defaultTheme = glassdark

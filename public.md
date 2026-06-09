@@ -5,6 +5,46 @@ swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
 
 ---
 
+## 3.4.0 — "Aurora"
+
+### Added
+- **Mission Control (`Ctrl+Shift+M`).** A live board of every session, grouped by
+  workspace (swarm), each showing its real-time state inferred from the terminal
+  output — **Working · Needs you · Idle · Error · Done**. Agents blocked on a
+  prompt surface a **Needs you** pill with one-click **`y ↵`** / **`↵`** replies,
+  and every row has **Focus** and **Close**. A pulsing **"N need you / N working"**
+  badge sits in the status bar (click to open) so you always know if a swarm wants
+  attention without tabbing through it.
+- **Six premium glass themes.** A cohesive, frosted-glass theme family you can
+  toggle from the new **palette switcher in the title bar** (or Settings ▸
+  Appearance): **Glass Dark**, **Pinkther** (luminous rose over deep plum),
+  **Sophisticated Purple**, **Emerald Glass**, **Amber Glass**, and **Midnight
+  Glass**. They share one glass recipe so they read as the same product in
+  different colors.
+
+### Changed — full app-shell redesign
+- The whole chrome — title bar, session rail, command bar, status bar, and right
+  panel — was rebuilt to be **genuinely translucent** so the frosted glass shows
+  through, with accent-aware borders, a faint lit top-edge on every panel, and
+  tighter, more consistent spacing and controls.
+- Default theme is now **Glass Dark**.
+
+---
+
+## 3.3.0 — "Sakura"
+
+### Added
+- **Glass Dark theme.** A deep, near-black frosted variant of the Glass theme
+  with a soft periwinkle accent — darker and less saturated than the original
+  cyan Glass. Pick it in **Settings ▸ Appearance ▸ Theme**.
+- **Seducia can run on the Claude CLI (no API key).** A new **Settings ▸ AI ▸
+  Provider** toggle lets Seducia drive your already-logged-in `claude` CLI
+  instead of an Anthropic/OpenAI API key — no key to paste, no separate billing.
+  Just run `claude` once to sign in. (Responses arrive as a single message
+  rather than streaming token-by-token, since the CLI returns a complete reply.)
+
+---
+
 ## 3.2.1 — "Sakura"
 
 ### Fixed

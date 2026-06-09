@@ -124,6 +124,23 @@ export async function* streamOpenAI(messages, { apiKey, tabs, activeCwd }) {
   }
 }
 
+// CLI-backed "streamer": shell out to the user's logged-in `claude` CLI via the
+// main process — no API key needed. The whole system prompt + conversation is
+// flattened into one stdin prompt (the CLI is stateless per call, same as how
+// the HTTP streamers resend full history). It's a single-shot response, so this
+// generator yields once rather than token-by-token.
+export async function* streamClaudeCli(messages, { tabs, activeCwd }) {
+  if (!window.sush?.seduciaCli) throw new Error('CLI bridge unavailable')
+  const system = sedusiaSystemPrompt(tabs, activeCwd)
+  const convo = messages
+    .map(m => `${m.role === 'user' ? 'User' : 'Seducia'}: ${m.content}`)
+    .join('\n\n')
+  const prompt = `${system}\n\n--- Conversation so far ---\n${convo}\n\nReply as Seducia now (1-3 sentences, plus one ACTION line if an action is needed):`
+  const res = await window.sush.seduciaCli({ prompt, cwd: activeCwd })
+  if (!res?.ok) throw new Error(res?.error || 'claude CLI failed')
+  yield res.text
+}
+
 // Parse the ACTION:<json> line from a completed AI response.
 // Returns { message, action } where action may be null.
 export function parseAIResponse(full) {
@@ -138,8 +155,11 @@ export function parseAIResponse(full) {
   }
 }
 
-// Pick the right streaming function based on the provider key prefix.
+// Pick the right streaming function. When the provider is set to 'cli', Seducia
+// drives the local `claude` login (no key); otherwise it falls back to whichever
+// API key is configured.
 export function getStreamer(settings) {
+  if (settings.seduciaProvider === 'cli') return (msgs, ctx) => streamClaudeCli(msgs, ctx)
   if (settings.anthropicKey) return (msgs, ctx) => streamAnthropic(msgs, { apiKey: settings.anthropicKey, ...ctx })
   if (settings.openaiKey) return (msgs, ctx) => streamOpenAI(msgs, { apiKey: settings.openaiKey, ...ctx })
   return null

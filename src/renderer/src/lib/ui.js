@@ -31,3 +31,12 @@ export function accentVars(accent) {
     '--accent-a55': rgba(accent, 0.55)
   }
 }
+
+// Glass themes can tune the frosted-panel tint via --glass-surface / --glass-omni
+// (the CSS falls back to the default glass values when these are absent).
+export function glassVars(ui) {
+  const out = {}
+  if (ui?.glassTint) out['--glass-surface'] = ui.glassTint
+  if (ui?.glassOmni) out['--glass-omni'] = ui.glassOmni
+  return out
+}
