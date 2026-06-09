@@ -5,6 +5,28 @@ swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
 
 ---
 
+## 3.5.0 — "Lexicon"
+
+### Added
+- **Auto-alias miner.** Sush now quietly tallies the commands you run through the
+  omnibar. Run one often enough (~15×) and a small card offers to save it as a
+  short alias in your `.sushrc` — `git status` → `gs`, `npm run dev` → `nrd`. The
+  alias name is editable, nothing is written until you hit **Add**, and you can
+  **Never suggest this one** to silence a command for good. Your shorthand library
+  grows out of your own habits instead of manual config. Toggle from **Settings ▸
+  Sush Profile**.
+
+### Changed — performance / lighter on the GPU
+- **Frosted-glass blur roughly halved** (`26px → 14px`, omnibar `14px → 9px`).
+  `backdrop-filter` cost scales with blur radius, so this is a big GPU win while
+  the look barely changes.
+- **New "Reduce effects" toggle** (Settings ▸ Appearance) drops backdrop-filter
+  entirely and freezes the ambient glow animations — a large saver on laptops or
+  when a busy agent swarm keeps the terminal repainting behind the glass.
+- The app now honors the OS **"reduce motion"** preference automatically.
+
+---
+
 ## 3.4.0 — "Aurora"
 
 ### Added

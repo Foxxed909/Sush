@@ -44,7 +44,7 @@ function buildBootLines(shellLabel, cwd) {
   try { version = `v${app.getVersion()}` } catch { version = 'v3' }
   return [
     `${dim}  ╭──────────────────────────────────────╮${reset}`,
-    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Aurora  ${reset}  ${dim}│${reset}`,
+    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Lexicon ${reset}  ${dim}│${reset}`,
     `${dim}  │${reset}  ${green}✓${reset} ${shellLabel}  ${dim}·${reset}  ${pink}${folder}${reset}  ${dim}│${reset}`,
     `${dim}  ╰──────────────────────────────────────╯${reset}`,
     ''

@@ -318,6 +318,20 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
           {/* Appearance */}
           <Section title="Appearance" accent={accent}>
             <Row>
+              <Label>Reduce effects (performance)</Label>
+              <button
+                onClick={() => set('lite', !settings.lite)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.lite ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.lite ? rgba(accent, 0.4) : '#20272e'}`, color: settings.lite ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="activity" size={14} strokeWidth={2} />
+                {settings.lite ? 'Lite mode on — glass blur off' : 'Full glass effects'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+                Drops the frosted-glass blur and ambient glow animations. Big GPU
+                saver on laptops or when running a busy agent swarm.
+              </div>
+            </Row>
+            <Row>
               <Label>Corners</Label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {CORNERS.map(c => {
@@ -364,6 +378,20 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
 
           {/* Profile */}
           <Section title="Sush Profile" accent={accent}>
+            <Row>
+              <Label>Suggest aliases from habits</Label>
+              <button
+                onClick={() => set('autoAlias', settings.autoAlias === false)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.autoAlias !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.autoAlias !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.autoAlias !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="sparkles" size={14} strokeWidth={2} />
+                {settings.autoAlias !== false ? 'Offering aliases for repeated commands' : 'Alias suggestions off'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+                Run a command ~15× and Sush offers to save it as a short alias in
+                your .sushrc. Nothing is written until you accept.
+              </div>
+            </Row>
             <Row>
               <Label>.sushrc — aliases, env, startup</Label>
               <button

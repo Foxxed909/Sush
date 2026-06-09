@@ -11,6 +11,7 @@ import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
 import SeduciaOrb from './components/SeduciaOrb'
 import MissionControl from './components/MissionControl'
+import AliasNudge from './components/AliasNudge'
 import PlansModal from './components/PlansModal'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsHelp from './components/ShortcutsHelp'
@@ -23,6 +24,8 @@ import { agentById } from './lib/agents'
 import { accentVars, glassVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
 import { useAgentActivity } from './hooks/useAgentActivity'
+import { useAutoAlias } from './hooks/useAutoAlias'
+import { recordCommand } from './lib/commandFrequency'
 import JsonViewer from './components/JsonViewer'
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
@@ -312,6 +315,13 @@ export default function App() {
 
   // Mission Control: live per-session state inferred from the PTY stream.
   const { states: agentStates, summary: agentSummary } = useAgentActivity(tabs)
+
+  // Auto-alias miner: tally omnibar commands; suggest a .sushrc alias once one
+  // is run often enough. `cmdTick` bumps on each run to re-evaluate the table.
+  const [cmdTick, setCmdTick] = useState(0)
+  const [nudgeHidden, setNudgeHidden] = useState(false)
+  const { suggestion: aliasSuggestion, accept: acceptAlias, dismiss: dismissAlias } =
+    useAutoAlias(cmdTick, settings.autoAlias !== false)
 
   // Auto-dismiss smart result after 8 seconds of inactivity.
   useEffect(() => {
@@ -879,6 +889,8 @@ export default function App() {
       const nextResult = { input: command, type: result?.type ?? 'success', output: result?.output ?? '', action: result?.action }
       setSmartResult(nextResult)
       applySmartAction(result?.action, nextResult)
+      // Feed the alias miner real commands only (skip failures/typos).
+      if (nextResult.type !== 'error') { recordCommand(command); setNudgeHidden(false); setCmdTick(t => t + 1) }
     } catch (error) {
       setSmartResult({ input: command, type: 'error', output: error.message })
     } finally {
@@ -1008,7 +1020,7 @@ export default function App() {
   }, [selectTab, reopenLastClosed])
 
   return (
-    <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}`} style={{ ...accentVars(accent), ...(theme.ui.glass ? glassVars(theme.ui) : {}), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
+    <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${settings.lite ? ' sush-lite' : ''}`} style={{ ...accentVars(accent), ...(theme.ui.glass ? glassVars(theme.ui) : {}), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
       {!zenMode && (
         <TitleBar
           accent={accent}
@@ -1376,6 +1388,16 @@ export default function App() {
           onCloseGroup={closeGroup}
           onPrompt={promptSession}
           onDismiss={() => setShowMission(false)}
+        />
+      )}
+
+      {aliasSuggestion && !nudgeHidden && !zenMode && view === 'terminal' && (
+        <AliasNudge
+          suggestion={aliasSuggestion}
+          accent={accent}
+          onAccept={acceptAlias}
+          onDismiss={dismissAlias}
+          onClose={() => setNudgeHidden(true)}
         />
       )}
 

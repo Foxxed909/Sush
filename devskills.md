@@ -54,6 +54,14 @@
   wrappers can frost; presets share one glass recipe (`glassTint`/`glassOmni`/accent
   border) and differ only in accent, reading as one product in many colors. In-shell
   swatch switcher writes `settings.themeId` (same path as Settings) — no parallel state.
+- **GPU budget = blur radius:** `backdrop-filter` re-rasterizes per frame the
+  content behind it changes; over a live terminal it dominates GPU load. Keep blur
+  radii modest, and ship a `.sush-lite` escape hatch (`backdrop-filter: none` +
+  frozen ambient animations) plus a `prefers-reduced-motion` block.
+- **Habit mining → config:** a `localStorage` frequency table (`lib/commandFrequency`)
+  tallies omnibar commands; crossing a threshold surfaces a one-at-a-time suggestion
+  that, on accept, edits the user's real `.sushrc` (`hooks/useAutoAlias`). High-churn
+  counters stay renderer-local (no IPC); only the accepted write crosses to main.
 
 ## Conventions
 - Imperative commit messages; concise.

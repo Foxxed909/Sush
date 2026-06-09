@@ -1,8 +1,8 @@
 {
   "name": "sush",
-  "version": "3.4.0",
-  "codename": "aurora",
-  "description": "Sush - custom terminal shell (Aurora)",
+  "version": "3.5.0",
+  "codename": "lexicon",
+  "description": "Sush - custom terminal shell (Lexicon)",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

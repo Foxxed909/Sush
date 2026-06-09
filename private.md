@@ -14,6 +14,38 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 3.5.0 — implementation notes
+
+### Auto-alias miner
+- **Signal source is the omnibar only.** `recordCommand()` is called from
+  `runSmartInput` in `App.jsx` after a non-error result — so failed typos and
+  passthrough errors don't inflate counts. Commands typed *directly into xterm*
+  are NOT tallied (that would mean parsing the PTY echo stream, fragile); the
+  omnibar is the intended "smart input" path.
+- **Storage is renderer-local.** `lib/commandFrequency.js` keeps the tally in
+  `localStorage` (`sush.cmdfreq.v1`) plus a dismissed set (`…dismissed.v1`). The
+  table churns on every command, so routing it through IPC + electron-store would
+  be wasteful. Self-prunes: drops entries unseen >45 days and caps at 200 rows.
+- **Threshold + filtering.** `THRESHOLD = 15`. `isAliasable()` skips lines <4
+  chars and bare single short tokens (`ls`, `cd`). `suggestAliasName()` builds
+  initials from non-flag tokens (`git status` → `gs`), de-duping against existing
+  alias keys.
+- **`.sushrc` writing** is in `hooks/useAutoAlias.js`: it re-reads the raw file,
+  splices `name = command` into the `[alias]` section (creating it if absent),
+  and writes back via `sushrcWrite`. It re-parses existing aliases so it never
+  re-suggests a command already aliased. Gated by `settings.autoAlias !== false`.
+- **UI:** `components/AliasNudge.jsx` — bottom-left glass toast, clear of the
+  Seducia orb. `App` hides it via `nudgeHidden` (the ✕) until the next qualifying
+  command; "Never" persists to the dismissed set.
+
+### Performance — glass is the GPU cost
+- `backdrop-filter` re-rasterizes its frosted region every frame the content
+  behind it changes; with a live terminal under 4 always-on glass surfaces that's
+  the dominant GPU load. Mitigations in `index.css`: blur radii ~halved, a
+  `.sush-lite` class (driven by `settings.lite`, applied on the root in `App.jsx`)
+  that sets `backdrop-filter: none` + freezes ambient animations, and a
+  `prefers-reduced-motion` block that kills the infinite glow keyframes.
+
 ## 3.4.0 — implementation notes
 
 ### Mission Control (live agent board)
