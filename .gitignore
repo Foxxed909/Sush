@@ -33,3 +33,4 @@ release/
 
 # MCP / tooling artifacts
 .playwright-mcp/
+.claude/

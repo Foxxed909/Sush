@@ -1,6 +1,7 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { ok, err, ansi } from './_helpers'
+import { activeUserEnv } from '../users'
 
 const execFileAsync = promisify(execFile)
 
@@ -11,11 +12,14 @@ export const gh = {
   async run([sub, ...args], ctx) {
     if (!sub) return ok(ghHelp())
     try {
+      // activeUserEnv() points GH_CONFIG_DIR at the signed-in identity, so
+      // this is THEIR gh login — not the host's.
       const { stdout } = await execFileAsync('gh', [sub, ...args], {
         encoding: 'utf8',
         cwd: ctx.cwd,
         windowsHide: true,
-        timeout: 60000
+        timeout: 60000,
+        env: { ...process.env, ...activeUserEnv() }
       })
       return ok(stdout.trimEnd() || ansi.dim('(no output)'))
     } catch (e) {

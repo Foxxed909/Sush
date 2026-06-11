@@ -6,6 +6,8 @@ import { basename, resolve } from 'path'
 import { promisify } from 'util'
 import { ok, err, ansi } from './_helpers'
 import { getListeningPorts } from './system'
+import { activeUserEnv } from '../users'
+import { resolveExecutable } from '../exec'
 
 const execFileAsync = promisify(execFile)
 const SERVE_SCRIPT_PRIORITY = ['dev', 'start', 'serve', 'preview']
@@ -176,16 +178,40 @@ export const clone = {
   usage: 'clone <owner/repo> [dir]',
   async run(args, ctx) {
     if (!args.length) return err('clone: missing repository')
+    // activeUserEnv() makes gh use the signed-in identity's login, not the
+    // host's. Without gh, fall back to plain git over https — public repos
+    // work everywhere; private ones need gh (we never put a token in argv).
+    const hasGh = !!resolveExecutable('gh')
     try {
-      const { stdout, stderr } = await execFileAsync('gh', ['repo', 'clone', ...args], {
+      if (hasGh) {
+        const { stdout, stderr } = await execFileAsync('gh', ['repo', 'clone', ...args], {
+          cwd: ctx.cwd,
+          timeout: 120000,
+          encoding: 'utf8',
+          windowsHide: true,
+          env: { ...process.env, ...activeUserEnv() }
+        })
+        return ok((stdout + stderr).trimEnd() || `cloned: ${args[0]}`)
+      }
+      const [repo, dir] = args
+      if (!/^[\w.-]+\/[\w.-]+$/.test(String(repo))) {
+        return err('clone: expected <owner/repo>')
+      }
+      const gitArgs = ['clone', `https://github.com/${repo}.git`]
+      if (dir) gitArgs.push(dir)
+      const { stdout, stderr } = await execFileAsync('git', gitArgs, {
         cwd: ctx.cwd,
         timeout: 120000,
         encoding: 'utf8',
-        windowsHide: true
+        windowsHide: true,
+        env: { ...process.env, ...activeUserEnv() }
       })
-      return ok((stdout + stderr).trimEnd() || `cloned: ${args[0]}`)
+      return ok((stdout + stderr).trimEnd() || `cloned: ${repo}`)
     } catch (e) {
       const msg = (e.stderr || e.message || '').trim()
+      if (!hasGh && /authentication|could not read|403|terminal prompts disabled/i.test(msg)) {
+        return err(`clone: ${msg}\r\n${ansi.dim('Private repos need the gh CLI (winget install GitHub.cli) logged in as you')}`)
+      }
       return err(`clone: ${msg}`)
     }
   }

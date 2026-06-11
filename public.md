@@ -5,6 +5,156 @@ swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
 
 ---
 
+## 3.8.0 — "Companion"
+
+Seducia grows hands, a voice presence, and backup brains — and Sush gets a
+real profile.
+
+### Added — Seducia, upgraded
+- **Real orchestration.** Tell her "launch 3 codexes in Workrooms and have
+  them review the project" and she does it: spawns the sessions, waits for
+  the agents to boot, and types the brief into each one. AI-proposed
+  launches show a **launch card** first — what she understood, one-click
+  Launch/Cancel, auto-proceeds in 5s.
+- **Multiple actions per reply** — she can launch, focus and run in one
+  breath.
+- **Backup brains (CLI cascade).** In CLI mode, "Auto" tries your `claude`
+  login first and rolls over to `codex`, then `gemini` when one hits a
+  session limit or isn't installed. A small "via codex CLI" chip shows who
+  answered. Pin a specific engine in Settings.
+- **Voice presence.** The orb is now a glossy sphere that pulses while
+  speaking, with a live status pill — Speaking / Listening / Thinking — and
+  an AGENT WORKING chip when your swarm is busy.
+- **Drag her anywhere.** Grab the chat header to move the orb + card stack
+  (position remembered; double-click the header to snap back). Plus a
+  minimize button that collapses to the orb.
+
+### Added — Profile & polish
+- **Profile viewer.** Click your name (or the chip menu) for a profile card:
+  big avatar, linked accounts, member-since, Lock and Sign out.
+- **Custom profile pictures.** Click the avatar to upload a photo — resized
+  locally, shown on the lock screen, title bar and user list.
+- **Visible logout button** in the title bar — no more dropdown digging.
+- **Minimize to tray** (Settings > Window): the minimize dot tucks Sush into
+  the system tray; click the tray icon to bring it back.
+- **Glass Dark Pro** theme — blacker base, ice-blue accent, crisper panels.
+- **Name sessions at launch** — type a name right in the New Session header;
+  single sessions take it as their label, swarms as the workspace name.
+- **GitHub sign-in now works out of the box** — Sush ships a built-in OAuth
+  app id, so "Continue with GitHub" needs zero setup (you can still use your
+  own app in Settings > Accounts).
+
+### Fixed
+- Clicking split-pane with no sessions no longer strands you on a black
+  screen: split needs two live sessions, and closing the last session always
+  returns Home.
+
+---
+
+## 3.7.0 — "Handshake"
+
+Identities can now be backed by **real accounts**. Sign in with Google or
+GitHub from the lock screen, and GitHub powers a full repo surface inside
+Sush: browse, clone, PRs, issues and a live notifications inbox.
+
+### Added — Sign in with Google & GitHub
+- **Continue with Google / GitHub on the lock screen.** A matching linked
+  identity signs straight in (account possession beats the PIN); a new face
+  lands on the create form prefilled with their name and avatar, and the new
+  identity is born linked.
+- **Link/unlink accounts per user** in Manage Users. Provider avatars show up
+  on the lock screen, the title-bar chip and the user list.
+- **GitHub hybrid auth.** Sush prefers your `gh` CLI login (already isolated
+  per identity) and falls back to an in-app Device Flow sign-in — you see a
+  short code, approve it on github.com, done. Tokens are stored encrypted
+  with the OS keystore (DPAPI), per identity, and never leave the main
+  process.
+- **Google sign-in keeps the lock honest.** Sush stores only your profile
+  (name, email, picture) — no refresh token — so every Google unlock is a
+  live browser check, not a replayable stored credential.
+- **One-time setup in Settings > Accounts** (paste a GitHub OAuth App client
+  id; Google Desktop-app client id + secret). Config is shared by the
+  install, works before anyone signs in.
+
+### Added — GitHub everywhere
+- **GitHub panel tab**: connection status (gh CLI vs Sush sign-in), repo
+  search with one-click **clone** into your workdir, your open PRs, review
+  requests and assigned issues, and a notifications **inbox** with mark-read.
+- **Unread badge** on the GitHub tab, polled focus-gated and nearly free
+  (ETag-cached, instant zero when not connected).
+- **Built-in commands**: `repos [query]`, `prs`, `issues`, `notifs` — the
+  same data, keyboard-first from the smart bar.
+- `clone` now falls back to plain `git clone` when the gh CLI is missing
+  (public repos work everywhere).
+
+### Fixed
+- The `gh` and `clone` built-ins now run under the **active identity's**
+  GitHub login. They used to silently use the host machine's gh account —
+  exactly the kind of bleed Identities exist to prevent.
+
+---
+
+## 3.6.0 — "Identity"
+
+Sush is now genuinely **multi-user**. Two people sharing one PC get fully
+separate worlds: separate CLI logins, separate themes, sessions, history — and
+when one signs out, the next signs in to *their* accounts, never the previous
+user's.
+
+### Added — Sush Identities
+- **Per-user CLI login isolation.** Each identity gets its own home folder under
+  Sush's data dir, and every terminal that user opens redirects `claude`,
+  `codex`, `gh`, `gemini` and other XDG-aware CLIs there. User 1's Claude login
+  never bleeds into User 2's terminal. Two levels per user:
+  - **CLI isolation** (default) — redirects the well-known config dirs
+    (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GH_CONFIG_DIR`, XDG family).
+  - **Full home** — also redirects `HOME`/`USERPROFILE`/`APPDATA`, giving the
+    user fresh dotfiles for *everything* (git, ssh, npm…).
+- **Lock screen.** A full-screen sign-in with a live clock, aurora backdrop
+  tinted by user accent colors, avatar picker, and per-user **PIN** (4–8 digits,
+  scrypt-hashed). The PIN is a casual lock for a shared PC — honest framing: it
+  is not disk encryption.
+- **Lock / switch / sign out** from the new **user chip** in the title bar or
+  the command palette. *Lock* keeps sessions running for the same user;
+  *sign out / switch* **closes all running sessions first** so the next user
+  never inherits a logged-in terminal.
+- **Per-user workspace state.** Settings, theme, session layout, recents,
+  command history, pinned projects and saved scrollback are all namespaced per
+  user. The first identity you create adopts the install's existing state, so
+  upgrading is seamless.
+- **Manage Users** modal — rename, recolor, change PIN/isolation, and delete
+  (optionally wiping that identity's data folder).
+
+### Added — terminal quality of life
+- **Ctrl+Shift+C / Ctrl+Shift+V** — terminal-standard copy/paste that never
+  collides with `^C`/`^V` in the shell.
+- **Drag & drop paths.** Drop files/folders from Explorer onto a terminal and
+  their quoted paths land at the cursor.
+- **Export session output** — save a session's recent output as `.txt` from the
+  right-click menu or the palette.
+- **Open in Explorer / VS Code** buttons next to the cwd in the status bar.
+- **Live activity dots in the session rail.** Each session's dot now mirrors
+  Mission Control: pulsing green (working), amber **needs you**, red (error) —
+  visible at a glance without opening the board.
+- **Pinned projects on Home.** Star a workdir to keep it one click away;
+  the Home greeting now addresses the signed-in user by name.
+- **Command history persists** across restarts (per user).
+
+### Fixed
+- Seducia's CLI mode works on Windows again: the `claude` binary lookup used to
+  grab npm's extensionless shell shim and fail with `spawn … ENOENT`; it now
+  prefers the runnable `.cmd`/`.exe` next to it.
+- App shortcuts no longer leak into the terminal: `Ctrl+W` used to close the tab
+  *and* send `^W` to the shell (same for `Ctrl+K/B/P/T`, digits, zoom…). The
+  terminal now cleanly yields every app-owned chord.
+- Closing a large swarm no longer freezes the UI (process cleanup is async now).
+- Closing a split-pane session no longer strands a blank right pane.
+- Restored session layouts respect the 16-session cap (was silently 12).
+- Several small leaks fixed: pending-spawn map, per-tab metadata, file watchers
+  on quit; smart-input no longer crashes on null input.
+
+---
+
 ## 3.5.1 — "Lexicon" (performance pass)
 
 The app is now **markedly lighter** — less idle CPU, far fewer background

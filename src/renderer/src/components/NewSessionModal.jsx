@@ -14,6 +14,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [cwd, setCwd] = useState(activeCwd || '')
   const [cwdValid, setCwdValid] = useState(null)
   const [counts, setCounts] = useState({ shell: 1 })
+  const [sessionName, setSessionName] = useState('')
 
   // Fall back to the home directory if we don't have an active path yet.
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     const agents = AGENTS
       .filter(a => (counts[a.id] || 0) > 0)
       .map(a => ({ ...a, count: counts[a.id] }))
-    onLaunch({ cwd: cwd.trim(), agents })
+    onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined })
   }
 
   useEffect(() => {
@@ -104,8 +105,19 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               <Icon name="rocket" size={19} strokeWidth={2.1} />
             </span>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>New session</div>
-              <div style={{ fontSize: 11.5, color: '#76808a', marginTop: 2 }}>Pick a directory, then launch agents or CLI tools</div>
+              <input
+                value={sessionName}
+                onChange={e => setSessionName(e.target.value.slice(0, 40))}
+                placeholder="New session"
+                spellCheck={false}
+                title="Name this session (optional)"
+                style={{
+                  fontSize: 16, fontWeight: 900, color: '#f1f4f6', background: 'transparent',
+                  border: 'none', borderBottom: `1px dashed ${sessionName ? rgba(accent, 0.5) : 'rgba(255,255,255,0.12)'}`,
+                  outline: 'none', padding: '0 0 2px', width: 240, fontFamily: 'inherit'
+                }}
+              />
+              <div style={{ fontSize: 11.5, color: '#76808a', marginTop: 4 }}>Pick a directory, then launch agents or CLI tools - type above to name it</div>
             </div>
           </div>
           <button

@@ -67,8 +67,9 @@ export function useSeducia({
       return `Jumped to ${targetName(intent.target)}.`
     }
     if (intent.type === 'launch') {
-      onLaunch?.({ cwd: intent.cwd, agents: intent.agents, groupLabel: intent.groupLabel })
-      return `Spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}.`
+      onLaunch?.({ cwd: intent.cwd, agents: intent.agents, groupLabel: intent.groupLabel, prompt: intent.prompt })
+      const tail = intent.prompt ? ' and briefing them' : ''
+      return `Spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}${tail}.`
     }
     if (intent.type === 'open-launcher') { onOpenLauncher?.(); return 'Opening the launcher.' }
     if (intent.type === 'run') { onRun?.(intent.input); return `Running "${intent.input}".` }
@@ -110,10 +111,13 @@ export function useSeducia({
       return true
     }
 
-    const { message, action } = parseAIResponse(full)
+    const { message, actions, engine } = parseAIResponse(full)
     const display = message || full
-    if (action) applyIntent(action)
-    updateMsg(msgId, { text: display, streaming: false })
+    // Voice flow executes directly (the spoken command was explicit) — the
+    // typed chat surface is where launch-confirm cards live.
+    const feedback = actions.map(a => applyIntent(a)).filter(fb => fb && fb !== display)
+    const finalText = [display, ...feedback].filter(Boolean).join('\n')
+    updateMsg(msgId, { text: finalText, streaming: false, engine })
     setStreaming(false)
     setAiMessages([...history, { role: 'assistant', content: full }])
     speakReply(display)

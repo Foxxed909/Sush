@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import Seducia from './Seducia'
 import Browser from './Browser'
+import GitHubTab from './GitHubTab'
 import { rgba, accentVars } from '../lib/ui'
 import { usePolling } from '../hooks/usePolling'
 
@@ -9,6 +10,7 @@ const TABS = [
   { id: 'agent', label: 'Agent', icon: 'sparkles' },
   { id: 'browser', label: 'Browser', icon: 'globe' },
   { id: 'changes', label: 'Changes', icon: 'gitBranch' },
+  { id: 'github', label: 'GitHub', icon: 'github' },
   { id: 'files', label: 'Files', icon: 'file' },
   { id: 'memory', label: 'Memory', icon: 'book' },
   { id: 'scripts', label: 'Scripts', icon: 'rocket' },
@@ -79,6 +81,8 @@ export default function RightPanel({
   settings = {},
   planId = 'free',
   commandHistory = [],
+  ghNotifCount = 0,
+  onManageUsers,
   style = {}
 }) {
   const [mdPath, setMdPath] = useState(null)
@@ -105,7 +109,7 @@ export default function RightPanel({
       }}
     >
       {/* Tab header — single horizontal scrolling strip with a custom scroll indicator */}
-      <TabStrip accent={accent} tab={tab} onTab={onTab} onClose={onClose} />
+      <TabStrip accent={accent} tab={tab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} />
 
       {/* Tab body */}
       <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
@@ -131,6 +135,7 @@ export default function RightPanel({
           <Browser accent={accent} />
         </div>
         {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} settings={settings} />}
+        {tab === 'github' && <GitHubTab accent={accent} onRun={onRun} onConnect={onManageUsers} />}
         {tab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
         {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
         {tab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
@@ -158,7 +163,7 @@ export default function RightPanel({
 // Horizontal, single-row tab strip. Tabs scroll sideways with a slim accent
 // scrollbar; gradient edges hint that there's more, and the active tab is
 // always scrolled into view. The collapse button is pinned outside the scroller.
-function TabStrip({ accent, tab, onTab, onClose }) {
+function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0 }) {
   const scrollerRef = useRef(null)
   const [edges, setEdges] = useState({ left: false, right: false })
   // Compact mode: icon-only tabs, so all 20+ tools fit with little scrolling.
@@ -236,6 +241,11 @@ function TabStrip({ accent, tab, onTab, onClose }) {
               >
                 <Icon name={t.icon} size={13} strokeWidth={2} />
                 {!compact && t.label}
+                {t.id === 'github' && ghNotifCount > 0 && (
+                  <span style={{ minWidth: 14, height: 14, padding: '0 4px', borderRadius: 999, background: accent, color: '#0a0a0c', fontSize: 9, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                    {ghNotifCount > 99 ? '99+' : ghNotifCount}
+                  </span>
+                )}
               </button>
             )
           })}

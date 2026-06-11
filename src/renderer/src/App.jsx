@@ -19,6 +19,11 @@ import HandoffModal from './components/HandoffModal'
 import SushrcEditor from './components/SushrcEditor'
 import QuickSwitcher from './components/QuickSwitcher'
 import SplashScreen from './components/SplashScreen'
+import LockScreen from './components/LockScreen'
+import UserManager from './components/UserManager'
+import ProfileViewer from './components/ProfileViewer'
+import { useIdentity } from './hooks/useIdentity'
+import { usePolling } from './hooks/usePolling'
 import { themes, defaultTheme } from './themes'
 import { agentById } from './lib/agents'
 import { accentVars, glassVars, rgba } from './lib/ui'
@@ -32,7 +37,27 @@ const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
 const OLD_COMMAND_RECENTS_KEY = 'sush-recents'
 const SESSION_LAYOUT_KEY = 'sush-session-layout'
 const LAST_HOME_VIEW_KEY = 'sush-last-home-view'
+const COMMAND_HISTORY_KEY = 'sush-command-history'
+const PINNED_PROJECTS_KEY = 'sush-pinned-projects'
 const MAX_RECENT_SESSIONS = 8
+
+function loadCommandHistory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COMMAND_HISTORY_KEY) ?? '[]')
+    return Array.isArray(saved) ? saved.filter(x => typeof x === 'string').slice(-500) : []
+  } catch {
+    return []
+  }
+}
+
+function loadPinnedProjects() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PINNED_PROJECTS_KEY) ?? '[]')
+    return Array.isArray(saved) ? saved.filter(p => p && p.cwd) : []
+  } catch {
+    return []
+  }
+}
 
 let nextTabId = 1
 let nextSessionTag = 1
@@ -162,7 +187,8 @@ function loadSessionLayout(profiles) {
     // Honour the "resume agent sessions on launch" setting (default on).
     const resumeAgents = loadSettings().resumeAgents !== false
 
-    const tabs = dedupeTabs(saved.tabs.slice(0, 12).map(item => {
+    // Cap matches MAX_SESSIONS (was 12 — silently dropped tabs of a full swarm).
+    const tabs = dedupeTabs(saved.tabs.slice(0, 16).map(item => {
       const profile = profiles.find(p => p.id === item.profileId) ?? profiles[0]
       return makeTab(profile, {
         label: item.label,
@@ -192,6 +218,7 @@ function loadSessionLayout(profiles) {
 }
 
 export default function App() {
+  const identity = useIdentity()
   const { profiles, addProfile, updateProfile, deleteProfile } = useProfiles()
   const initialLayout = useRef(loadSessionLayout(profiles))
   const [tabs, setTabs] = useState(initialLayout.current.tabs)
@@ -214,7 +241,11 @@ export default function App() {
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMission, setShowMission] = useState(false)
-  const [commandHistory, setCommandHistory] = useState([])
+  const [showUserManager, setShowUserManager] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
+  // Command history persists per user (scoped storage) so it survives restarts.
+  const [commandHistory, setCommandHistory] = useState(loadCommandHistory)
+  const [pinnedProjects, setPinnedProjects] = useState(loadPinnedProjects)
   const [broadcastMode, setBroadcastMode] = useState(false)
   const [splitMode, setSplitMode] = useState(false)
   const [splitTabId, setSplitTabId] = useState(null)
@@ -316,6 +347,31 @@ export default function App() {
   // Mission Control: live per-session state inferred from the PTY stream.
   const { states: agentStates, summary: agentSummary } = useAgentActivity(tabs)
 
+  // Never strand the user on a black screen: terminal view with zero
+  // sessions renders nothing (and split mode doubles the nothing), so fall
+  // back to Home and drop split whenever the last session goes away.
+  useEffect(() => {
+    if (tabs.length === 0) {
+      if (splitMode) setSplitMode(false)
+      if (view === 'terminal') setView('home')
+    }
+  }, [tabs.length, view, splitMode])
+
+  // GitHub notifications badge. Lives here (not in the tab) so the count
+  // shows with the panel closed. Main answers instantly with 0 when the
+  // identity has no GitHub connection, and ETag caching makes the poll
+  // nearly free; focus-gating comes from usePolling itself.
+  const [ghNotifCount, setGhNotifCount] = useState(0)
+  const pollGhNotifs = useCallback(async () => {
+    try {
+      const res = await window.sush.githubNotifications({})
+      setGhNotifCount(res?.ok ? (res.unreadCount || 0) : 0)
+    } catch {
+      setGhNotifCount(0)
+    }
+  }, [])
+  usePolling(pollGhNotifs, 120000, identity.ready)
+
   // Auto-alias miner: tally omnibar commands; suggest a .sushrc alias once one
   // is run often enough. `cmdTick` bumps on each run to re-evaluate the table.
   const [cmdTick, setCmdTick] = useState(0)
@@ -390,11 +446,12 @@ export default function App() {
       if (ctrl && (key === '?' || (e.shiftKey && key === '/'))) { e.preventDefault(); setShowShortcuts(prev => !prev) }
       // Ctrl+Shift+Z → zen mode
       if (ctrl && e.shiftKey && key === 'z') { e.preventDefault(); setZenMode(prev => !prev) }
-      // Ctrl+Shift+H → split pane
+      // Ctrl+Shift+H → split pane (needs two live sessions)
       if (ctrl && e.shiftKey && key === 'h') {
         e.preventDefault()
         setSplitMode(prev => {
           if (!prev) {
+            if (tabsRef.current.length < 2) return prev
             const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
             if (others.length) setSplitTabId(others[0].id)
             setFocusedPane('left')
@@ -527,6 +584,43 @@ export default function App() {
   }, [homeView])
 
   useEffect(() => {
+    localStorage.setItem(COMMAND_HISTORY_KEY, JSON.stringify(commandHistory.slice(-500)))
+  }, [commandHistory])
+
+  useEffect(() => {
+    localStorage.setItem(PINNED_PROJECTS_KEY, JSON.stringify(pinnedProjects.slice(0, 12)))
+  }, [pinnedProjects])
+
+  // Pin/unpin a project directory on the Home dashboard.
+  const togglePinnedProject = useCallback((item) => {
+    if (!item?.cwd) return
+    setPinnedProjects(prev => {
+      const key = normalizePathKey(item.cwd)
+      const exists = prev.some(p => normalizePathKey(p.cwd) === key)
+      if (exists) return prev.filter(p => normalizePathKey(p.cwd) !== key)
+      return [{ cwd: item.cwd, label: item.label || pathLabel(item.cwd) }, ...prev].slice(0, 12)
+    })
+  }, [])
+
+  // Download the active session's recent output as a text file.
+  const exportSessionOutput = useCallback(async (tabId) => {
+    const id = tabId ?? activeIdRef.current
+    const tab = tabsRef.current.find(t => t.id === id)
+    if (!tab) return
+    try {
+      const res = await window.sush.getScrollback({ tabId: id, chars: 60000 })
+      const text = res?.text || ''
+      const blob = new Blob([text || '(no captured output)'], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `sush-${(tab.label || 'session').replace(/[^\w.-]+/g, '_')}-${Date.now()}.txt`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
     if (current?.cwd) rememberSession(current)
   }, [activeId, rememberSession, tabs])
@@ -562,7 +656,7 @@ export default function App() {
     return tab
   }, [profiles, rememberSession])
 
-  const launchSessions = useCallback(({ cwd, agents, groupLabel }) => {
+  const launchSessions = useCallback(({ cwd, agents, groupLabel, prompt }) => {
     const prof = profiles[0]
     const targetCwd = cwd || null
     const total = agents.reduce((sum, agent) => sum + Math.max(1, agent.count || 1), 0)
@@ -573,23 +667,43 @@ export default function App() {
       ? (groupLabel || `${targetCwd ? pathLabel(targetCwd) : 'Swarm'} · ${total}`)
       : null
 
+    const spawned = []
     agents.forEach(agent => {
       const count = Math.max(1, agent.count || 1)
       for (let i = 0; i < count; i++) {
         const base = agent.id === 'shell'
           ? (targetCwd ? pathLabel(targetCwd) : prof?.label ?? 'Shell')
           : agent.label
-        openTab(prof, {
+        const tab = openTab(prof, {
           cwd: targetCwd,
           command: agent.command || undefined,
           agentId: agent.id,
           tag: `sess-${nextSessionTag++}`,
           groupId,
           groupLabel: label,
-          label: count > 1 ? `${base} ${i + 1}` : base
+          // A custom name from the launcher names the lone session directly
+          // (grouped launches carry it as the workspace label instead).
+          label: count > 1 ? `${base} ${i + 1}` : (total === 1 && groupLabel ? groupLabel : base)
         })
+        if (tab) spawned.push(tab)
       }
     })
+
+    // Seducia "launch and brief them": type the prompt into each spawned
+    // session once its agent TUI has had a beat to boot (the bootCommand
+    // lands first; agent CLIs need a couple seconds before they accept
+    // input). Flattened to one line — TUIs treat Enter as submit.
+    const brief = String(prompt ?? '').trim().replace(/\s*\n+\s*/g, ' ')
+    if (brief) {
+      spawned.forEach((tab, i) => {
+        setTimeout(() => {
+          const live = tabsRef.current.find(t => t.id === tab.id)
+          if (live && live.status !== 'exited') {
+            window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
+          }
+        }, 4500 + i * 400)
+      })
+    }
     setShowLauncher(false)
     // Seducia stays open so you can keep orchestrating after a launch.
   }, [openTab, profiles])
@@ -673,6 +787,15 @@ export default function App() {
     // Use the ref instead of the closed-over activeId so rapid closes (e.g.
     // closeGroup) always read the most recent value, not a stale snapshot.
     const wasActive = id === activeIdRef.current
+
+    // Bug fixes: a queued prompt for a closing tab would leak forever, and a
+    // split pane pointed at a closed tab rendered as a blank pane.
+    pendingPtyRef.current.delete(id)
+    setSplitTabId(prev => {
+      if (prev !== id) return prev
+      const fallback = tabsRef.current.find(t => t.id !== id && t.id !== activeIdRef.current)
+      return fallback?.id ?? null
+    })
 
     window.sush.closeTab({ tabId: id })
     setTabs(prev => {
@@ -914,6 +1037,10 @@ export default function App() {
     else if (action === 'rename') { if (activeIdRef.current) { setView('terminal'); setRenamingId(activeIdRef.current) } }
     else if (action === 'corners') cycleCorners()
     else if (action === 'sushrc') setShowSushrc(true)
+    else if (action === 'export-output') exportSessionOutput()
+    else if (action === 'lock') identity.lock()
+    else if (action === 'switch-user') identity.signOut()
+    else if (action === 'manage-users') setShowUserManager(true)
     else if (action === 'broadcast') setBroadcastMode(prev => !prev)
     else if (action === 'split') {
       setSplitMode(prev => {
@@ -938,16 +1065,20 @@ export default function App() {
       const s = recentSessions.find(r => r.cwd === cwd)
       if (s) openRecentSession(s)
     }
-  }, [cycleCorners, settings, recentSessions, openRecentSession])
+  }, [cycleCorners, settings, recentSessions, openRecentSession, identity, exportSessionOutput])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
     const base = [
       { id: 'act-mission', label: 'Mission Control', description: 'Live board of every agent session (Ctrl+Shift+M)', icon: 'activity', action: 'mission' },
-      { id: 'act-handoff', label: 'Hand Off Session', description: 'Pass this session\'s context to another (Ctrl+P)', icon: 'send', action: 'handoff' },
+      { id: 'act-handoff', label: 'Hand Off Session', description: 'Pass this session\'s context to another', icon: 'send', action: 'handoff' },
       { id: 'act-rename', label: 'Rename Session', description: 'Rename the active session (F2)', icon: 'edit', action: 'rename' },
       { id: 'act-corners', label: 'Cycle Corner Style', description: 'Sharp → Rounded → Pill', icon: 'layout', action: 'corners' },
       { id: 'act-sushrc', label: 'Edit .sushrc Profile', description: 'Your shell-agnostic Sush profile', icon: 'fileText', action: 'sushrc' },
+      { id: 'act-export', label: 'Export Session Output', description: 'Save this session\'s recent output as .txt', icon: 'fileText', action: 'export-output' },
+      { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
+      { id: 'act-switch-user', label: 'Switch User / Sign Out', description: 'Closes your sessions and opens the user picker', icon: 'users', action: 'switch-user' },
+      { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
     ]
     base.push(
       { id: 'act-split', label: 'Toggle Split Pane', description: 'Side-by-side terminals (Ctrl+Shift+H)', icon: 'layout', action: 'split' },
@@ -1019,6 +1150,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [selectTab, reopenLastClosed])
 
+  // ── Identity gate ─────────────────────────────────────────────────────
+  // Nothing below may render until main knows whose session this is — a
+  // Terminal mounted early would spawn its PTY with the host environment and
+  // leak the real ~/.claude into the session. (All hooks above already ran,
+  // so these early returns are safe.)
+  if (identity.loading) {
+    return <div style={{ height: '100vh', background: '#07090c' }} />
+  }
+  if (identity.locked) {
+    return (
+      <LockScreen
+        users={identity.users}
+        lastUserId={identity.lastUserId}
+        lockedUser={identity.currentUser}
+        onUnlock={identity.unlock}
+        onCreate={identity.create}
+        onSwitchRequest={identity.signOut}
+        onProviderSignedIn={identity.providerSignIn}
+      />
+    )
+  }
+
   return (
     <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${settings.lite ? ' sush-lite' : ''}`} style={{ ...accentVars(accent), ...(theme.ui.glass ? glassVars(theme.ui) : {}), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
       {!zenMode && (
@@ -1028,6 +1181,12 @@ export default function App() {
           sessionCount={runningSessionCount}
           themeId={themeId}
           onThemeChange={(id) => saveSettings({ ...settings, themeId: id })}
+          user={identity.currentUser}
+          onLock={identity.lock}
+          onSignOut={identity.signOut}
+          onManageUsers={() => setShowUserManager(true)}
+          onViewProfile={() => setShowProfile(true)}
+          minimizeToTray={settings.minimizeToTray === true}
         />
       )}
 
@@ -1054,6 +1213,7 @@ export default function App() {
           onRenameStart={setRenamingId}
           onRenameEnd={() => setRenamingId(null)}
           onHandoff={(id) => setHandoffSource(id)}
+          activity={agentStates}
         />
         </div>
         )}
@@ -1073,6 +1233,9 @@ export default function App() {
             onToggleBroadcast={() => setBroadcastMode(prev => !prev)}
             splitMode={splitMode}
             onToggleSplit={() => {
+              // Split needs two live sessions — entering it with fewer just
+              // paints an empty pane (or, with zero, a black void).
+              if (!splitMode && tabsRef.current.length < 2) return
               setSplitMode(prev => {
                 if (!prev) {
                   const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
@@ -1108,12 +1271,13 @@ export default function App() {
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
                         bootCommand={tab.bootCommand}
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
-                        restoreKey={tab.cwd ? tabKey(tab) : null}
+                        restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                         persistScrollback={settings.persistScrollback !== false}
                         onSessionState={(state) => handleSessionState(tab.id, state)}
                         onReady={(state) => handleTerminalReady(tab.id, state)}
                         onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
                         onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                        onExport={() => exportSessionOutput(tab.id)}
                       />
                     )
                   })}
@@ -1144,12 +1308,13 @@ export default function App() {
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
                         bootCommand={tab.bootCommand}
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
-                        restoreKey={tab.cwd ? tabKey(tab) : null}
+                        restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                         persistScrollback={settings.persistScrollback !== false}
                         onSessionState={(state) => handleSessionState(tab.id, state)}
                         onReady={(state) => handleTerminalReady(tab.id, state)}
                         onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
                         onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                        onExport={() => exportSessionOutput(tab.id)}
                       />
                     )
                   })}
@@ -1176,12 +1341,13 @@ export default function App() {
                     fontFamily={fontFamily}
                     cursorStyle={cursorStyle}
                     broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
-                    restoreKey={tab.cwd ? tabKey(tab) : null}
+                    restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                     persistScrollback={settings.persistScrollback !== false}
                     onSessionState={(state) => handleSessionState(tab.id, state)}
                     onReady={(state) => handleTerminalReady(tab.id, state)}
                     onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
                     onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                    onExport={() => exportSessionOutput(tab.id)}
                   />
                 )
               })
@@ -1195,6 +1361,9 @@ export default function App() {
                 smartResult={smartResult}
                 accent={accent}
                 homeView={homeView}
+                userName={identity.currentUser?.name}
+                pinnedProjects={pinnedProjects}
+                onTogglePin={togglePinnedProject}
                 onRun={runSmartInput}
                 onOpenRecent={openRecentSession}
                 onOpenTab={() => openTab(profiles[0])}
@@ -1272,6 +1441,8 @@ export default function App() {
               settings={settings}
               planId={planId}
               commandHistory={commandHistory}
+              ghNotifCount={ghNotifCount}
+              onManageUsers={() => setShowUserManager(true)}
               style={{ width: rightWidth }}
             />
           </div>
@@ -1306,6 +1477,7 @@ export default function App() {
           onOpenLauncher={() => setShowLauncher(true)}
           settings={settings}
           planId={planId}
+          working={agentSummary?.working || 0}
         />
       )}
 
@@ -1416,6 +1588,29 @@ export default function App() {
         <SushrcEditor
           accent={accent}
           onClose={() => setShowSushrc(false)}
+        />
+      )}
+
+      {showUserManager && (
+        <UserManager
+          users={identity.users}
+          currentUser={identity.currentUser}
+          accent={accent}
+          onClose={() => setShowUserManager(false)}
+          onChanged={identity.refresh}
+          onRemove={identity.removeUser}
+        />
+      )}
+
+      {showProfile && (
+        <ProfileViewer
+          user={identity.currentUser}
+          accent={accent}
+          onClose={() => setShowProfile(false)}
+          onChanged={identity.refresh}
+          onLock={identity.lock}
+          onSignOut={identity.signOut}
+          onManageUsers={() => { setShowProfile(false); setShowUserManager(true) }}
         />
       )}
 

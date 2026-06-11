@@ -193,6 +193,54 @@ const QUICK = [
   { label: 'Doctor', send: 'doctor' }
 ]
 
+// Confirm card for AI-proposed launches: shows what Seducia understood and
+// auto-proceeds after 5s ("mix of both" — she does it, you get a veto window).
+function LaunchCard({ accent, launch, status, onGo, onCancel }) {
+  const [left, setLeft] = useState(5)
+  useEffect(() => {
+    if (status) return
+    if (left <= 0) { onGo(); return }
+    const t = setTimeout(() => setLeft(l => l - 1), 1000)
+    return () => clearTimeout(t)
+  }, [left, status, onGo])
+  const total = (launch.agents || []).reduce((sum, a) => sum + Math.max(1, a.count || 1), 0)
+  const brief = launch.prompt ? String(launch.prompt) : ''
+  return (
+    <div style={{ maxWidth: '84%', borderRadius: 12, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.07), padding: '10px 12px' }}>
+      <div style={{ fontSize: 10, fontWeight: 900, color: accent, letterSpacing: 1.2, marginBottom: 6 }}>LAUNCH PLAN</div>
+      <div style={{ fontSize: 12.5, color: '#e6ebef', fontWeight: 700, lineHeight: 1.5 }}>
+        {summarize(launch.agents)} in {pathLabel(launch.cwd)}
+      </div>
+      {brief && (
+        <div style={{ fontSize: 11, color: '#8a939c', marginTop: 4, lineHeight: 1.5 }}>
+          brief: "{brief.slice(0, 160)}{brief.length > 160 ? '...' : ''}"
+        </div>
+      )}
+      {!status ? (
+        <div className="flex items-center" style={{ gap: 8, marginTop: 10 }}>
+          <button
+            onClick={onGo}
+            style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: accent, color: '#0a0a0c', fontWeight: 900, fontSize: 11.5, cursor: 'pointer' }}
+          >
+            Launch now
+          </button>
+          <button
+            onClick={onCancel}
+            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: '#aab3bb', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <span style={{ fontSize: 10, color: '#5a646d', fontWeight: 700 }}>auto in {left}s</span>
+        </div>
+      ) : (
+        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: status === 'launched' ? '#5fd3a8' : '#8a939c' }}>
+          {status === 'launched' ? `Launched ${total} session${total === 1 ? '' : 's'}.` : 'Cancelled.'}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Seducia({
   accent,
   tabs = [],
@@ -273,8 +321,9 @@ export default function Seducia({
       onFocus?.(intent.target)
       return `Jumped to ${targetName(intent.target)}.`
     } else if (intent.type === 'launch') {
-      onLaunch({ cwd: intent.cwd, agents: intent.agents, groupLabel: intent.groupLabel })
-      return `Spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}.`
+      onLaunch({ cwd: intent.cwd, agents: intent.agents, groupLabel: intent.groupLabel, prompt: intent.prompt })
+      const tail = intent.prompt ? ' and briefing them' : ''
+      return `Spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}${tail}.`
     } else if (intent.type === 'open-launcher') {
       onOpenLauncher()
       return 'Opening the launcher.'
@@ -284,6 +333,17 @@ export default function Seducia({
     }
     return null
   }, [tabs, onPrompt, onFocus, onLaunch, onOpenLauncher, onRun])
+
+  // AI-proposed launches go through a confirm card (5s auto-proceed) — a
+  // misread request should not silently spawn a swarm. The ref guards the
+  // countdown timer and the button from double-firing.
+  const firedLaunchesRef = useRef(new Set())
+  const resolveLaunch = useCallback((entryId, launch, go) => {
+    if (firedLaunchesRef.current.has(entryId)) return
+    firedLaunchesRef.current.add(entryId)
+    if (go) applyIntent(launch)
+    setLog(prev => prev.map(e => e.id === entryId ? { ...e, launchStatus: go ? 'launched' : 'cancelled' } : e))
+  }, [applyIntent])
 
   const handleAI = useCallback(async (command) => {
     const streamer = getStreamer(settings)
@@ -314,18 +374,21 @@ export default function Seducia({
       return true
     }
 
-    const { message, action } = parseAIResponse(full)
+    const { message, actions, engine } = parseAIResponse(full)
     const displayText = message || full
 
-    // Apply any action returned by the AI.
-    let actionFeedback = ''
-    if (action) {
-      const fb = applyIntent(action)
-      if (fb && fb !== displayText) actionFeedback = ''
+    // Launches wait behind a confirm card; everything else applies now.
+    const launches = actions.filter(a => a?.type === 'launch')
+    const feedback = []
+    for (const act of actions) {
+      if (!act || act.type === 'launch') continue
+      const fb = applyIntent(act)
+      if (fb && fb !== displayText) feedback.push(fb)
     }
 
-    const finalText = actionFeedback ? `${displayText}\n${actionFeedback}` : displayText
-    updateLast(msgId, { text: finalText, streaming: false })
+    const finalText = [displayText, ...feedback].filter(Boolean).join('\n')
+    updateLast(msgId, { text: finalText, streaming: false, engine })
+    launches.forEach(launch => push('seducia', '', { kind: 'launch-card', launch }))
     setStreaming(false)
 
     // TTS: prefer ElevenLabs if configured, fall back to Web Speech API.
@@ -525,24 +588,39 @@ export default function Seducia({
                 <Icon name="sparkles" size={12} strokeWidth={2} />
               </span>
             )}
-            <div
-              style={{
-                maxWidth: '84%',
-                fontSize: 12.5,
-                lineHeight: 1.55,
-                padding: '8px 11px',
-                borderRadius: 12,
-                border: `1px solid ${entry.role === 'you' ? rgba(accent, 0.4) : '#1b2127'}`,
-                background: entry.role === 'you' ? rgba(accent, 0.12) : '#0f1318',
-                color: entry.role === 'you' ? '#f1f4f6' : '#cdd5dc',
-                borderTopRightRadius: entry.role === 'you' ? 4 : 12,
-                borderTopLeftRadius: entry.role === 'you' ? 12 : 4,
-                whiteSpace: 'pre-wrap'
-              }}
-            >
-              {entry.text}
-              {entry.streaming && <span style={{ display: 'inline-block', width: 8, height: 12, background: accent, borderRadius: 2, marginLeft: 3, verticalAlign: 'middle', animation: 'sush-blink 0.8s step-start infinite' }} />}
-            </div>
+            {entry.kind === 'launch-card' ? (
+              <LaunchCard
+                accent={accent}
+                launch={entry.launch}
+                status={entry.launchStatus}
+                onGo={() => resolveLaunch(entry.id, entry.launch, true)}
+                onCancel={() => resolveLaunch(entry.id, entry.launch, false)}
+              />
+            ) : (
+              <div
+                style={{
+                  maxWidth: '84%',
+                  fontSize: 12.5,
+                  lineHeight: 1.55,
+                  padding: '8px 11px',
+                  borderRadius: 12,
+                  border: `1px solid ${entry.role === 'you' ? rgba(accent, 0.4) : '#1b2127'}`,
+                  background: entry.role === 'you' ? rgba(accent, 0.12) : '#0f1318',
+                  color: entry.role === 'you' ? '#f1f4f6' : '#cdd5dc',
+                  borderTopRightRadius: entry.role === 'you' ? 4 : 12,
+                  borderTopLeftRadius: entry.role === 'you' ? 12 : 4,
+                  whiteSpace: 'pre-wrap'
+                }}
+              >
+                {entry.text}
+                {entry.streaming && <span style={{ display: 'inline-block', width: 8, height: 12, background: accent, borderRadius: 2, marginLeft: 3, verticalAlign: 'middle', animation: 'sush-blink 0.8s step-start infinite' }} />}
+                {entry.engine && !entry.streaming && (
+                  <span style={{ display: 'block', marginTop: 5, fontSize: 9.5, fontWeight: 800, color: '#76808a', letterSpacing: 0.5 }}>
+                    via {entry.engine} CLI
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

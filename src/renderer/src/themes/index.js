@@ -9,6 +9,7 @@ import { solarized } from './solarized'
 import { gruvbox } from './gruvbox'
 import { glass } from './glass'
 import { glassdark } from './glassdark'
+import { glassdarkpro } from './glassdarkpro'
 import { pinkther } from './pinkther'
 import { royal } from './royal'
 import { emerald } from './emerald'
@@ -19,6 +20,7 @@ import { midnight } from './midnight'
 // colour" set), then the classic flat palettes for back-compat.
 export const themes = {
   glassdark,
+  glassdarkpro,
   pinkther,
   royal,
   emerald,
@@ -38,6 +40,6 @@ export const themes = {
 
 // IDs of the curated premium glass presets, in display order — used by the
 // in-shell theme switcher so it offers the family without the legacy palettes.
-export const presetThemeIds = ['glassdark', 'pinkther', 'royal', 'emerald', 'amber', 'midnight']
+export const presetThemeIds = ['glassdark', 'glassdarkpro', 'pinkther', 'royal', 'emerald', 'amber', 'midnight']
 
 export const defaultTheme = glassdark

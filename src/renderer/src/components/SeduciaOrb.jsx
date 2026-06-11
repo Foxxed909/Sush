@@ -33,7 +33,7 @@ export default function SeduciaOrb({
   accent, open, onOpenChange,
   tabs = [], recentSessions = [], activeCwd,
   onLaunch, onRun, onPrompt, onFocus, onOpenLauncher,
-  settings = {}, planId = 'free'
+  settings = {}, planId = 'free', working = 0
 }) {
   const brain = useSeducia({ tabs, activeCwd, recentSessions, settings, planId, onLaunch, onRun, onPrompt, onFocus, onOpenLauncher })
   const { log, streaming, handle, stop, voiceState, partial, wakeEnabled, toggleWake, listen, aiEnabled, hasAI, voiceMode, micSupported, voiceError } = brain
@@ -41,6 +41,40 @@ export default function SeduciaOrb({
   const [value, setValue] = useState('')
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+
+  // Draggable: the whole orb+card stack can be grabbed by the card header.
+  // null = default bottom-right anchor; {x,y} = user-placed (persisted).
+  const [pos, setPos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sush-seducia-pos') || 'null') } catch { return null }
+  })
+  const containerRef = useRef(null)
+  const dragRef = useRef(null)
+
+  const startDrag = (e) => {
+    if (e.button !== 0 || e.target.closest('button')) return
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    dragRef.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  const onDrag = (e) => {
+    if (!dragRef.current) return
+    const x = Math.min(Math.max(e.clientX - dragRef.current.dx, 8), window.innerWidth - 100)
+    const y = Math.min(Math.max(e.clientY - dragRef.current.dy, 8), window.innerHeight - 100)
+    setPos({ x, y })
+  }
+  const endDrag = () => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    setPos(p => {
+      try { p ? localStorage.setItem('sush-seducia-pos', JSON.stringify(p)) : localStorage.removeItem('sush-seducia-pos') } catch {}
+      return p
+    })
+  }
+  const resetPos = () => {
+    setPos(null)
+    try { localStorage.removeItem('sush-seducia-pos') } catch {}
+  }
 
   useEffect(() => { if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }) }, [log, open, partial])
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 60) }, [open])
@@ -62,16 +96,20 @@ export default function SeduciaOrb({
   const listeningNow = voiceState === 'listening' || voiceState === 'wake'
   const orbState = voiceState === 'idle' ? 'seducia-idle' : (listeningNow ? 'seducia-listening' : 'seducia-idle')
 
-  // ---- Collapsed orb ----
+  // ---- Collapsed orb (glossy pseudo-3D sphere) ----
   const orb = (
     <button
       onClick={() => onOpenChange(!open)}
       title="Seducia (Ctrl+K)"
-      className={`flex items-center justify-center ${orbState}`}
+      className={`flex items-center justify-center ${orbState}${speaking ? ' seducia-speaking' : ''}`}
       style={{
         position: 'relative', width: 58, height: 58, borderRadius: '50%', cursor: 'pointer',
         border: `1px solid ${rgba(accent, 0.6)}`,
-        background: `radial-gradient(circle at 32% 28%, ${rgba(accent, 0.95)}, ${rgba(accent, 0.3)} 70%)`,
+        background: [
+          'radial-gradient(circle at 30% 22%, rgba(255,255,255,0.6), rgba(255,255,255,0) 36%)',
+          `radial-gradient(circle at 34% 30%, ${rgba(accent, 0.98)}, ${rgba(accent, 0.4)} 64%, rgba(5,7,11,0.92) 100%)`
+        ].join(', '),
+        boxShadow: `0 10px 30px ${rgba(accent, 0.45)}, inset 0 -7px 14px rgba(0,0,0,0.4), inset 0 2px 6px rgba(255,255,255,0.35)`,
         color: '#05070b', flexShrink: 0
       }}
     >
@@ -89,8 +127,39 @@ export default function SeduciaOrb({
     </button>
   )
 
+  // ---- Status pill (BridgeAgent-style: live state + agent activity) ----
+  const busyVoice = voiceState !== 'idle'
+  const pillVisible = busyVoice || streaming || working > 0
+  const pillLabel = busyVoice
+    ? (STATE_LABEL[voiceState] || 'Busy')
+    : streaming ? 'Thinking...' : `${working} agent${working === 1 ? '' : 's'} working`
+  const pillColor = speaking ? accent : busyVoice || streaming ? accent : '#5fd3a8'
+  const pill = pillVisible ? (
+    <div
+      className="seducia-pill flex items-center"
+      data-glass
+      style={{ gap: 8, padding: '7px 13px', borderRadius: 999, background: 'rgba(8,10,14,0.88)', border: `1px solid ${rgba(accent, 0.35)}`, boxShadow: '0 8px 24px rgba(0,0,0,0.45)' }}
+    >
+      <span className="sush-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: pillColor, '--pulse': rgba(pillColor, 0.6), flexShrink: 0 }} />
+      <span style={{ fontSize: 11, fontWeight: 800, color: '#e6ebef', whiteSpace: 'nowrap' }}>{pillLabel}</span>
+      {working > 0 && busyVoice && (
+        <span style={{ fontSize: 8.5, fontWeight: 900, color: '#0a0a0c', background: '#5fd3a8', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.6, whiteSpace: 'nowrap' }}>
+          AGENT WORKING
+        </span>
+      )}
+    </div>
+  ) : null
+
   return (
-    <div style={{ ...accentVars(accent), position: 'fixed', right: 18, bottom: 40, zIndex: 360, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
+    <div
+      ref={containerRef}
+      style={{
+        ...accentVars(accent),
+        position: 'fixed',
+        ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : { right: 18, bottom: 40 }),
+        zIndex: 360, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12
+      }}
+    >
       {open && (
         <div
           className="seducia-card sush-glass-ui flex flex-col"
@@ -103,8 +172,17 @@ export default function SeduciaOrb({
             boxShadow: '0 24px 70px rgba(0,0,0,0.62)'
           }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between" style={{ padding: '14px 16px', borderBottom: `1px solid ${rgba(accent, 0.12)}` }}>
+          {/* Header (drag handle: grab to move the whole stack; double-click resets) */}
+          <div
+            className="flex items-center justify-between"
+            onPointerDown={startDrag}
+            onPointerMove={onDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onDoubleClick={resetPos}
+            title="Drag to move - double-click to reset position"
+            style={{ padding: '14px 16px', borderBottom: `1px solid ${rgba(accent, 0.12)}`, cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
+          >
             <div className="flex items-center" style={{ gap: 11 }}>
               <span className={`flex items-center justify-center ${voiceState === 'idle' ? 'seducia-idle' : ''}`} style={{ width: 34, height: 34, borderRadius: '50%', background: `radial-gradient(circle at 32% 28%, ${rgba(accent, 0.95)}, ${rgba(accent, 0.3)})`, color: '#05070b' }}>
                 {speaking ? <Bars color="#05070b" /> : <Icon name="sparkles" size={16} strokeWidth={2} className={voiceState === 'thinking' ? 'sush-spin' : undefined} />}
@@ -129,6 +207,9 @@ export default function SeduciaOrb({
                   <Icon name="radio" size={14} strokeWidth={2} />
                 </button>
               )}
+              <button onClick={() => onOpenChange(false)} title="Minimize to orb" style={{ width: 30, height: 30, borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="minus" size={15} />
+              </button>
               <button onClick={() => onOpenChange(false)} title="Close (Esc)" style={{ width: 30, height: 30, borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="x" size={15} />
               </button>
@@ -208,7 +289,10 @@ export default function SeduciaOrb({
           </div>
         </div>
       )}
-      {orb}
+      <div className="flex items-center" style={{ gap: 10 }}>
+        {pill}
+        {orb}
+      </div>
     </div>
   )
 }

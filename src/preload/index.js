@@ -64,6 +64,35 @@ contextBridge.exposeInMainWorld('sush', {
   dockerLogs: (payload) => ipcRenderer.invoke('sush:docker-logs', payload),
   watchPath: (payload) => ipcRenderer.invoke('sush:watch-path', payload),
   unwatchPath: (payload) => ipcRenderer.invoke('sush:unwatch-path', payload),
+  // Sush Identities (multi-user isolation)
+  usersList: () => ipcRenderer.invoke('sush:users-list'),
+  usersCreate: (payload) => ipcRenderer.invoke('sush:users-create', payload),
+  usersUpdate: (payload) => ipcRenderer.invoke('sush:users-update', payload),
+  usersDelete: (payload) => ipcRenderer.invoke('sush:users-delete', payload),
+  usersActivate: (payload) => ipcRenderer.invoke('sush:users-activate', payload),
+  usersSignOut: () => ipcRenderer.invoke('sush:users-signout'),
+  // OAuth providers (Google / GitHub sign-in)
+  oauthConfigGet: () => ipcRenderer.invoke('sush:oauth-config-get'),
+  oauthConfigSet: (payload) => ipcRenderer.invoke('sush:oauth-config-set', payload),
+  oauthGitHubStart: (payload) => ipcRenderer.invoke('sush:oauth-github-start', payload),
+  oauthGitHubCancel: () => ipcRenderer.invoke('sush:oauth-github-cancel'),
+  oauthGoogleStart: (payload) => ipcRenderer.invoke('sush:oauth-google-start', payload),
+  oauthGoogleCancel: () => ipcRenderer.invoke('sush:oauth-google-cancel'),
+  oauthUnlink: (payload) => ipcRenderer.invoke('sush:oauth-unlink', payload),
+  onOauthEvent: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('sush:oauth-event', listener)
+    return () => ipcRenderer.removeListener('sush:oauth-event', listener)
+  },
+  // GitHub data (tokens stay in main)
+  githubStatus: () => ipcRenderer.invoke('sush:github-status'),
+  githubRepos: (payload) => ipcRenderer.invoke('sush:github-repos', payload),
+  githubWork: () => ipcRenderer.invoke('sush:github-work'),
+  githubNotifications: (payload) => ipcRenderer.invoke('sush:github-notifications', payload),
+  githubNotificationRead: (payload) => ipcRenderer.invoke('sush:github-notification-read', payload),
+  // Open in OS / editor
+  openPath: (payload) => ipcRenderer.invoke('sush:open-path', payload),
+  openInEditor: (payload) => ipcRenderer.invoke('sush:open-in-editor', payload),
   onFileChanged: (callback) => {
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on('sush:file-changed', listener)

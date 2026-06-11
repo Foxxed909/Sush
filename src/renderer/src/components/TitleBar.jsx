@@ -65,8 +65,130 @@ function ThemeSwitcher({ accent, themeId, onThemeChange }) {
   )
 }
 
-export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId, onThemeChange }) {
-  const ctrl = (action) => window.sush.windowControl(action)
+// Letter avatar with the provider picture layered on top when present (the
+// letter shows through if the image fails to load).
+function ChipAvatar({ user, color, size, fontSize, radius }) {
+  return (
+    <span
+      className="flex items-center justify-center"
+      style={{ position: 'relative', overflow: 'hidden', width: size, height: size, borderRadius: radius, background: `linear-gradient(150deg, ${rgba(color, 0.9)}, ${rgba(color, 0.4)})`, color: '#0a0a0c', fontWeight: 900, fontSize }}
+    >
+      {user.avatar || user.name[0]?.toUpperCase()}
+      {user.avatarUrl && (
+        <img
+          src={user.avatarUrl}
+          alt=""
+          draggable={false}
+          onError={e => { e.target.style.display = 'none' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      )}
+    </span>
+  )
+}
+
+// Identity chip: who is signed in, with profile / lock / switch / sign-out.
+function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfile }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    window.addEventListener('mousedown', close)
+    return () => window.removeEventListener('mousedown', close)
+  }, [open])
+
+  if (!user) return null
+  const color = user.color || accent
+
+  const items = [
+    { icon: 'users', label: 'View profile', run: onViewProfile },
+    { icon: 'lock', label: 'Lock Sush', hint: 'sessions keep running', run: onLock },
+    { icon: 'users', label: 'Switch user…', hint: 'closes your sessions', run: onSignOut },
+    { icon: 'settings', label: 'Manage users…', run: onManageUsers },
+    { icon: 'logout', label: 'Sign out', hint: 'closes your sessions', run: onSignOut, danger: true }
+  ]
+
+  return (
+    <div ref={ref} style={{ position: 'relative', WebkitAppRegion: 'no-drag', display: 'flex', alignItems: 'center' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        title={`Signed in as ${user.name}`}
+        className="flex items-center"
+        style={{
+          gap: 7,
+          background: open ? rgba(color, 0.12) : 'rgba(255,255,255,0.03)',
+          border: `1px solid ${rgba(color, open ? 0.45 : 0.22)}`,
+          borderRadius: 'var(--r-pill)',
+          padding: '3px 10px 3px 4px',
+          cursor: 'pointer',
+          transition: 'background .15s, border-color .15s'
+        }}
+      >
+        <ChipAvatar user={user} color={color} size={20} fontSize={10.5} radius="32%" />
+        <span style={{ color: '#d4dbe1', fontSize: 11, fontWeight: 800, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {user.name}
+        </span>
+      </button>
+
+      {open && (
+        <div
+          data-glass
+          className="sush-fade-up"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            right: 0,
+            zIndex: 400,
+            minWidth: 218,
+            background: 'rgba(10,12,16,0.94)',
+            border: `1px solid ${rgba(color, 0.25)}`,
+            borderRadius: 'var(--r-lg)',
+            boxShadow: '0 16px 44px rgba(0,0,0,0.6)',
+            padding: 6
+          }}
+        >
+          <div
+            className="flex items-center"
+            onClick={() => { setOpen(false); onViewProfile?.() }}
+            title="View profile"
+            style={{ gap: 9, padding: '8px 10px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: 5, cursor: 'pointer' }}
+          >
+            <ChipAvatar user={user} color={color} size={28} fontSize={13} radius="30%" />
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', color: '#f1f4f6', fontWeight: 800, fontSize: 12.5 }}>{user.name}</span>
+              <span style={{ display: 'block', color: '#69737d', fontSize: 10, marginTop: 1 }}>
+                {user.isolation === 'full' ? 'full home isolation' : 'CLI logins isolated'}
+              </span>
+            </span>
+          </div>
+          {items.map(item => (
+            <button
+              key={item.label}
+              onClick={() => { setOpen(false); item.run?.() }}
+              className="flex items-center"
+              style={{ gap: 9, width: '100%', padding: '7px 10px', border: 'none', background: 'transparent', color: item.danger ? '#ff8aa0' : '#d4dbe1', cursor: 'pointer', fontSize: 12, fontWeight: 700, borderRadius: 8, textAlign: 'left' }}
+              onMouseEnter={e => { e.currentTarget.style.background = rgba(item.danger ? '#ff5370' : color, 0.1) }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              <Icon name={item.icon} size={13} color={item.danger ? '#ff8aa0' : '#8a939c'} strokeWidth={2.1} />
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.hint && <span style={{ fontSize: 9, color: '#5a646d', fontWeight: 600 }}>{item.hint}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId, onThemeChange, user, onLock, onSignOut, onManageUsers, onViewProfile, minimizeToTray = false }) {
+  // With "minimize to tray" on, the minimize dot hides the window into the
+  // tray instead of the taskbar.
+  const ctrl = (action) => window.sush.windowControl(
+    action === 'minimize' && minimizeToTray ? 'minimize-tray' : action
+  )
 
   return (
     <div
@@ -106,6 +228,20 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
 
       {/* Controls */}
       <div className="flex items-center" style={{ gap: 4, WebkitAppRegion: 'no-drag' }}>
+        <UserChip user={user} accent={accent} onLock={onLock} onSignOut={onSignOut} onManageUsers={onManageUsers} onViewProfile={onViewProfile} />
+        {user && (
+          <button
+            onClick={onSignOut}
+            title="Sign out (closes your sessions)"
+            className="flex items-center justify-center"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#69727a', padding: 4, borderRadius: 6, transition: 'color .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ff8aa0' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#69727a' }}
+          >
+            <Icon name="logout" size={14} />
+          </button>
+        )}
+        <span style={{ width: 6 }} />
         <ThemeSwitcher accent={accent} themeId={themeId} onThemeChange={onThemeChange} />
 
         <button

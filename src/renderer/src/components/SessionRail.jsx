@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
+import { STATES } from '../lib/agentActivity'
 
 function shortPath(path) {
   if (!path) return ''
@@ -92,10 +93,14 @@ function SessionLabel({ tab, onRename, editRequested, onEditDone }) {
   )
 }
 
-function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSelect, onClose, onRename, onDuplicate, onPin, pinned, editRequested, onEditDone, onRenameStart, onHandoff }) {
+function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSelect, onClose, onRename, onDuplicate, onPin, pinned, editRequested, onEditDone, onRenameStart, onHandoff, activity }) {
   const [ctxMenu, setCtxMenu] = useState(null)
   const exited = tab.status === 'exited'
-  const dotColor = exited ? '#ff5370' : '#42d392'
+  // Live state dot, fed by Mission Control's classifier: green pulse while
+  // working, amber when the agent needs you, red on surfaced errors.
+  const st = !exited && activity ? STATES[activity] : null
+  const dotColor = exited ? '#ff5370' : (st?.dot ?? '#42d392')
+  const dotPulse = !exited && (activity === 'working' || activity === 'waiting')
 
   const handleContextMenu = (e) => {
     e.preventDefault()
@@ -147,11 +152,15 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
         {pinned && !active && (
           <span style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3, borderRadius: 3, background: rgba(accent, 0.4) }} />
         )}
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, boxShadow: exited ? 'none' : `0 0 7px ${rgba(dotColor, 0.8)}`, flexShrink: 0 }} />
+        <span
+          className={dotPulse ? 'sush-pulse-dot' : undefined}
+          title={st?.label}
+          style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, boxShadow: exited ? 'none' : `0 0 7px ${rgba(dotColor, 0.8)}`, flexShrink: 0, '--pulse': rgba(dotColor, 0.6) }}
+        />
         <span style={{ minWidth: 0 }}>
           <SessionLabel tab={tab} onRename={onRename} editRequested={editRequested} onEditDone={onEditDone} />
-          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: '#69737d', marginTop: 3 }}>
-            {exited ? 'exited' : shortPath(tab.cwd) || tab.shellLabel || tab.shell}
+          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: activity === 'waiting' ? '#ffcb6b' : activity === 'error' ? '#ff8aa0' : '#69737d', marginTop: 3 }}>
+            {exited ? 'exited' : activity === 'waiting' ? 'needs you' : activity === 'error' ? 'error surfaced' : shortPath(tab.cwd) || tab.shellLabel || tab.shell}
           </span>
         </span>
         <button
@@ -216,7 +225,8 @@ export default function SessionRail({
   renamingId,
   onRenameStart,
   onRenameEnd,
-  onHandoff
+  onHandoff,
+  activity
 }) {
   const dragId = useRef(null)
   const [dragOver, setDragOver] = useState(null)
@@ -354,6 +364,7 @@ export default function SessionRail({
                   onEditDone={onRenameEnd}
                   onRenameStart={onRenameStart}
                   onHandoff={onHandoff}
+                  activity={activity?.[tab.id]}
                 />
               )
             }
@@ -412,6 +423,7 @@ export default function SessionRail({
                         onEditDone={onRenameEnd}
                         onRenameStart={onRenameStart}
                         onHandoff={onHandoff}
+                        activity={activity?.[tab.id]}
                       />
                     ))}
                   </div>

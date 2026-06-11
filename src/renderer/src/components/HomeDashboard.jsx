@@ -48,6 +48,9 @@ export default function HomeDashboard({
   recentSessions,
   smartResult,
   accent,
+  userName,
+  pinnedProjects = [],
+  onTogglePin,
   onRun,
   onOpenRecent,
   onOpenTab,
@@ -112,7 +115,7 @@ export default function HomeDashboard({
                   letterSpacing: -0.5
                 }}
               >
-                {greet.hi} <span style={{ color: accent, textShadow: `0 0 32px ${rgba(accent, 0.45)}` }}>·</span> Sush
+                {greet.hi}{userName ? `, ${userName}` : ''} <span style={{ color: accent, textShadow: `0 0 32px ${rgba(accent, 0.45)}` }}>·</span> Sush
               </div>
               <div className="flex items-center" style={{ gap: 10, marginTop: 6 }}>
                 <span style={{ fontSize: 13.5, color: '#8a939c', fontWeight: 600 }}>{greet.sub}</span>
@@ -254,6 +257,49 @@ export default function HomeDashboard({
           </div>
         </section>
 
+        {/* Pinned projects — star a workdir below to keep it here */}
+        {pinnedProjects.length > 0 && (
+          <section style={{ marginBottom: 30 }}>
+            <SectionLabel icon="star" accent={accent}>Pinned</SectionLabel>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {pinnedProjects.map(item => (
+                <div
+                  key={item.cwd}
+                  className="sush-row flex items-center"
+                  title={item.cwd}
+                  style={{
+                    gap: 9,
+                    border: `1px solid ${rgba(accent, 0.25)}`,
+                    borderRadius: 10,
+                    background: rgba(accent, 0.05),
+                    padding: '8px 6px 8px 13px',
+                    maxWidth: 280
+                  }}
+                >
+                  <button
+                    onClick={() => onRun(`work "${item.cwd}"`)}
+                    className="flex items-center"
+                    style={{ gap: 8, background: 'none', border: 'none', color: '#e6ebef', cursor: 'pointer', fontSize: 12.5, fontWeight: 800, minWidth: 0, padding: 0 }}
+                  >
+                    <Icon name="star" size={13} color={accent} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                  </button>
+                  <button
+                    onClick={() => onTogglePin?.(item)}
+                    title="Unpin"
+                    className="flex items-center justify-center"
+                    style={{ width: 20, height: 20, borderRadius: 6, background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#ff8aa0' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+                  >
+                    <Icon name="x" size={12} strokeWidth={2.2} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* npm Scripts quick-run (if package.json present) */}
         <NpmScriptsSection accent={accent} cwd={active?.cwd} onRun={onRun} />
 
@@ -296,6 +342,17 @@ export default function HomeDashboard({
                       {item.path}
                     </span>
                   </span>
+                  {onTogglePin && (
+                    <span
+                      role="button"
+                      title={pinnedProjects.some(p => p.cwd === item.path) ? 'Unpin from Home' : 'Pin to Home'}
+                      onClick={(e) => { e.stopPropagation(); onTogglePin({ cwd: item.path, label: item.label }) }}
+                      className="flex items-center justify-center"
+                      style={{ width: 22, height: 22, borderRadius: 6, color: pinnedProjects.some(p => p.cwd === item.path) ? accent : '#3f4852', flexShrink: 0 }}
+                    >
+                      <Icon name="star" size={13} strokeWidth={2} />
+                    </span>
+                  )}
                   <Icon name="arrowRight" size={14} color="#3f4852" className="sush-row-arrow" />
                 </button>
               )) : (

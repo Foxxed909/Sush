@@ -282,6 +282,26 @@ body {
 }
 .sush-icon-btn:active { transform: scale(0.94); }
 
+/* Flat list rows (GitHub panel etc.) — subtle hover wash over inline styles. */
+.sush-row-hover { transition: background .12s ease; }
+.sush-row-hover:hover { background: rgba(255, 255, 255, 0.045) !important; }
+
+/* Seducia orb: speaking pulse + status-pill entrance. */
+@keyframes seducia-speak-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+.seducia-speaking { animation: seducia-speak-pulse 1.05s ease-in-out infinite; }
+@keyframes seducia-pill-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.seducia-pill { animation: seducia-pill-in 0.18s ease; }
+.sush-lite .seducia-speaking, .sush-lite .seducia-pill { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .seducia-speaking, .seducia-pill { animation: none; }
+}
+
 /* ---- Omnibox ---- */
 .sush-omni {
   height: 38px;
@@ -345,3 +365,68 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
 }
 .sush-pulse-dot { animation: sush-pulse-dot 1.8s ease-out infinite; }
+
+/* ---- Lock screen (identity gate) ----
+   Full-screen sign-in: aurora blobs tinted by user accents drift behind a
+   centered clock + avatar picker. Everything fades up once on mount. */
+.sush-lock-root { cursor: default; }
+
+@keyframes sush-lock-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(40px, -30px) scale(1.08); }
+  66%  { transform: translate(-30px, 24px) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+.sush-lock-blob { animation: sush-lock-drift 18s ease-in-out infinite; will-change: transform; }
+
+.sush-lock-card { animation: sush-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.sush-lock-panel {
+  background: rgba(13, 16, 21, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--r-xl);
+  padding: 24px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+.sush-lock-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e8edf1;
+  border-radius: 10px;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.sush-lock-input::placeholder { color: #5a646d; }
+.sush-lock-input:focus {
+  border-color: var(--accent-a55);
+  box-shadow: 0 0 0 3px var(--accent-a10);
+}
+
+.sush-lock-user { transition: transform .18s cubic-bezier(0.22, 1, 0.36, 1); }
+.sush-lock-user:hover { transform: translateY(-3px); }
+.sush-lock-user[data-selected="true"] { transform: translateY(-3px); }
+
+.sush-lock-ghost { transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.sush-lock-ghost:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); }
+
+/* Wrong-PIN feedback: quick horizontal shake on the dot row. */
+@keyframes sush-lock-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+.sush-lock-shake { animation: sush-lock-shake 0.4s ease; }
+
+.sush-lite .sush-lock-blob { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .sush-lock-blob { animation: none; }
+}

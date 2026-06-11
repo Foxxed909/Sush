@@ -74,6 +74,30 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, broad
         </span>
       </span>
 
+      {/* open cwd in Explorer / VS Code */}
+      {cwd && view !== 'home' && (
+        <span style={{ ...seg, gap: 2, padding: '0 6px' }}>
+          <button
+            onClick={() => window.sush.openPath({ path: cwd })}
+            title="Reveal in Explorer"
+            style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', color: dim, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
+            onMouseEnter={e => { e.currentTarget.style.color = accent }}
+            onMouseLeave={e => { e.currentTarget.style.color = dim }}
+          >
+            <Icon name="folder" size={11} />
+          </button>
+          <button
+            onClick={() => window.sush.openInEditor({ path: cwd })}
+            title="Open in VS Code"
+            style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', color: dim, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
+            onMouseEnter={e => { e.currentTarget.style.color = accent }}
+            onMouseLeave={e => { e.currentTarget.style.color = dim }}
+          >
+            <Icon name="code" size={11} />
+          </button>
+        </span>
+      )}
+
       {/* git */}
       {git && (
         <span style={seg}>

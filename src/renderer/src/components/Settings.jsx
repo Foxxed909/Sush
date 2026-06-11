@@ -77,6 +77,104 @@ function ApiKeyField({ label, value, onChange, accent, placeholder }) {
   )
 }
 
+// OAuth client config lives in MAIN (sush-oauth.json), not localStorage —
+// the lock screen needs it before anyone is signed in.
+function AccountsSection({ accent }) {
+  const [cfg, setCfg] = useState(null)
+  const [googleSecret, setGoogleSecret] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    window.sush.oauthConfigGet?.().then(setCfg).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    const payload = {
+      github: { clientId: cfg?.github?.clientId ?? '' },
+      google: { clientId: cfg?.google?.clientId ?? '' }
+    }
+    if (googleSecret) payload.google.clientSecret = googleSecret
+    await window.sush.oauthConfigSet(payload)
+    setGoogleSecret('')
+    const fresh = await window.sush.oauthConfigGet()
+    setCfg(fresh)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
+  }
+
+  const field = {
+    width: '100%',
+    background: '#0f1318',
+    border: '1px solid #20272e',
+    color: '#f1f4f6',
+    borderRadius: 8,
+    padding: '8px 10px',
+    fontSize: 12.5,
+    outline: 'none',
+    fontFamily: 'inherit'
+  }
+
+  if (!cfg) return null
+  return (
+    <Section title="Accounts" accent={accent}>
+      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 12 }}>
+        One-time setup for "Sign in with..." on the lock screen and the GitHub panel. Config is shared by all users of this install.
+      </div>
+      <Row>
+        <Label>GitHub OAuth Client ID</Label>
+        <input
+          value={cfg.github?.clientId ?? ''}
+          onChange={e => setCfg(c => ({ ...c, github: { ...c.github, clientId: e.target.value } }))}
+          placeholder={cfg.github?.usingBuiltIn ? 'Built-in Sush app active - paste to override' : 'Ov23li...'}
+          spellCheck={false}
+          style={field}
+        />
+        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+          {cfg.github?.usingBuiltIn
+            ? 'GitHub sign-in works out of the box with the built-in Sush app. Only paste a client id here to use your own OAuth App (Device Flow enabled).'
+            : 'Using your own OAuth App. Clear the field to fall back to the built-in Sush app.'}
+        </div>
+      </Row>
+      <Row>
+        <Label>Google Client ID</Label>
+        <input
+          value={cfg.google?.clientId ?? ''}
+          onChange={e => setCfg(c => ({ ...c, google: { ...c.google, clientId: e.target.value } }))}
+          placeholder="....apps.googleusercontent.com"
+          spellCheck={false}
+          style={field}
+        />
+      </Row>
+      <Row>
+        <Label>Google Client Secret</Label>
+        <input
+          value={googleSecret}
+          onChange={e => setGoogleSecret(e.target.value)}
+          placeholder={cfg.google?.hasSecret ? '(saved - paste to replace)' : 'GOCSPX-...'}
+          type="password"
+          autoComplete="new-password"
+          spellCheck={false}
+          style={field}
+        />
+        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+          In Google Cloud Console create a <b>Desktop app</b> OAuth client and paste its ID + secret.
+        </div>
+      </Row>
+      <button
+        onClick={save}
+        style={{ padding: '8px 18px', borderRadius: 9, border: 'none', background: accent, color: '#0a0a0c', fontWeight: 900, fontSize: 12.5, cursor: 'pointer' }}
+      >
+        {saved ? 'Saved' : 'Save accounts config'}
+      </button>
+      {cfg.safeStorage === false && (
+        <div style={{ fontSize: 10.5, color: '#ffb74d', marginTop: 8, lineHeight: 1.5 }}>
+          OS encryption unavailable: GitHub sign-in tokens will not be stored. The gh CLI login still works.
+        </div>
+      )}
+    </Section>
+  )
+}
+
 export default function Settings({ settings, onChange, onClose, accent, onUpgrade, onEditSushrc }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const plan = getPlan(loadPlan())
@@ -171,9 +269,29 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
               </div>
             </Row>
             {settings.seduciaProvider === 'cli' ? (
-              <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
-                Seducia drives your logged-in <strong style={{ color: accent }}>claude</strong> CLI — no API key, no extra billing. Run <strong style={{ color: '#e1e6ea' }}>claude</strong> once in a terminal to sign in. Replies arrive as a single message (not streamed token-by-token).
-              </div>
+              <>
+                <Row>
+                  <Label>CLI engine</Label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[['auto', 'Auto'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']].map(([val, lbl]) => {
+                      const current = settings.seduciaCliEngine || 'auto'
+                      const on = current === val
+                      return (
+                        <button
+                          key={val}
+                          onClick={() => set('seduciaCliEngine', val)}
+                          style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                        >
+                          {lbl}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </Row>
+                <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
+                  Seducia drives your logged-in agent CLIs — no API key, no extra billing. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing (handy for Claude session limits). Replies arrive as a single message.
+                </div>
+              </>
             ) : (
               <>
                 <ApiKeyField
@@ -193,6 +311,9 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
               </>
             )}
           </Section>
+
+          {/* Accounts (Google / GitHub sign-in) */}
+          <AccountsSection accent={accent} />
 
           {/* Voice */}
           <Section title="Voice / Jarvis" accent={accent}>
@@ -428,6 +549,18 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input type="range" min={70} max={100} value={settings.opacity ?? 100} onChange={e => set('opacity', Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
                 <span style={{ color: '#e1e6ea', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.opacity ?? 100}%</span>
+              </div>
+            </Row>
+            <Row>
+              <Label>Minimize to tray</Label>
+              <button
+                onClick={() => set('minimizeToTray', !settings.minimizeToTray)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.minimizeToTray ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.minimizeToTray ? rgba(accent, 0.4) : '#20272e'}`, color: settings.minimizeToTray ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+              >
+                {settings.minimizeToTray ? 'On - minimize hides Sush into the tray' : 'Off - minimize goes to the taskbar'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                When on, the minimize dot tucks Sush into the system tray. Click the tray icon to bring it back.
               </div>
             </Row>
           </Section>

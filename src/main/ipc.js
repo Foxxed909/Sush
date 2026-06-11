@@ -1,4 +1,4 @@
-﻿import { ipcMain, app, clipboard } from 'electron'
+﻿import { ipcMain, app, clipboard, Tray, Menu, nativeImage } from 'electron'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, watch as fsWatch } from 'fs'
 import { join } from 'path'
@@ -15,11 +15,27 @@ import { ShellContext } from './shell/context'
 import { loadSushrc, readSushrcRaw, writeSushrcRaw, sushrcPath } from './shell/sushrc'
 import { ScrollbackStore } from './shell/scrollback'
 import { homedir } from 'os'
+import {
+  initUsers, listUsers, getActiveUser, getLastUserId, createUser, updateUser,
+  deleteUser, activateUser, signOut, activeUserEnv, linkProvider, unlinkProvider
+} from './users'
+import { resolveExecutable, shimSpawnSpec } from './exec'
+import { setOauthConfig, publicOauthConfig } from './oauth/config'
+import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
+import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
+import { startGoogleFlow, cancelGoogleFlow } from './oauth/google'
+import { consumeTicket, peekTicket } from './oauth/tickets'
+import { setOauthEventSender } from './oauth/events'
+import {
+  getGitHubStatus, listRepos, getWork, getNotifications,
+  markNotificationRead, clearGitHubCache
+} from './github-api'
 
 const contexts = new Map()
 const abortControllers = new Map()
 const ptySessions = new Map()
 const fileWatchers = new Map()
+const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
 const SAFE_EXTERNAL_URL = /^https?:\/\//i
@@ -71,33 +87,37 @@ function commandExists(file) {
   }
 }
 
-// Resolve the absolute path of a CLI on PATH (first match). Returns null if not found.
-function resolveExecutable(name) {
-  const finder = process.platform === 'win32' ? 'where.exe' : 'which'
-  try {
-    const out = execFileSync(finder, [name], { encoding: 'utf8', windowsHide: true })
-    const first = out.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0]
-    return first || null
-  } catch {
-    return null
-  }
+// Non-interactive AI engines for Seducia. The entire prompt goes over STDIN
+// so no untrusted text ever lands on the command line (no shell, and for
+// .cmd shims cmd.exe re-parses argv — stdin is the only safe channel). Each
+// uses the user's existing CLI login — no API key required.
+const SEDUCIA_ENGINES = {
+  claude: { args: ['-p'] },
+  codex: { args: ['exec', '--skip-git-repo-check', '-'] },
+  gemini: { args: [] }
 }
 
-// Run the `claude` CLI in non-interactive print mode (-p), feeding the entire
-// prompt over stdin so no untrusted text ever lands on the command line (no
-// shell, no injection surface). Uses the user's existing `claude` login — no
-// API key required. Returns { ok, text } / { ok:false, error }.
-function runClaudeCli({ prompt, cwd }) {
-  const bin = resolveExecutable('claude')
-  if (!bin) return Promise.resolve({ ok: false, error: 'The `claude` CLI was not found on your PATH. Install it and run `claude` once to log in.' })
+// codex exec logs a banner + thinking lines; the final reply follows the
+// last "] codex" marker. Fall back to the raw text if the format changes.
+function cleanCliOutput(engine, raw) {
+  const text = String(raw ?? '').trim()
+  if (engine !== 'codex') return text
+  const marker = /\[[^\]]*\]\s*codex\s*\r?\n/g
+  let last = -1
+  let m
+  while ((m = marker.exec(text))) last = m.index + m[0].length
+  if (last === -1) return text
+  const out = text.slice(last).replace(/\r?\n\[[^\]]*\]\s*tokens used:[\s\S]*$/, '').trim()
+  return out || text
+}
 
-  const isWin = process.platform === 'win32'
-  const isShim = /\.(cmd|bat)$/i.test(bin)
-  // Node can't exec a .cmd/.bat shim directly — route it through cmd.exe. The
-  // args are constant flags only (the path comes from `where`), so there is
-  // still no untrusted data on the command line.
-  const file = isWin && isShim ? (process.env.ComSpec || 'cmd.exe') : bin
-  const args = isWin && isShim ? ['/c', bin, '-p'] : ['-p']
+function runCliEngine(engine, { prompt, cwd }) {
+  const spec = SEDUCIA_ENGINES[engine]
+  if (!spec) return Promise.resolve({ ok: false, engine, error: `Unknown AI engine: ${engine}` })
+  const bin = resolveExecutable(engine)
+  if (!bin) return Promise.resolve({ ok: false, engine, error: `The \`${engine}\` CLI was not found on your PATH.` })
+
+  const { file, args } = shimSpawnSpec(bin, spec.args)
   const dir = isDirectory(cwd) ? cwd : undefined
 
   return new Promise(resolve => {
@@ -107,17 +127,17 @@ function runClaudeCli({ prompt, cwd }) {
     try {
       child = spawn(file, args, { cwd: dir, windowsHide: true })
     } catch (e) {
-      return resolve({ ok: false, error: e.message })
+      return resolve({ ok: false, engine, error: e.message })
     }
-    const timer = setTimeout(() => { try { child.kill() } catch {} ; done({ ok: false, error: 'claude CLI timed out (60s).' }) }, 60000)
+    const timer = setTimeout(() => { try { child.kill() } catch {} ; done({ ok: false, engine, error: `${engine} CLI timed out (90s).` }) }, 90000)
     child.stdout.on('data', d => { stdout += d })
     child.stderr.on('data', d => { stderr += d })
-    child.on('error', e => done({ ok: false, error: e.message }))
+    child.on('error', e => done({ ok: false, engine, error: e.message }))
     child.on('close', code => {
-      if (code === 0) done({ ok: true, text: stdout.trim() })
-      else done({ ok: false, error: (stderr.trim() || stdout.trim() || `claude exited with code ${code}`) })
+      if (code === 0) done({ ok: true, engine, text: cleanCliOutput(engine, stdout) })
+      else done({ ok: false, engine, error: (stderr.trim() || stdout.trim() || `${engine} exited with code ${code}`).slice(0, 500) })
     })
-    try { child.stdin.write(prompt); child.stdin.end() } catch (e) { done({ ok: false, error: e.message }) }
+    try { child.stdin.write(prompt); child.stdin.end() } catch (e) { done({ ok: false, engine, error: e.message }) }
   })
 }
 
@@ -501,6 +521,10 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
     env: {
       ...process.env,
       ...sushrcEnv,
+      // Identity isolation: when a Sush user is signed in, point CLI config
+      // dirs (claude/codex/gh/XDG, optionally HOME itself) at their private
+      // tree so logins never bleed between users. Wins over .sushrc env.
+      ...activeUserEnv(),
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
       SUSH: '1',
@@ -576,23 +600,39 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
   }
 }
 
-function closePtySession(tabId) {
+function closePtySession(tabId, { sync = false } = {}) {
   const session = ptySessions.get(tabId)
   if (!session) return
   if (session.persistScrollback && scrollback) scrollback.persist(tabId)
   clearTabTimer(tabId)   // Bug fix: clean up any pending timer for this session
   ptySessions.delete(tabId)
-  try {
-    if (process.platform === 'win32' && session.pid) {
-      execFileSync('taskkill', ['/PID', String(session.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+  if (process.platform === 'win32' && session.pid) {
+    // Fire-and-forget async kill: the old execFileSync froze the main process
+    // (UI + every other PTY) for the duration of each taskkill — closing a
+    // 16-session swarm meant seconds of dead app. Sync is only used on quit,
+    // where blocking is fine because the process is going away anyway.
+    try {
+      if (sync) {
+        execFileSync('taskkill', ['/PID', String(session.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      } else {
+        const killer = spawn('taskkill', ['/PID', String(session.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+        killer.on('error', () => { try { session.proc.kill() } catch {} })
+      }
       return
-    }
-  } catch {}
+    } catch {}
+  }
   try { session.proc.kill() } catch {}
 }
 
-function closeAllPtySessions() {
-  for (const tabId of ptySessions.keys()) closePtySession(tabId)
+function closeAllFileWatchers() {
+  for (const watcher of fileWatchers.values()) {
+    try { watcher.close() } catch {}
+  }
+  fileWatchers.clear()
+}
+
+function closeAllPtySessions({ sync = false } = {}) {
+  for (const tabId of [...ptySessions.keys()]) closePtySession(tabId, { sync })
 }
 
 
@@ -659,13 +699,59 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
   }
 }
 
+let handlersRegistered = false
+let mainWin = null
+
+// ── Tray (minimize-to-tray, opt-in via Settings) ─────────────────────────────
+// Created lazily on the first tray-minimize; the icon is a tiny embedded PNG
+// (pink Sush dot) so no asset file is needed.
+let tray = null
+const TRAY_ICON_DATA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAEpSURBVDhPY2CgJfifM1/jf/Zsh/9ZswzQ5XCC//HzOf5lz2n/lz3n+//suf+R8b+sucv/Z82XQNcDByCb/mXNuY6uEcWQ7DnPQa5C1wuz+T66Bmz4X9ac9xgu+Zczdzq6wpsx7f8PBVf9vxjZhGlI9tzt6Laj+HmyY/x/Lh4BOC4z88Mw5H/6fAWIAVmzDNBtRtYMw7sCylANyJwTAHF+5pwMZInZLikYmkG4xToM3RUNEBeA4hpJAuRvdM0gvNgjA9WArDkJEAPy5wugmfzfX90CRbODgv7/7xkz0QxASmD/subuRzcE5BWQs0EBiq4ZFOVwzWBX5MzXQI8J/BhLYvqXPSeCGEP+Zc8tQNcLBxCXzD2OrgmiEUcyxgb+ZcyygEZvA8hGXBoB+PrDpt9y53MAAAAASUVORK5CYII='
+
+function hideToTray() {
+  if (!mainWin || mainWin.isDestroyed()) return
+  if (!tray) {
+    tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON_DATA))
+    tray.setToolTip('Sush')
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Show Sush', click: () => restoreFromTray() },
+      { type: 'separator' },
+      { label: 'Quit Sush', click: () => app.quit() }
+    ]))
+    tray.on('click', () => restoreFromTray())
+  }
+  mainWin.hide()
+}
+
+function restoreFromTray() {
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.show()
+    mainWin.focus()
+  }
+}
+
 export function registerIpcHandlers(win) {
+  // ipcMain.handle throws on duplicate channel registration — guard the
+  // re-entry path (macOS dock "activate" recreates the window) but keep the
+  // bound window fresh so PTY events reach the new renderer.
+  mainWin = win
+  if (handlersRegistered) return
+  handlersRegistered = true
+
   scrollback = new ScrollbackStore(app.getPath('userData'))
-  app.once('before-quit', () => { scrollback?.flush(); closeAllPtySessions() })
+  initUsers()
+  app.once('before-quit', () => {
+    scrollback?.flush()
+    closeAllFileWatchers()
+    closeAllPtySessions({ sync: true })
+    cancelGitHubFlow()
+    cancelGoogleFlow()
+    try { tray?.destroy() } catch {}
+  })
   if (process.platform === 'win32') ensurePowerShellBootstrap()
 
   ipcMain.handle('sush:pty-start', (event, payload) => {
-    return startPtySession(win, payload)
+    return startPtySession(mainWin, payload)
   })
 
   ipcMain.on('sush:pty-input', (event, { tabId, data }) => {
@@ -694,7 +780,7 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:run-command', async (event, { tabId, input, profileId }) => {
     const ctx = getContext(tabId)
     // Expand aliases before parsing so alias commands route correctly.
-    const expanded = ctx.expandAliases(input.trim())
+    const expanded = ctx.expandAliases(String(input ?? '').trim())
     const parsed = parseInput(expanded)
     if (!parsed) return { output: '', type: 'empty' }
 
@@ -751,11 +837,13 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:close-tab', (event, { tabId }) => {
     closePtySession(tabId)
     contexts.delete(tabId)
+    tabMeta.delete(tabId)   // Bug fix: meta entries used to outlive their tab forever
   })
 
   ipcMain.handle('sush:window-control', (event, action) => {
     const win = event.sender.getOwnerBrowserWindow()
     if (action === 'minimize') win.minimize()
+    else if (action === 'minimize-tray') hideToTray()
     else if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize()
     else if (action === 'close') win.close()
   })
@@ -770,8 +858,92 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:app-version', () => app.getVersion())
   ipcMain.handle('sush:home-dir', () => homedir())
 
-  // ── Seducia via the local `claude` CLI (no API key) ───────────────────────
-  ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd }) => runClaudeCli({ prompt: String(prompt ?? ''), cwd }))
+  // ── Sush Identities (multi-user isolation) ────────────────────────────────
+  ipcMain.handle('sush:users-list', () => ({ users: listUsers(), active: getActiveUser(), lastUserId: getLastUserId() }))
+  ipcMain.handle('sush:users-create', (event, payload) => {
+    const { providerTicket, ...form } = payload ?? {}
+    let ticket = null
+    if (providerTicket) {
+      // Validate before creating so a dead ticket can't leave a half-linked user.
+      ticket = peekTicket(providerTicket)
+      if (!ticket) return { ok: false, error: 'Sign-in expired, try again' }
+    }
+    const created = createUser(form)
+    if (!created.ok || !ticket) return created
+    consumeTicket(providerTicket)
+    const linked = linkProvider({ id: created.user.id, provider: ticket.provider, profile: ticket.profile })
+    if (ticket.provider === 'github' && ticket.token) {
+      saveToken(created.user.id, 'github', ticket.token, { login: ticket.profile.login })
+    }
+    return { ok: true, user: linked.ok ? linked.user : created.user }
+  })
+  ipcMain.handle('sush:users-update', (event, payload) => updateUser(payload ?? {}))
+  ipcMain.handle('sush:users-delete', (event, payload) => deleteUser(payload ?? {}))
+  ipcMain.handle('sush:users-activate', (event, payload) => {
+    clearGitHubCache()
+    return activateUser(payload ?? {})
+  })
+  ipcMain.handle('sush:users-signout', () => {
+    // Sessions belong to the signed-in identity — never leave them running
+    // for the next person.
+    closeAllPtySessions()
+    clearGitHubCache()
+    return signOut()
+  })
+
+  // ── OAuth providers (Google / GitHub sign-in) ─────────────────────────────
+  setOauthEventSender((payload) => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:oauth-event', payload)
+  })
+  ipcMain.handle('sush:oauth-config-get', () => ({ ...publicOauthConfig(), safeStorage: encryptionAvailable() }))
+  ipcMain.handle('sush:oauth-config-set', (event, payload) => setOauthConfig(payload ?? {}))
+  ipcMain.handle('sush:oauth-github-start', (event, payload) => startGitHubFlow(payload ?? {}))
+  ipcMain.handle('sush:oauth-github-cancel', () => cancelGitHubFlow())
+  ipcMain.handle('sush:oauth-google-start', (event, payload) => startGoogleFlow(payload ?? {}))
+  ipcMain.handle('sush:oauth-google-cancel', () => cancelGoogleFlow())
+  ipcMain.handle('sush:oauth-unlink', (event, { userId, provider } = {}) => {
+    const res = unlinkProvider({ id: userId, provider })
+    if (res.ok && provider === 'github') {
+      deleteToken(userId, 'github')
+      clearGitHubCache()
+    }
+    return res
+  })
+
+  // ── GitHub data (active identity only; tokens never leave main) ──────────
+  ipcMain.handle('sush:github-status', () => getGitHubStatus())
+  ipcMain.handle('sush:github-repos', (event, payload) => listRepos(payload ?? {}))
+  ipcMain.handle('sush:github-work', () => getWork())
+  ipcMain.handle('sush:github-notifications', (event, payload) => getNotifications(payload ?? {}))
+  ipcMain.handle('sush:github-notification-read', (event, { id } = {}) => markNotificationRead(id))
+
+  // ── Open in OS / editor ───────────────────────────────────────────────────
+  ipcMain.handle('sush:open-path', async (event, { path: target }) => {
+    if (!isDirectory(target) && !existsSync(String(target ?? ''))) return { ok: false, error: 'Path does not exist' }
+    const { shell: sh } = await import('electron')
+    const result = await sh.openPath(String(target))
+    return result ? { ok: false, error: result } : { ok: true }
+  })
+
+  ipcMain.handle('sush:open-in-editor', (event, { cwd }) => {
+    const dir = resolveStartCwd(cwd)
+    const bin = resolveExecutable('code')
+    if (!bin) return { ok: false, error: 'VS Code (`code`) not found on PATH' }
+    const { file, args } = shimSpawnSpec(bin, ['.'])
+    try {
+      const child = spawn(file, args, { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true })
+      child.unref()
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  // ── Seducia via local agent CLIs (no API key) ─────────────────────────────
+  ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd, engine }) => {
+    const id = ['claude', 'codex', 'gemini'].includes(engine) ? engine : 'claude'
+    return runCliEngine(id, { prompt: String(prompt ?? ''), cwd })
+  })
 
   // ── Scrollback (for session handoff cards) ────────────────────────────────
   ipcMain.handle('sush:get-scrollback', (event, { tabId, chars }) => {
@@ -937,7 +1109,6 @@ export function registerIpcHandlers(win) {
   })
 
   // Pin/rename tab metadata (stored in main so it survives renderer reloads)
-  const tabMeta = new Map()
   ipcMain.handle('sush:set-tab-meta', (event, { tabId, meta }) => {
     tabMeta.set(tabId, { ...(tabMeta.get(tabId) ?? {}), ...meta })
     return { ok: true }
@@ -1084,7 +1255,7 @@ export function registerIpcHandlers(win) {
     }
     try {
       const watcher = fsWatch(watchPath, { recursive: false }, (eventType, filename) => {
-        if (!win.isDestroyed()) win.webContents.send('sush:file-changed', { watchId, path: watchPath, filename, eventType })
+        if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:file-changed', { watchId, path: watchPath, filename, eventType })
       })
       fileWatchers.set(watchId, watcher)
       return { ok: true }

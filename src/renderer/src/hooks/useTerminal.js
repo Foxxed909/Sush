@@ -127,6 +127,41 @@ export function useTerminal({
     try { fitAddon.fit() } catch {}
     term.focus()
 
+    // App-owned chords must not reach the PTY. The window-level handlers in
+    // App.jsx still receive these events — returning false only tells xterm to
+    // ignore them, so Ctrl+W closes the tab without ALSO sending ^W to the
+    // shell (previously both fired). Ctrl+Shift+C/V are handled right here:
+    // terminal-standard copy/paste that never collides with ^C/^V.
+    const APP_CTRL = new Set(['k', 'b', 'p', 't', 'w', ','])
+    const APP_CTRL_SHIFT = new Set(['n', 't', 'z', 'h', 'b', 'm', 'd'])
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      if (e.key === 'F2') return false  // app: rename session
+      const ctrl = e.ctrlKey || e.metaKey
+      if (!ctrl) return true
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
+
+      if (e.shiftKey && key === 'c') {
+        const sel = term.getSelection()
+        if (sel) window.sush.copyText(sel).catch(() => {})
+        return false
+      }
+      if (e.shiftKey && key === 'v') {
+        navigator.clipboard.readText().then(text => { if (text) term.paste(text) }).catch(() => {})
+        return false
+      }
+
+      if (key === 'Tab') return false                                  // MRU switcher
+      if (key === '?' || (e.shiftKey && key === '/')) return false     // shortcuts help
+      if (e.shiftKey) return APP_CTRL_SHIFT.has(key) || key === 'Home'
+        ? false : true
+      if (APP_CTRL.has(key)) return false
+      if (!e.altKey && /^[1-9]$/.test(key)) return false               // jump to session
+      if (key === 'PageDown' || key === 'PageUp') return false         // next/prev session
+      if (key === '=' || key === '+' || key === '-' || key === '0') return false  // zoom
+      return true
+    })
+
     termRef.current = term
     fitAddonRef.current = fitAddon
     searchAddonRef.current = searchAddon

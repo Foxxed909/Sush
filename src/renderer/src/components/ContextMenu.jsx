@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 
-export default function ContextMenu({ x, y, onCopy, onPaste, onClear, onNewTab, onClose, hasSelection, accent }) {
+export default function ContextMenu({ x, y, onCopy, onPaste, onClear, onNewTab, onExport, onClose, hasSelection, accent }) {
   const ref = useRef(null)
 
   useEffect(() => {
@@ -45,6 +45,7 @@ export default function ContextMenu({ x, y, onCopy, onPaste, onClear, onNewTab, 
       {item('Paste', onPaste)}
       {divider}
       {item('Clear', onClear)}
+      {onExport && item('Export Output (.txt)', onExport)}
       {divider}
       {item('New Tab', onNewTab)}
     </div>

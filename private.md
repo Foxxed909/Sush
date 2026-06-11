@@ -14,6 +14,181 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 3.8.0 — "Companion" implementation notes
+
+### Seducia orchestration
+- **The ACTION protocol went multi-line**: `parseAIResponse` now strips and
+  collects EVERY `ACTION:<json>` line (plus an `ENGINE:` marker) and returns
+  `{message, actions[], engine}`. Both consumers (Seducia.jsx `handleAI`,
+  useSeducia `runAI`) updated — any new consumer must use the array shape.
+- **launch.prompt**: the launch action gained an optional `prompt`. App's
+  `launchSessions` types it into each spawned PTY at `4500ms + i*400`
+  (bootCommand first, brief second; agent TUIs need a beat before they
+  accept input). Newlines flattened to spaces — Enter means submit in a TUI.
+  Timing is heuristic; if a slow machine misses, the fix is bumping the
+  delay or keying off agent-activity state, not removing the flatten.
+- **Launch-confirm card** (typed chat only): AI-proposed launches render a
+  LaunchCard with [Launch now]/[Cancel] and a 5s auto-proceed countdown
+  ("mix of both"). `firedLaunchesRef` guards timer-vs-click double-fire.
+  The voice path (useSeducia/orb) executes immediately — a spoken command
+  is explicit; don't add the card there without rethinking TTS flow.
+- **CLI engine cascade**: main `runCliEngine(engine)` supports
+  claude (`-p`), codex (`exec --skip-git-repo-check -`), gemini (bare stdin)
+  — ALL prompts over stdin (cmd.exe shim argv re-parse = injection, stdin is
+  the only safe channel). codex stdout is logs + reply; `cleanCliOutput`
+  takes everything after the last `] codex` marker, falls back to raw.
+  Renderer cascade in `streamAgentCli`: auto = claude->codex->gemini on ANY
+  failure; the winning engine rides back as an `ENGINE:` marker line and
+  shows as a "via X CLI" chip.
+
+### UI mechanics worth remembering
+- **Black-screen root cause**: terminal view with 0 tabs renders nothing
+  (tabs.map over empty array), and the split toggle doubled the void. Fix =
+  two guards in App.jsx: an effect that drops splitMode + falls back to home
+  whenever `tabs.length === 0`, and split toggles (button + Ctrl+Shift+H)
+  refuse to enter with <2 tabs.
+- **SeduciaOrb drag**: the whole orb+card stack is one fixed container;
+  default anchor is right/bottom, a persisted `{x,y}` (localStorage
+  `sush-seducia-pos`) switches it to left/top. Drag = pointer capture on the
+  card header, ignoring presses on buttons (`e.target.closest('button')`);
+  double-click resets to anchor. Clamped to viewport minus 100px.
+- **Status pill**: voiceState (idle/wake/listening/thinking/speaking) +
+  `working` count from useAgentActivity summary (passed from App). Pill
+  hides entirely when idle and nothing is working.
+- **Profile pictures are data URLs in sush-users.json**: renderer downscales
+  to 128px center-crop JPEG (~10-20KB) via canvas before `usersUpdate`
+  (`patch.avatarUrl`; empty string deletes). No file:// URLs — webSecurity
+  blocks them from the dev-server origin.
+- **Tray**: lazily created on first 'minimize-tray' window-control, icon is
+  an embedded base64 PNG (no asset file). The per-user setting
+  (`settings.minimizeToTray`) decides WHICH action TitleBar sends — main
+  holds no preference state.
+- **Built-in GitHub client id** in oauth/config.js (DEFAULT_GITHUB_CLIENT_ID,
+  public by design); stored value overrides; publicOauthConfig exposes
+  `usingBuiltIn` for the Settings hint. Google still needs per-install setup.
+
+## 3.7.0 — "Handshake" implementation notes
+
+### OAuth design (Google + GitHub)
+- **All provider HTTP lives in main** (`src/main/oauth/*`, `github-api.js`)
+  on Node's global fetch. Tokens NEVER cross the IPC boundary — the renderer
+  gets profiles, counts and mapped list rows only. Verify with devtools: no
+  token string ever appears in renderer network/console.
+- **GitHub = Device Flow** (`oauth/github.js`): client id only (user
+  registers an OAuth App, enables Device Flow, pastes the id). Poll loop is a
+  setTimeout chain honoring `interval`, `slow_down` (+5s) and `expires_in`;
+  `access_denied` → cancelled. Scope: `repo read:user notifications`.
+- **Google = loopback PKCE** (`oauth/google.js`): one-shot `http` server on
+  `127.0.0.1:0`, S256 challenge, `state` checked, 120s self-destruct,
+  `prompt=select_account`. **Deliberately no `access_type=offline`** — we
+  drop the access token after `userinfo` and keep only the profile, so every
+  "Continue with Google" unlock is a live browser-session check. Storing a
+  refresh token would let anyone at the PC unlock silently.
+- **Unlock-by-provider bypasses the PIN on purpose**
+  (`users.activateUserViaProvider` → `doActivate` without `verifyPin`):
+  possession of the provider session is the stronger factor. Subjects are
+  stable ids (google `sub`, github numeric `id` as string) — logins/emails
+  can change.
+- **Pending-ticket bridge** (`oauth/tickets.js`): sign-in completed but no
+  identity matched → profile (+ github token) parks in a 5-min one-shot map;
+  `users-create` validates the ticket BEFORE `createUser` so create+link+
+  token-save is atomic. LockScreen pre-fills the create form from the ticket.
+- **Token vault** (`oauth/tokenStore.js`): `identities/<id>/auth.json`,
+  `safeStorage.encryptString` base64 blobs. If OS encryption is unavailable
+  we REFUSE to store (never plaintext) — link still works, API features ride
+  the gh CLI only, UI explains via `safeStorage:false` in github-status.
+- **Hybrid token resolution** (`github-api.js`): `gh auth token` spawned with
+  `{...process.env, ...activeUserEnv()}` (GH_CONFIG_DIR = the identity's gh
+  login) first, vault second. 5-min positive cache per user id, 60s negative
+  cache for gh misses (don't spawn a process per poll). 401 → drop cache so
+  the other source gets a chance. ETag cache per `${userId}:${key}` — 304s
+  are free against the rate limit; notifications honor `X-Poll-Interval`.
+- **Event channel**: flows emit over `sush:oauth-event` via
+  `oauth/events.js` (ipc.js installs the sender — keeps BrowserWindow
+  ownership in one place). Phases: device-code / success / error / cancelled.
+  ProviderButtons is the single renderer consumer; LockScreen + UserManager
+  react via `onResult`.
+- **OAuth client config is global, in main** (`sush-oauth.json`): the lock
+  screen needs it pre-sign-in and renderer localStorage is per-user scoped.
+  The Google "installed app" secret is registration data, not an
+  access-granting credential — plaintext is acceptable and documented.
+- **users-activate / users-signout clear the GitHub cache**, and the badge
+  poll in App.jsx is gated on `identity.ready` — user 2 never sees user 1's
+  data, even transiently.
+
+### FIF in passing
+- `commands/gh.js` and `clone` ran `gh` with no env override → host's gh
+  login leaked into every identity. Both now spread `activeUserEnv()`.
+- `resolveExecutable`/`shimSpawnSpec` extracted to `src/main/exec.js` so
+  command modules and `github-api.js` can use them without importing ipc.js
+  (would be a registry→commands→ipc cycle).
+
+## 3.6.0 — "Identity" implementation notes
+
+### Multi-user identities — the design
+- **The isolation mechanism is environment redirection, not OS users.**
+  `src/main/users.js` owns the store (`userData/sush-users.json`:
+  `{version, users[], lastUserId}`) and `activeUserEnv()`, which the PTY spawn
+  in `ipc.js` spreads *after* `.sushrc` env so identity always wins:
+  `{...process.env, ...sushrcEnv, ...activeUserEnv(), ...}`. Two levels:
+  - `cli` → `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GH_CONFIG_DIR`, `XDG_CONFIG_HOME/
+    DATA/STATE/CACHE` → `identities/<id>/home/...` (pre-created dirs).
+  - `full` → additionally `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA` —
+    catches CLIs that key off `os.homedir()` (gemini, git, ssh, npm).
+  When no user is active, `activeUserEnv()` returns `{}` — legacy solo installs
+  behave exactly as before (the IPC-failure path in `useIdentity` also degrades
+  to this).
+- **THE cardinal ordering rule: no Terminal mounts until identity is resolved.**
+  App.jsx early-returns (loading placeholder / LockScreen) before the main tree;
+  a PTY spawned earlier would inherit the host env and leak the real `~/.claude`.
+  The early returns sit *after* every hook call, so hook order is stable.
+- **`activeId` is runtime-only in main** (never persisted; only `lastUserId`
+  is). Renderer reload while main holds a session = silent resume — that's how
+  user switching works: it's always `location.reload()`, because renderer state
+  was initialized from the previous user's storage scope and a reload is the
+  only honest rebuild. Sign-out closes **all PTYs in main first**
+  (`closeAllPtySessions()` then `signOut()`), so the next user can't type into a
+  predecessor's logged-in shell.
+- **localStorage scoping is a `Storage.prototype` shim**
+  (`lib/userScope.js`, installed in `main.jsx` *before* render): get/set/remove
+  on keys starting `sush` are rewritten to `u:<userId>::<key>`. Global
+  exceptions: `sush-active-user`, the migration flag. First-ever user adopts
+  legacy unprefixed keys via `migrateLegacyInto()` (one-time, flagged
+  `sush-scope-migrated-v1`). No module reads localStorage at module scope
+  (verified), so import hoisting can't beat the shim.
+- **Scrollback bleed fix:** Terminal `restoreKey` is now
+  `u:<userId>:<profile:shell:cwd>` — without the prefix, two users in the same
+  cwd would replay each other's buffers from the global scrollback store.
+- **PIN = scrypt(pin, salt) + timingSafeEqual** (`/^\d{4,8}$/`). It's a casual
+  lock, NOT encryption — credentials on disk stay readable by anyone with file
+  access. Framed honestly in the UI. Delete-user can `rmSync` the identity dir
+  (`wipeData`).
+- **IPC re-registration guard:** `registerIpcHandlers` is module-guarded
+  (`handlersRegistered`) but always refreshes a module-level `mainWin` ref —
+  without that, a recreated window would strand `pty-start`/watchers on a dead
+  closure.
+
+### FIF pass (bugs fixed this release)
+- **Chord double-fire:** xterm received app chords *and* the window handler
+  fired (Ctrl+W = close tab + `^W` to shell). Fix: `attachCustomKeyEventHandler`
+  in `useTerminal.js` returns `false` for the exact chord set App.jsx owns
+  (the window listeners still get the event — xterm just stops forwarding to
+  the PTY). Ctrl+Shift+C/V are handled inside that handler (copy selection /
+  `term.paste` so bracketed-paste mode is honored).
+- **Sync `taskkill` froze the UI** when closing swarms — now async `spawn`
+  with `proc.kill` fallback; sync `execFileSync` only on `before-quit`.
+- Stale `splitTabId` left a blank pane after closing the right-pane session;
+  `pendingPtyRef` + `tabMeta` entries leaked on close; file watchers leaked on
+  quit; `run-command` crashed on null input; session-layout restore capped at
+  12 instead of MAX_SESSIONS=16.
+- **Seducia CLI ENOENT on Windows:** `resolveExecutable` took the *first*
+  `where.exe` hit — for npm globals that's the extensionless POSIX sh shim
+  (`%APPDATA%\npm\claude`), which `spawn` can't execute. Fix in `ipc.js`:
+  prefer hits matching `\.(exe|cmd|bat|com)$`, else probe runnable siblings
+  (`hit + .cmd/.exe/.bat`) before falling back. The existing `.cmd → cmd.exe /c`
+  routing in `runClaudeCli`/`open-in-editor` then applies. Lesson: on win32,
+  "first `where` result" ≠ "spawnable" — npm ships both shims side by side.
+
 ## 3.5.1 — performance pass
 
 - **The big idle-CPU culprit was the status bar.** It polled `get-system-stats`

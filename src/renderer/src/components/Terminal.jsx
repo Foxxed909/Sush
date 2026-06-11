@@ -20,13 +20,16 @@ export default function Terminal({
   onNewTab,
   onCommand,
   onSessionState,
-  onReady
+  onReady,
+  onExport
 }) {
   const containerRef = useRef(null)
   const copyNoticeTimerRef = useRef(null)
+  const dragDepthRef = useRef(0)
   const [ctxMenu, setCtxMenu] = useState(null)
   const [showSearch, setShowSearch] = useState(false)
   const [copyNotice, setCopyNotice] = useState('')
+  const [dragOver, setDragOver] = useState(false)
   const accent = theme?.ui?.accent ?? '#ff6b9d'
 
   const handleAutoCopy = useCallback((text) => {
@@ -90,6 +93,40 @@ export default function Terminal({
     pasteText(text)
   }, [pasteText])
 
+  // Drag a file/folder from Explorer onto the terminal → its path lands at the
+  // cursor, quoted if it contains spaces. dragDepthRef counts enter/leave pairs
+  // because dragleave also fires when crossing into child elements.
+  const handleDragEnter = useCallback((e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return
+    e.preventDefault()
+    dragDepthRef.current += 1
+    setDragOver(true)
+  }, [])
+
+  const handleDragOver = useCallback((e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [])
+
+  const handleDragLeave = useCallback(() => {
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault()
+    dragDepthRef.current = 0
+    setDragOver(false)
+    const paths = Array.from(e.dataTransfer?.files ?? []).map(f => f.path).filter(Boolean)
+    if (paths.length) {
+      pasteText(paths.map(p => (/\s/.test(p) ? `"${p}"` : p)).join(' ') + ' ')
+      return
+    }
+    const text = e.dataTransfer?.getData('text')
+    if (text) pasteText(text)
+  }, [pasteText])
+
   return (
     <div
       style={{
@@ -105,8 +142,35 @@ export default function Terminal({
         pointerEvents: (active || splitVisible) ? 'auto' : 'none'
       }}
       onContextMenu={handleContextMenu}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+
+      {dragOver && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 6,
+            zIndex: 130,
+            border: `2px dashed ${accent}`,
+            borderRadius: 10,
+            background: `${accent}14`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            fontSize: 12.5,
+            fontWeight: 800,
+            color: accent,
+            letterSpacing: 0.4
+          }}
+        >
+          Drop to paste path
+        </div>
+      )}
 
       {copyNotice && (
         <div
@@ -167,6 +231,7 @@ export default function Terminal({
           onPaste={handlePaste}
           onClear={clear}
           onNewTab={onNewTab}
+          onExport={onExport}
           onClose={() => setCtxMenu(null)}
         />
       )}
