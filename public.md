@@ -1,7 +1,126 @@
 # Sush — Public Changelog
 
-A custom Electron terminal (React + node-pty) with AI orchestration (Seducia),
-swarms/workspaces, split panes, broadcast, themes, and a built-in command layer.
+Sush — the terminal your agents live in. Electron + React + node-pty with AI
+orchestration (Seducia), workspaces, split panes, broadcast, themes, and a
+built-in command layer.
+
+---
+
+## 4.1.0 — "Helm" continued
+
+The live-testing round: smarter handoffs, a grid cockpit, and a face.
+
+### Added
+- **Smart handoff.** Hand off now targets a real agent (Claude/Codex/Gemini
+  chips), and an **AI summary** button has your claude CLI read the session's
+  output and write the brief — the new agent boots, gets briefed, and starts
+  working. No more notes left at empty shell prompts.
+- **Grid layout** (Ctrl+Shift+G or the grid button): every session in the
+  workspace tiled at once with name chips and live status dots; click to
+  focus, maximize button per tile. Sleeping sessions show as click-to-wake
+  placeholders and at most 9 tiles render — your CPU stays safe.
+- **App icon.** Sush has a face now — glossy pink orb, taskbar/tray/installer.
+- **Custom wallpaper** (Settings > Appearance) with a readability dim slider,
+  stored per user. Plus: set your profile photo right on the create form.
+- **Claude limit previewer** — Settings > AI shows your current Claude window
+  status and reset time (captured free from panel runs; Check now probes on
+  demand). The Claude panel header shows it too.
+- **Add account opens the sign-in for you** — new slot activates and a session
+  running that CLI opens immediately; complete the login and you're done.
+- **Settings is a full standalone page** with a section nav — room to grow.
+- **Sidebar minimize** to a thin strip; **PIN auto-submits** on the last digit
+  (re-set your PIN once to enable); profile viewer gains **unlink** per
+  provider and a guarded **Delete account**.
+- **Hush sends automatically** now (review-first available in Settings) and
+  shows visible feedback when the mic fails instead of silently giving up.
+- **`doctor` shows identity isolation** — who's signed in, where claude's
+  config points, whether the login is isolated or shared with the host.
+
+### Fixed
+- **Open-to-home + lazy boot:** the app no longer ignites every restored
+  session on launch (the crash-on-open CPU spike); sessions boot when first
+  viewed.
+- **Profile settings no longer reset** after a crashed sign-out (scope
+  mismatch at boot now reloads instead of overwriting saved state).
+- Seducia verifies a launch directory exists before spinning up a swarm, can
+  target sessions **by name** ("tell Claude Code 2 ..."), knows which session
+  you're looking at, and relays errors between sessions via read-output.
+- CLI timeout 90s → 180s and Seducia's claude calls skip MCP servers
+  (`--strict-mcp-config`) — the main cause of "claude timed out" on slower
+  machines.
+- Boot banner and splash said "Lexicon" — now Helm.
+
+---
+
+## 4.0.0 — "Helm"
+
+Seducia takes the helm, sessions move into Workspaces, and Claude Code gets
+its own panel.
+
+### Added — Seducia runs the place
+- **Full control.** New actions: close sessions, close/rename workspaces,
+  switch themes, and **read-output** — she tails a session's terminal output
+  and reviews what the agents actually did before reporting back (no
+  guessing). Destructive actions stay behind clear user intent; launches
+  keep the confirm card.
+- **Seducia Main vs Seducia Project.** One orb, two scopes: on the home
+  screen she's Main (whole-app control); inside a workspace she becomes that
+  workspace's Project Seducia — her own chat history per workspace, actions
+  fenced to its sessions, launches grow the workspace instead of opening a
+  new one. A scope chip in the header shows who you're talking to.
+
+### Added — Workspaces
+- **Sessions live inside Workspaces** now. Every launch creates a workspace
+  (a solo session is a workspace of one); the rail groups, counts and
+  collapses them, and the New Workspace modal names them up front.
+- **Rename a workspace** by double-clicking its name in the rail (or ask
+  Seducia). The status bar shows `N ws · M sessions`.
+
+### Added — Claude Code panel
+- A **mini-ADE in the right panel**: prompt Claude Code on the active
+  directory and watch the work happen live — streamed markdown, every tool
+  call (file edits, commands, searches) as an expandable step with its
+  result, stop button, and **per-directory resumable conversations**.
+
+### Added — Accounts
+- **Multiple CLI accounts per profile.** Add extra Claude Code / Codex
+  accounts (Settings > AI > CLI accounts) and switch between them without
+  switching Sush profiles. Adding a slot makes it active — log in from the
+  next session you open.
+- **Session-limit policy: Never / Ask / Auto.** When a CLI hits its limit
+  and you have another account for it, Sush either tells you a switch is
+  available or hops accounts and retries on its own.
+- **Sign-in works out of the box.** The Accounts panel no longer asks for
+  client IDs — GitHub ships ready; Google shows "coming soon" until its
+  built-in registration lands.
+
+### Added — Hush (voice-to-text)
+- **Hush**, Sush's dictation tool: tap the mic (bottom-left) or press
+  **Ctrl+Shift+S** anywhere — even inside a terminal — speak, and the words
+  are typed into the focused terminal *without* Enter, so you review before
+  submitting. Pure dictation, separate from Seducia. Toggle in Settings >
+  Window.
+
+### Added — Quality of life
+- **Idle sleep.** No input for N minutes (Settings > Window, default 10) and
+  Sush dims, freezes every animation, and stops all polling — terminals and
+  agents keep running untouched. Any key wakes it. Saves battery and GPU.
+- **Locked tiles for missing CLIs.** The launcher checks which agent CLIs
+  are actually installed; missing ones show a lock and "Not installed"
+  instead of failing after launch. Re-scan button included.
+- **Workspace-scoped repo search** in the GitHub panel (plain queries search
+  *your* repos, not all of GitHub).
+
+### Fixed
+- Seducia's CLI replies now run under *your* identity's logins (the spawn
+  missed the per-user env redirect).
+- A stopped/aborted AI reply can no longer execute half-parsed actions.
+- AI launches are capped at the session limit and survive incomplete agent
+  specs (missing command/label) instead of opening dead shells.
+- The launch-card countdown no longer stalls while you type.
+- The Seducia orb re-clamps to the screen on restore (no more stranding it
+  off-screen after a monitor change).
+- ENGINE marker lines no longer flash in the transcript mid-stream.
 
 ---
 

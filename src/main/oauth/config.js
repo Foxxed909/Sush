@@ -8,11 +8,17 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 // scoped). Plaintext is fine: a device-flow client id and an installed-app
 // Google secret are app registration data, not access-granting credentials.
 //
-// Sush ships a built-in GitHub OAuth App client id (public by design — same
-// model as gh CLI / VS Code) so "Continue with GitHub" works out of the box.
-// A value saved in sush-oauth.json overrides it. Google has no built-in:
-// loopback clients need a per-install Cloud Console registration.
+// Sush ships built-in OAuth client registrations (public by design — same
+// model as gh CLI / VS Code / gcloud; an installed-app "secret" is not a
+// secret) so "Continue with ..." works out of the box. A value saved in
+// sush-oauth.json overrides the built-in.
 const DEFAULT_GITHUB_CLIENT_ID = 'Ov23lidlNNPLGTU05JOD'
+// Google Desktop-app client (loopback PKCE). An installed-app "secret" is
+// public by design — Google's docs say loopback clients cannot keep one;
+// gcloud ships its own the same way. It grants nothing without the user's
+// live browser session.
+const DEFAULT_GOOGLE_CLIENT_ID = '1034687780333-b1guo43785imdpl2np1blrv9iqvfe3vu.apps.googleusercontent.com'
+const DEFAULT_GOOGLE_CLIENT_SECRET = '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'
 
 let stored = null   // exactly what's on disk (no defaults baked in)
 
@@ -39,7 +45,10 @@ export function getOauthConfig() {
   const s = loadStored()
   return {
     github: { clientId: s.github.clientId || DEFAULT_GITHUB_CLIENT_ID },
-    google: { clientId: s.google.clientId, clientSecret: s.google.clientSecret }
+    google: {
+      clientId: s.google.clientId || DEFAULT_GOOGLE_CLIENT_ID,
+      clientSecret: s.google.clientSecret || DEFAULT_GOOGLE_CLIENT_SECRET
+    }
   }
 }
 
@@ -57,11 +66,22 @@ export function setOauthConfig(patch = {}) {
 }
 
 // Renderer-safe shape: the secret never crosses the bridge, only its
-// presence; github exposes whether the built-in app id is in play.
+// presence; each provider exposes whether the built-in app is in play and
+// whether sign-in is ready to use at all.
 export function publicOauthConfig() {
   const s = loadStored()
+  const eff = getOauthConfig()
   return {
-    github: { clientId: s.github.clientId, usingBuiltIn: !s.github.clientId },
-    google: { clientId: s.google.clientId, hasSecret: !!s.google.clientSecret }
+    github: {
+      clientId: s.github.clientId,
+      usingBuiltIn: !s.github.clientId,
+      configured: !!eff.github.clientId
+    },
+    google: {
+      clientId: s.google.clientId,
+      hasSecret: !!s.google.clientSecret,
+      usingBuiltIn: !s.google.clientId && !s.google.clientSecret,
+      configured: !!(eff.google.clientId && eff.google.clientSecret)
+    }
   }
 }

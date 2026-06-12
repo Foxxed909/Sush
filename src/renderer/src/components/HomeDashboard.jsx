@@ -202,7 +202,7 @@ export default function HomeDashboard({
               }}
             >
               <Icon name="plus" size={16} strokeWidth={2.6} color="#0a0a0a" />
-              New session
+              New workspace
             </button>
           </div>
         </div>
@@ -362,7 +362,7 @@ export default function HomeDashboard({
           </section>
 
           <section style={{ minWidth: 0 }}>
-            <SectionLabel icon="clock" accent={accent}>Recent sessions</SectionLabel>
+            <SectionLabel icon="clock" accent={accent}>Recent workspaces</SectionLabel>
             <div className="flex flex-col" style={{ gap: 9 }}>
               {recentSessions.length ? recentSessions.slice(0, 5).map(item => (
                 <button

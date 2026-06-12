@@ -430,3 +430,20 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sush-lock-blob { animation: none; }
 }
+
+/* ── Idle sleep ─────────────────────────────────────────────────────────────
+   While body[data-sleeping] is set, every animation and transition freezes
+   (GPU/battery) except the overlay's own breathing orb. Polls are gated in
+   usePolling; this handles the purely cosmetic load. */
+body[data-sleeping] *:not(.sush-sleep-breathe) {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+@keyframes sush-sleep-breathe {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50% { opacity: 0.9; transform: scale(1.04); }
+}
+.sush-sleep-breathe { animation: sush-sleep-breathe 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sush-sleep-breathe { animation: none; }
+}

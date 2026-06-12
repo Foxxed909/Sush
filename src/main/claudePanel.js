@@ -1,0 +1,225 @@
+import { spawn } from 'child_process'
+import { resolveExecutable, shimSpawnSpec } from './exec'
+import { activeUserEnv } from './users'
+
+// Claude Code panel backend: drives `claude -p --output-format stream-json`
+// and relays each NDJSON event to the renderer as it lands — live streamed
+// text, visible tool calls, and a session id for --resume continuity. The
+// prompt goes over STDIN (never argv; cmd.exe re-parses .cmd shim argv).
+//
+// One run per panel id at a time. State here is just the child process map —
+// conversation continuity lives in Claude Code's own session store, keyed by
+// the session id we hand back to the renderer.
+
+const runs = new Map()   // panelId -> { child, buf }
+let send = null          // (payload) => renderer, set by ipc.js
+
+export function setClaudePanelSender(fn) { send = fn }
+
+// Last rate-limit snapshot seen on any claude stream-json run. The CLI emits
+// a rate_limit_event up front on every run, so panel use keeps this fresh
+// for free; checkClaudeLimits() probes explicitly (one tiny prompt).
+let lastLimits = null    // { status, resetsAt(ms), rateLimitType, at }
+
+function captureLimits(msg) {
+  if (msg?.type !== 'rate_limit_event' || !msg.rate_limit_info) return
+  const info = msg.rate_limit_info
+  lastLimits = {
+    status: info.status || 'unknown',
+    resetsAt: Number(info.resetsAt) ? Number(info.resetsAt) * 1000 : null,
+    rateLimitType: info.rateLimitType || '',
+    at: Date.now()
+  }
+  send?.({ panelId: '*', kind: 'limits', limits: lastLimits })
+}
+
+export function getClaudeLimits() {
+  return { ok: true, limits: lastLimits }
+}
+
+// Active probe: start a minimal run, grab the rate_limit_event, kill the
+// child before it does any real work. Costs (at most) a few tokens.
+export function checkClaudeLimits() {
+  const bin = resolveExecutable('claude')
+  if (!bin) return Promise.resolve({ ok: false, error: 'The `claude` CLI was not found on your PATH.' })
+  const { file, args } = shimSpawnSpec(bin, ['-p', '--output-format', 'stream-json', '--verbose', '--strict-mcp-config'])
+  return new Promise(resolve => {
+    let buf = ''
+    let settled = false
+    let child
+    const done = (result) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      try { child?.kill() } catch {}
+      resolve(result)
+    }
+    try {
+      child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...activeUserEnv() } })
+    } catch (e) {
+      return resolve({ ok: false, error: e.message })
+    }
+    const timer = setTimeout(() => done({ ok: false, error: 'Timed out checking limits (60s).' }), 60000)
+    child.stdout.on('data', d => {
+      buf += d
+      for (const line of buf.split('\n')) {
+        if (!line.trim()) continue
+        try {
+          const msg = JSON.parse(line)
+          captureLimits(msg)
+          if (msg.type === 'rate_limit_event') { done({ ok: true, limits: lastLimits }); return }
+        } catch {}
+      }
+    })
+    child.on('error', e => done({ ok: false, error: e.message }))
+    child.on('close', () => done(lastLimits ? { ok: true, limits: lastLimits } : { ok: false, error: 'No limit info in the response.' }))
+    try { child.stdin.write('ping'); child.stdin.end() } catch (e) { done({ ok: false, error: e.message }) }
+  })
+}
+
+function emit(panelId, event) {
+  send?.({ panelId, ...event })
+}
+
+// Map a stream-json line to the small renderer event vocabulary. Returns null
+// for events the panel does not visualize (yet).
+function mapEvent(msg) {
+  if (msg.type === 'system' && msg.subtype === 'init') {
+    return { kind: 'init', sessionId: msg.session_id, model: msg.model, cwd: msg.cwd }
+  }
+  if (msg.type === 'assistant') {
+    const blocks = msg.message?.content || []
+    const events = []
+    for (const b of blocks) {
+      if (b.type === 'text' && b.text) events.push({ kind: 'text', text: b.text })
+      if (b.type === 'tool_use') {
+        events.push({
+          kind: 'tool',
+          id: b.id,
+          name: b.name,
+          // Surface the human-readable essence, not the whole payload.
+          detail: b.input?.file_path || b.input?.command || b.input?.pattern || b.input?.path || b.input?.url || '',
+        })
+      }
+    }
+    return events
+  }
+  if (msg.type === 'user') {
+    const blocks = msg.message?.content
+    if (Array.isArray(blocks)) {
+      const events = []
+      for (const b of blocks) {
+        if (b.type === 'tool_result') {
+          const text = typeof b.content === 'string'
+            ? b.content
+            : (b.content || []).map(c => c.text || '').join('')
+          events.push({ kind: 'tool-result', id: b.tool_use_id, error: !!b.is_error, preview: String(text).slice(0, 400) })
+        }
+      }
+      return events
+    }
+    return null
+  }
+  if (msg.type === 'result') {
+    return {
+      kind: 'done',
+      ok: msg.subtype === 'success',
+      sessionId: msg.session_id,
+      costUsd: msg.total_cost_usd,
+      durationMs: msg.duration_ms,
+      error: msg.subtype !== 'success' ? (msg.result || msg.subtype) : undefined
+    }
+  }
+  return null
+}
+
+export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissionMode }) {
+  if (!panelId || !String(prompt ?? '').trim()) return { ok: false, error: 'Empty prompt' }
+  if (runs.has(panelId)) return { ok: false, error: 'A run is already in progress' }
+  const bin = resolveExecutable('claude')
+  if (!bin) return { ok: false, error: 'The `claude` CLI was not found on your PATH.' }
+
+  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages']
+  if (sessionId) args.push('--resume', String(sessionId))
+  // Panel default: plan-free editing inside the chosen workspace dir, still
+  // gated by Claude Code's own permission config. 'acceptEdits' keeps file
+  // edits flowing without a TTY to answer prompts on.
+  args.push('--permission-mode', permissionMode === 'default' ? 'default' : 'acceptEdits')
+
+  const { file, args: fullArgs } = shimSpawnSpec(bin, args)
+  let child
+  try {
+    child = spawn(file, fullArgs, {
+      cwd: cwd || undefined,
+      windowsHide: true,
+      env: { ...process.env, ...activeUserEnv() }
+    })
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+
+  const run = { child, buf: '' }
+  runs.set(panelId, run)
+
+  const handleLine = (line) => {
+    const trimmed = line.trim()
+    if (!trimmed) return
+    let msg
+    try { msg = JSON.parse(trimmed) } catch { return }
+    captureLimits(msg)
+    // stream_event partials give the live-typing feel between full messages.
+    if (msg.type === 'stream_event') {
+      const delta = msg.event?.delta
+      if (delta?.type === 'text_delta' && delta.text) emit(panelId, { kind: 'delta', text: delta.text })
+      return
+    }
+    const mapped = mapEvent(msg)
+    if (!mapped) return
+    for (const ev of Array.isArray(mapped) ? mapped : [mapped]) emit(panelId, ev)
+  }
+
+  child.stdout.on('data', (d) => {
+    run.buf += d
+    const lines = run.buf.split('\n')
+    run.buf = lines.pop()
+    lines.forEach(handleLine)
+  })
+  let stderr = ''
+  child.stderr.on('data', (d) => { stderr = (stderr + d).slice(-2000) })
+  child.on('error', (e) => {
+    runs.delete(panelId)
+    emit(panelId, { kind: 'done', ok: false, error: e.message })
+  })
+  child.on('close', (code) => {
+    if (run.buf.trim()) handleLine(run.buf)
+    if (runs.delete(panelId) && code !== 0) {
+      emit(panelId, { kind: 'done', ok: false, error: (stderr.trim() || `claude exited with code ${code}`).slice(0, 500) })
+    }
+  })
+
+  try {
+    child.stdin.write(String(prompt))
+    child.stdin.end()
+  } catch (e) {
+    runs.delete(panelId)
+    try { child.kill() } catch {}
+    return { ok: false, error: e.message }
+  }
+  return { ok: true }
+}
+
+export function stopClaudePanelRun({ panelId }) {
+  const run = runs.get(panelId)
+  if (!run) return { ok: true }
+  runs.delete(panelId)
+  try { run.child.kill() } catch {}
+  emit(panelId, { kind: 'done', ok: false, error: 'Stopped.' })
+  return { ok: true }
+}
+
+export function stopAllClaudePanelRuns() {
+  for (const [panelId, run] of runs) {
+    try { run.child.kill() } catch {}
+    runs.delete(panelId)
+  }
+}

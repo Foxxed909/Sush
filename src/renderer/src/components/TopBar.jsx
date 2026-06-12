@@ -62,7 +62,8 @@ function GhostToggle({ icon, on, danger, onClick, title }) {
 // SmartCommandBar + StatusBar.
 export default function TopBar({
   accent, activeTab, onRun, onHome, onSettings, busy, sessionCount = 0,
-  broadcastMode, onToggleBroadcast, splitMode, onToggleSplit, rightOpen, onTogglePanel,
+  broadcastMode, onToggleBroadcast, splitMode, onToggleSplit, gridMode, onToggleGrid,
+  rightOpen, onTogglePanel,
   settings = {}
 }) {
   const [value, setValue] = useState('')
@@ -230,6 +231,7 @@ export default function TopBar({
         {/* View toggles (ghost) */}
         <div className="flex items-center" style={{ gap: 2, WebkitAppRegion: 'no-drag' }}>
           {onToggleSplit && <GhostToggle icon="layout" on={splitMode} onClick={onToggleSplit} title={splitMode ? 'Exit split (Ctrl+Shift+H)' : 'Split pane (Ctrl+Shift+H)'} />}
+          {onToggleGrid && <GhostToggle icon="grid" on={gridMode} onClick={onToggleGrid} title={gridMode ? 'Exit grid (Ctrl+Shift+G)' : 'Grid - all sessions tiled (Ctrl+Shift+G)'} />}
           {onToggleBroadcast && <GhostToggle icon="radio" on={broadcastMode} danger onClick={onToggleBroadcast} title={broadcastMode ? 'Broadcast ON (Ctrl+Shift+B)' : 'Broadcast (Ctrl+Shift+B)'} />}
           <GhostToggle icon="panel" on={rightOpen} onClick={onTogglePanel} title={rightOpen ? 'Hide tools (Ctrl+B)' : 'Tools (Ctrl+B)'} />
           <GhostToggle icon="settings" on={false} onClick={onSettings} title="Settings (Ctrl+,)" />

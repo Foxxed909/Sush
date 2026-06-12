@@ -4,7 +4,8 @@ import { rgba } from '../lib/ui'
 
 // Downscale + center-crop a picked image to a small square JPEG data URL so
 // it can live inside sush-users.json (~10-20KB) without bloating the store.
-function fileToAvatarDataUrl(file, size = 128) {
+// Exported: the lock-screen create form uses the same pipeline.
+export function fileToAvatarDataUrl(file, size = 128) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
@@ -29,16 +30,24 @@ function fileToAvatarDataUrl(file, size = 128) {
 }
 
 // Who am I, at a glance: big avatar (click to change), identity details,
-// linked accounts, and the big honest buttons - Lock and Sign out.
-export default function ProfileViewer({ user, accent, onClose, onChanged, onLock, onSignOut, onManageUsers }) {
+// linked accounts (with unlink), Lock / Sign out, and account deletion.
+export default function ProfileViewer({ user, accent, onClose, onChanged, onLock, onSignOut, onManageUsers, onDeleteAccount }) {
   const fileRef = useRef(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [hover, setHover] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   if (!user) return null
   const color = user.color || accent
   const github = user.providers?.github
   const google = user.providers?.google
+
+  const unlink = async (provider) => {
+    setError('')
+    const res = await window.sush.oauthUnlink({ userId: user.id, provider })
+    if (!res?.ok) setError(res?.error || `Could not unlink ${provider}`)
+    else onChanged?.()
+  }
 
   const onFile = async (e) => {
     const file = e.target.files?.[0]
@@ -146,13 +155,19 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
           {github && (
             <div className="flex items-center" style={{ gap: 8, padding: '5px 0' }}>
               <Icon name="github" size={13} color="#aab3bb" />
-              <span style={{ fontSize: 12, color: '#c6cdd4' }}>@{github.login}</span>
+              <span style={{ fontSize: 12, color: '#c6cdd4', flex: 1 }}>@{github.login}</span>
+              <button onClick={() => unlink('github')} title="Unlink GitHub from this account" style={{ background: 'none', border: 'none', color: '#69737d', fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                unlink
+              </button>
             </div>
           )}
           {google && (
             <div className="flex items-center" style={{ gap: 8, padding: '5px 0' }}>
               <Icon name="google" size={13} color="#aab3bb" />
-              <span style={{ fontSize: 12, color: '#c6cdd4' }}>{google.email || google.name}</span>
+              <span style={{ fontSize: 12, color: '#c6cdd4', flex: 1 }}>{google.email || google.name}</span>
+              <button onClick={() => unlink('google')} title="Unlink Google from this account" style={{ background: 'none', border: 'none', color: '#69737d', fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                unlink
+              </button>
             </div>
           )}
         </div>
@@ -173,6 +188,36 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
             <Icon name="logout" size={12} style={{ verticalAlign: -2, marginRight: 6 }} />Sign out
           </button>
         </div>
+
+        {/* Delete account — two-step, honest about what it does */}
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            style={{ marginTop: 12, background: 'none', border: 'none', color: '#5a646d', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Delete this account...
+          </button>
+        ) : (
+          <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,83,112,0.06)', border: '1px solid rgba(255,83,112,0.25)', textAlign: 'left' }}>
+            <div style={{ fontSize: 11.5, color: '#ffb3c0', fontWeight: 700, lineHeight: 1.5 }}>
+              Delete "{user.name}" from Sush? Sessions close and the profile disappears from the lock screen. CLI logins and files in its home folder stay on disk.
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                onClick={() => { onClose(); onDeleteAccount?.(user.id) }}
+                style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: '#ff5370', color: '#0a0a0c', fontWeight: 900, fontSize: 11.5, cursor: 'pointer' }}
+              >
+                Delete account
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: '#aab3bb', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
+              >
+                Keep it
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -31,6 +31,22 @@ contextBridge.exposeInMainWorld('sush', {
   appVersion: () => ipcRenderer.invoke('sush:app-version'),
   homeDir: () => ipcRenderer.invoke('sush:home-dir'),
   seduciaCli: (payload) => ipcRenderer.invoke('sush:seducia-cli', payload),
+  checkClis: (payload) => ipcRenderer.invoke('sush:check-clis', payload),
+  // CLI account slots (multi-account per identity)
+  accountsList: () => ipcRenderer.invoke('sush:accounts-list'),
+  accountsAdd: (payload) => ipcRenderer.invoke('sush:accounts-add', payload),
+  accountsSwitch: (payload) => ipcRenderer.invoke('sush:accounts-switch', payload),
+  accountsRemove: (payload) => ipcRenderer.invoke('sush:accounts-remove', payload),
+  // Claude Code panel (stream-json driver)
+  claudePanelStart: (payload) => ipcRenderer.invoke('sush:claude-panel-start', payload),
+  claudePanelStop: (payload) => ipcRenderer.invoke('sush:claude-panel-stop', payload),
+  claudeLimitsGet: () => ipcRenderer.invoke('sush:claude-limits-get'),
+  claudeLimitsCheck: () => ipcRenderer.invoke('sush:claude-limits-check'),
+  onClaudePanelEvent: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('sush:claude-panel-event', listener)
+    return () => ipcRenderer.removeListener('sush:claude-panel-event', listener)
+  },
   getScrollback: (payload) => ipcRenderer.invoke('sush:get-scrollback', payload),
   sushrcRead: () => ipcRenderer.invoke('sush:sushrc-read'),
   sushrcWrite: (payload) => ipcRenderer.invoke('sush:sushrc-write', payload),

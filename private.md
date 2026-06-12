@@ -14,6 +14,113 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 4.0.0 — "Helm" implementation notes
+
+### Seducia full control + scoping
+- **One executor**: `lib/seduciaActions.js` `applyAction(intent, ctx)` is the
+  ONLY place actions execute — the orb (useSeducia) and the docked panel
+  (Seducia.jsx) both call it. New action = add a case there + a line in the
+  ai.js system prompt; both surfaces get it for free. It returns
+  `{text, readout?}`; readout is raw session output.
+- **Scope**: App computes `seduciaScope` (`{kind:'main'}` on Home,
+  `{kind:'project', groupId, label, cwd}` when the active tab is in a
+  workspace) and `seduciaControls` (closeSessions/closeWorkspace/
+  renameWorkspace/setTheme/readOutput closures over App state). Both flow
+  into SeduciaOrb + RightPanel→Seducia. Project scope = tabs filtered by
+  groupId, launches pass groupId so launchSessions GROWS the workspace
+  instead of minting a new one, prompt/focus/close are fenced by groupId.
+- **Per-scope chat history**: useSeducia parks {log, aiMessages} in a Map
+  keyed by groupId|'main' on scope change and restores on return. In-flight
+  streams are not aborted on scope change (the reply lands in the new log if
+  it arrives after the swap — acceptable; revisit if confusing).
+- **read-output loop**: useSeducia's `runTurn` recurses (depth ≤ 2) when an
+  action returns readout — it's appended as a hidden user turn
+  (`formatReadout`) and she answers again. The docked panel does NOT loop;
+  it prints a 600-char preview inline instead.
+- **Action safety**: aborted streams never execute actions (checked in both
+  consumers); `launchSessions` normalizes agent specs from the catalog and
+  caps total spawns at MAX_SESSIONS minus live count.
+
+### Workspaces model
+- groupId is now ALWAYS set by launchSessions (solo launch = workspace of
+  one). `makeTab` keeps groupId/groupLabel optional for plain openTab calls
+  (smart bar, recents) — those stay solo rows in the rail.
+- renameGroup lives in App; SessionRail's WorkspaceLabel double-click edits
+  it. Mission Control closeGroup already existed.
+
+### Claude Code panel
+- **Main** `claudePanel.js`: spawns `claude -p --output-format stream-json
+  --verbose --include-partial-messages [--resume id] --permission-mode
+  acceptEdits` per run, prompt over STDIN, identity env spread last. NDJSON
+  parsed line-by-line; `stream_event` text_deltas → `delta` events for live
+  typing; assistant text/tool_use blocks → `text`/`tool`; user tool_result →
+  `tool-result {preview ≤ 400ch}`; result → `done {sessionId, costUsd}`.
+  One run per panelId; before-quit kills all.
+- **Flags verified live** against claude 2.1.173 (smoke: real event stream
+  has session_id/model/cwd in init, content blocks in assistant — matches
+  the mapper 1:1). `rate_limit_event` and other unknown types are ignored.
+- **Renderer** ClaudePanel.jsx: per-cwd sessionId map in localStorage
+  (`sush-claude-panel-sessions`) → resume per directory; "New chat" clears
+  it. cwd follows the active tab UNTIL the first prompt, then pins
+  (resume needs a stable directory). Delta text accumulates into the last
+  entry; the authoritative assistant `text` block REPLACES it (dedupe).
+  Mounted hidden (display:none) so a tab switch doesn't kill a run.
+- **Markdown**: renderer extracted from RightPanel to `lib/markdown.jsx`
+  (renderMarkdown/parseInline) — shared by Preview tab + ClaudePanel.
+
+### Multi-account CLI slots
+- `main/accounts.js`: per identity `identities/<id>/accounts.json` +
+  `accounts/<provider>/<slot>/` config dirs. Providers = claude
+  (CLAUDE_CONFIG_DIR) + codex (CODEX_HOME) ONLY — gemini has no config-dir
+  env, don't add it without one. 'default' slot = no env override (the
+  identity's own dir); max 6 slots.
+- **Wiring**: `activeUserEnv()` (users.js) spreads `accountSlotEnv(user.id)`
+  LAST — every PTY, seducia-cli spawn, gh call inherits slot redirects
+  automatically. No import cycle (accounts.js imports nothing of ours).
+- **Limit cascade**: ipc.js `LIMIT_RE` sniffs limit-ish errors;
+  `runCliEngineWithAccounts` honors settings.cliLimitPolicy
+  (never/ask/auto): auto = nextAccount() + one retry (returns `switchedTo`),
+  ask = peekNextAccount() (returns `canSwitch`); streamAgentCli surfaces
+  both in the transcript. Add-account flow: addAccount ACTIVATES the new
+  empty slot — the user logs in from the next session they open.
+
+### Hush
+- `components/Hush.jsx`: standalone Web-Speech dictation; window event
+  `sush:hush-toggle` is the hotkey bridge (App dispatches on Ctrl+Shift+S;
+  's' added to APP_CTRL_SHIFT in useTerminal so xterm yields the chord).
+  Transcript goes to the focused terminal WITHOUT \r — review-then-submit
+  is the safety property; don't "improve" it by auto-submitting. Falls back
+  to clipboard when no terminal is focused. settings.hushEnabled !== false.
+
+### Idle sleep
+- App: activity listeners (keydown/pointerdown/wheel + 1s-throttled
+  pointermove) bump a ref; 15s interval trips `sleeping` after
+  settings.idleSleepMinutes (0 = off, default 10). Sets
+  `body[data-sleeping]`; usePolling's `active()` checks it (plus a per-tick
+  re-check — sleep can start without a focus event). CSS pauses ALL
+  animations/transitions under the attribute except the overlay's own orb.
+  The wake keypress is swallowed (preventDefault+stopPropagation in capture)
+  so it never reaches a PTY. PTYs/agents untouched by design.
+- Known minor gap: xterm's WebGL canvas isn't throttled by the overlay —
+  Electron stops painting occluded regions anyway, good enough.
+
+### Accounts panel
+- Settings AccountsSection is STATUS-ONLY now (READY/SOON chips); client-id
+  fields are gone. Overrides still work via userData/sush-oauth.json.
+  `publicOauthConfig()` gained `configured` + google `usingBuiltIn`.
+  DEFAULT_GOOGLE_CLIENT_ID/SECRET slots sit empty in oauth/config.js —
+  paste real values and Google sign-in goes built-in with zero UI work.
+
+### Misc
+- `sush:check-clis` (ipc) + `useCliAvailability` + NewSessionModal locked
+  tiles. Presence cached for app lifetime; Re-scan passes refresh:true.
+  Quill/OCP use `probeDir` (folder existence) instead of PATH.
+- GitHub repo search is user-scoped unless the query has `:` or `/`
+  (qualifier passthrough).
+- v3.8 FIF fixes: seducia-cli spawn now carries activeUserEnv (identity
+  bleed); LaunchCard countdown timer survives parent re-renders (goRef);
+  orb pos re-clamped on restore; ENGINE: stripped during streaming.
+
 ## 3.8.0 — "Companion" implementation notes
 
 ### Seducia orchestration

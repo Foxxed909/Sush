@@ -240,6 +240,22 @@ export const doctor = {
       lines.push(`${ansi.cyan('listening ports')} ${ansi.red(e.message)}`)
     }
 
+    // Identity isolation: shows whether CLI logins are fenced to the
+    // signed-in Sush profile or shared with the host (~/.claude). Note this
+    // reads main's CURRENT user — a session opened before a profile switch
+    // still carries the env it spawned with.
+    const identEnv = activeUserEnv()
+    lines.push('')
+    if (identEnv.SUSH_USER) {
+      lines.push(ansi.bold(ansi.pink('IDENTITY')))
+      lines.push(`${ansi.cyan('signed in as'.padEnd(14))} ${identEnv.SUSH_USER}`)
+      lines.push(`${ansi.cyan('claude config'.padEnd(14))} ${identEnv.CLAUDE_CONFIG_DIR}`)
+      const credFile = resolve(identEnv.CLAUDE_CONFIG_DIR, '.credentials.json')
+      lines.push(`${ansi.cyan('claude login'.padEnd(14))} ${existsSync(credFile) ? ansi.green('isolated to this profile') : ansi.red('none yet - run claude /login in a NEW session to put one here')}`)
+    } else {
+      lines.push(`${ansi.cyan('identity'.padEnd(14))} ${ansi.red('NO Sush profile active - sessions share the HOST CLI logins (~/.claude)')}`)
+    }
+
     return ok(lines.join('\r\n'))
   }
 }

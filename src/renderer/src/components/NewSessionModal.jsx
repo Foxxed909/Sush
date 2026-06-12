@@ -3,6 +3,7 @@ import Icon from './Icons'
 import PathField from './PathField'
 import { rgba, accentVars } from '../lib/ui'
 import { AGENTS, MAX_SESSIONS } from '../lib/agents'
+import { useCliAvailability } from '../hooks/useCliAvailability'
 
 function pathLabel(cwd) {
   if (!cwd) return ''
@@ -15,6 +16,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [cwdValid, setCwdValid] = useState(null)
   const [counts, setCounts] = useState({ shell: 1 })
   const [sessionName, setSessionName] = useState('')
+  const { avail, rescan, checking } = useCliAvailability()
 
   // Fall back to the home directory if we don't have an active path yet.
   useEffect(() => {
@@ -52,7 +54,9 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     })
   }
 
-  const oneEach = () => setCounts(Object.fromEntries(AGENTS.slice(0, MAX_SESSIONS).map(a => [a.id, 1])))
+  const oneEach = () => setCounts(Object.fromEntries(
+    AGENTS.filter(a => avail[a.id] !== false).slice(0, MAX_SESSIONS).map(a => [a.id, 1])
+  ))
   const clearAll = () => setCounts({})
 
   // cwdValid is null until the first existence check resolves; treat null as
@@ -108,16 +112,16 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               <input
                 value={sessionName}
                 onChange={e => setSessionName(e.target.value.slice(0, 40))}
-                placeholder="New session"
+                placeholder="New workspace"
                 spellCheck={false}
-                title="Name this session (optional)"
+                title="Name this workspace (optional)"
                 style={{
                   fontSize: 16, fontWeight: 900, color: '#f1f4f6', background: 'transparent',
                   border: 'none', borderBottom: `1px dashed ${sessionName ? rgba(accent, 0.5) : 'rgba(255,255,255,0.12)'}`,
                   outline: 'none', padding: '0 0 2px', width: 240, fontFamily: 'inherit'
                 }}
               />
-              <div style={{ fontSize: 11.5, color: '#76808a', marginTop: 4 }}>Pick a directory, then launch agents or CLI tools - type above to name it</div>
+              <div style={{ fontSize: 11.5, color: '#76808a', marginTop: 4 }}>Pick a directory, then launch the crew - sessions live inside this workspace</div>
             </div>
           </div>
           <button
@@ -181,6 +185,9 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             <div className="flex items-center" style={{ gap: 8 }}>
               <button onClick={oneEach} className="sush-mini-btn" style={miniBtn(accent)}>1× each</button>
               <button onClick={clearAll} className="sush-mini-btn" style={miniBtn(accent)}>Clear</button>
+              <button onClick={rescan} title="Re-check which CLIs are installed" className="sush-mini-btn" style={{ ...miniBtn(accent), opacity: checking ? 0.5 : 1 }}>
+                {checking ? 'Scanning...' : 'Re-scan'}
+              </button>
             </div>
           </div>
 
@@ -188,18 +195,22 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             {AGENTS.map(agent => {
               const count = counts[agent.id] || 0
               const on = count > 0
+              const locked = avail[agent.id] === false
               return (
                 <div
                   key={agent.id}
-                  onClick={() => setCount(agent.id, on ? 0 : 1)}
+                  onClick={() => { if (!locked) setCount(agent.id, on ? 0 : 1) }}
                   className="sush-row flex items-center"
+                  title={locked ? `${agent.label} is not installed - install it to unlock this tile` : undefined}
                   style={{
                     gap: 12,
-                    cursor: 'pointer',
+                    cursor: locked ? 'default' : 'pointer',
                     border: `1px solid ${on ? rgba(accent, 0.5) : '#1b2127'}`,
                     background: on ? rgba(accent, 0.07) : '#0f1318',
                     borderRadius: 12,
-                    padding: '12px 13px'
+                    padding: '12px 13px',
+                    opacity: locked ? 0.5 : 1,
+                    filter: locked ? 'saturate(0.4)' : 'none'
                   }}
                 >
                   <span
@@ -211,24 +222,30 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                       flexShrink: 0,
                       fontSize: agent.mono.length > 1 ? 12 : 15,
                       fontWeight: 900,
-                      color: agent.color,
-                      background: rgba(agent.color, 0.14),
-                      border: `1px solid ${rgba(agent.color, 0.4)}`
+                      color: locked ? '#5a646d' : agent.color,
+                      background: rgba(locked ? '#5a646d' : agent.color, 0.14),
+                      border: `1px solid ${rgba(locked ? '#5a646d' : agent.color, 0.4)}`
                     }}
                   >
-                    {agent.mono}
+                    {locked ? <Icon name="lock" size={15} strokeWidth={2.2} /> : agent.mono}
                   </span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: '#e6ebef' }}>{agent.label}</span>
                     <span style={{ display: 'block', fontSize: 11, color: '#76808a', marginTop: 2, fontFamily: 'inherit' }}>
-                      {agent.command ? `$ ${agent.command}` : agent.desc}
+                      {locked ? 'Not installed' : agent.command ? `$ ${agent.command}` : agent.desc}
                     </span>
                   </span>
-                  <div className="flex items-center" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>
-                    <StepBtn icon="minus" disabled={count === 0} accent={accent} onClick={() => setCount(agent.id, count - 1)} />
-                    <span style={{ width: 22, textAlign: 'center', fontSize: 14, fontWeight: 800, color: on ? accent : '#5a646d' }}>{count}</span>
-                    <StepBtn icon="plus" disabled={remaining <= 0} accent={accent} onClick={() => setCount(agent.id, count + 1)} />
-                  </div>
+                  {locked ? (
+                    <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.8, color: '#7a838b', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '3px 8px' }}>
+                      LOCKED
+                    </span>
+                  ) : (
+                    <div className="flex items-center" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                      <StepBtn icon="minus" disabled={count === 0} accent={accent} onClick={() => setCount(agent.id, count - 1)} />
+                      <span style={{ width: 22, textAlign: 'center', fontSize: 14, fontWeight: 800, color: on ? accent : '#5a646d' }}>{count}</span>
+                      <StepBtn icon="plus" disabled={remaining <= 0} accent={accent} onClick={() => setCount(agent.id, count + 1)} />
+                    </div>
+                  )}
                 </div>
               )
             })}

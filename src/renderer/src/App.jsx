@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import Terminal from './components/Terminal'
 import TitleBar from './components/TitleBar'
 import ProfileManager, { useProfiles } from './components/ProfileManager'
@@ -10,6 +10,7 @@ import StatusBar from './components/StatusBar'
 import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
 import SeduciaOrb from './components/SeduciaOrb'
+import Hush from './components/Hush'
 import MissionControl from './components/MissionControl'
 import AliasNudge from './components/AliasNudge'
 import PlansModal from './components/PlansModal'
@@ -25,13 +26,15 @@ import ProfileViewer from './components/ProfileViewer'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { themes, defaultTheme } from './themes'
-import { agentById } from './lib/agents'
+import { agentById, MAX_SESSIONS } from './lib/agents'
+import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
 import { loadPlan, savePlan } from './lib/plan'
 import { useAgentActivity } from './hooks/useAgentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { recordCommand } from './lib/commandFrequency'
 import JsonViewer from './components/JsonViewer'
+import Icon from './components/Icons'
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
 const OLD_COMMAND_RECENTS_KEY = 'sush-recents'
@@ -248,6 +251,7 @@ export default function App() {
   const [pinnedProjects, setPinnedProjects] = useState(loadPinnedProjects)
   const [broadcastMode, setBroadcastMode] = useState(false)
   const [splitMode, setSplitMode] = useState(false)
+  const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
   const [splitTabId, setSplitTabId] = useState(null)
   const [splitRatio, setSplitRatio] = useState(0.5)   // left-pane fraction (0.2–0.8)
   const [focusedPane, setFocusedPane] = useState('left')  // 'left' | 'right'
@@ -258,6 +262,12 @@ export default function App() {
   const [switcher, setSwitcher] = useState(null)  // { order:[ids], index } when open
   const [splash, setSplash] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [sleeping, setSleeping] = useState(false)
+  // Lazy boot: restored tabs are rail entries only until first viewed — their
+  // PTY (and agent resume command) spawns on demand. Opening the app no
+  // longer ignites the whole saved swarm at once (CPU killer on weak boxes),
+  // and you land on a calm Home screen. Once booted, a tab stays mounted.
+  const [bootedIds, setBootedIds] = useState(() => new Set())
   const [zoomIndicator, setZoomIndicator] = useState(null)  // transient font-size overlay
   const smartDismissRef = useRef(null)
   const pendingPtyRef = useRef(new Map())
@@ -272,6 +282,68 @@ export default function App() {
 
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
+
+  // Boot a tab's terminal the first time it's actually shown (active in
+  // terminal view, or the right pane of a split). New tabs created at runtime
+  // boot via the same path because openTab/selectTab set view + activeId.
+  useEffect(() => {
+    if (view !== 'terminal') return
+    const wanted = [activeId, splitMode ? splitTabId : null].filter(Boolean)
+    if (!wanted.some(id => !bootedIds.has(id))) return
+    setBootedIds(prev => {
+      const next = new Set(prev)
+      wanted.forEach(id => next.add(id))
+      return next
+    })
+  }, [view, activeId, splitMode, splitTabId, bootedIds])
+
+  // ── Idle sleep ─────────────────────────────────────────────────────────────
+  // No input for idleSleepMinutes → dim the app, freeze animations, and gate
+  // every poll (usePolling checks body[data-sleeping]). PTYs and agents keep
+  // running untouched — sleep is a renderer/GPU/battery measure, never a
+  // process one. Any key, click, or mouse move wakes it.
+  const lastActivityRef = useRef(Date.now())
+  useEffect(() => {
+    const mins = Number(settings.idleSleepMinutes ?? 10)
+    if (!mins) return
+    const bump = () => { lastActivityRef.current = Date.now() }
+    let lastMove = 0
+    const onMove = () => { const now = Date.now(); if (now - lastMove > 1000) { lastMove = now; bump() } }
+    window.addEventListener('keydown', bump, { passive: true, capture: true })
+    window.addEventListener('pointerdown', bump, { passive: true, capture: true })
+    window.addEventListener('wheel', bump, { passive: true, capture: true })
+    window.addEventListener('pointermove', onMove, { passive: true, capture: true })
+    const timer = setInterval(() => {
+      if (Date.now() - lastActivityRef.current >= mins * 60000) setSleeping(true)
+    }, 15000)
+    return () => {
+      window.removeEventListener('keydown', bump, { capture: true })
+      window.removeEventListener('pointerdown', bump, { capture: true })
+      window.removeEventListener('wheel', bump, { capture: true })
+      window.removeEventListener('pointermove', onMove, { capture: true })
+      clearInterval(timer)
+    }
+  }, [settings.idleSleepMinutes])
+
+  useEffect(() => {
+    if (!sleeping) {
+      delete document.body.dataset.sleeping
+      return
+    }
+    document.body.dataset.sleeping = '1'
+    // Swallow the waking keypress/click so it doesn't land in a terminal.
+    const wake = (e) => { e.preventDefault(); e.stopPropagation(); lastActivityRef.current = Date.now(); setSleeping(false) }
+    const wakeSoft = () => { lastActivityRef.current = Date.now(); setSleeping(false) }
+    window.addEventListener('keydown', wake, { capture: true })
+    window.addEventListener('pointerdown', wake, { capture: true })
+    window.addEventListener('pointermove', wakeSoft, { capture: true })
+    return () => {
+      delete document.body.dataset.sleeping
+      window.removeEventListener('keydown', wake, { capture: true })
+      window.removeEventListener('pointerdown', wake, { capture: true })
+      window.removeEventListener('pointermove', wakeSoft, { capture: true })
+    }
+  }, [sleeping])
   useEffect(() => { switcherRef.current = switcher }, [switcher])
   useEffect(() => { requestAnimationFrame(() => setMounted(true)) }, [])
 
@@ -344,6 +416,25 @@ export default function App() {
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
   const runningSessionCount = tabs.filter(t => t.status === 'running').length
 
+  // One Seducia, two scopes: on Home she's Main (whole-app control); inside a
+  // workspace she's that workspace's Project Seducia — own chat history,
+  // actions fenced to its sessions, launches grow the workspace.
+  const seduciaScope = useMemo(() => {
+    // She also gets the focused session's label so "this error you're
+    // seeing" resolves to the terminal currently on screen.
+    const focusedLabel = view === 'terminal' ? (activeTab?.label || null) : null
+    if (view === 'terminal' && activeTab?.groupId) {
+      return {
+        kind: 'project',
+        groupId: activeTab.groupId,
+        label: activeTab.groupLabel || pathLabel(activeTab.cwd || '') || 'Workspace',
+        cwd: activeTab.cwd || null,
+        focusedLabel
+      }
+    }
+    return { kind: 'main', focusedLabel }
+  }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
+
   // Mission Control: live per-session state inferred from the PTY stream.
   const { states: agentStates, summary: agentSummary } = useAgentActivity(tabs)
 
@@ -353,6 +444,7 @@ export default function App() {
   useEffect(() => {
     if (tabs.length === 0) {
       if (splitMode) setSplitMode(false)
+      if (gridMode) setGridMode(false)
       if (view === 'terminal') setView('home')
     }
   }, [tabs.length, view, splitMode])
@@ -463,6 +555,17 @@ export default function App() {
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
       // Ctrl+Shift+M → Mission Control (Ctrl+M alone is Enter in a terminal)
       if (ctrl && e.shiftKey && key === 'm') { e.preventDefault(); setShowMission(prev => !prev) }
+      // Ctrl+Shift+S → Hush dictation toggle
+      if (ctrl && e.shiftKey && key === 's') { e.preventDefault(); window.dispatchEvent(new CustomEvent('sush:hush-toggle')) }
+      // Ctrl+Shift+G → grid layout (all sessions tiled)
+      if (ctrl && e.shiftKey && key === 'g') {
+        e.preventDefault()
+        setGridMode(prev => {
+          if (!prev && tabsRef.current.length < 2) return prev
+          if (!prev) { setSplitMode(false); setView('terminal') }
+          return !prev
+        })
+      }
       // Ctrl+Shift+D → duplicate active tab
       if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
       // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
@@ -647,6 +750,10 @@ export default function App() {
 
     const tab = makeTab(prof, options)
     setTabs(prev => [...prev, tab])
+    // Tabs created at runtime boot immediately (lazy boot is only for tabs
+    // RESTORED at startup) — swarm launches type briefs into PTYs that must
+    // exist even while a sibling tab holds focus.
+    setBootedIds(prev => new Set(prev).add(tab.id))
     setActiveId(tab.id)
     setView('terminal')
     if (tab.cwd) rememberSession(tab)
@@ -656,16 +763,41 @@ export default function App() {
     return tab
   }, [profiles, rememberSession])
 
-  const launchSessions = useCallback(({ cwd, agents, groupLabel, prompt }) => {
+  const launchSessions = useCallback(({ cwd, agents, groupLabel, prompt, groupId: intoGroupId }) => {
     const prof = profiles[0]
     const targetCwd = cwd || null
+    // Seducia's AI may emit bare agents ({id, count}) — fill command/label
+    // from the catalog or the launch silently opens dead, unlabeled shells.
+    const normalized = (agents || [])
+      .map(a => {
+        const known = agentById(a?.id)
+        if (!known && !a?.id) return null
+        return { ...(known || {}), ...a, command: a?.command ?? known?.command ?? null, label: a?.label || known?.label || a.id }
+      })
+      .filter(Boolean)
+    if (!normalized.length) return
+    // Cap the swarm — an AI-misread count must not spawn an unbounded grid.
+    const liveCount = tabsRef.current.filter(t => t.status !== 'exited').length
+    const room = Math.max(0, MAX_SESSIONS - liveCount)
+    let budget = room
+    agents = normalized
+      .map(a => {
+        const want = Math.max(1, a.count || 1)
+        const take = Math.min(want, budget)
+        budget -= take
+        return take > 0 ? { ...a, count: take } : null
+      })
+      .filter(Boolean)
+    if (!agents.length) return
     const total = agents.reduce((sum, agent) => sum + Math.max(1, agent.count || 1), 0)
-    // A launch of two or more sessions becomes a group (a "workspace").
-    const grouped = total >= 2
-    const groupId = grouped ? `grp-${nextGroupId++}` : null
-    const label = grouped
-      ? (groupLabel || `${targetCwd ? pathLabel(targetCwd) : 'Swarm'} · ${total}`)
-      : null
+    // Every launch is a Workspace — a folder plus the crew inside it. A solo
+    // launch is simply a workspace of one; sessions always live inside.
+    // Project Seducia passes groupId to grow an existing workspace instead.
+    const existing = intoGroupId ? tabsRef.current.find(t => t.groupId === intoGroupId) : null
+    const groupId = existing ? intoGroupId : `grp-${nextGroupId++}`
+    const label = existing
+      ? (existing.groupLabel || groupLabel || (targetCwd ? pathLabel(targetCwd) : 'Workspace'))
+      : (groupLabel || `${targetCwd ? pathLabel(targetCwd) : 'Workspace'}${total >= 2 ? ` · ${total}` : ''}`)
 
     const spawned = []
     agents.forEach(agent => {
@@ -681,9 +813,8 @@ export default function App() {
           tag: `sess-${nextSessionTag++}`,
           groupId,
           groupLabel: label,
-          // A custom name from the launcher names the lone session directly
-          // (grouped launches carry it as the workspace label instead).
-          label: count > 1 ? `${base} ${i + 1}` : (total === 1 && groupLabel ? groupLabel : base)
+          // The custom name lives on the workspace; sessions keep agent names.
+          label: count > 1 ? `${base} ${i + 1}` : base
         })
         if (tab) spawned.push(tab)
       }
@@ -708,19 +839,45 @@ export default function App() {
     // Seducia stays open so you can keep orchestrating after a launch.
   }, [openTab, profiles])
 
-  // Seducia awareness: which live sessions match a target ('all' or an agent id).
-  const liveTargets = useCallback((target) => {
-    return tabsRef.current.filter(tab =>
-      tab.status !== 'exited' && (target === 'all' || (tab.agentId || 'shell') === target)
-    )
+  // Settings "Add account" hands off here: open a session running the CLI so
+  // its own login flow (browser OAuth) starts in the freshly-activated slot.
+  useEffect(() => {
+    const handler = (e) => {
+      const provider = e.detail?.provider
+      if (provider !== 'claude' && provider !== 'codex') return
+      setShowSettings(false)
+      openTab(profiles[0], {
+        command: provider,
+        agentId: provider,
+        tag: `sess-${nextSessionTag++}`,
+        label: `${provider === 'claude' ? 'Claude' : 'Codex'} sign-in`
+      })
+    }
+    window.addEventListener('sush:open-login-session', handler)
+    return () => window.removeEventListener('sush:open-login-session', handler)
+  }, [openTab, profiles])
+
+  // Seducia awareness: which live sessions match a target ('all', an agent
+  // id, or a session label like "Claude Code 2"), optionally fenced to one
+  // workspace (Project Seducia's scope).
+  const liveTargets = useCallback((target, groupId) => {
+    const pool = groupId ? tabsRef.current.filter(t => t.groupId === groupId) : tabsRef.current
+    return seduciaTargets(pool, target)
   }, [])
 
   // Seducia "tell claude ..." -- type a prompt into every matching live agent.
-  const sendAgentPrompt = useCallback(({ target, text }) => {
+  const sendAgentPrompt = useCallback(({ target, text, groupId }) => {
     const body = String(text ?? '').trim()
     if (!body) return
-    const matches = liveTargets(target)
+    const matches = liveTargets(target, groupId)
     if (!matches.length) return
+    // Restored-but-unbooted targets must spawn for the queued prompt to land.
+    setBootedIds(prev => {
+      if (matches.every(t => prev.has(t.id))) return prev
+      const next = new Set(prev)
+      matches.forEach(t => next.add(t.id))
+      return next
+    })
     matches.forEach(tab => {
       if (tab.status === 'running') {
         window.sush.ptyInput({ tabId: tab.id, data: `${body}\r` })
@@ -735,8 +892,8 @@ export default function App() {
   }, [liveTargets])
 
   // Seducia "focus codex" -- bring the matching live agent to the foreground.
-  const focusAgent = useCallback((target) => {
-    const match = liveTargets(target)[0]
+  const focusAgent = useCallback((target, groupId) => {
+    const match = liveTargets(target, groupId)[0]
     if (!match) return
     setActiveId(match.id)
     setView('terminal')
@@ -756,6 +913,76 @@ export default function App() {
     const ids = tabsRef.current.filter(tab => tab.groupId === groupId).map(tab => tab.id)
     ids.forEach(id => closeTabRef.current?.(id))
   }, [])
+
+  const renameGroup = useCallback((groupId, label) => {
+    if (!groupId) return
+    const next = String(label ?? '').trim().slice(0, 40)
+    if (!next) return
+    setTabs(prev => prev.map(t => t.groupId === groupId ? { ...t, groupLabel: next } : t))
+  }, [])
+
+  // ── Seducia control surface ────────────────────────────────────────────────
+  // Everything the UI buttons can do, exposed as callable actions so Seducia
+  // can run the place. Workspace lookups accept a label or "this"/"current"
+  // (the active tab's workspace).
+  const findGroupByName = useCallback((name) => {
+    const q = String(name ?? '').trim().toLowerCase()
+    const all = tabsRef.current
+    if (!q || q === 'this' || q === 'current') {
+      return all.find(t => t.id === activeIdRef.current)?.groupId || null
+    }
+    const hit = all.find(t => (t.groupLabel || '').toLowerCase() === q)
+      || all.find(t => (t.groupLabel || '').toLowerCase().includes(q))
+    return hit?.groupId || null
+  }, [])
+
+  const seduciaControls = useMemo(() => ({
+    closeSessions: (target, groupId) => {
+      const matches = liveTargets(target, groupId)
+      matches.forEach(t => closeTabRef.current?.(t.id))
+      return matches.length
+    },
+    closeWorkspace: (name) => {
+      const gid = findGroupByName(name)
+      if (!gid) return false
+      closeGroup(gid)
+      return true
+    },
+    renameWorkspace: (name, to) => {
+      const gid = findGroupByName(name)
+      if (!gid || !String(to ?? '').trim()) return false
+      renameGroup(gid, to)
+      return true
+    },
+    setTheme: (name) => {
+      const q = String(name ?? '').trim().toLowerCase()
+      if (!q) return false
+      const entry = Object.values(themes).find(t => t.id === q || (t.label || '').toLowerCase() === q)
+        || Object.values(themes).find(t => (t.label || '').toLowerCase().includes(q))
+      if (!entry) return false
+      // Persist like Settings does — setSettings alone is lost on restart.
+      setSettings(s => {
+        const next = { ...s, themeId: entry.id }
+        try { localStorage.setItem('sush-settings', JSON.stringify(next)) } catch {}
+        return next
+      })
+      return entry.label || entry.id
+    },
+    // Tail the scrollback of matching sessions so Seducia can review what her
+    // agents actually produced (capped: 6 sessions, ~4k chars each).
+    readOutput: async (target, groupId) => {
+      const matches = liveTargets(target, groupId).slice(0, 6)
+      const reads = await Promise.all(matches.map(async (t) => {
+        try {
+          const r = await window.sush.getScrollback({ tabId: t.id, chars: 4000 })
+          return { label: t.label, agentId: t.agentId || 'shell', text: stripAnsi(String(r?.text ?? '')).slice(-4000) }
+        } catch {
+          return null
+        }
+      }))
+      return reads.filter(Boolean)
+    }
+  }), [liveTargets, findGroupByName, closeGroup, renameGroup])
 
   const reorderTabs = useCallback((from, to) => {
     setTabs(prev => {
@@ -929,18 +1156,30 @@ export default function App() {
       } catch {}
     }
     let scroll = ''
-    try { scroll = (await window.sush.getScrollback({ tabId: sourceId, chars: 1800 }))?.text || '' } catch {}
+    // 4k chars: enough tail for the AI summarizer to reconstruct the work.
+    try { scroll = (await window.sush.getScrollback({ tabId: sourceId, chars: 4000 }))?.text || '' } catch {}
     return { tab, branch, dirty, scroll, recent: commandHistory.slice(-6) }
   }, [commandHistory])
 
-  // Deliver a handoff: copy the full card to the clipboard (rich paste) and paste
-  // a single safe line at the target session's prompt for the user to review/submit.
-  const performHandoff = useCallback(({ targetId, fullText, injectText, openNew, sourceCwd }) => {
+  // Deliver a handoff: copy the full card to the clipboard (rich paste), then
+  // either boot a fresh AGENT session that gets the brief typed in and
+  // submitted once its TUI is up (launchSessions owns that timing), or paste
+  // a single safe line at an existing session's prompt for the user to send.
+  const performHandoff = useCallback(({ targetId, fullText, injectText, openNew, agentId, sourceCwd }) => {
     window.sush.copyText(String(fullText || '')).catch(() => {})
     const oneLine = String(injectText || '').replace(/\r?\n+/g, ' | ').trim()
     if (openNew) {
-      const target = openTab(profiles[0], { cwd: sourceCwd || null, label: 'handoff', tag: `handoff-${Date.now()}` })
-      if (oneLine) setTimeout(() => window.sush.ptyInput({ tabId: target.id, data: oneLine }), 1200)
+      if (agentId && agentId !== 'shell') {
+        launchSessions({
+          cwd: sourceCwd || null,
+          agents: [{ id: agentId, count: 1 }],
+          groupLabel: 'Handoff',
+          prompt: oneLine || undefined
+        })
+      } else {
+        const target = openTab(profiles[0], { cwd: sourceCwd || null, label: 'handoff', tag: `handoff-${Date.now()}` })
+        if (oneLine) setTimeout(() => window.sush.ptyInput({ tabId: target.id, data: oneLine }), 1200)
+      }
     } else {
       const target = tabsRef.current.find(t => t.id === targetId)
       if (target) {
@@ -950,7 +1189,7 @@ export default function App() {
       }
     }
     setHandoffSource(null)
-  }, [openTab, profiles])
+  }, [openTab, profiles, launchSessions])
 
   const cycleCorners = useCallback(() => {
     const order = ['rounded', 'sharp', 'pill']
@@ -1173,7 +1412,19 @@ export default function App() {
   }
 
   return (
-    <div className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${settings.lite ? ' sush-lite' : ''}`} style={{ ...accentVars(accent), ...(theme.ui.glass ? glassVars(theme.ui) : {}), background: theme.xterm.background, opacity: (settings.opacity ?? 100) / 100 }}>
+    <div
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${settings.lite ? ' sush-lite' : ''}`}
+      style={{
+        ...accentVars(accent),
+        ...(theme.ui.glass ? glassVars(theme.ui) : {}),
+        // Custom wallpaper sits under everything; bgDim is a dark veil baked
+        // into the same background stack so terminal text stays readable.
+        background: settings.bgImage
+          ? `linear-gradient(rgba(2,3,5,${(settings.bgDim ?? 62) / 100}), rgba(2,3,5,${(settings.bgDim ?? 62) / 100})), url(${JSON.stringify(settings.bgImage)}) center / cover no-repeat fixed, ${theme.xterm.background}`
+          : theme.xterm.background,
+        opacity: (settings.opacity ?? 100) / 100
+      }}
+    >
       {!zenMode && (
         <TitleBar
           accent={accent}
@@ -1205,6 +1456,7 @@ export default function App() {
           onNewSession={() => setShowLauncher(true)}
           onClose={closeTab}
           onCloseGroup={closeGroup}
+          onRenameGroup={renameGroup}
           onReorder={reorderTabs}
           onProfiles={() => setShowProfiles(true)}
           onRename={renameTab}
@@ -1236,12 +1488,21 @@ export default function App() {
               // Split needs two live sessions — entering it with fewer just
               // paints an empty pane (or, with zero, a black void).
               if (!splitMode && tabsRef.current.length < 2) return
+              setGridMode(false)
               setSplitMode(prev => {
                 if (!prev) {
                   const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
                   if (others.length) setSplitTabId(others[0].id)
                   setFocusedPane('left')
                 }
+                return !prev
+              })
+            }}
+            gridMode={gridMode}
+            onToggleGrid={() => {
+              setGridMode(prev => {
+                if (!prev && tabsRef.current.length < 2) return prev
+                if (!prev) { setSplitMode(false); setView('terminal') }
                 return !prev
               })
             }}
@@ -1324,33 +1585,92 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              tabs.map(tab => {
-                const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
-                const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+              // One container for both layouts. Grid mode is a STYLE switch on
+              // the same keyed wrappers — terminals never remount on toggle, so
+              // xterm buffers survive. Unbooted tabs tile as wake-on-click
+              // placeholders (the lazy-boot CPU guard extends into the grid).
+              (() => {
+                const gridTabs = gridMode ? tabs.slice(0, 9) : tabs.filter(tab => bootedIds.has(tab.id))
+                const n = gridTabs.length
+                const cols = gridMode ? (n <= 2 ? n : n <= 4 ? 2 : 3) : 1
                 return (
-                  <Terminal
-                    key={tab.id}
-                    tabId={tab.id}
-                    theme={t}
-                    profile={prof}
-                    active={tab.id === activeId}
-                    initialCwd={tab.cwd}
-                    bootCommand={tab.bootCommand}
-                    fontSize={fontSize}
-                    fontFamily={fontFamily}
-                    cursorStyle={cursorStyle}
-                    broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
-                    restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
-                    persistScrollback={settings.persistScrollback !== false}
-                    onSessionState={(state) => handleSessionState(tab.id, state)}
-                    onReady={(state) => handleTerminalReady(tab.id, state)}
-                    onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
-                    onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
-                    onExport={() => exportSessionOutput(tab.id)}
-                  />
+                  <div style={gridMode
+                    ? { position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gap: 7, padding: 8 }
+                    : { position: 'absolute', inset: 0 }}>
+                    {gridTabs.map(tab => {
+                      const booted = bootedIds.has(tab.id)
+                      const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
+                      const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
+                      const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                      const focused = tab.id === activeId
+                      return (
+                        <div
+                          key={tab.id}
+                          onMouseDown={gridMode ? () => {
+                            if (!booted) setBootedIds(prev => new Set(prev).add(tab.id))
+                            setActiveId(tab.id)
+                          } : undefined}
+                          style={gridMode
+                            ? { position: 'relative', overflow: 'hidden', borderRadius: 10, border: `1px solid ${focused ? rgba(accent, 0.6) : 'rgba(255,255,255,0.08)'}`, boxShadow: focused ? `0 0 0 1px ${rgba(accent, 0.35)}` : 'none', background: '#07090b' }
+                            : { position: 'absolute', inset: 0 }}
+                        >
+                          {booted ? (
+                            <Terminal
+                              tabId={tab.id}
+                              theme={t}
+                              profile={prof}
+                              active={focused}
+                              splitVisible={gridMode}
+                              initialCwd={tab.cwd}
+                              bootCommand={tab.bootCommand}
+                              fontSize={gridMode ? Math.max(10, fontSize - 2) : fontSize}
+                              fontFamily={fontFamily}
+                              cursorStyle={cursorStyle}
+                              broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                              restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
+                              persistScrollback={settings.persistScrollback !== false}
+                              onSessionState={(state) => handleSessionState(tab.id, state)}
+                              onReady={(state) => handleTerminalReady(tab.id, state)}
+                              onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
+                              onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                              onExport={() => exportSessionOutput(tab.id)}
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, cursor: 'pointer' }}>
+                              <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#8a939c' }}>{tab.label}</div>
+                                <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 4 }}>sleeping - click to wake</div>
+                              </div>
+                            </div>
+                          )}
+                          {gridMode && (
+                            <div className="flex items-center" style={{ position: 'absolute', top: 6, left: 8, right: 8, zIndex: 60, gap: 7, pointerEvents: 'none' }}>
+                              <span className="flex items-center" style={{ gap: 6, padding: '2px 9px', borderRadius: 999, background: 'rgba(5,7,10,0.78)', border: `1px solid ${focused ? rgba(accent, 0.5) : 'rgba(255,255,255,0.1)'}` }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: tab.status === 'exited' ? '#ff5370' : '#42d392' }} />
+                                <span style={{ fontSize: 10, fontWeight: 800, color: focused ? accent : '#aab3bb', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                              </span>
+                              <span style={{ flex: 1 }} />
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setActiveId(tab.id); setGridMode(false) }}
+                                title="Maximize"
+                                className="flex items-center justify-center"
+                                style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(5,7,10,0.78)', color: '#aab3bb', cursor: 'pointer', pointerEvents: 'auto' }}
+                              >
+                                <Icon name="maximize" size={11} strokeWidth={2.2} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {gridMode && tabs.length > 9 && (
+                      <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 70, fontSize: 10.5, fontWeight: 700, color: '#8a939c', background: 'rgba(5,7,10,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '4px 12px' }}>
+                        showing 9 of {tabs.length} (CPU guard)
+                      </div>
+                    )}
+                  </div>
                 )
-              })
+              })()
             )}
 
             {view === 'home' && (
@@ -1431,6 +1751,8 @@ export default function App() {
               activeCwd={activeTab?.cwd}
               tabs={tabs}
               recentSessions={recentSessions}
+              seduciaScope={seduciaScope}
+              seduciaControls={seduciaControls}
               onLaunch={launchSessions}
               onRun={runSmartInput}
               onPrompt={sendAgentPrompt}
@@ -1455,6 +1777,7 @@ export default function App() {
           activeTab={view === 'home' ? null : activeTab}
           view={view}
           sessionCount={tabs.length}
+          workspaceCount={new Set(tabs.map(t => t.groupId).filter(Boolean)).size}
           broadcastMode={broadcastMode}
           splitMode={splitMode}
           agentSummary={agentSummary}
@@ -1470,6 +1793,8 @@ export default function App() {
           tabs={tabs}
           recentSessions={recentSessions}
           activeCwd={activeTab?.cwd}
+          scope={seduciaScope}
+          controls={seduciaControls}
           onLaunch={launchSessions}
           onRun={runSmartInput}
           onPrompt={sendAgentPrompt}
@@ -1478,6 +1803,24 @@ export default function App() {
           settings={settings}
           planId={planId}
           working={agentSummary?.working || 0}
+        />
+      )}
+
+      {/* Hush — dictation into the focused terminal (Ctrl+Shift+S) */}
+      {identity.ready && settings.hushEnabled !== false && (
+        <Hush
+          accent={accent}
+          autoSend={settings.hushAutoSend !== false}
+          onInsert={(text) => {
+            const id = activeIdRef.current
+            const tab = tabsRef.current.find(t => t.id === id)
+            if (view === 'terminal' && tab && tab.status !== 'exited') {
+              const send = settings.hushAutoSend !== false
+              window.sush.ptyInput({ tabId: id, data: send ? `${text}\r` : text })
+            } else {
+              window.sush.copyText?.(text)
+            }
+          }}
         />
       )}
 
@@ -1611,6 +1954,12 @@ export default function App() {
           onLock={identity.lock}
           onSignOut={identity.signOut}
           onManageUsers={() => { setShowProfile(false); setShowUserManager(true) }}
+          onDeleteAccount={async (id) => {
+            // Deleting the signed-in account: remove it, then sign out to the
+            // picker (the session belonged to an identity that no longer exists).
+            await identity.removeUser(id, false)
+            identity.signOut()
+          }}
         />
       )}
 
@@ -1625,6 +1974,17 @@ export default function App() {
 
       {splash && (
         <SplashScreen accent={accent} onDone={() => setSplash(false)} />
+      )}
+
+      {/* Idle sleep — solid cover so the GPU can skip everything beneath */}
+      {sleeping && (
+        <div className="flex items-center justify-center" style={{ position: 'fixed', inset: 0, zIndex: 6000, background: '#020305', cursor: 'pointer' }}>
+          <div style={{ textAlign: 'center', userSelect: 'none' }}>
+            <div className="sush-sleep-breathe" style={{ width: 46, height: 46, margin: '0 auto 14px', borderRadius: '50%', background: `radial-gradient(circle at 32% 28%, ${rgba(accent, 0.55)}, ${rgba(accent, 0.12)})`, border: `1px solid ${rgba(accent, 0.3)}` }} />
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#aab3bb' }}>Sush is resting</div>
+            <div style={{ fontSize: 11, color: '#5a646d', marginTop: 5 }}>Sessions keep running - press any key to wake</div>
+          </div>
+        </div>
       )}
 
       {/* Zoom size indicator — shows briefly when font size changes via Ctrl+/- */}

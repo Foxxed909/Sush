@@ -1,8 +1,8 @@
 {
   "name": "sush",
-  "version": "3.8.0",
-  "codename": "companion",
-  "description": "Sush - custom terminal shell (Companion)",
+  "version": "4.1.0",
+  "codename": "helm",
+  "description": "Sush - the terminal your agents live in",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -47,10 +47,15 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/icon.ico",
+        "to": "icon.ico"
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "resources/icon.ico"
     },
     "mac": {
       "target": "dmg",

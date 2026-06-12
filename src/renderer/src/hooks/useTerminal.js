@@ -133,7 +133,7 @@ export function useTerminal({
     // shell (previously both fired). Ctrl+Shift+C/V are handled right here:
     // terminal-standard copy/paste that never collides with ^C/^V.
     const APP_CTRL = new Set(['k', 'b', 'p', 't', 'w', ','])
-    const APP_CTRL_SHIFT = new Set(['n', 't', 'z', 'h', 'b', 'm', 'd'])
+    const APP_CTRL_SHIFT = new Set(['n', 't', 'z', 'h', 'b', 'm', 'd', 's', 'g'])
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown') return true
       if (e.key === 'F2') return false  // app: rename session

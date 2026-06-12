@@ -141,8 +141,16 @@ export function listRepos({ query, page = 1 } = {}) {
   const q = String(query ?? '').trim()
   const p = Math.max(1, Number(page) || 1)
   return singleFlight(`repos:${q}:${p}`, async () => {
+    // Plain text searches YOUR repos (it's a repo browser, not GitHub-wide
+    // search). Queries with qualifiers or owner/name slashes go out as-is.
+    let scoped = q
+    if (q && !/[:/]/.test(q)) {
+      const me = await ghFetch('/user', { etagKey: 'user' })
+      const login = me.ok ? me.data?.login : ''
+      if (login) scoped = `${q} user:${login} fork:true`
+    }
     const path = q
-      ? `/search/repositories?q=${encodeURIComponent(q)}&per_page=30&page=${p}`
+      ? `/search/repositories?q=${encodeURIComponent(scoped)}&per_page=30&page=${p}`
       : `/user/repos?sort=pushed&per_page=30&page=${p}`
     const res = await ghFetch(path, { etagKey: `repos:${q}:${p}` })
     if (!res.ok) return res

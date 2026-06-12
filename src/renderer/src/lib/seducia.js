@@ -37,8 +37,20 @@ export function agentIdFromToken(token) {
   return null
 }
 
+// Target = 'all', an agent id (claude/codex/...), or a SESSION LABEL like
+// "Claude Code 2" — so "tell Claude Code 2 to fix it" reaches exactly that
+// session, not every claude. Label matching is case-insensitive, exact first
+// then substring.
 export function runningTargets(tabs, target) {
-  return tabs.filter(t => t.status !== 'exited' && (target === 'all' || (t.agentId || 'shell') === target))
+  const live = tabs.filter(t => t.status !== 'exited')
+  if (target === 'all') return live
+  const byAgent = live.filter(t => (t.agentId || 'shell') === target)
+  if (byAgent.length) return byAgent
+  const q = String(target || '').toLowerCase().trim()
+  if (!q) return []
+  const exact = live.filter(t => (t.label || '').toLowerCase() === q)
+  if (exact.length) return exact
+  return live.filter(t => (t.label || '').toLowerCase().includes(q))
 }
 
 export function targetName(id) {

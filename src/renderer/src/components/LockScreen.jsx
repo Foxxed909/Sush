@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import ProviderButtons from './ProviderButtons'
+import { fileToAvatarDataUrl } from './ProfileViewer'
 import { rgba } from '../lib/ui'
 
 const USER_COLORS = ['#ff6b9d', '#a78bfa', '#5fd3a8', '#ffcb6b', '#60a5fa', '#f97316', '#38bdf8', '#ef4444']
@@ -123,6 +124,7 @@ export default function LockScreen({
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ name: '', color: USER_COLORS[0], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' })
   const pinInputRef = useRef(null)
+  const avatarFileRef = useRef(null)
   const now = useClock()
 
   // A provider flow finished: either main matched + activated an identity
@@ -175,6 +177,14 @@ export default function LockScreen({
     e?.preventDefault?.()
     if (pin.length >= 4) attemptUnlock(selected, pin)
   }
+
+  // Auto-submit on the last digit: the stored PIN length is known, so typing
+  // the final digit signs you in without reaching for Enter.
+  useEffect(() => {
+    if (!needsPin || busy) return
+    const want = selected?.pinLength
+    if (want && pin.length === want) attemptUnlock(selected, pin)
+  }, [pin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submitCreate = async (e) => {
     e?.preventDefault?.()
@@ -266,7 +276,32 @@ export default function LockScreen({
           /* ── Create user ──────────────────────────────────────────────── */
           <form onSubmit={submitCreate} className="sush-lock-panel" data-glass style={{ width: 'min(88vw, 420px)' }}>
             <div style={{ textAlign: 'center', marginBottom: 18 }}>
-              <Avatar user={{ name: form.name || '?', color: form.color, avatar: form.name.trim() ? undefined : '+', avatarUrl: form.avatarUrl }} size={72} />
+              {/* Click the avatar to pick a photo right at creation. */}
+              <div
+                onClick={() => avatarFileRef.current?.click()}
+                title="Add a profile picture"
+                style={{ display: 'inline-block', cursor: 'pointer', position: 'relative' }}
+              >
+                <Avatar user={{ name: form.name || '?', color: form.color, avatar: form.name.trim() ? undefined : '+', avatarUrl: form.avatarUrl }} size={72} />
+                <span className="flex items-center justify-center" style={{ position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: '50%', background: form.color, border: '2px solid #0a0c0f', color: '#0a0a0c' }}>
+                  <Icon name={form.avatarUrl ? 'edit' : 'plus'} size={12} strokeWidth={2.5} />
+                </span>
+              </div>
+              <input
+                ref={avatarFileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!file) return
+                  try {
+                    const dataUrl = await fileToAvatarDataUrl(file)
+                    setForm(f => ({ ...f, avatarUrl: dataUrl }))
+                  } catch {}
+                }}
+              />
               <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>
                 {firstRun ? 'Welcome to Sush' : 'New user'}
               </div>

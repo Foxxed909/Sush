@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
+import { agentById } from '../lib/agents'
+
+// Agents offered as handoff targets (a real brain on the other end — handing
+// off to a bare shell is still possible but no longer the only option).
+const TARGET_AGENTS = ['claude', 'codex', 'gemini', 'shell']
 
 function shortPath(p) {
   if (!p) return ''
@@ -43,10 +48,38 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
   const [card, setCard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [targetId, setTargetId] = useState(null)   // null = new session
+  const [agentId, setAgentId] = useState('claude') // which brain a new session runs
   const [inject, setInject] = useState('')
+  const [summarizing, setSummarizing] = useState(false)
+  const [sumError, setSumError] = useState('')
 
   const source = tabs.find(t => t.id === sourceId)
   const targets = useMemo(() => tabs.filter(t => t.id !== sourceId && t.status !== 'exited'), [tabs, sourceId])
+
+  // The /compact of handoffs: feed the session's recent output to a logged-in
+  // CLI (claude → codex → gemini cascade) and brief the next agent with what
+  // actually happened — instead of a heuristic one-liner.
+  const summarize = async () => {
+    if (summarizing) return
+    setSummarizing(true)
+    setSumError('')
+    const ctxText = buildFullCard(card)
+    const prompt = [
+      'Summarize this terminal session so another AI coding agent can pick up the work mid-stream.',
+      'Cover: what was being worked on, the current state, any errors hit, and the immediate next step.',
+      'Under 120 words, plain prose, no headings or lists. Output ONLY the summary.',
+      '',
+      ctxText
+    ].join('\n')
+    try {
+      const res = await window.sush.seduciaCli({ prompt, cwd: source?.cwd, engine: 'claude' })
+      if (res?.ok && res.text?.trim()) setInject(res.text.trim())
+      else setSumError(res?.error || 'Summarizer came back empty.')
+    } catch (e) {
+      setSumError(e.message)
+    }
+    setSummarizing(false)
+  }
 
   useEffect(() => {
     let alive = true
@@ -71,6 +104,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
     onSubmit({
       targetId,
       openNew: targetId === null,
+      agentId: targetId === null ? agentId : undefined,
       fullText,
       injectText: inject,
       sourceCwd: source?.cwd || null
@@ -115,14 +149,38 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
           {/* Target picker */}
           <div style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Drop into</div>
           <div className="flex flex-col" style={{ gap: 6, marginBottom: 16 }}>
-            <button
+            <div
               onClick={() => setTargetId(null)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r-md)', cursor: 'pointer', textAlign: 'left',
+              style={{ padding: '9px 12px', borderRadius: 'var(--r-md)', cursor: 'pointer',
                 background: targetId === null ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${targetId === null ? rgba(accent, 0.45) : '#20272e'}`, color: '#d4dbe1' }}
             >
-              <Icon name="plus" size={14} color={targetId === null ? accent : '#76808a'} strokeWidth={2.2} />
-              <span style={{ fontSize: 12.5, fontWeight: 700 }}>New session{source?.cwd ? ` in ${shortPath(source.cwd)}` : ''}</span>
-            </button>
+              <div className="flex items-center" style={{ gap: 10 }}>
+                <Icon name="plus" size={14} color={targetId === null ? accent : '#76808a'} strokeWidth={2.2} />
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>New session{source?.cwd ? ` in ${shortPath(source.cwd)}` : ''}</span>
+              </div>
+              {targetId === null && (
+                <div className="flex" style={{ gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
+                  {TARGET_AGENTS.map(id => {
+                    const a = agentById(id)
+                    if (!a) return null
+                    const on = agentId === id
+                    return (
+                      <button
+                        key={id}
+                        onClick={(e) => { e.stopPropagation(); setAgentId(id) }}
+                        className="flex items-center"
+                        style={{ gap: 6, fontSize: 11, fontWeight: 800, padding: '4px 11px', borderRadius: 999, cursor: 'pointer',
+                          background: on ? rgba(a.color, 0.16) : 'transparent', color: on ? a.color : '#76808a',
+                          border: `1px solid ${on ? rgba(a.color, 0.5) : '#20272e'}` }}
+                      >
+                        <span style={{ fontWeight: 900 }}>{a.mono}</span>
+                        {a.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
             {targets.map(t => (
               <button
                 key={t.id}
@@ -141,9 +199,21 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
 
           {/* Inject text */}
           <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, textTransform: 'uppercase' }}>Paste at prompt</span>
-            <span style={{ fontSize: 10, color: '#5a646d' }}>full card → clipboard</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, textTransform: 'uppercase' }}>The brief</span>
+            <button
+              onClick={summarize}
+              disabled={summarizing || loading}
+              title="Have your claude/codex CLI read the session output and write the brief"
+              className="flex items-center"
+              style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '3px 11px', cursor: summarizing ? 'default' : 'pointer', opacity: summarizing || loading ? 0.55 : 1 }}
+            >
+              <Icon name="sparkles" size={11} strokeWidth={2.2} className={summarizing ? 'sush-spin' : undefined} />
+              {summarizing ? 'Reading session...' : 'AI summary'}
+            </button>
           </div>
+          {sumError && (
+            <div style={{ fontSize: 10.5, color: '#ffb74d', marginBottom: 6, lineHeight: 1.4 }}>{sumError}</div>
+          )}
           <textarea
             value={inject}
             onChange={e => setInject(e.target.value)}
@@ -153,7 +223,9 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
             style={{ width: '100%', resize: 'vertical', background: '#07090b', color: '#d4dbe1', border: '1px solid #1c232a', borderRadius: 'var(--r-md)', padding: '10px 12px', fontSize: 12, lineHeight: 1.5, outline: 'none', fontFamily: 'inherit' }}
           />
           <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.5 }}>
-            Pasted as a single line (newlines become “ | ”) so it never auto-runs in a plain shell. Press Enter in the target to submit. The full multi-line card is copied to your clipboard.
+            {targetId === null && agentId !== 'shell'
+              ? 'A new agent session boots, then the brief is typed in and submitted automatically. The full context card lands on your clipboard for a richer paste.'
+              : 'Pasted as a single line at the target prompt - press Enter there to submit. The full multi-line card is copied to your clipboard.'}
           </div>
         </div>
 

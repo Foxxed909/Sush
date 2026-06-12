@@ -30,7 +30,16 @@ export function useIdentity() {
 
         if (active) {
           // Renderer reload while main kept the session (user switch / Ctrl+R).
-          if (getActiveUserIdRaw() !== active.id) setActiveUserIdRaw(active.id)
+          if (getActiveUserIdRaw() !== active.id) {
+            // Scope mismatch: App's state already initialized under the WRONG
+            // localStorage scope (or none). Silently repointing the shim here
+            // made every subsequent save write DEFAULTS over the user's real
+            // scoped data — the "my settings reverted" bug. Reload instead so
+            // the world rebuilds under their scope.
+            setActiveUserIdRaw(active.id)
+            window.location.reload()
+            return
+          }
           setState({ loading: false, users, lastUserId, currentUser: active, locked: false })
           return
         }
@@ -81,6 +90,7 @@ export function useIdentity() {
       color: form.color,
       pin: form.pin || undefined,
       isolation: form.isolation,
+      avatarUrl: form.avatarUrl || undefined,
       // One-shot ticket from a provider sign-in: main links the account (and
       // stores the GitHub token) atomically with the create.
       providerTicket: form.providerTicket || undefined

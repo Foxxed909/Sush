@@ -32,10 +32,11 @@ function Bars({ color }) {
 export default function SeduciaOrb({
   accent, open, onOpenChange,
   tabs = [], recentSessions = [], activeCwd,
+  scope = { kind: 'main' }, controls = {},
   onLaunch, onRun, onPrompt, onFocus, onOpenLauncher,
   settings = {}, planId = 'free', working = 0
 }) {
-  const brain = useSeducia({ tabs, activeCwd, recentSessions, settings, planId, onLaunch, onRun, onPrompt, onFocus, onOpenLauncher })
+  const brain = useSeducia({ tabs, activeCwd, recentSessions, settings, planId, scope, controls, onLaunch, onRun, onPrompt, onFocus, onOpenLauncher })
   const { log, streaming, handle, stop, voiceState, partial, wakeEnabled, toggleWake, listen, aiEnabled, hasAI, voiceMode, micSupported, voiceError } = brain
 
   const [value, setValue] = useState('')
@@ -45,7 +46,16 @@ export default function SeduciaOrb({
   // Draggable: the whole orb+card stack can be grabbed by the card header.
   // null = default bottom-right anchor; {x,y} = user-placed (persisted).
   const [pos, setPos] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sush-seducia-pos') || 'null') } catch { return null }
+    try {
+      const saved = JSON.parse(localStorage.getItem('sush-seducia-pos') || 'null')
+      if (!saved || typeof saved.x !== 'number' || typeof saved.y !== 'number') return null
+      // Re-clamp on restore — a saved spot from a bigger monitor must not
+      // strand the orb off-screen.
+      return {
+        x: Math.min(Math.max(saved.x, 8), window.innerWidth - 100),
+        y: Math.min(Math.max(saved.y, 8), window.innerHeight - 100)
+      }
+    } catch { return null }
   })
   const containerRef = useRef(null)
   const dragRef = useRef(null)
@@ -191,6 +201,12 @@ export default function SeduciaOrb({
                 <div className="flex items-center" style={{ gap: 6 }}>
                   <span style={{ fontSize: 14.5, fontWeight: 900, color: '#f1f4f6', letterSpacing: 0.2 }}>Seducia</span>
                   {aiEnabled && hasAI && <span style={{ fontSize: 8.5, fontWeight: 800, color: accent, background: rgba(accent, 0.16), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 99, padding: '1px 6px', letterSpacing: 0.5 }}>AI</span>}
+                  <span
+                    title={scope.kind === 'project' ? `Project scope - actions stay inside "${scope.label}"` : 'Main scope - whole-app control'}
+                    style={{ fontSize: 8.5, fontWeight: 800, color: scope.kind === 'project' ? '#5fd3a8' : '#8a939c', background: scope.kind === 'project' ? 'rgba(95,211,168,0.12)' : 'rgba(255,255,255,0.06)', border: `1px solid ${scope.kind === 'project' ? 'rgba(95,211,168,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: 99, padding: '1px 7px', letterSpacing: 0.5, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {scope.kind === 'project' ? scope.label : 'MAIN'}
+                  </span>
                 </div>
                 <div style={{ fontSize: 10.5, color: voiceState === 'idle' ? '#76808a' : accent, marginTop: 1, fontWeight: voiceState === 'idle' ? 400 : 700 }}>
                   {STATE_LABEL[voiceState] || 'Idle'}

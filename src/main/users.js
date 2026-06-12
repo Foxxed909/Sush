@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { randomBytes, scryptSync, timingSafeEqual, randomUUID } from 'crypto'
+import { accountSlotEnv } from './accounts'
 
 // ── Sush Identities ──────────────────────────────────────────────────────────
 // Multiple people can share one Sush install without their CLI logins mixing.
@@ -103,7 +104,7 @@ export function getLastUserId() {
   return store.lastUserId
 }
 
-export function createUser({ name, color, avatar, pin, isolation } = {}) {
+export function createUser({ name, color, avatar, avatarUrl, pin, isolation } = {}) {
   const trimmed = String(name ?? '').trim()
   if (!trimmed) return { ok: false, error: 'Name is required' }
   if (store.users.some(u => u.name.toLowerCase() === trimmed.toLowerCase())) {
@@ -118,11 +119,17 @@ export function createUser({ name, color, avatar, pin, isolation } = {}) {
     createdAt: Date.now(),
     lastUsedAt: null
   }
+  // Profile picture chosen at create time (data URL from the renderer's
+  // 128px crop, or a provider avatar URL carried by the prefilled form).
+  if (typeof avatarUrl === 'string' && avatarUrl.trim()) user.avatarUrl = avatarUrl.trim()
   const pinValue = String(pin ?? '').trim()
   if (pinValue) {
     if (!/^\d{4,8}$/.test(pinValue)) return { ok: false, error: 'PIN must be 4–8 digits' }
     user.pinSalt = randomBytes(16).toString('hex')
     user.pinHash = hashPin(pinValue, user.pinSalt)
+    // Length is exposed so the lock screen can auto-submit on the last digit.
+    // Acceptable disclosure for a casual lock (PIN space is 4-8 digits anyway).
+    user.pinLength = pinValue.length
   }
   store.users.push(user)
   ensureUserDirs(user)
@@ -154,10 +161,12 @@ export function updateUser({ id, patch = {}, newPin } = {}) {
     if (!pinValue) {
       delete user.pinHash
       delete user.pinSalt
+      delete user.pinLength
     } else {
       if (!/^\d{4,8}$/.test(pinValue)) return { ok: false, error: 'PIN must be 4–8 digits' }
       user.pinSalt = randomBytes(16).toString('hex')
       user.pinHash = hashPin(pinValue, user.pinSalt)
+      user.pinLength = pinValue.length
     }
   }
   save()
@@ -297,5 +306,7 @@ export function activeUserEnv() {
     env.APPDATA = join(home, 'AppData', 'Roaming')
     env.LOCALAPPDATA = join(home, 'AppData', 'Local')
   }
-  return env
+  // Account slots last: a non-default Claude/Codex slot re-points that CLI's
+  // config dir at the slot, beating the identity default above.
+  return { ...env, ...accountSlotEnv(user.id) }
 }

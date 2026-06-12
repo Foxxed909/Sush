@@ -137,6 +137,40 @@
   downscale -> small JPEG data URL stored inline in the JSON user store.
   Avoids file:// (webSecurity) and keeps the store self-contained.
 
+- **Single action executor, many surfaces:** every AI-emitted action runs
+  through one `applyAction(intent, ctx)`; UI surfaces differ only in ctx
+  (scope-filtered tabs, control closures) and in how they render the result.
+  Adding an action = one case + one prompt line; no surface drift.
+- **Scoped assistant (Main/Project):** the same brain hook takes a `scope`;
+  project scope filters the visible sessions, fences targets by groupId,
+  defaults cwd to the workspace, and parks chat history in a Map keyed by
+  scope on switch. One component, N contexts.
+- **Agent self-review loop:** an action type whose result is raw terminal
+  output gets fed back to the model as a hidden user turn (bounded depth) —
+  "launch then check on them" actually reads the output instead of guessing.
+- **Driving a headless agent CLI (stream-json):** `claude -p
+  --output-format stream-json --verbose --include-partial-messages` over
+  stdin gives an NDJSON event stream (init/session_id, text deltas,
+  tool_use, tool_result, result). Map it to a tiny renderer vocabulary in
+  main; resume = persist session_id per directory and pass `--resume`.
+  Verify event shapes against the real CLI before building the UI.
+- **Multi-account via config-dir slots:** providers whose CLIs honor a
+  config-dir env (CLAUDE_CONFIG_DIR, CODEX_HOME) get N login slots as N
+  directories; the active slot's env spreads last over the identity env.
+  Limit-hit errors are sniffed by regex and the policy (never/ask/auto)
+  decides whether to rotate slots and retry. Providers without such an env
+  (gemini) cannot have slots — don't fake it.
+- **Idle sleep as a data attribute:** one `body[data-sleeping]` attribute
+  gates polling (checked in the shared usePolling hook) and freezes all
+  CSS animation via a single rule; the waking input is swallowed in capture
+  phase so it never reaches a PTY. Renderer-only — never touch processes.
+- **Window CustomEvent as hotkey bus:** app-level chords that must work
+  inside xterm dispatch a window CustomEvent; the floating tool subscribes.
+  Avoids prop-drilling a toggle through the component tree.
+- **Capability-gated launcher tiles:** probe CLI presence once in main
+  (cached `where` sweep + folder stats for local tools), render missing ones
+  as locked tiles instead of letting the launch fail later.
+
 ## Conventions
 - Imperative commit messages; concise.
 - ASCII only in renderer strings (curly quotes were stripped project-wide).

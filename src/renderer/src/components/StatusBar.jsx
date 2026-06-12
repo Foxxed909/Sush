@@ -6,7 +6,7 @@ import { usePolling } from '../hooks/usePolling'
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
 // live cpu/mem. Reuses the existing gitStatus + getSystemStats IPC. Polls on a
 // gentle 4s cadence; git is re-read whenever the active cwd changes too.
-export default function StatusBar({ accent, activeTab, view, sessionCount, broadcastMode, splitMode, agentSummary, onOpenMission }) {
+export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, splitMode, agentSummary, onOpenMission }) {
   const cwd = activeTab?.cwd || null
   const shell = activeTab?.shellLabel || activeTab?.shell || null
   const [git, setGit] = useState(null)
@@ -149,8 +149,15 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, broad
         )
       })()}
 
-      {/* sessions */}
+      {/* workspaces · sessions */}
       <span style={segR}>
+        {workspaceCount > 0 && (
+          <>
+            <span style={{ color: '#c6cdd4', fontWeight: 700 }}>{workspaceCount}</span>
+            <span>ws</span>
+            <span style={{ color: '#3a434c' }}>·</span>
+          </>
+        )}
         <span style={{ color: '#c6cdd4', fontWeight: 700 }}>{sessionCount}</span>
         <span>session{sessionCount === 1 ? '' : 's'}</span>
       </span>

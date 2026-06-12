@@ -15,12 +15,15 @@ export function usePolling(fn, interval, enabled = true) {
   useEffect(() => {
     if (!enabled) return
     let id = null
-    const active = () => document.hasFocus() && !document.hidden
+    // Idle sleep (body[data-sleeping]) gates every poll the same way blur
+    // does — a resting app must not keep spawning system probes.
+    const active = () => document.hasFocus() && !document.hidden && !document.body.dataset.sleeping
 
     const start = () => {
       if (id) return
       fnRef.current?.()                       // immediate read on (re)activation
-      id = setInterval(() => fnRef.current?.(), interval)
+      // Re-check per tick: sleep can begin without a focus/visibility event.
+      id = setInterval(() => { if (active()) fnRef.current?.() }, interval)
     }
     const stop = () => { if (id) { clearInterval(id); id = null } }
     const sync = () => { active() ? start() : stop() }

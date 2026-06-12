@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { themes } from '../themes'
 import Icon from './Icons'
 import { getPlan, loadPlan } from '../lib/plan'
@@ -21,12 +21,26 @@ function Label({ children }) {
 
 function Section({ title, accent, children }) {
   return (
-    <div style={{ marginBottom: 24 }}>
+    <div data-settings-sec={title} style={{ marginBottom: 28, scrollMarginTop: 12 }}>
       <div style={{ color: accent, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, paddingBottom: 7, borderBottom: `1px solid ${rgba(accent, 0.18)}` }}>{title}</div>
       {children}
     </div>
   )
 }
+
+// Nav entries -> the Section titles they scroll to. Adding a settings page =
+// add a <Section title="..."> in the body + one row here.
+const SETTINGS_NAV = [
+  { label: 'Plan', sec: 'Plan', icon: 'spark' },
+  { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
+  { label: 'Accounts', sec: 'Accounts', icon: 'users' },
+  { label: 'Voice', sec: 'Voice / Jarvis', icon: 'mic' },
+  { label: 'Terminal', sec: 'Terminal', icon: 'terminal' },
+  { label: 'Appearance', sec: 'Appearance', icon: 'palette' },
+  { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText' },
+  { label: 'Theme', sec: 'Theme', icon: 'layout' },
+  { label: 'Window', sec: 'Window', icon: 'layers' }
+]
 
 function Row({ children }) {
   return <div style={{ marginBottom: 16 }}>{children}</div>
@@ -77,95 +91,234 @@ function ApiKeyField({ label, value, onChange, accent, placeholder }) {
   )
 }
 
-// OAuth client config lives in MAIN (sush-oauth.json), not localStorage —
-// the lock screen needs it before anyone is signed in.
+// Custom wallpaper: picked image -> downscaled JPEG data URL in settings
+// (localStorage, per user). Shows behind glass surfaces and the home screen;
+// the dim slider keeps text readable over busy images.
+function WallpaperRow({ accent, settings, set }) {
+  const fileRef = useRef(null)
+  const [err, setErr] = useState('')
+
+  const onFile = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setErr('')
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const maxW = 1600
+        const scale = Math.min(1, maxW / img.width)
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.78)
+        if (dataUrl.length > 2_500_000) setErr('That image is too large even after compression - try a smaller one.')
+        else set('bgImage', dataUrl)
+      } catch (e2) {
+        setErr(e2.message)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); setErr('Could not read that image') }
+    img.src = url
+  }
+
+  return (
+    <Row>
+      <Label>Background wallpaper</Label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button
+          onClick={() => fileRef.current?.click()}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+        >
+          <Icon name="palette" size={14} color={accent} strokeWidth={2} />
+          {settings.bgImage ? 'Change image' : 'Choose image'}
+        </button>
+        {settings.bgImage && (
+          <>
+            <img src={settings.bgImage} alt="" style={{ width: 56, height: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #20272e' }} />
+            <button onClick={() => set('bgImage', '')} style={{ background: 'none', border: 'none', color: '#7a838b', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+              remove
+            </button>
+          </>
+        )}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display: 'none' }} />
+      {settings.bgImage && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+          <span style={{ fontSize: 11, color: '#76808a', fontWeight: 700 }}>Dim</span>
+          <input type="range" min={20} max={92} value={settings.bgDim ?? 62} onChange={e => set('bgDim', Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
+          <span style={{ color: '#e1e6ea', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.bgDim ?? 62}%</span>
+        </div>
+      )}
+      {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 6 }}>{err}</div>}
+      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.5 }}>
+        Shows through the glass chrome and the home screen (glass themes show the most). Stored per user.
+      </div>
+    </Row>
+  )
+}
+
+// CLI account slots: several Claude/Codex logins per identity, switchable
+// when a session limit bites. Adding a slot makes it active — the next
+// session you open for that CLI is where you log the new account in.
+function CliAccountsBlock({ accent }) {
+  const [data, setData] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [limits, setLimits] = useState(null)
+  const [checking, setChecking] = useState(false)
+
+  const refresh = () => window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
+  useEffect(() => {
+    refresh()
+    window.sush.claudeLimitsGet?.().then(r => { if (r?.limits) setLimits(r.limits) }).catch(() => {})
+  }, [])
+
+  const checkLimits = async () => {
+    setChecking(true)
+    setErr('')
+    const r = await window.sush.claudeLimitsCheck?.()
+    if (r?.ok && r.limits) setLimits(r.limits)
+    else if (r?.error) setErr(r.error)
+    setChecking(false)
+  }
+
+  const call = async (fn) => {
+    setBusy(true)
+    setErr('')
+    const r = await fn()
+    if (r?.ok) setData(r.providers)
+    // Every failure is shown — a swallowed 'no-user' here let "+ Add account"
+    // fail invisibly and the user think the slot feature was a no-op.
+    else setErr(r?.error === 'no-user' ? 'No Sush profile is signed in - sign in first.' : (r?.error || 'Something went wrong'))
+    setBusy(false)
+  }
+
+  if (!data) return null
+  const providers = [['claude', 'Claude Code'], ['codex', 'Codex']]
+  return (
+    <Row>
+      <Label>CLI accounts</Label>
+      {providers.map(([p, label]) => {
+        const st = data[p] || { active: 'default', slots: [] }
+        return (
+          <div key={p} style={{ marginBottom: 10 }}>
+            <div className="flex items-center" style={{ gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: '#c6cdd4' }}>{label}</span>
+              <button
+                onClick={() => call(async () => {
+                  const r = await window.sush.accountsAdd({ provider: p })
+                  // Hand the user straight to the sign-in: the new slot is
+                  // already active, so a fresh session of this CLI prompts
+                  // its own login flow (browser OAuth) — no manual steps.
+                  if (r?.ok) window.dispatchEvent(new CustomEvent('sush:open-login-session', { detail: { provider: p } }))
+                  return r
+                })}
+                disabled={busy}
+                style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '2px 10px', cursor: 'pointer' }}
+              >
+                + Add account
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {st.slots.map(slot => {
+                const on = st.active === slot.id
+                return (
+                  <span key={slot.id} className="flex items-center" style={{ gap: 6, borderRadius: 8, padding: '5px 9px', fontSize: 11.5, fontWeight: 700, background: on ? rgba(accent, 0.12) : '#0f1318', border: `1px solid ${on ? rgba(accent, 0.45) : '#20272e'}`, color: on ? accent : '#8a939c' }}>
+                    <button onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))} disabled={busy || on} style={{ background: 'none', border: 'none', color: 'inherit', fontWeight: 700, fontSize: 11.5, cursor: on ? 'default' : 'pointer', padding: 0 }}>
+                      {slot.label}{on ? ' ✓' : ''}
+                    </button>
+                    {slot.id !== 'default' && (
+                      <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account slot" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>
+                        ×
+                      </button>
+                    )}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+      {/* Claude limit previewer — passive capture from panel runs + an active probe */}
+      <div className="flex items-center" style={{ gap: 10, marginTop: 4, marginBottom: 8, padding: '8px 11px', borderRadius: 9, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <Icon name="activity" size={13} color={limits?.status === 'allowed' ? '#5fd3a8' : limits ? '#ffb74d' : '#5a646d'} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: '#c6cdd4' }}>
+            {!limits
+              ? 'Claude limit: unknown'
+              : limits.status === 'allowed'
+                ? 'Claude limit: OK'
+                : `Claude limit: ${limits.status}`}
+          </div>
+          <div style={{ fontSize: 10.5, color: '#69737d', marginTop: 1 }}>
+            {limits?.resetsAt
+              ? `${limits.rateLimitType ? limits.rateLimitType.replace(/_/g, ' ') + ' window - ' : ''}resets ${new Date(limits.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              : 'Use the Claude panel once, or check now.'}
+          </div>
+        </div>
+        <button
+          onClick={checkLimits}
+          disabled={checking}
+          style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '3px 11px', cursor: 'pointer', opacity: checking ? 0.5 : 1 }}
+        >
+          {checking ? 'Checking...' : 'Check now'}
+        </button>
+      </div>
+      {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700 }}>{err}</div>}
+      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 2, lineHeight: 1.5 }}>
+        Adding an account opens a sign-in session for it automatically — complete the login there and you're done. Switching changes which login every new session (and Seducia) uses. Gemini has no config redirect, so it stays one account per identity.
+      </div>
+    </Row>
+  )
+}
+
+// Sign-in providers ship with built-in app registrations — no user-facing
+// config. Power users can still override via userData/sush-oauth.json; this
+// section just reports what's live.
 function AccountsSection({ accent }) {
   const [cfg, setCfg] = useState(null)
-  const [googleSecret, setGoogleSecret] = useState('')
-  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     window.sush.oauthConfigGet?.().then(setCfg).catch(() => {})
   }, [])
 
-  const save = async () => {
-    const payload = {
-      github: { clientId: cfg?.github?.clientId ?? '' },
-      google: { clientId: cfg?.google?.clientId ?? '' }
-    }
-    if (googleSecret) payload.google.clientSecret = googleSecret
-    await window.sush.oauthConfigSet(payload)
-    setGoogleSecret('')
-    const fresh = await window.sush.oauthConfigGet()
-    setCfg(fresh)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
-  }
-
-  const field = {
-    width: '100%',
-    background: '#0f1318',
-    border: '1px solid #20272e',
-    color: '#f1f4f6',
-    borderRadius: 8,
-    padding: '8px 10px',
-    fontSize: 12.5,
-    outline: 'none',
-    fontFamily: 'inherit'
-  }
-
   if (!cfg) return null
+  const rows = [
+    {
+      icon: 'github',
+      label: 'GitHub sign-in',
+      ready: cfg.github?.configured !== false,
+      note: cfg.github?.usingBuiltIn === false ? 'Custom OAuth App (sush-oauth.json)' : 'Built-in Sush app - works out of the box'
+    },
+    {
+      icon: 'google',
+      label: 'Google sign-in',
+      ready: !!cfg.google?.configured,
+      note: cfg.google?.configured
+        ? (cfg.google?.usingBuiltIn === false ? 'Custom OAuth client (sush-oauth.json)' : 'Built-in Sush app - works out of the box')
+        : 'Not configured'
+    }
+  ]
   return (
     <Section title="Accounts" accent={accent}>
       <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 12 }}>
-        One-time setup for "Sign in with..." on the lock screen and the GitHub panel. Config is shared by all users of this install.
+        "Sign in with..." on the lock screen ships ready to use. Link or unlink accounts per user from the profile viewer or Manage Users.
       </div>
-      <Row>
-        <Label>GitHub OAuth Client ID</Label>
-        <input
-          value={cfg.github?.clientId ?? ''}
-          onChange={e => setCfg(c => ({ ...c, github: { ...c.github, clientId: e.target.value } }))}
-          placeholder={cfg.github?.usingBuiltIn ? 'Built-in Sush app active - paste to override' : 'Ov23li...'}
-          spellCheck={false}
-          style={field}
-        />
-        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-          {cfg.github?.usingBuiltIn
-            ? 'GitHub sign-in works out of the box with the built-in Sush app. Only paste a client id here to use your own OAuth App (Device Flow enabled).'
-            : 'Using your own OAuth App. Clear the field to fall back to the built-in Sush app.'}
+      {rows.map(r => (
+        <div key={r.label} className="flex items-center" style={{ gap: 10, padding: '7px 0' }}>
+          <Icon name={r.icon} size={14} color="#aab3bb" />
+          <span style={{ fontSize: 12.5, color: '#e6ebef', fontWeight: 700, flex: 1 }}>{r.label}</span>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, borderRadius: 999, padding: '2px 9px', color: r.ready ? '#5fd3a8' : '#8a939c', background: r.ready ? 'rgba(95,211,168,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${r.ready ? 'rgba(95,211,168,0.3)' : 'rgba(255,255,255,0.1)'}` }}>
+            {r.ready ? 'READY' : 'SOON'}
+          </span>
+          <span style={{ fontSize: 10.5, color: '#5a646d', minWidth: 0, maxWidth: 220, textAlign: 'right' }}>{r.note}</span>
         </div>
-      </Row>
-      <Row>
-        <Label>Google Client ID</Label>
-        <input
-          value={cfg.google?.clientId ?? ''}
-          onChange={e => setCfg(c => ({ ...c, google: { ...c.google, clientId: e.target.value } }))}
-          placeholder="....apps.googleusercontent.com"
-          spellCheck={false}
-          style={field}
-        />
-      </Row>
-      <Row>
-        <Label>Google Client Secret</Label>
-        <input
-          value={googleSecret}
-          onChange={e => setGoogleSecret(e.target.value)}
-          placeholder={cfg.google?.hasSecret ? '(saved - paste to replace)' : 'GOCSPX-...'}
-          type="password"
-          autoComplete="new-password"
-          spellCheck={false}
-          style={field}
-        />
-        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-          In Google Cloud Console create a <b>Desktop app</b> OAuth client and paste its ID + secret.
-        </div>
-      </Row>
-      <button
-        onClick={save}
-        style={{ padding: '8px 18px', borderRadius: 9, border: 'none', background: accent, color: '#0a0a0c', fontWeight: 900, fontSize: 12.5, cursor: 'pointer' }}
-      >
-        {saved ? 'Saved' : 'Save accounts config'}
-      </button>
+      ))}
       {cfg.safeStorage === false && (
         <div style={{ fontSize: 10.5, color: '#ffb74d', marginTop: 8, lineHeight: 1.5 }}>
           OS encryption unavailable: GitHub sign-in tokens will not be stored. The gh CLI login still works.
@@ -199,30 +352,58 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
   // Pull the voice list once if a key is already saved.
   useEffect(() => { if (settings.elevenLabsKey) loadElevenVoices(settings.elevenLabsKey) }, [])
 
-  return (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div style={{
-        width: 340,
-        height: '100%',
-        background: '#0c0e11',
-        borderLeft: `1px solid ${rgba(accent, 0.2)}`,
-        padding: '0',
-        overflowY: 'auto',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 14px', borderBottom: '1px solid #171c22', flexShrink: 0 }}>
-          <span style={{ color: '#f1f4f6', fontWeight: 900, fontSize: 15, letterSpacing: 0.2 }}>Settings</span>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="x" size={15} />
-          </button>
-        </div>
+  // Standalone settings page: left nav scrolls the content pane to the
+  // matching section.
+  const bodyRef = useRef(null)
+  const [activeSec, setActiveSec] = useState(SETTINGS_NAV[0].sec)
+  const goTo = (sec) => {
+    setActiveSec(sec)
+    bodyRef.current?.querySelector(`[data-settings-sec="${sec}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
-        <div style={{ padding: '18px 20px', flex: 1 }}>
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: '#08090c' }}>
+      {/* Page header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 26px', borderBottom: '1px solid #171c22', flexShrink: 0 }}>
+        <div className="flex items-center" style={{ gap: 11 }}>
+          <span className="flex items-center justify-center" style={{ width: 32, height: 32, borderRadius: 9, background: rgba(accent, 0.12), border: `1px solid ${rgba(accent, 0.3)}`, color: accent }}>
+            <Icon name="settings" size={16} strokeWidth={2} />
+          </span>
+          <span style={{ color: '#f1f4f6', fontWeight: 900, fontSize: 16, letterSpacing: 0.2 }}>Settings</span>
+        </div>
+        <button onClick={onClose} title="Back (Esc)" className="flex items-center" style={{ gap: 7, height: 32, padding: '0 13px', borderRadius: 9, border: '1px solid #20272e', background: '#11151a', color: '#aab3bb', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+          <Icon name="x" size={13} /> Close
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* Section nav */}
+        <nav style={{ width: 190, flexShrink: 0, borderRight: '1px solid #171c22', padding: '14px 10px', overflowY: 'auto' }} className="sush-scroll">
+          {SETTINGS_NAV.map(item => {
+            const on = activeSec === item.sec
+            return (
+              <button
+                key={item.sec}
+                onClick={() => goTo(item.sec)}
+                className="flex items-center"
+                style={{ gap: 9, width: '100%', padding: '8px 11px', marginBottom: 2, borderRadius: 9, border: 'none', textAlign: 'left', background: on ? rgba(accent, 0.12) : 'transparent', color: on ? accent : '#8a939c', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+              >
+                <Icon name={item.icon} size={14} strokeWidth={2} color={on ? accent : '#5a646d'} />
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
+
+        {/* Content */}
+        <div ref={bodyRef} className="sush-scroll" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '22px 30px' }}>
+          <div style={{ maxWidth: 640 }}>
           {/* Plan */}
           <Section title="Plan" accent={accent}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: rgba(plan.color, 0.08), border: `1px solid ${rgba(plan.color, 0.25)}` }}>
@@ -291,6 +472,28 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
                   Seducia drives your logged-in agent CLIs — no API key, no extra billing. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing (handy for Claude session limits). Replies arrive as a single message.
                 </div>
+                <Row>
+                  <Label>On session limit</Label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[['never', 'Never switch'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
+                      const current = settings.cliLimitPolicy || 'ask'
+                      const on = current === val
+                      return (
+                        <button
+                          key={val}
+                          onClick={() => set('cliLimitPolicy', val)}
+                          style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                        >
+                          {lbl}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                    What happens when a CLI hits its limit and you have another account for it below: keep failing, tell you a switch is available, or hop accounts automatically and retry.
+                  </div>
+                </Row>
+                <CliAccountsBlock accent={accent} />
               </>
             ) : (
               <>
@@ -495,6 +698,7 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 previous conversation continues. Applies on next launch.
               </div>
             </Row>
+            <WallpaperRow accent={accent} settings={settings} set={set} />
           </Section>
 
           {/* Profile */}
@@ -563,7 +767,52 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 When on, the minimize dot tucks Sush into the system tray. Click the tray icon to bring it back.
               </div>
             </Row>
+            <Row>
+              <Label>Hush dictation</Label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  onClick={() => set('hushEnabled', settings.hushEnabled === false ? true : false)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.hushEnabled !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.hushEnabled !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.hushEnabled !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+                >
+                  {settings.hushEnabled !== false ? 'On - mic button + Ctrl+Shift+S' : 'Off'}
+                </button>
+                {settings.hushEnabled !== false && (
+                  <button
+                    onClick={() => set('hushAutoSend', settings.hushAutoSend === false ? true : false)}
+                    title="Whether dictation presses Enter for you"
+                    style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: '1px solid #20272e', color: '#aab3bb', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+                  >
+                    {settings.hushAutoSend !== false ? 'Sends automatically' : 'Review before send'}
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                Hush types what you say into the focused terminal and presses Enter (switch to review mode to check before sending). Pure dictation, separate from Seducia. Note: only one voice listener can hold the mic - turn off Seducia's wake word to use Hush.
+              </div>
+            </Row>
+            <Row>
+              <Label>Sleep after inactivity</Label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[0, 5, 10, 20, 30].map(mins => {
+                  const current = settings.idleSleepMinutes ?? 10
+                  const on = current === mins
+                  return (
+                    <button
+                      key={mins}
+                      onClick={() => set('idleSleepMinutes', mins)}
+                      style={{ padding: '7px 13px', borderRadius: 8, border: `1px solid ${on ? rgba(accent, 0.5) : '#20272e'}`, background: on ? rgba(accent, 0.12) : '#0f1318', color: on ? accent : '#76808a', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                    >
+                      {mins === 0 ? 'Off' : `${mins} min`}
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                No input for this long and Sush dims, freezes animations, and stops every poll - terminals and agents keep running. Any key or click wakes it.
+              </div>
+            </Row>
           </Section>
+          </div>
         </div>
       </div>
     </div>

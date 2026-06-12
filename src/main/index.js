@@ -1,6 +1,19 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import { registerIpcHandlers } from './ipc'
+
+// Window/taskbar icon. Dev runs from out/main (resources/ at project root);
+// packaged builds carry it in process.resourcesPath via extraResources.
+function appIcon() {
+  for (const p of [
+    join(__dirname, '../../resources/icon.ico'),
+    join(process.resourcesPath || '', 'icon.ico')
+  ]) {
+    if (p && existsSync(p)) return p
+  }
+  return undefined
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -9,6 +22,7 @@ function createWindow() {
     minWidth: 600,
     minHeight: 400,
     frame: false,
+    icon: appIcon(),
     backgroundColor: '#0d0d0d',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

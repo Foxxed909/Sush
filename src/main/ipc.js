@@ -19,6 +19,13 @@ import {
   initUsers, listUsers, getActiveUser, getLastUserId, createUser, updateUser,
   deleteUser, activateUser, signOut, activeUserEnv, linkProvider, unlinkProvider
 } from './users'
+import {
+  listAccounts, addAccount, switchAccount, removeAccount, nextAccount, peekNextAccount
+} from './accounts'
+import {
+  setClaudePanelSender, startClaudePanelRun, stopClaudePanelRun, stopAllClaudePanelRuns,
+  getClaudeLimits, checkClaudeLimits
+} from './claudePanel'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
@@ -60,7 +67,7 @@ function buildBootLines(shellLabel, cwd) {
   try { version = `v${app.getVersion()}` } catch { version = 'v3' }
   return [
     `${dim}  ╭──────────────────────────────────────╮${reset}`,
-    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Lexicon ${reset}  ${dim}│${reset}`,
+    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Helm    ${reset}  ${dim}│${reset}`,
     `${dim}  │${reset}  ${green}✓${reset} ${shellLabel}  ${dim}·${reset}  ${pink}${folder}${reset}  ${dim}│${reset}`,
     `${dim}  ╰──────────────────────────────────────╯${reset}`,
     ''
@@ -92,10 +99,14 @@ function commandExists(file) {
 // .cmd shims cmd.exe re-parses argv — stdin is the only safe channel). Each
 // uses the user's existing CLI login — no API key required.
 const SEDUCIA_ENGINES = {
-  claude: { args: ['-p'] },
+  // --strict-mcp-config with no --mcp-config = load ZERO MCP servers. A chat
+  // reply needs none of them, and on a slow machine their startup alone was
+  // blowing the old 90s timeout.
+  claude: { args: ['-p', '--strict-mcp-config'] },
   codex: { args: ['exec', '--skip-git-repo-check', '-'] },
   gemini: { args: [] }
 }
+const CLI_TIMEOUT_MS = 180000   // weak-CPU headroom; was 90s and timing out
 
 // codex exec logs a banner + thinking lines; the final reply follows the
 // last "] codex" marker. Fall back to the raw text if the format changes.
@@ -111,6 +122,10 @@ function cleanCliOutput(engine, raw) {
   return out || text
 }
 
+// Session/usage-limit signatures across the agent CLIs. When one of these
+// shows up, rotating to another account slot may unblock the engine.
+const LIMIT_RE = /(session|usage|rate)\s*limit|limit\s+(reached|exceeded)|too many requests|quota exceeded|429/i
+
 function runCliEngine(engine, { prompt, cwd }) {
   const spec = SEDUCIA_ENGINES[engine]
   if (!spec) return Promise.resolve({ ok: false, engine, error: `Unknown AI engine: ${engine}` })
@@ -125,20 +140,45 @@ function runCliEngine(engine, { prompt, cwd }) {
     const done = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve(result) } }
     let child
     try {
-      child = spawn(file, args, { cwd: dir, windowsHide: true })
+      // Identity env LAST so the active user's CLI login (CLAUDE_CONFIG_DIR,
+      // CODEX_HOME, ...) wins over the host's — same rule as PTY spawns.
+      child = spawn(file, args, { cwd: dir, windowsHide: true, env: { ...process.env, ...activeUserEnv() } })
     } catch (e) {
       return resolve({ ok: false, engine, error: e.message })
     }
-    const timer = setTimeout(() => { try { child.kill() } catch {} ; done({ ok: false, engine, error: `${engine} CLI timed out (90s).` }) }, 90000)
+    const timer = setTimeout(() => { try { child.kill() } catch {} ; done({ ok: false, engine, error: `${engine} CLI timed out (${CLI_TIMEOUT_MS / 1000}s).` }) }, CLI_TIMEOUT_MS)
     child.stdout.on('data', d => { stdout += d })
     child.stderr.on('data', d => { stderr += d })
     child.on('error', e => done({ ok: false, engine, error: e.message }))
     child.on('close', code => {
       if (code === 0) done({ ok: true, engine, text: cleanCliOutput(engine, stdout) })
-      else done({ ok: false, engine, error: (stderr.trim() || stdout.trim() || `${engine} exited with code ${code}`).slice(0, 500) })
+      else {
+        const error = (stderr.trim() || stdout.trim() || `${engine} exited with code ${code}`).slice(0, 500)
+        done({ ok: false, engine, error, limitHit: LIMIT_RE.test(error) })
+      }
     })
     try { child.stdin.write(prompt); child.stdin.end() } catch (e) { done({ ok: false, engine, error: e.message }) }
   })
+}
+
+// Limit-aware wrapper: on a limit hit, consult the policy — 'auto' rotates to
+// the next account slot and retries once; 'ask' reports the available slot so
+// the renderer can offer the switch; 'never' just reports the failure.
+async function runCliEngineWithAccounts(engine, opts, policy = 'ask') {
+  const first = await runCliEngine(engine, opts)
+  if (first.ok || !first.limitHit || policy === 'never') return first
+  const user = getActiveUser()
+  if (!user) return first
+  if (policy === 'auto') {
+    const rotated = nextAccount(user.id, engine)
+    if (!rotated.ok) return first
+    const retry = await runCliEngine(engine, opts)
+    return retry.ok
+      ? { ...retry, switchedTo: rotated.label }
+      : { ...retry, switchedTo: rotated.label, limitHit: retry.limitHit ?? false }
+  }
+  const alt = peekNextAccount(user.id, engine)
+  return alt ? { ...first, canSwitch: { provider: engine, slotId: alt.id, label: alt.label } } : first
 }
 
 function getDefaultShell(shellId = 'powershell') {
@@ -701,6 +741,7 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
 
 let handlersRegistered = false
 let mainWin = null
+const cliPresence = new Map()   // CLI name -> found on PATH (see sush:check-clis)
 
 // ── Tray (minimize-to-tray, opt-in via Settings) ─────────────────────────────
 // Created lazily on the first tray-minimize; the icon is a tiny embedded PNG
@@ -708,10 +749,22 @@ let mainWin = null
 let tray = null
 const TRAY_ICON_DATA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAEpSURBVDhPY2CgJfifM1/jf/Zsh/9ZswzQ5XCC//HzOf5lz2n/lz3n+//suf+R8b+sucv/Z82XQNcDByCb/mXNuY6uEcWQ7DnPQa5C1wuz+T66Bmz4X9ac9xgu+Zczdzq6wpsx7f8PBVf9vxjZhGlI9tzt6Laj+HmyY/x/Lh4BOC4z88Mw5H/6fAWIAVmzDNBtRtYMw7sCylANyJwTAHF+5pwMZInZLikYmkG4xToM3RUNEBeA4hpJAuRvdM0gvNgjA9WArDkJEAPy5wugmfzfX90CRbODgv7/7xkz0QxASmD/subuRzcE5BWQs0EBiq4ZFOVwzWBX5MzXQI8J/BhLYvqXPSeCGEP+Zc8tQNcLBxCXzD2OrgmiEUcyxgb+ZcyygEZvA8hGXBoB+PrDpt9y53MAAAAASUVORK5CYII='
 
+function trayIcon() {
+  // Real icon when present (resources/icon.ico, dev + packaged); the embedded
+  // base64 dot stays as the can-never-fail fallback.
+  for (const p of [
+    join(__dirname, '../../resources/icon.ico'),
+    join(process.resourcesPath || '', 'icon.ico')
+  ]) {
+    try { if (p && existsSync(p)) return nativeImage.createFromPath(p) } catch {}
+  }
+  return nativeImage.createFromDataURL(TRAY_ICON_DATA)
+}
+
 function hideToTray() {
   if (!mainWin || mainWin.isDestroyed()) return
   if (!tray) {
-    tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON_DATA))
+    tray = new Tray(trayIcon())
     tray.setToolTip('Sush')
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Show Sush', click: () => restoreFromTray() },
@@ -746,6 +799,7 @@ export function registerIpcHandlers(win) {
     closeAllPtySessions({ sync: true })
     cancelGitHubFlow()
     cancelGoogleFlow()
+    stopAllClaudePanelRuns()
     try { tray?.destroy() } catch {}
   })
   if (process.platform === 'win32') ensurePowerShellBootstrap()
@@ -940,9 +994,47 @@ export function registerIpcHandlers(win) {
   })
 
   // ── Seducia via local agent CLIs (no API key) ─────────────────────────────
-  ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd, engine }) => {
+  ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd, engine, limitPolicy }) => {
     const id = ['claude', 'codex', 'gemini'].includes(engine) ? engine : 'claude'
-    return runCliEngine(id, { prompt: String(prompt ?? ''), cwd })
+    const policy = ['never', 'ask', 'auto'].includes(limitPolicy) ? limitPolicy : 'ask'
+    return runCliEngineWithAccounts(id, { prompt: String(prompt ?? ''), cwd }, policy)
+  })
+
+  // ── CLI account slots (multi-account per identity) ────────────────────────
+  const requireUser = (fn) => (event, payload = {}) => {
+    const user = getActiveUser()
+    if (!user) return { ok: false, error: 'no-user' }
+    return fn(user, payload)
+  }
+  ipcMain.handle('sush:accounts-list', requireUser((user) => listAccounts(user.id)))
+  ipcMain.handle('sush:accounts-add', requireUser((user, { provider, label }) => addAccount(user.id, provider, label)))
+  ipcMain.handle('sush:accounts-switch', requireUser((user, { provider, slotId }) => switchAccount(user.id, provider, slotId)))
+  ipcMain.handle('sush:accounts-remove', requireUser((user, { provider, slotId }) => removeAccount(user.id, provider, slotId)))
+
+  // ── Claude Code panel (stream-json driver) ────────────────────────────────
+  setClaudePanelSender((payload) => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:claude-panel-event', payload)
+  })
+  ipcMain.handle('sush:claude-panel-start', (event, payload) => startClaudePanelRun(payload ?? {}))
+  ipcMain.handle('sush:claude-panel-stop', (event, payload) => stopClaudePanelRun(payload ?? {}))
+  ipcMain.handle('sush:claude-limits-get', () => getClaudeLimits())
+  ipcMain.handle('sush:claude-limits-check', () => checkClaudeLimits())
+
+  // ── CLI availability (locked tiles in the launcher) ──────────────────────
+  // Each name costs one where.exe spawn the first time, then it's cached for
+  // the app's lifetime; pass refresh:true after installing something new.
+  ipcMain.handle('sush:check-clis', (event, { names, refresh } = {}) => {
+    const list = (Array.isArray(names) ? names : [])
+      .map(n => String(n ?? '').trim())
+      .filter(n => n && n.length <= 64)
+      .slice(0, 64)
+    if (refresh) list.forEach(n => cliPresence.delete(n))
+    const found = {}
+    for (const name of list) {
+      if (!cliPresence.has(name)) cliPresence.set(name, !!resolveExecutable(name))
+      found[name] = cliPresence.get(name)
+    }
+    return { found }
   })
 
   // ── Scrollback (for session handoff cards) ────────────────────────────────

@@ -49,6 +49,43 @@ function buildBlocks(tabs) {
   return blocks
 }
 
+// Workspace in-place rename: double-click the block header label to edit.
+function WorkspaceLabel({ id, label, onRenameGroup }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(label)
+  const inputRef = useRef(null)
+  useEffect(() => { setVal(label) }, [label])
+  useEffect(() => { if (editing) { inputRef.current?.select(); inputRef.current?.focus() } }, [editing])
+  const commit = () => {
+    setEditing(false)
+    const trimmed = val.trim()
+    if (trimmed && trimmed !== label) onRenameGroup?.(id, trimmed)
+    else setVal(label)
+  }
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(label) } }}
+        onClick={e => e.stopPropagation()}
+        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 11.5, fontWeight: 800, fontFamily: 'inherit' }}
+      />
+    )
+  }
+  return (
+    <span
+      style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: '#d6dde2' }}
+      onDoubleClick={e => { e.stopPropagation(); setEditing(true) }}
+      title="Double-click to rename workspace"
+    >
+      {label}
+    </span>
+  )
+}
+
 // Per-session in-place rename: double-click the label to edit, or trigger via the
 // context menu / F2 (editRequested), which the parent drives through renamingId.
 function SessionLabel({ tab, onRename, editRequested, onEditDone }) {
@@ -218,6 +255,7 @@ export default function SessionRail({
   onNewSession,
   onClose,
   onCloseGroup,
+  onRenameGroup,
   onReorder,
   onProfiles,
   onRename,
@@ -232,6 +270,15 @@ export default function SessionRail({
   const [dragOver, setDragOver] = useState(null)
   const [filter, setFilter] = useState('')
   const [collapsed, setCollapsed] = useState(() => new Set())
+  // Whole-rail minimize: collapses to a thin strip (persisted).
+  const [railMin, setRailMin] = useState(() => localStorage.getItem('sush-rail-min') === '1')
+  const toggleRailMin = () => {
+    setRailMin(prev => {
+      const next = !prev
+      try { localStorage.setItem('sush-rail-min', next ? '1' : '') } catch {}
+      return next
+    })
+  }
   const [pinned, setPinned] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('sush-pinned-tabs') ?? '[]')) } catch { return new Set() }
   })
@@ -279,6 +326,34 @@ export default function SessionRail({
 
   const blocks = buildBlocks(sortedTabs)
 
+  // Minimized: a thin strip — expand, home, new workspace, and a session count.
+  if (railMin) {
+    const running = tabs.filter(t => t.status !== 'exited').length
+    return (
+      <aside
+        className="shrink-0 flex flex-col items-center"
+        style={{ ...accentVars(accent), width: 56, flex: '1 1 auto', minHeight: 0, gap: 8, padding: '12px 0', background: 'transparent', borderRight: `1px solid ${rgba(accent, 0.1)}` }}
+      >
+        <RailButton icon="chevronRight" label="Expand sidebar" accent={accent} onClick={toggleRailMin} />
+        <RailButton icon="home" label="Home" active={view === 'home'} accent={accent} onClick={onHome} />
+        <RailButton
+          icon="plus"
+          label="New workspace"
+          accent={accent}
+          onClick={() => (onNewSession ? onNewSession() : onNew({ profile: profiles?.[0] }))}
+        />
+        {tabs.length > 0 && (
+          <span
+            title={`${running} running session${running === 1 ? '' : 's'} - expand to see them`}
+            style={{ marginTop: 4, fontSize: 10.5, fontWeight: 900, color: accent, background: rgba(accent, 0.14), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '2px 9px' }}
+          >
+            {running}
+          </span>
+        )}
+      </aside>
+    )
+  }
+
   return (
     <aside
       className="shrink-0 flex flex-col"
@@ -300,11 +375,13 @@ export default function SessionRail({
         <RailButton icon="home" label="Home" active={view === 'home'} accent={accent} onClick={onHome} />
         <RailButton
           icon="plus"
-          label="New session"
+          label="New workspace"
           accent={accent}
           onClick={() => (onNewSession ? onNewSession() : onNew({ profile: profiles?.[0] }))}
         />
         <RailButton icon="layers" label="Profiles" accent={accent} onClick={onProfiles} />
+        <span style={{ flex: 1 }} />
+        <RailButton icon="chevronLeft" label="Minimize sidebar" accent={accent} onClick={toggleRailMin} />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto sush-scroll" style={{ padding: 12 }}>
@@ -312,7 +389,7 @@ export default function SessionRail({
           className="flex items-center"
           style={{ gap: 8, color: '#6b747d', fontSize: 10.5, margin: '0 0 10px 2px', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}
         >
-          Sessions
+          Workspaces
           <span style={{ color: '#4b545d' }}>{q ? `${sortedTabs.length}/${tabs.length}` : tabs.length}</span>
           <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${rgba(accent, 0.18)}, transparent)` }} />
         </div>
@@ -385,9 +462,7 @@ export default function SessionRail({
                 >
                   <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={13} color="#7b858d" strokeWidth={2.4} />
                   <Icon name="users" size={13} color={accent} strokeWidth={2} />
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: '#d6dde2' }}>
-                    {block.label}
-                  </span>
+                  <WorkspaceLabel id={block.id} label={block.label} onRenameGroup={onRenameGroup} />
                   <span style={{ fontSize: 9.5, fontWeight: 800, color: accent, background: rgba(accent, 0.14), borderRadius: 999, padding: '1px 7px' }}>
                     {running}/{block.tabs.length}
                   </span>

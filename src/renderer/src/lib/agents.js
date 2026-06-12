@@ -21,11 +21,11 @@ export const AGENTS = [
   { id: 'aipex', label: 'AIPEX', command: 'aipex', mono: 'Ax', color: '#22c55e', desc: 'Rooms CLI agent' },
   { id: 'trident', label: 'Trident', command: 'trident', mono: 'T', color: '#38bdf8', desc: 'Agentic coding CLI' },
   { id: 'bedrock', label: 'Bedrock', command: 'bedrock', mono: 'B', color: '#a3e635', desc: 'Grounded AI workspace' },
-  { id: 'quill', label: 'Quill', command: localPython('C:\\Users\\WhitePC\\Rooms\\Coderoom\\CLI\\Quill', 'quill.py'), mono: 'Q', color: '#f472b6', desc: 'Writing CLI' },
+  { id: 'quill', label: 'Quill', command: localPython('C:\\Users\\WhitePC\\Rooms\\Coderoom\\CLI\\Quill', 'quill.py'), probeDir: 'C:\\Users\\WhitePC\\Rooms\\Coderoom\\CLI\\Quill', mono: 'Q', color: '#f472b6', desc: 'Writing CLI' },
   { id: 'razor', label: 'Razor', command: 'razor', mono: 'Rz', color: '#ef4444', desc: 'Coding CLI' },
   { id: 'serenity', label: 'Serenity', command: 'serenity', mono: 'S', color: '#14b8a6', desc: 'Calm AI workspace' },
   { id: 'sydney', label: 'Sydney', command: 'sydney', mono: 'Sy', color: '#60a5fa', desc: 'AI companion CLI' },
-  { id: 'ocp', label: 'OCP', command: localPython('C:\\Users\\WhitePC\\Rooms\\Coderoom\\CLI\\OCP', 'ocp.py'), mono: 'OC', color: '#f97316', desc: 'Open CLI Platform' },
+  { id: 'ocp', label: 'OCP', command: localPython('C:\\Users\\WhitePC\\Rooms\\Coderoom\\CLI\\OCP', 'ocp.py'), probeDir: 'C:\\Users\\WhitePC\\Rooms\\Coderoom\\CLI\\OCP', mono: 'OC', color: '#f97316', desc: 'Open CLI Platform' },
   { id: 'erosion', label: 'Erosion', command: 'erosion help', mono: 'Er', color: '#84cc16', desc: 'Cache cleaner tool' },
   { id: 'evm', label: 'EVM', command: 'evm help', mono: 'Ev', color: '#eab308', desc: 'Environment monitor' }
 ]

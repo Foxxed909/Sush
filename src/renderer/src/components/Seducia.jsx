@@ -3,6 +3,7 @@ import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
 import { AGENTS, agentById } from '../lib/agents'
 import { getStreamer, parseAIResponse } from '../lib/ai'
+import { applyAction } from '../lib/seduciaActions'
 import { can } from '../lib/plan'
 
 function pathLabel(cwd) {
@@ -38,30 +39,6 @@ function agentIdFromToken(token) {
     if (names.some(n => t === n || t.startsWith(n))) return id
   }
   return null
-}
-
-function runningTargets(tabs, target) {
-  return tabs.filter(t => t.status !== 'exited' && (target === 'all' || (t.agentId || 'shell') === target))
-}
-
-function targetName(id) {
-  if (id === 'all') return 'agents'
-  return agentById(id)?.label || id
-}
-
-function describeSessions(tabs) {
-  const running = tabs.filter(t => t.status !== 'exited')
-  if (!running.length) return "Nothing is running yet. Tell me what to launch -- e.g. 'build team here' or '3 claude'."
-  const byAgent = new Map()
-  running.forEach(t => {
-    const id = t.agentId || 'shell'
-    if (!byAgent.has(id)) byAgent.set(id, [])
-    byAgent.get(id).push(t)
-  })
-  const parts = [...byAgent.entries()].map(([id, list]) => `${list.length}× ${agentById(id)?.label || 'Terminal'}`)
-  const groups = new Set(running.map(t => t.groupId).filter(Boolean)).size
-  const groupNote = groups ? ` across ${groups} workspace${groups === 1 ? '' : 's'}` : ''
-  return `${running.length} session${running.length === 1 ? '' : 's'} live${groupNote}: ${parts.join(', ')}. Say "tell claude ..." to prompt one, or "focus codex" to jump to it.`
 }
 
 function buildTeam() {
@@ -197,12 +174,17 @@ const QUICK = [
 // auto-proceeds after 5s ("mix of both" — she does it, you get a veto window).
 function LaunchCard({ accent, launch, status, onGo, onCancel }) {
   const [left, setLeft] = useState(5)
+  // onGo is a fresh closure on every parent render (typing in the composer
+  // re-renders the transcript) — keep it in a ref so the countdown's 1s tick
+  // isn't torn down and re-armed mid-second, stalling the timer.
+  const goRef = useRef(onGo)
+  goRef.current = onGo
   useEffect(() => {
     if (status) return
-    if (left <= 0) { onGo(); return }
+    if (left <= 0) { goRef.current(); return }
     const t = setTimeout(() => setLeft(l => l - 1), 1000)
     return () => clearTimeout(t)
-  }, [left, status, onGo])
+  }, [left, status])
   const total = (launch.agents || []).reduce((sum, a) => sum + Math.max(1, a.count || 1), 0)
   const brief = launch.prompt ? String(launch.prompt) : ''
   return (
@@ -246,6 +228,8 @@ export default function Seducia({
   tabs = [],
   recentSessions = [],
   activeCwd,
+  scope = { kind: 'main' },
+  controls = {},
   onLaunch,
   onRun,
   onPrompt,
@@ -256,8 +240,11 @@ export default function Seducia({
   settings = {},
   planId = 'free'
 }) {
+  // Project scope: only this workspace's sessions, default dir = its cwd.
+  const scopedTabs = scope?.groupId ? tabs.filter(t => t.groupId === scope.groupId) : tabs
+  const scopedCwd = scope?.cwd || activeCwd
   const dirs = [
-    ...(activeCwd ? [{ cwd: activeCwd, label: pathLabel(activeCwd) }] : []),
+    ...(scopedCwd ? [{ cwd: scopedCwd, label: pathLabel(scopedCwd) }] : []),
     ...recentSessions.map(s => ({ cwd: s.cwd, label: s.label }))
   ]
 
@@ -292,7 +279,7 @@ export default function Seducia({
     window.speechSynthesis?.cancel()
   }, [])
 
-  const groups = new Set(tabs.map(t => t.groupId).filter(Boolean)).size
+  const groups = new Set(scopedTabs.map(t => t.groupId).filter(Boolean)).size
 
   const push = useCallback((role, text, extra = {}) => {
     setLog(prev => [...prev, { id: idRef.current++, role, text, ...extra }])
@@ -303,36 +290,25 @@ export default function Seducia({
     setLog(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
   }, [])
 
-  const applyIntent = useCallback((intent) => {
-    if (intent.type === 'status') {
-      return describeSessions(tabs)
-    } else if (intent.type === 'prompt') {
-      const targets = runningTargets(tabs, intent.target)
-      if (!targets.length) {
-        onPrompt && null
-        return `No ${targetName(intent.target)} running right now -- say "${intent.target === 'all' ? 'build team here' : intent.target + ' here'}" first.`
-      }
-      const where = targets.length > 1 ? ` (${targets.length} sessions)` : ''
-      onPrompt?.({ target: intent.target, text: intent.text })
-      return `Sent to ${targetName(intent.target)}${where}: "${intent.text}"`
-    } else if (intent.type === 'focus') {
-      const targets = runningTargets(tabs, intent.target)
-      if (!targets.length) return `No ${targetName(intent.target)} running.`
-      onFocus?.(intent.target)
-      return `Jumped to ${targetName(intent.target)}.`
-    } else if (intent.type === 'launch') {
-      onLaunch({ cwd: intent.cwd, agents: intent.agents, groupLabel: intent.groupLabel, prompt: intent.prompt })
-      const tail = intent.prompt ? ' and briefing them' : ''
-      return `Spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}${tail}.`
-    } else if (intent.type === 'open-launcher') {
-      onOpenLauncher()
-      return 'Opening the launcher.'
-    } else if (intent.type === 'run') {
-      onRun(intent.input)
-      return `Running "${intent.input}".`
+  // Shared executor (same one the orb uses): returns { text, readout? }.
+  // The docked panel surfaces readouts inline rather than looping the AI.
+  const applyIntent = useCallback(async (intent) => {
+    const res = await applyAction(intent, {
+      tabs: scopedTabs,
+      scope,
+      controls,
+      activeCwd: scopedCwd,
+      onLaunch, onRun, onPrompt, onFocus, onOpenLauncher
+    })
+    if (!res) return null
+    if (res.readout?.length) {
+      const preview = res.readout
+        .map(r => `-- ${r.label} --\n${String(r.text || '').slice(-600)}`)
+        .join('\n\n')
+      return `${res.text}\n${preview}`
     }
-    return null
-  }, [tabs, onPrompt, onFocus, onLaunch, onOpenLauncher, onRun])
+    return res.text
+  }, [scopedTabs, scope, controls, scopedCwd, onPrompt, onFocus, onLaunch, onOpenLauncher, onRun])
 
   // AI-proposed launches go through a confirm card (5s auto-proceed) — a
   // misread request should not silently spawn a swarm. The ref guards the
@@ -361,11 +337,11 @@ export default function Seducia({
     let full = ''
 
     try {
-      const gen = streamer(newHistory.map(m => ({ role: m.role, content: m.content })), { tabs, activeCwd })
+      const gen = streamer(newHistory.map(m => ({ role: m.role, content: m.content })), { tabs: scopedTabs, activeCwd: scopedCwd, scope })
       for await (const chunk of gen) {
         if (abort.signal.aborted) break
         full += chunk
-        updateLast(msgId, { text: full.replace(/ACTION:[^\n]*/g, '').trim(), streaming: true })
+        updateLast(msgId, { text: full.replace(/(?:ACTION|ENGINE):[^\n]*/g, '').trim(), streaming: true })
       }
     } catch (e) {
       full = e.message?.includes('401') ? "Invalid API key -- check Settings." : `AI error: ${e.message}`
@@ -374,15 +350,19 @@ export default function Seducia({
       return true
     }
 
-    const { message, actions, engine } = parseAIResponse(full)
+    const { message, actions: parsedActions, engine } = parseAIResponse(full)
     const displayText = message || full
+
+    // A stopped stream may have been cut mid-ACTION line — never execute
+    // actions parsed out of a partial response.
+    const actions = abort.signal.aborted ? [] : parsedActions
 
     // Launches wait behind a confirm card; everything else applies now.
     const launches = actions.filter(a => a?.type === 'launch')
     const feedback = []
     for (const act of actions) {
       if (!act || act.type === 'launch') continue
-      const fb = applyIntent(act)
+      const fb = await applyIntent(act)
       if (fb && fb !== displayText) feedback.push(fb)
     }
 
@@ -403,7 +383,7 @@ export default function Seducia({
 
     setAiMessages([...newHistory, { role: 'assistant', content: full }])
     return true
-  }, [settings, aiMessages, tabs, activeCwd, push, updateLast, applyIntent, voiceEnabled])
+  }, [settings, aiMessages, scopedTabs, scopedCwd, scope, push, updateLast, applyIntent, voiceEnabled])
 
   const handle = useCallback(async (input) => {
     const command = input.trim()
@@ -418,38 +398,8 @@ export default function Seducia({
     }
 
     // Deterministic fallback.
-    const intent = parseIntent(command, activeCwd, dirs)
-    let response = ''
-
-    if (intent.type === 'status') {
-      response = describeSessions(tabs)
-    } else if (intent.type === 'prompt') {
-      const targets = runningTargets(tabs, intent.target)
-      if (!targets.length) {
-        response = `No ${targetName(intent.target)} running right now -- say "${intent.target === 'all' ? 'build team here' : intent.target + ' here'}" and I'll launch one first.`
-      } else {
-        const where = targets.length > 1 ? ` (${targets.length} of them)` : ''
-        response = `Sending to ${targetName(intent.target)}${where}: "${intent.text}".`
-        onPrompt?.({ target: intent.target, text: intent.text })
-      }
-    } else if (intent.type === 'focus') {
-      const targets = runningTargets(tabs, intent.target)
-      if (!targets.length) {
-        response = `No ${targetName(intent.target)} to focus -- nothing by that name is running.`
-      } else {
-        response = `Jumping to ${targetName(intent.target)}.`
-        onFocus?.(intent.target)
-      }
-    } else if (intent.type === 'launch') {
-      response = `On it -- spinning up ${summarize(intent.agents)} in ${pathLabel(intent.cwd)}. They'll open as a workspace.`
-      onLaunch({ cwd: intent.cwd, agents: intent.agents, groupLabel: intent.groupLabel })
-    } else if (intent.type === 'open-launcher') {
-      response = 'Opening the launcher so you can dial in the swarm.'
-      onOpenLauncher()
-    } else {
-      response = `Running "${intent.input}" in the active session.`
-      onRun(intent.input)
-    }
+    const intent = parseIntent(command, scopedCwd, dirs)
+    const response = (await applyIntent(intent)) || `Running "${command}".`
 
     push('seducia', response)
 
@@ -460,7 +410,7 @@ export default function Seducia({
         speak(response, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
       }
     }
-  }, [streaming, aiEnabled, activeCwd, dirs, tabs, push, handleAI, onPrompt, onFocus, onLaunch, onOpenLauncher, onRun, voiceEnabled, settings])
+  }, [streaming, aiEnabled, scopedCwd, dirs, push, handleAI, applyIntent, voiceEnabled, settings])
 
   // Voice dictation
   const toggleVoice = useCallback(() => {
@@ -529,7 +479,7 @@ export default function Seducia({
               )}
             </div>
             <div style={{ fontSize: 10.5, color: '#76808a', marginTop: 1 }}>
-              {tabs.length} session{tabs.length === 1 ? '' : 's'}{groups ? ` · ${groups} workspace${groups === 1 ? '' : 's'}` : ''}
+              {scope?.kind === 'project' ? `${scope.label} · ` : ''}{scopedTabs.length} session{scopedTabs.length === 1 ? '' : 's'}{scope?.kind !== 'project' && groups ? ` · ${groups} workspace${groups === 1 ? '' : 's'}` : ''}
             </div>
           </div>
         </div>
