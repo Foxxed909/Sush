@@ -1,46 +1,27 @@
-// Jarvis-style voice engine for Seducia.
+// Voice engine for Seducia — push-to-talk STT + system TTS.
 //
-// Responsibilities:
-//   - Wake word: continuous Web-Speech recognition scanning for "seducia".
-//   - STT: capture the spoken command (after the wake word, or push-to-talk).
-//   - TTS: stream ElevenLabs audio (low-latency flash/turbo) via MediaSource,
-//     falling back to the Web Speech synthesizer when no key is set.
-//   - Barge-in: the moment the user speaks, stop whatever Seducia is saying.
+// The always-on wake word ("Seducia") and the ElevenLabs streaming TTS are
+// gone: the wake loop held the microphone hostage (it fought Hush for the
+// mic and burned battery listening 24/7), and ElevenLabs was a paid demo
+// feature. What remains is the honest core: tap the mic, speak a command,
+// and — if TTS is enabled in Settings — she answers in your system voice.
 //
-// State machine (reported via onState): idle -> wake -> listening -> thinking
-//   -> speaking -> (wake | idle). `thinking` / `speaking` are driven by the
-//   caller (the brain) via setThinking()/speak(); `wake`/`listening` are driven
-//   by recognition. Everything is defensive: the Web Speech API is flaky, so we
-//   wrap every call and auto-restart recognition when it ends unexpectedly.
+// State machine (reported via onState): idle -> listening -> thinking ->
+// speaking -> idle. `thinking`/`speaking` are driven by the caller via
+// setThinking()/speak(); `listening` by recognition. Everything is
+// defensive: the Web Speech API is flaky, so every call is wrapped.
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
 
 export const speechRecognitionSupported = !!SR
-
-// Accept common mishearings of the wake word.
-const WAKE_PATTERNS = ['seducia', 'sedusia', 'seducea', 'sedducia', 'the ducia', 'sir ducia', 'saducia', 'seductia']
-
-function stripWake(transcript) {
-  const lower = transcript.toLowerCase()
-  for (const w of WAKE_PATTERNS) {
-    const i = lower.indexOf(w)
-    if (i !== -1) return transcript.slice(i + w.length).replace(/^[\s,.:!?-]+/, '').trim()
-  }
-  return null // no wake word present
-}
 
 export class VoiceEngine {
   constructor(handlers = {}) {
     this.on = handlers // { onState, onPartial, onCommand, onError }
     this.cfg = {}
     this.state = 'idle'
-    this.armed = false // wake word heard, now capturing a command
     this.pushToTalk = false // a one-shot manual capture is active
-    this.wakeEnabled = false
     this.rec = null
-    this.restartTimer = null
-    this.audio = null
-    this.ttsAbort = null
     this.speaking = false
     this.lastSpoken = ''
   }
@@ -53,31 +34,25 @@ export class VoiceEngine {
     this.on.onState?.(s)
   }
 
-  setThinking(on) { if (on) this.setState('thinking'); else this.setState(this.wakeEnabled ? 'wake' : 'idle') }
+  setThinking(on) { if (on) this.setState('thinking'); else this.setState('idle') }
 
   // ---- Recognition -------------------------------------------------------
   ensureRec() {
     if (!SR || this.rec) return this.rec
     const rec = new SR()
-    rec.lang = 'en-US'
-    rec.continuous = true
+    rec.lang = navigator.language || 'en-US'
+    rec.continuous = false
     rec.interimResults = true
     rec.onresult = (e) => this.handleResult(e)
     rec.onerror = (e) => {
       if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
-        this.wakeEnabled = false
         this.on.onError?.('Microphone permission denied.')
         this.setState('idle')
       }
     }
     rec.onend = () => {
-      // Auto-restart for the always-on wake loop unless we deliberately stopped.
-      if (this.wakeEnabled || this.pushToTalk) {
-        clearTimeout(this.restartTimer)
-        this.restartTimer = setTimeout(() => this.startRec(), 250)
-      } else {
-        this.setState(this.speaking ? 'speaking' : 'idle')
-      }
+      this.pushToTalk = false
+      if (this.state === 'listening') this.setState(this.speaking ? 'speaking' : 'idle')
     }
     this.rec = rec
     return rec
@@ -100,41 +75,19 @@ export class VoiceEngine {
       this.stopSpeaking()
     }
 
-    if (this.pushToTalk) {
-      this.on.onPartial?.(transcript)
-      this.setState('listening')
-      if (result.isFinal) this.commit(transcript)
-      return
-    }
-
-    if (!this.armed) {
-      const after = stripWake(transcript)
-      if (after === null) return // wake word not heard yet
-      this.armed = true
-      this.setState('listening')
-      if (after) {
-        this.on.onPartial?.(after)
-        if (result.isFinal) this.commit(after)
-      }
-      return
-    }
-
-    // Already armed -> everything after the wake word is the command.
-    const after = stripWake(transcript)
-    const command = after !== null ? after : transcript
-    this.on.onPartial?.(command)
-    if (result.isFinal) this.commit(command)
+    this.on.onPartial?.(transcript)
+    this.setState('listening')
+    if (result.isFinal) this.commit(transcript)
   }
 
   commit(text) {
     const command = text.trim()
-    this.armed = false
     this.pushToTalk = false
     if (command) {
       this.setState('thinking')
       this.on.onCommand?.(command)
     } else {
-      this.setState(this.wakeEnabled ? 'wake' : 'idle')
+      this.setState('idle')
     }
   }
 
@@ -146,109 +99,29 @@ export class VoiceEngine {
   }
 
   // ---- Public controls ---------------------------------------------------
-  startWakeWord() {
-    if (!SR) { this.on.onError?.('Voice recognition is not available in this build.'); return }
-    this.wakeEnabled = true
-    this.armed = false
-    this.setState('wake')
-    this.startRec()
-  }
-
-  stopWakeWord() {
-    this.wakeEnabled = false
-    this.armed = false
-    clearTimeout(this.restartTimer)
-    try { this.rec?.stop() } catch {}
-    if (!this.speaking) this.setState('idle')
-  }
-
   // One-shot manual capture (push-to-talk / mic button).
   listenOnce() {
     if (!SR) { this.on.onError?.('Voice recognition is not available in this build.'); return }
     this.pushToTalk = true
-    this.armed = false
     this.setState('listening')
     this.startRec()
   }
 
   cancelListen() {
     this.pushToTalk = false
-    this.armed = false
     try { this.rec?.stop() } catch {}
-    this.setState(this.wakeEnabled ? 'wake' : 'idle')
+    this.setState('idle')
   }
 
-  // ---- TTS ---------------------------------------------------------------
-  async speak(text) {
+  // ---- TTS (system voice) -------------------------------------------------
+  speak(text) {
     const clean = String(text || '').replace(/ACTION:[^\n]*/g, '').replace(/[*_`#>]/g, '').trim()
     if (!clean) return
     this.stopSpeaking()
     this.lastSpoken = clean
     this.speaking = true
     this.setState('speaking')
-
-    const { elevenLabsKey, elevenLabsVoice } = this.cfg
-    try {
-      if (elevenLabsKey && elevenLabsVoice) await this.speakEleven(clean)
-      else this.speakWebSpeech(clean)
-    } catch {
-      // Network / decode failure -> fall back so Seducia is never mute.
-      try { this.speakWebSpeech(clean) } catch {}
-    }
-  }
-
-  async speakEleven(text) {
-    const { elevenLabsKey, elevenLabsVoice, elevenLabsModel } = this.cfg
-    const abort = new AbortController()
-    this.ttsAbort = abort
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoice}/stream?optimize_streaming_latency=3&output_format=mp3_44100_128`
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'xi-api-key': elevenLabsKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
-      body: JSON.stringify({
-        text: text.slice(0, 900),
-        model_id: elevenLabsModel || 'eleven_flash_v2_5',
-        voice_settings: { stability: 0.4, similarity_boost: 0.8, style: 0.25, use_speaker_boost: true }
-      }),
-      signal: abort.signal
-    })
-    if (!res.ok) throw new Error(`eleven ${res.status}`)
-
-    const audio = new Audio()
-    audio.autoplay = true
-    this.audio = audio
-    const finish = () => { if (this.audio === audio) this.onSpeakEnd() }
-    audio.onended = finish
-    audio.onerror = finish
-
-    // Prefer MediaSource streaming for near-instant start; fall back to a blob.
-    const canStream = typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg') && res.body
-    if (canStream) {
-      const ms = new MediaSource()
-      audio.src = URL.createObjectURL(ms)
-      await new Promise(resolve => ms.addEventListener('sourceopen', resolve, { once: true }))
-      const sb = ms.addSourceBuffer('audio/mpeg')
-      const queue = []
-      let reading = true
-      const pump = () => {
-        if (sb.updating) return
-        if (queue.length) { try { sb.appendBuffer(queue.shift()) } catch {} }
-        else if (!reading && ms.readyState === 'open') { try { ms.endOfStream() } catch {} }
-      }
-      sb.addEventListener('updateend', pump)
-      const reader = res.body.getReader()
-      audio.play().catch(() => {})
-      while (true) {
-        const { value, done } = await reader.read()
-        if (abort.signal.aborted) { reader.cancel().catch(() => {}); break }
-        if (done) { reading = false; pump(); break }
-        queue.push(value); pump()
-      }
-    } else {
-      const blob = await res.blob()
-      audio.src = URL.createObjectURL(blob)
-      audio.play().catch(() => {})
-    }
+    this.speakWebSpeech(clean)
   }
 
   speakWebSpeech(text) {
@@ -269,37 +142,18 @@ export class VoiceEngine {
 
   onSpeakEnd() {
     this.speaking = false
-    if (this.audio) { try { this.audio.pause() } catch {}; this.audio = null }
-    this.setState(this.wakeEnabled ? 'wake' : 'idle')
+    this.setState('idle')
   }
 
   stopSpeaking() {
     this.speaking = false
-    try { this.ttsAbort?.abort() } catch {}
-    this.ttsAbort = null
-    if (this.audio) { try { this.audio.pause(); this.audio.src = '' } catch {}; this.audio = null }
     try { window.speechSynthesis?.cancel() } catch {}
   }
 
   destroy() {
-    this.wakeEnabled = false
     this.pushToTalk = false
-    clearTimeout(this.restartTimer)
     this.stopSpeaking()
     try { this.rec?.abort() } catch {}
     this.rec = null
-  }
-}
-
-// List ElevenLabs voices for the Settings picker. Returns [] on any failure.
-export async function fetchElevenVoices(apiKey) {
-  if (!apiKey) return []
-  try {
-    const res = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': apiKey } })
-    if (!res.ok) return []
-    const data = await res.json()
-    return (data.voices || []).map(v => ({ id: v.voice_id, name: v.name, category: v.category }))
-  } catch {
-    return []
   }
 }

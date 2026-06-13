@@ -71,6 +71,63 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   dominant renderer buffer). Persistent scrollback (60KB/tab, disk) is the
   long-history story.
 
+## 4.2.0 follow-up — feature adds + the cull
+
+### Custom agents (lib/agents.js)
+- `BUILTIN_AGENTS` is the static list (machine-specific Quill/OCP paths and
+  the `probeDir`/`localPython` hardcodes are GONE). `loadCustomAgents()` reads
+  per-user localStorage (`sush-custom-agents`), validated/clamped on read.
+  `allAgents()` = built-ins + custom and is what the launcher
+  (NewSessionModal snapshots it once per open), Seducia catalog
+  (`lib/seducia.js`, `components/Seducia.jsx`), `useCliAvailability`, and
+  `agentById` now iterate. `AGENTS` is kept as an alias of `BUILTIN_AGENTS`
+  for module-scope consumers (`lib/ai.js` id catalog). Settings ▸ Agents
+  (`AgentsSection`) does add/remove. Codex got `resumeCommand: 'codex resume
+  --last'`.
+
+### Accounts (accounts.js + ipc.js)
+- `renameAccount` + `markLimitHit` added; `listAccounts` now returns
+  `lastLimitAt` per slot. `nextAccount` rotates to the slot with the OLDEST
+  `lastLimitAt` (rested longest) instead of round-robin. The cascade in
+  `runCliEngineWithAccounts` calls `markLimitHit` on every limit hit (before
+  the policy branch). Preload gained `accountsRename`. Settings shows inline
+  rename (double-click) + "limit hit Xh ago" (<12h).
+
+### Brief-typing readiness (App.jsx launchSessions)
+- The blind `4500 + i*400` timer is replaced by a 500ms poll that fires the
+  brief when the activity classifier reports `waiting`/`idle` (min
+  `2500 + i*300`ms in), hard fallback at 12s. Reads `agentStatesRef` (a ref
+  mirror of useAgentActivity's states) so the closure never goes stale.
+
+### POSIX shells (ipc.js getDefaultShell)
+- macOS/Linux: `$SHELL` (zsh default on darwin) spawned `-l` (login) so rc
+  files load. Was a bare non-login `/bin/bash`.
+
+### The cull (everyone gets full Sush)
+- **Plans**: `lib/plan.js` DELETED, `PlansModal.jsx` deleted. All `can()` /
+  plan-gate call sites in useSeducia, SeduciaOrb, Seducia, Settings, App,
+  RightPanel removed; `aiEnabled`/`voiceMode` gates collapse to "AI on if a
+  streamer is configured", "voice on if mic supported".
+- **Wake word + ElevenLabs**: `lib/voice.js` rewritten — VoiceEngine is now
+  push-to-talk STT + system `SpeechSynthesis` only. `startWakeWord`/
+  `stopWakeWord`/`speakEleven`/MediaSource streaming/wake patterns gone. The
+  docked `Seducia.jsx` lost its inline `elevenLabsSpeak`. Settings Voice
+  section is system-voice-only. (Hands-free auto-resubmit in the docked panel
+  stays — it's one-shot recognition, not an always-on mic.)
+- **Session recording**: removed from `Terminal.jsx` + all recording refs/
+  `.cast` export from `useTerminal.js`.
+- **RightPanel dev-tabs**: `api` (ApiTesterTab) and `regex` (RegexTab)
+  removed — registry entries, render lines, and function bodies. (JsonViewer
+  stays — it's the smart-output renderer, not a tab.)
+- **Corner styles**: `cornerStyle`/`cycleCorners`/`corners` command + the
+  `body[data-corners]` CSS overrides removed; UI is the single rounded
+  `--r-*` scale. `TopBar.jsx`/`TabBar.jsx` (already-dead) deleted.
+- **Broadcast mode KEPT** (user: "continue").
+
+### CI
+- `.github/workflows/build.yml`: `npm ci && npm run build` on push/PR. The
+  repo had zero CI before.
+
 ## 4.0.0 — "Helm" implementation notes
 
 ### Seducia full control + scoping

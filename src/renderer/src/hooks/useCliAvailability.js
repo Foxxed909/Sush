@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AGENTS } from '../lib/agents'
+import { allAgents } from '../lib/agents'
 
 // Which agent CLIs are actually installed: id -> true|false. A missing key
 // means "probe still in flight" — treat it as available so tiles never lock
@@ -14,7 +14,7 @@ export function useCliAvailability() {
     try {
       const bins = []
       const dirAgents = []
-      for (const a of AGENTS) {
+      for (const a of allAgents()) {
         if (a.id === 'shell') continue
         if (a.probeDir) dirAgents.push(a)
         else bins.push({ id: a.id, bin: String(a.command || '').split(/\s+/)[0] })

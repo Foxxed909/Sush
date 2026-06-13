@@ -1,6 +1,6 @@
 // Pure Seducia helpers — intent parsing, agent resolution, session summaries.
 // Extracted so the orb, the docked panel, and the voice loop share one brain.
-import { AGENTS, agentById } from './agents'
+import { allAgents, agentById } from './agents'
 
 export function pathLabel(cwd) {
   if (!cwd) return 'this directory'
@@ -135,7 +135,7 @@ export function parseIntent(input, activeCwd, dirs = []) {
   }
 
   const agents = []
-  for (const agent of AGENTS) {
+  for (const agent of allAgents()) {
     const names = SYNONYMS[agent.id] || [agent.id]
     let count = 0
     for (const name of names) {

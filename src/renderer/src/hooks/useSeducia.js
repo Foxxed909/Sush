@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { getStreamer, parseAIResponse } from '../lib/ai'
-import { can } from '../lib/plan'
 import { VoiceEngine, speechRecognitionSupported } from '../lib/voice'
 import { applyAction, formatReadout } from '../lib/seduciaActions'
 import { pathLabel, describeSessions, parseIntent } from '../lib/seducia'
@@ -19,7 +18,7 @@ function projectIntro(scope) {
 // Seducia sees only that workspace's sessions and keeps her own chat history
 // per workspace.
 export function useSeducia({
-  tabs = [], activeCwd, recentSessions = [], settings = {}, planId = 'free',
+  tabs = [], activeCwd, recentSessions = [], settings = {},
   scope = { kind: 'main' }, controls = {},
   onLaunch, onRun, onPrompt, onFocus, onOpenLauncher
 }) {
@@ -33,9 +32,8 @@ export function useSeducia({
   const [log, setLog] = useState([{ id: 0, role: 'seducia', text: INTRO, streaming: false }])
   const [aiMessages, setAiMessages] = useState([])
   const [streaming, setStreaming] = useState(false)
-  const [voiceState, setVoiceState] = useState('idle') // idle|wake|listening|thinking|speaking
+  const [voiceState, setVoiceState] = useState('idle') // idle|listening|thinking|speaking
   const [partial, setPartial] = useState('')
-  const [wakeEnabled, setWakeEnabled] = useState(false)
   const [voiceError, setVoiceError] = useState('')
 
   const idRef = useRef(1)
@@ -46,7 +44,7 @@ export function useSeducia({
   logRef.current = log
   // Latest state mirrored into refs so the engine's callbacks never go stale.
   const stateRef = useRef({})
-  stateRef.current = { tabs, scopedTabs, scopedCwd, activeCwd, dirs, settings, planId, aiMessages, scope, controls }
+  stateRef.current = { tabs, scopedTabs, scopedCwd, activeCwd, dirs, settings, aiMessages, scope, controls }
 
   // One chat per scope: leaving a workspace parks its conversation; coming
   // back restores it. Main has its own thread under the 'main' key.
@@ -70,10 +68,9 @@ export function useSeducia({
     prevScopeRef.current = scopeKey
   }, [scopeKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const aiEnabled = can(planId, 'seduciaAI') && !!getStreamer(settings)
-  const voiceMode = can(planId, 'voiceMode')
+  const aiEnabled = !!getStreamer(settings)
   const hasAI = settings.seduciaProvider === 'cli' || !!(settings.anthropicKey || settings.openaiKey)
-  const ttsOn = voiceMode && settings.ttsEnabled !== false && (!!settings.elevenLabsKey || settings.ttsEnabled)
+  const ttsOn = !!settings.ttsEnabled
 
   const push = useCallback((role, text, extra = {}) => {
     const id = idRef.current++
@@ -203,7 +200,7 @@ export function useSeducia({
       onState: setVoiceState,
       onPartial: setPartial,
       onCommand: (text) => { setPartial(''); handleRef.current?.(text) },
-      onError: (msg) => { setVoiceError(msg); setWakeEnabled(false) }
+      onError: (msg) => { setVoiceError(msg) }
     })
     engineRef.current = engine
     return () => engine.destroy()
@@ -211,26 +208,13 @@ export function useSeducia({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Keep the engine's config in sync with settings.
+  // Keep the engine's config in sync with settings (system TTS only now).
   useEffect(() => {
     engineRef.current?.configure({
-      elevenLabsKey: settings.elevenLabsKey,
-      elevenLabsVoice: settings.elevenLabsVoice,
-      elevenLabsModel: settings.elevenLabsModel || 'eleven_flash_v2_5',
       webSpeechVoice: settings.ttsVoice,
       rate: settings.ttsRate
     })
-  }, [settings.elevenLabsKey, settings.elevenLabsVoice, settings.elevenLabsModel, settings.ttsVoice, settings.ttsRate])
-
-  const toggleWake = useCallback(() => {
-    const engine = engineRef.current
-    if (!engine) return
-    setWakeEnabled(prev => {
-      const next = !prev
-      if (next) { setVoiceError(''); engine.startWakeWord() } else engine.stopWakeWord()
-      return next
-    })
-  }, [])
+  }, [settings.ttsVoice, settings.ttsRate])
 
   const listen = useCallback(() => {
     const engine = engineRef.current
@@ -241,8 +225,8 @@ export function useSeducia({
 
   return {
     log, streaming, handle, stop, applyIntent,
-    voiceState, partial, wakeEnabled, toggleWake, listen,
-    aiEnabled, hasAI, voiceMode, ttsOn, voiceError,
+    voiceState, partial, listen,
+    aiEnabled, hasAI, ttsOn, voiceError,
     micSupported: speechRecognitionSupported
   }
 }

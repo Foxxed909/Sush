@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('sush', {
   accountsAdd: (payload) => ipcRenderer.invoke('sush:accounts-add', payload),
   accountsSwitch: (payload) => ipcRenderer.invoke('sush:accounts-switch', payload),
   accountsRemove: (payload) => ipcRenderer.invoke('sush:accounts-remove', payload),
+  accountsRename: (payload) => ipcRenderer.invoke('sush:accounts-rename', payload),
   // Claude Code panel (stream-json driver)
   claudePanelStart: (payload) => ipcRenderer.invoke('sush:claude-panel-start', payload),
   claudePanelStop: (payload) => ipcRenderer.invoke('sush:claude-panel-stop', payload),

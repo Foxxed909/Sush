@@ -1,19 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { themes } from '../themes'
 import Icon from './Icons'
-import { getPlan, loadPlan } from '../lib/plan'
 import { rgba } from '../lib/ui'
-import { fetchElevenVoices } from '../lib/voice'
+import { loadCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../lib/agents'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
 const TTS_RATES = [0.75, 1.0, 1.1, 1.25, 1.5, 1.75]
-const ELEVEN_MODELS = [
-  { id: 'eleven_flash_v2_5', label: 'Flash v2.5 (fastest)' },
-  { id: 'eleven_turbo_v2_5', label: 'Turbo v2.5 (balanced)' },
-  { id: 'eleven_multilingual_v2', label: 'Multilingual v2 (richest)' }
-]
-const CORNERS = [{ id: 'sharp', label: 'Sharp' }, { id: 'rounded', label: 'Rounded' }, { id: 'pill', label: 'Pill' }]
 
 function Label({ children }) {
   return <div style={{ color: '#76808a', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 7 }}>{children}</div>
@@ -31,10 +24,10 @@ function Section({ title, accent, children }) {
 // Nav entries -> the Section titles they scroll to. Adding a settings page =
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
-  { label: 'Plan', sec: 'Plan', icon: 'spark' },
   { label: 'Accounts', sec: 'Accounts', icon: 'users' },
+  { label: 'Agents', sec: 'Agents', icon: 'rocket' },
   { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
-  { label: 'Voice', sec: 'Voice / Jarvis', icon: 'mic' },
+  { label: 'Voice', sec: 'Voice', icon: 'mic' },
   { label: 'Terminal', sec: 'Terminal', icon: 'terminal' },
   { label: 'Appearance', sec: 'Appearance', icon: 'palette' },
   { label: 'Theme', sec: 'Theme', icon: 'layout' },
@@ -205,7 +198,20 @@ function AccountsSection({ accent, settings, set }) {
     ['claude', 'Claude', 'Claude Pro / Max subscription'],
     ['codex', 'Codex', 'ChatGPT subscription']
   ]
-  const slotName = (slot, i) => slot.id === 'default' ? 'Account 1' : (slot.label || `Account ${i + 1}`)
+  const slotName = (slot, i) => slot.id === 'default' && slot.label === 'Default' ? 'Account 1' : (slot.label || `Account ${i + 1}`)
+  const limitAgo = (slot) => {
+    if (!slot.lastLimitAt) return null
+    const h = (Date.now() - slot.lastLimitAt) / 3600000
+    if (h > 12) return null
+    return h < 1 ? 'limit hit <1h ago' : `limit hit ${Math.round(h)}h ago`
+  }
+  const [editing, setEditing] = useState(null)  // { provider, slotId, value }
+  const commitRename = () => {
+    const e = editing
+    setEditing(null)
+    if (!e || !e.value.trim()) return
+    call(() => window.sush.accountsRename?.({ provider: e.provider, slotId: e.slotId, label: e.value.trim() }))
+  }
 
   return (
     <Section title="Accounts" accent={accent}>
@@ -251,7 +257,25 @@ function AccountsSection({ accent, settings, set }) {
               return (
                 <div key={slot.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: on ? '#5fd3a8' : 'rgba(255,255,255,0.16)', boxShadow: on ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
-                  <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? '#e6ebef' : '#8a939c' }}>{slotName(slot, i)}</span>
+                  {editing && editing.provider === p && editing.slotId === slot.id ? (
+                    <input
+                      autoFocus
+                      value={editing.value}
+                      onChange={e2 => setEditing({ ...editing, value: e2.target.value })}
+                      onBlur={commitRename}
+                      onKeyDown={e2 => { if (e2.key === 'Enter') commitRename(); if (e2.key === 'Escape') setEditing(null) }}
+                      style={{ flex: 1, background: '#0f1318', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 6, color: '#e6ebef', fontSize: 12, fontWeight: 700, padding: '2px 7px', outline: 'none' }}
+                    />
+                  ) : (
+                    <span
+                      title="Double-click to rename"
+                      onDoubleClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
+                      style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? '#e6ebef' : '#8a939c', cursor: 'text' }}
+                    >
+                      {slotName(slot, i)}
+                      {limitAgo(slot) && <span style={{ marginLeft: 8, fontSize: 9.5, fontWeight: 800, color: '#ffb74d' }}>{limitAgo(slot)}</span>}
+                    </span>
+                  )}
                   {on ? (
                     <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, color: '#5fd3a8' }}>ACTIVE</span>
                   ) : (
@@ -329,12 +353,67 @@ function AccountsSection({ accent, settings, set }) {
   )
 }
 
-export default function Settings({ settings, onChange, onClose, accent, onUpgrade, onEditSushrc }) {
+
+// Custom agents: any CLI the user wants as a first-class launcher tile —
+// the old way was hardcoding machine-specific paths into lib/agents.js.
+// Stored per user (localStorage); the launcher, Seducia and the availability
+// probe pick them up through allAgents().
+function AgentsSection({ accent }) {
+  const [custom, setCustom] = useState(() => loadCustomAgents())
+  const [form, setForm] = useState({ label: '', command: '', resumeCommand: '' })
+  const [err, setErr] = useState('')
+
+  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
+
+  const add = () => {
+    const r = addCustomAgent(form)
+    if (!r.ok) { setErr(r.error); return }
+    setErr('')
+    setForm({ label: '', command: '', resumeCommand: '' })
+    setCustom(loadCustomAgents())
+  }
+
+  return (
+    <Section title="Agents" accent={accent}>
+      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 12 }}>
+        {BUILTIN_AGENTS.length - 1} agent CLIs ship built in (Claude Code, Codex, Gemini, …).
+        Add your own below — it appears in the launcher, Seducia can spawn it, and a
+        resume command (if the CLI has one) lets restored sessions pick up where they left off.
+      </div>
+      {custom.map(a => (
+        <div key={a.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '7px 11px', borderRadius: 'var(--r-md)', border: '1px solid rgba(255,255,255,0.07)', marginBottom: 6 }}>
+          <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: 7, background: rgba(a.color, 0.14), border: `1px solid ${rgba(a.color, 0.4)}`, color: a.color, fontSize: 10, fontWeight: 900, flexShrink: 0 }}>{a.mono}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#e6ebef' }}>{a.label}</div>
+            <div className="sush-mono" style={{ fontSize: 10, color: '#5a646d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.command}{a.resumeCommand ? `  ·  resume: ${a.resumeCommand}` : ''}</div>
+          </div>
+          <button onClick={() => { removeCustomAgent(a.id); setCustom(loadCustomAgents()) }} title="Remove agent" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button>
+        </div>
+      ))}
+      <div style={{ borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', padding: 12, marginTop: custom.length ? 8 : 0 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <input placeholder="Name (e.g. Aider)" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} style={{ ...inputStyle, flex: '0 0 160px' }} />
+          <input className="sush-mono" placeholder="Command (e.g. aider)" value={form.command} onChange={e => setForm({ ...form, command: e.target.value })} style={inputStyle} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input className="sush-mono" placeholder="Resume command (optional, e.g. aider --restore)" value={form.resumeCommand} onChange={e => setForm({ ...form, resumeCommand: e.target.value })} style={inputStyle} />
+          <button
+            onClick={add}
+            disabled={!form.label.trim() || !form.command.trim()}
+            style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: form.label.trim() && form.command.trim() ? accent : '#5a646d', background: rgba(accent, form.label.trim() && form.command.trim() ? 0.1 : 0.03), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '6px 14px', cursor: 'pointer' }}
+          >
+            + Add agent
+          </button>
+        </div>
+        {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 8 }}>{err}</div>}
+      </div>
+    </Section>
+  )
+}
+
+export default function Settings({ settings, onChange, onClose, accent, onEditSushrc }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
-  const plan = getPlan(loadPlan())
   const [voices, setVoices] = useState([])
-  const [elevenVoices, setElevenVoices] = useState([])
-  const [loadingVoices, setLoadingVoices] = useState(false)
 
   useEffect(() => {
     const load = () => setVoices(window.speechSynthesis?.getVoices() ?? [])
@@ -342,16 +421,6 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
     window.speechSynthesis?.addEventListener('voiceschanged', load)
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
   }, [])
-
-  const loadElevenVoices = async (key) => {
-    if (!key) { setElevenVoices([]); return }
-    setLoadingVoices(true)
-    const list = await fetchElevenVoices(key)
-    setElevenVoices(list)
-    setLoadingVoices(false)
-  }
-  // Pull the voice list once if a key is already saved.
-  useEffect(() => { if (settings.elevenLabsKey) loadElevenVoices(settings.elevenLabsKey) }, [])
 
   // Standalone settings page: left nav scrolls the content pane to the
   // matching section.
@@ -405,33 +474,8 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
         {/* Content */}
         <div ref={bodyRef} className="sush-scroll" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '22px 30px' }}>
           <div style={{ maxWidth: 640 }}>
-          {/* Plan */}
-          <Section title="Plan" accent={accent}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: rgba(plan.color, 0.08), border: `1px solid ${rgba(plan.color, 0.25)}` }}>
-              <div className="flex items-center" style={{ gap: 9 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: plan.color, boxShadow: `0 0 8px ${plan.color}` }} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#f1f4f6' }}>{plan.name}</div>
-                  <div style={{ fontSize: 10.5, color: '#76808a' }}>{plan.price === 0 ? 'Free forever' : `$${plan.price}/mo`}</div>
-                </div>
-              </div>
-              <button
-                onClick={onUpgrade}
-                style={{ fontSize: 11, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 8, padding: '5px 11px', cursor: 'pointer' }}
-              >
-                {plan.id === 'king' ? 'Manage' : 'Upgrade'}
-              </button>
-            </div>
-          </Section>
-
           {/* AI */}
           <Section title="AI -- Seducia" accent={accent}>
-            {!plan.features.seduciaAI && (
-              <div style={{ fontSize: 11.5, color: '#76808a', background: 'rgba(255,183,77,0.06)', border: '1px solid rgba(255,183,77,0.18)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>
-                AI mode requires <strong style={{ color: '#ffb74d' }}>Quiet</strong> plan or higher.{' '}
-                <span onClick={onUpgrade} style={{ color: accent, cursor: 'pointer', fontWeight: 700 }}>Upgrade →</span>
-              </div>
-            )}
             <Row>
               <Label>Provider</Label>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -497,25 +541,25 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
           {/* Accounts — the Claude/Codex account switcher */}
           <AccountsSection accent={accent} settings={settings} set={set} />
 
+          {/* Agents — built-ins + the user's custom CLIs */}
+          <AgentsSection accent={accent} />
+
           {/* Voice */}
-          <Section title="Voice / Jarvis" accent={accent}>
-            {!plan.features.voiceMode && (
-              <div style={{ fontSize: 11.5, color: '#76808a', background: 'rgba(255,183,77,0.06)', border: '1px solid rgba(255,183,77,0.18)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>
-                Voice mode requires <strong style={{ color: '#ffb74d' }}>Quiet</strong> plan or higher.
-              </div>
-            )}
+          <Section title="Voice" accent={accent}>
             <Row>
               <Label>Text-to-speech (Seducia speaks back)</Label>
               <button
                 onClick={() => set('ttsEnabled', !settings.ttsEnabled)}
-                disabled={!plan.features.voiceMode}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : '#76808a', cursor: plan.features.voiceMode ? 'pointer' : 'default', fontSize: 12.5, fontWeight: 700, opacity: plan.features.voiceMode ? 1 : 0.5 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
               >
                 <Icon name="volume2" size={14} strokeWidth={2} />
                 {settings.ttsEnabled ? 'TTS enabled' : 'TTS disabled'}
               </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                Uses your system voice. Off by default — Seducia replies in text either way.
+              </div>
             </Row>
-            {settings.ttsEnabled && plan.features.voiceMode && (
+            {settings.ttsEnabled && (
               <>
                 <Row>
                   <Label>Speech rate</Label>
@@ -529,64 +573,13 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 </Row>
                 {voices.length > 0 && (
                   <Row>
-                    <Label>System voice (fallback)</Label>
+                    <Label>System voice</Label>
                     <select value={settings.ttsVoice ?? ''} onChange={e => set('ttsVoice', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid #20272e`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
                       <option value="">System default</option>
                       {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
                     </select>
                   </Row>
                 )}
-
-                {/* ElevenLabs -- the real Jarvis voice */}
-                <div style={{ marginTop: 4, marginBottom: 14, paddingTop: 14, borderTop: '1px solid #1a1f25' }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#cdd5dc', marginBottom: 4 }}>ElevenLabs voice</div>
-                  <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.5, marginBottom: 12 }}>
-                    Give Seducia a real, low-latency voice. Add a key, load voices, and pick one. Falls back to the system voice above if unset.
-                  </div>
-                  <ApiKeyField
-                    label="ElevenLabs API key"
-                    value={settings.elevenLabsKey ?? ''}
-                    onChange={v => { set('elevenLabsKey', v) }}
-                    accent={accent}
-                    placeholder="sk_..."
-                  />
-                  <Row>
-                    <button
-                      onClick={() => loadElevenVoices(settings.elevenLabsKey)}
-                      disabled={!settings.elevenLabsKey || loadingVoices}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, background: settings.elevenLabsKey ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.elevenLabsKey ? rgba(accent, 0.4) : '#20272e'}`, color: settings.elevenLabsKey ? accent : '#5a646d', cursor: settings.elevenLabsKey && !loadingVoices ? 'pointer' : 'default', fontSize: 12, fontWeight: 700 }}
-                    >
-                      <Icon name={loadingVoices ? 'sparkles' : 'volume2'} size={13} strokeWidth={2} className={loadingVoices ? 'sush-spin' : undefined} />
-                      {loadingVoices ? 'Loading voices...' : elevenVoices.length ? `Reload voices (${elevenVoices.length})` : 'Load voices'}
-                    </button>
-                  </Row>
-                  {elevenVoices.length > 0 && (
-                    <Row>
-                      <Label>ElevenLabs voice</Label>
-                      <select value={settings.elevenLabsVoice ?? ''} onChange={e => set('elevenLabsVoice', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid ${settings.elevenLabsVoice ? rgba(accent, 0.4) : '#20272e'}`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
-                        <option value="">Select a voice...</option>
-                        {elevenVoices.map(v => <option key={v.id} value={v.id}>{v.name}{v.category ? ` (${v.category})` : ''}</option>)}
-                      </select>
-                    </Row>
-                  )}
-                  <Row>
-                    <Label>Model</Label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {ELEVEN_MODELS.map(m => {
-                        const on = (settings.elevenLabsModel ?? 'eleven_flash_v2_5') === m.id
-                        return (
-                          <button key={m.id} onClick={() => set('elevenLabsModel', m.id)} title={m.label}
-                            style={{ flex: 1, padding: '6px 4px', borderRadius: 6, fontSize: 10.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#05070b' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}`, lineHeight: 1.2 }}>
-                            {m.label.split(' (')[0]}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </Row>
-                  <div style={{ fontSize: 10.5, color: '#5a646d', lineHeight: 1.5 }}>
-                    Tip: enable the wake word from the Seducia orb (the radio icon), then just say <strong style={{ color: '#aab3bb' }}>"Seducia"</strong> followed by a command. She'll stop talking the moment you speak.
-                  </div>
-                </div>
               </>
             )}
           </Section>
@@ -632,25 +625,6 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
               <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
                 Drops the frosted-glass blur and ambient glow animations. Big GPU
                 saver on laptops or when running a busy agent swarm.
-              </div>
-            </Row>
-            <Row>
-              <Label>Corners</Label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {CORNERS.map(c => {
-                  const on = (settings.cornerStyle ?? 'rounded') === c.id
-                  const demo = c.id === 'sharp' ? 2 : c.id === 'pill' ? 999 : 9
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => set('cornerStyle', c.id)}
-                      style={{ flex: 1, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: on ? rgba(accent, 0.1) : '#0f1318', color: on ? accent : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}`, borderRadius: 9 }}
-                    >
-                      <span style={{ width: 26, height: 16, background: on ? rgba(accent, 0.3) : '#2a333c', borderRadius: Math.min(demo, 8), border: `1px solid ${on ? accent : '#3a444e'}` }} />
-                      {c.label}
-                    </button>
-                  )
-                })}
               </div>
             </Row>
             <Row>
@@ -766,7 +740,7 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 )}
               </div>
               <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-                Hush types what you say into the focused terminal and presses Enter (switch to review mode to check before sending). Pure dictation, separate from Seducia. Note: only one voice listener can hold the mic - turn off Seducia's wake word to use Hush.
+                Hush types what you say into the focused terminal and presses Enter (switch to review mode to check before sending). Pure dictation, separate from Seducia.
               </div>
             </Row>
             <Row>

@@ -8,8 +8,39 @@ built-in command layer.
 
 ## 4.2.0 — "Macy"
 
-The calm release: fewer themes, quieter motion, a real account switcher, and
-a lighter footprint.
+The calm release: fewer themes, quieter motion, a real account switcher, a
+lighter footprint — and a deliberate trim of features that didn't earn their
+place.
+
+### Added — Custom agents
+- **Settings ▸ Agents.** Add any CLI as a first-class launcher tile — name,
+  command, and an optional resume command. It shows up in the launcher,
+  Seducia can spawn it, and the install-check covers it. (This replaces the
+  machine-specific agent paths that used to be hardcoded in the app.)
+- **Codex sessions resume** on restart now (`codex resume --last`), alongside
+  Claude's `--continue`.
+
+### Added — Smarter accounts
+- **Rename accounts** inline (double-click the name) — "work gmail",
+  "personal", whatever fits.
+- **Limit memory.** When an account hits its session limit, Sush remembers
+  *when* and shows "limit hit Xh ago"; auto-switch now rotates to the account
+  that has rested longest instead of blind round-robin.
+
+### Added — Cross-platform + CI
+- **macOS / Linux shells** spawn as proper login shells (`$SHELL -l`, zsh on
+  macOS) so your PATH and rc files load — agent CLIs are usually installed
+  there.
+- A **CI build workflow** runs `npm ci && npm run build` on every push and PR.
+
+### Removed — trimmed the fat
+- **Plans / upgrade tiers are gone.** Everyone gets the full app. No paywall,
+  no feature gates.
+- **The always-on wake word and ElevenLabs voice** are retired — the wake
+  loop held the mic hostage (and fought Hush for it) and ElevenLabs was a
+  paid demo. Push-to-talk dictation and system text-to-speech stay.
+- **Session recording, the API tester, the Regex tab, and corner styles** are
+  gone — breadth that diluted the core. The UI is rounded, full stop.
 
 ### Changed — the Macy design pass
 - **Native-feeling chrome.** The app shell now uses your platform's UI font
