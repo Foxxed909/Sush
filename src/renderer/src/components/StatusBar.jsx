@@ -6,11 +6,18 @@ import { usePolling } from '../hooks/usePolling'
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
 // live cpu/mem. Reuses the existing gitStatus + getSystemStats IPC. Polls on a
 // gentle 4s cadence; git is re-read whenever the active cwd changes too.
-export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, splitMode, agentSummary, onOpenMission }) {
+export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, gridMode, agentSummary, onOpenMission }) {
   const cwd = activeTab?.cwd || null
   const shell = activeTab?.shellLabel || activeTab?.shell || null
   const [git, setGit] = useState(null)
   const [stats, setStats] = useState(null)
+  const [clock, setClock] = useState(() => new Date())
+
+  // Bottom-corner clock — refreshed each minute (the strip is always visible).
+  useEffect(() => {
+    const id = setInterval(() => setClock(new Date()), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   // Git status follows the active directory.
   useEffect(() => {
@@ -117,7 +124,7 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
 
       {/* mode chips */}
       {broadcastMode && <span style={{ ...segR, color: '#ff5370', fontWeight: 800, letterSpacing: 0.4 }}>BROADCAST</span>}
-      {splitMode && <span style={{ ...segR, color: accent, fontWeight: 800, letterSpacing: 0.4 }}>SPLIT</span>}
+      {gridMode && <span style={{ ...segR, color: accent, fontWeight: 800, letterSpacing: 0.4 }}>GRID</span>}
 
       {/* shell */}
       {shell && view !== 'home' && (
@@ -171,11 +178,16 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       </span>
 
       {/* mem */}
-      <span style={{ ...segR, paddingRight: 12 }} title="Memory used">
+      <span style={segR} title="Memory used">
         <Icon name="activity" size={12} color="#8a939c" />
         <span style={{ color: usageColor(memPct), fontWeight: 700, minWidth: 30, textAlign: 'right' }}>
           {memPct == null ? '—' : `${memPct}%`}
         </span>
+      </span>
+
+      {/* clock */}
+      <span style={{ ...segR, paddingRight: 12, color: '#c6cdd4', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title={clock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}>
+        {clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
     </div>
   )

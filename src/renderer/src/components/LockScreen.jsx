@@ -105,6 +105,10 @@ function GhostButton({ children, onClick, danger, autoFocus }) {
 //   pick   — choose among all users (sign-in screen)
 //   locked — the signed-in user locked the app; only they can resume
 //   create — new-user form (also the first-run experience)
+//
+// Redesign note: every mode now lives inside one consistent glass card under a
+// shared clock header — the old screen floated the picker bare but boxed the
+// create form, which read as two different screens. One frame, three states.
 export default function LockScreen({
   users = [],
   lastUserId = null,
@@ -187,6 +191,8 @@ export default function LockScreen({
     if (want && pin.length === want) attemptUnlock(selected, pin)
   }, [pin]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const resetCreateForm = () => setForm({ name: '', color: USER_COLORS[users.length % USER_COLORS.length], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' })
+
   const submitCreate = async (e) => {
     e?.preventDefault?.()
     if (busy) return
@@ -204,9 +210,9 @@ export default function LockScreen({
   const blobs = useMemo(() => {
     const palette = users.length ? users.map(u => u.color || '#ff6b9d') : [form.color]
     return [
-      { color: palette[0 % palette.length], top: '-12%', left: '-8%', size: 560, delay: '0s' },
-      { color: palette[1 % palette.length], top: '50%', left: '78%', size: 520, delay: '-6s' },
-      { color: palette[2 % palette.length], top: '74%', left: '6%', size: 430, delay: '-12s' }
+      { color: palette[0 % palette.length], top: '-14%', left: '-10%', size: 580, delay: '0s' },
+      { color: palette[1 % palette.length], top: '46%', left: '80%', size: 540, delay: '-6s' },
+      { color: palette[2 % palette.length], top: '78%', left: '4%', size: 420, delay: '-12s' }
     ]
   }, [users, form.color])
 
@@ -223,7 +229,7 @@ export default function LockScreen({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#07090c',
+        background: '#070a0e',
         overflow: 'hidden',
         WebkitAppRegion: 'drag'
       }}
@@ -240,14 +246,14 @@ export default function LockScreen({
             width: b.size,
             height: b.size,
             borderRadius: '50%',
-            background: `radial-gradient(circle at 35% 35%, ${rgba(b.color, 0.34)}, transparent 65%)`,
-            filter: 'blur(70px)',
+            background: `radial-gradient(circle at 35% 35%, ${rgba(b.color, 0.28)}, transparent 66%)`,
+            filter: 'blur(80px)',
             animationDelay: b.delay,
             pointerEvents: 'none'
           }}
         />
       ))}
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(1200px 700px at 50% 110%, rgba(0,0,0,0.55), transparent 60%)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(1300px 760px at 50% 116%, rgba(0,0,0,0.6), transparent 60%)', pointerEvents: 'none' }} />
 
       {/* Window controls (frameless window still needs them) */}
       <div style={{ position: 'absolute', top: 12, right: 16, display: 'flex', gap: 8, WebkitAppRegion: 'no-drag' }}>
@@ -262,284 +268,298 @@ export default function LockScreen({
         ))}
       </div>
 
-      <div className="sush-lock-card" style={{ WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 760px)' }}>
-        {/* Clock */}
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontSize: 64, fontWeight: 900, letterSpacing: -1.5, color: '#f3f6f8', lineHeight: 1, textShadow: '0 6px 40px rgba(0,0,0,0.5)' }}>{timeStr}</div>
-          <div style={{ marginTop: 10, fontSize: 14, fontWeight: 600, color: '#8a939c' }}>{dateStr}</div>
-          <div className="flex items-center justify-center" style={{ gap: 8, marginTop: 14 }}>
-            <span style={{ width: 14, height: 14, borderRadius: 5, background: `linear-gradient(145deg, ${accent}, ${rgba(accent, 0.35)})`, boxShadow: `0 0 12px ${rgba(accent, 0.5)}` }} />
-            <span style={{ color: '#aab3bb', fontWeight: 800, fontSize: 11.5, letterSpacing: 3 }}>SUSH</span>
-          </div>
+      <div className="sush-lock-card" style={{ WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 440px)' }}>
+        {/* Clock header — shared by every mode */}
+        <div style={{ textAlign: 'center', marginBottom: 26 }}>
+          <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: -1.5, color: '#f3f6f8', lineHeight: 1, textShadow: '0 6px 40px rgba(0,0,0,0.5)' }}>{timeStr}</div>
+          <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: '#8a939c' }}>{dateStr}</div>
         </div>
 
-        {mode === 'create' ? (
-          /* ── Create user ──────────────────────────────────────────────── */
-          <form onSubmit={submitCreate} className="sush-lock-panel" data-glass style={{ width: 'min(88vw, 420px)' }}>
-            <div style={{ textAlign: 'center', marginBottom: 18 }}>
-              {/* Click the avatar to pick a photo right at creation. */}
-              <div
-                onClick={() => avatarFileRef.current?.click()}
-                title="Add a profile picture"
-                style={{ display: 'inline-block', cursor: 'pointer', position: 'relative' }}
-              >
-                <Avatar user={{ name: form.name || '?', color: form.color, avatar: form.name.trim() ? undefined : '+', avatarUrl: form.avatarUrl }} size={72} />
-                <span className="flex items-center justify-center" style={{ position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: '50%', background: form.color, border: '2px solid #0a0c0f', color: '#0a0a0c' }}>
-                  <Icon name={form.avatarUrl ? 'edit' : 'plus'} size={12} strokeWidth={2.5} />
-                </span>
-              </div>
-              <input
-                ref={avatarFileRef}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0]
-                  e.target.value = ''
-                  if (!file) return
-                  try {
-                    const dataUrl = await fileToAvatarDataUrl(file)
-                    setForm(f => ({ ...f, avatarUrl: dataUrl }))
-                  } catch {}
-                }}
-              />
-              <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>
-                {firstRun ? 'Welcome to Sush' : 'New profile'}
-              </div>
-              <div style={{ marginTop: 4, fontSize: 12, color: '#8a939c' }}>
-                {firstRun ? 'A profile is your own sealed world — CLI logins, theme, and sessions stay yours.' : 'A separate world: its own CLI logins, theme, and sessions.'}
-              </div>
-            </div>
+        {/* One glass card holds whichever mode is active */}
+        <div className="sush-lock-panel" data-glass style={{ width: '100%' }}>
+          {/* Brand row */}
+          <div className="flex items-center justify-center" style={{ gap: 8, marginBottom: 18 }}>
+            <span style={{ width: 15, height: 15, borderRadius: 5, background: `linear-gradient(145deg, ${accent}, ${rgba(accent, 0.35)})`, boxShadow: `0 0 14px ${rgba(accent, 0.5)}` }} />
+            <span style={{ color: '#aab3bb', fontWeight: 800, fontSize: 11.5, letterSpacing: 3 }}>SUSH</span>
+          </div>
 
-            <input
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Name"
-              autoFocus
-              spellCheck={false}
-              maxLength={32}
-              className="sush-lock-input"
-            />
-
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', margin: '14px 0' }}>
-              {USER_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, color: c }))}
-                  className="sush-swatch"
-                  data-active={form.color === c}
-                  style={{ background: c, '--swatch-glow': rgba(c, 0.7) }}
-                  title={c}
-                />
-              ))}
-            </div>
-
-            {form.providerTicket ? (
-              <div style={{ fontSize: 11, color: '#8a939c', textAlign: 'center', marginBottom: 12 }}>
-                <Icon name={form.providerLabel === 'GitHub' ? 'github' : 'google'} size={11} style={{ verticalAlign: -1, marginRight: 5 }} />
-                Will be linked to your {form.providerLabel} account
-              </div>
-            ) : (
-              <div style={{ marginBottom: 14 }}>
-                <ProviderButtons mode="signin" accent={form.color} compact onResult={handleProviderResult} />
-              </div>
-            )}
-
-            {/* Advanced is collapsed by default — a fresh profile just needs a
-                name. PIN ("curious eyes" lock) and isolation level live here. */}
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(s => !s)}
-              className="flex items-center"
-              style={{ gap: 6, width: '100%', justifyContent: 'center', background: 'none', border: 'none', color: '#6b757e', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '4px 0 12px' }}
-            >
-              <Icon name={showAdvanced ? 'chevronDown' : 'chevronRight'} size={12} />
-              {showAdvanced ? 'Hide options' : 'PIN & isolation (optional)'}
-            </button>
-
-            {showAdvanced && (
-              <div className="sush-fade-up">
-                <input
-                  value={form.pin}
-                  onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
-                  placeholder="PIN (optional, 4–8 digits)"
-                  inputMode="numeric"
-                  type="password"
-                  className="sush-lock-input"
-                />
-                <div style={{ fontSize: 10.5, color: '#5a646d', margin: '6px 2px 12px', lineHeight: 1.5 }}>
-                  A PIN keeps curious eyes out on a shared PC — it isn't encryption.
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                  {[
-                    { id: 'cli', label: 'CLI isolation', desc: 'Recommended — separate agent logins' },
-                    { id: 'full', label: 'Full home', desc: 'Also separate git / ssh / npm' }
-                  ].map(opt => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, isolation: opt.id }))}
-                      style={{
-                        flex: 1,
-                        textAlign: 'left',
-                        padding: '9px 11px',
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                        border: `1px solid ${form.isolation === opt.id ? rgba(form.color, 0.6) : 'rgba(255,255,255,0.1)'}`,
-                        background: form.isolation === opt.id ? rgba(form.color, 0.12) : 'rgba(255,255,255,0.03)'
-                      }}
-                    >
-                      <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: form.isolation === opt.id ? '#f1f4f6' : '#aab3bb' }}>{opt.label}</span>
-                      <span style={{ display: 'block', fontSize: 10, color: '#69737d', marginTop: 2 }}>{opt.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {error && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 10 }}>{error}</div>}
-
-            <button
-              type="submit"
-              disabled={busy}
-              style={{
-                width: '100%',
-                padding: '11px 0',
-                borderRadius: 11,
-                border: 'none',
-                background: form.color,
-                color: '#0a0a0c',
-                fontWeight: 900,
-                fontSize: 13.5,
-                cursor: 'pointer',
-                opacity: busy ? 0.6 : 1,
-                boxShadow: `0 10px 28px ${rgba(form.color, 0.35)}`
-              }}
-            >
-              {busy ? 'Creating…' : firstRun ? 'Start using Sush' : 'Create profile'}
-            </button>
-
-            {!firstRun && (
-              <div style={{ textAlign: 'center', marginTop: 12 }}>
-                <GhostButton onClick={() => { setMode('pick'); setError('') }}>
-                  <Icon name="arrowRight" size={12} style={{ transform: 'rotate(180deg)' }} /> Back
-                </GhostButton>
-              </div>
-            )}
-          </form>
-        ) : (
-          /* ── Pick / unlock ─────────────────────────────────────────────── */
-          <>
-            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 26 }}>
-              {visibleUsers.map(user => {
-                const isSel = selected?.id === user.id
-                return (
-                  <button
-                    key={user.id}
-                    onClick={() => choose(user)}
-                    className="sush-lock-user"
-                    data-selected={isSel}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center', width: 108, padding: 0 }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
-                      <Avatar user={user} size={68} dim={!isSel} />
-                      {user.hasPin && (
-                        <span
-                          className="flex items-center justify-center"
-                          style={{ position: 'absolute', right: 12, bottom: -4, width: 20, height: 20, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: '#aab3bb' }}
-                        >
-                          <Icon name="lock" size={10} strokeWidth={2.4} />
-                        </span>
-                      )}
-                      {(user.providers?.github || user.providers?.google) && (
-                        <span
-                          className="flex items-center justify-center"
-                          style={{ position: 'absolute', left: 12, bottom: -4, width: 20, height: 20, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: '#aab3bb' }}
-                        >
-                          <Icon name={user.providers?.github ? 'github' : 'google'} size={10} strokeWidth={2.2} />
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ marginTop: 10, fontSize: 13, fontWeight: 800, color: isSel ? '#f1f4f6' : '#8a939c' }}>{user.name}</div>
-                    <div style={{ marginTop: 2, fontSize: 10, color: '#5a646d' }}>
-                      {user.isolation === 'full' ? 'full isolation' : 'CLI isolation'}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {needsPin && (
-              <form onSubmit={submitPin} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-                <PinDots length={pin.length} error={!!error} />
-                <input
-                  ref={pinInputRef}
-                  value={pin}
-                  onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                  onKeyDown={e => { if (e.key === 'Enter') submitPin(e) }}
-                  type="password"
-                  inputMode="numeric"
-                  placeholder="PIN"
-                  aria-label="PIN"
-                  className="sush-lock-input"
-                  style={{ width: 180, textAlign: 'center', letterSpacing: 6 }}
-                />
-                <button
-                  type="submit"
-                  disabled={pin.length < 4 || busy}
-                  style={{
-                    padding: '9px 28px',
-                    borderRadius: 10,
-                    border: 'none',
-                    background: accent,
-                    color: '#0a0a0c',
-                    fontWeight: 900,
-                    fontSize: 13,
-                    cursor: pin.length < 4 ? 'default' : 'pointer',
-                    opacity: pin.length < 4 || busy ? 0.45 : 1,
-                    boxShadow: `0 8px 24px ${rgba(accent, 0.35)}`
-                  }}
+          {mode === 'create' ? (
+            /* ── Create user ──────────────────────────────────────────────── */
+            <form onSubmit={submitCreate}>
+              <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                <div
+                  onClick={() => avatarFileRef.current?.click()}
+                  title="Add a profile picture"
+                  style={{ display: 'inline-block', cursor: 'pointer', position: 'relative' }}
                 >
-                  {busy ? 'Unlocking…' : 'Unlock'}
-                </button>
-                {error && !busy && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700 }}>{error}</div>}
-              </form>
-            )}
-
-            {!needsPin && selected && !busy && mode === 'locked' && (
-              <div style={{ marginBottom: 20 }}>
-                <GhostButton autoFocus onClick={() => attemptUnlock(selected, '')}>
-                  <Icon name="arrowRight" size={13} /> Resume as {selected.name}
-                </GhostButton>
-              </div>
-            )}
-
-            {mode === 'pick' && (
-              <div style={{ width: 'min(88vw, 330px)', marginBottom: 22 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 12px' }}>
-                  <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
-                  <span style={{ fontSize: 10, color: '#5a646d', fontWeight: 700, letterSpacing: 1 }}>OR</span>
-                  <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+                  <Avatar user={{ name: form.name || '?', color: form.color, avatar: form.name.trim() ? undefined : '+', avatarUrl: form.avatarUrl }} size={72} />
+                  <span className="flex items-center justify-center" style={{ position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: '50%', background: form.color, border: '2px solid #0a0c0f', color: '#0a0a0c' }}>
+                    <Icon name={form.avatarUrl ? 'edit' : 'plus'} size={12} strokeWidth={2.5} />
+                  </span>
                 </div>
-                <ProviderButtons mode="signin" accent={accent} onResult={handleProviderResult} />
+                <input
+                  ref={avatarFileRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (!file) return
+                    try {
+                      const dataUrl = await fileToAvatarDataUrl(file)
+                      setForm(f => ({ ...f, avatarUrl: dataUrl }))
+                    } catch {}
+                  }}
+                />
+                <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>
+                  {firstRun ? 'Welcome to Sush' : 'New profile'}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, color: '#8a939c', lineHeight: 1.5 }}>
+                  {firstRun ? 'A profile is your own sealed world — CLI logins, theme, and sessions stay yours.' : 'A separate world: its own CLI logins, theme, and sessions.'}
+                </div>
               </div>
-            )}
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              {mode === 'locked' ? (
+              <input
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Name"
+                autoFocus
+                spellCheck={false}
+                maxLength={32}
+                className="sush-lock-input"
+              />
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', margin: '14px 0' }}>
+                {USER_COLORS.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, color: c }))}
+                    className="sush-swatch"
+                    data-active={form.color === c}
+                    style={{ background: c, '--swatch-glow': rgba(c, 0.7) }}
+                    title={c}
+                  />
+                ))}
+              </div>
+
+              {form.providerTicket ? (
+                <div style={{ fontSize: 11, color: '#8a939c', textAlign: 'center', marginBottom: 12 }}>
+                  <Icon name={form.providerLabel === 'GitHub' ? 'github' : 'google'} size={11} style={{ verticalAlign: -1, marginRight: 5 }} />
+                  Will be linked to your {form.providerLabel} account
+                </div>
+              ) : (
+                <div style={{ marginBottom: 14 }}>
+                  <ProviderButtons mode="signin" accent={form.color} compact onResult={handleProviderResult} />
+                </div>
+              )}
+
+              {/* Advanced is collapsed by default — a fresh profile just needs a
+                  name. PIN ("curious eyes" lock) and isolation level live here. */}
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(s => !s)}
+                className="flex items-center"
+                style={{ gap: 6, width: '100%', justifyContent: 'center', background: 'none', border: 'none', color: '#6b757e', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '4px 0 12px' }}
+              >
+                <Icon name={showAdvanced ? 'chevronDown' : 'chevronRight'} size={12} />
+                {showAdvanced ? 'Hide options' : 'PIN & isolation (optional)'}
+              </button>
+
+              {showAdvanced && (
+                <div className="sush-fade-up">
+                  <input
+                    value={form.pin}
+                    onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
+                    placeholder="PIN (optional, 4–8 digits)"
+                    inputMode="numeric"
+                    type="password"
+                    className="sush-lock-input"
+                  />
+                  <div style={{ fontSize: 10.5, color: '#5a646d', margin: '6px 2px 12px', lineHeight: 1.5 }}>
+                    A PIN keeps curious eyes out on a shared PC — it isn't encryption.
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                    {[
+                      { id: 'cli', label: 'CLI isolation', desc: 'Recommended — separate agent logins' },
+                      { id: 'full', label: 'Full home', desc: 'Also separate git / ssh / npm' }
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, isolation: opt.id }))}
+                        style={{
+                          flex: 1,
+                          textAlign: 'left',
+                          padding: '9px 11px',
+                          borderRadius: 10,
+                          cursor: 'pointer',
+                          border: `1px solid ${form.isolation === opt.id ? rgba(form.color, 0.6) : 'rgba(255,255,255,0.1)'}`,
+                          background: form.isolation === opt.id ? rgba(form.color, 0.12) : 'rgba(255,255,255,0.03)'
+                        }}
+                      >
+                        <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: form.isolation === opt.id ? '#f1f4f6' : '#aab3bb' }}>{opt.label}</span>
+                        <span style={{ display: 'block', fontSize: 10, color: '#69737d', marginTop: 2 }}>{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {error && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 10 }}>{error}</div>}
+
+              <button
+                type="submit"
+                disabled={busy}
+                style={{
+                  width: '100%',
+                  padding: '11px 0',
+                  borderRadius: 11,
+                  border: 'none',
+                  background: form.color,
+                  color: '#0a0a0c',
+                  fontWeight: 900,
+                  fontSize: 13.5,
+                  cursor: 'pointer',
+                  opacity: busy ? 0.6 : 1,
+                  boxShadow: `0 10px 28px ${rgba(form.color, 0.35)}`
+                }}
+              >
+                {busy ? 'Creating…' : firstRun ? 'Start using Sush' : 'Create profile'}
+              </button>
+
+              {!firstRun && (
+                <div style={{ textAlign: 'center', marginTop: 12 }}>
+                  <GhostButton onClick={() => { setMode('pick'); setError('') }}>
+                    <Icon name="arrowRight" size={12} style={{ transform: 'rotate(180deg)' }} /> Back
+                  </GhostButton>
+                </div>
+              )}
+            </form>
+          ) : mode === 'locked' ? (
+            /* ── Locked (resume the one signed-in user) ────────────────────── */
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Avatar user={selected} size={84} />
+              <div style={{ marginTop: 14, fontSize: 19, fontWeight: 900, color: '#f1f4f6' }}>{selected?.name}</div>
+              <div className="flex items-center" style={{ gap: 6, marginTop: 4, fontSize: 11.5, color: '#8a939c', fontWeight: 600 }}>
+                <Icon name="lock" size={11} /> Locked · {selected?.isolation === 'full' ? 'full isolation' : 'CLI isolation'}
+              </div>
+
+              {needsPin ? (
+                <form onSubmit={submitPin} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginTop: 22, width: '100%' }}>
+                  <PinDots length={pin.length} error={!!error} />
+                  <input
+                    ref={pinInputRef}
+                    value={pin}
+                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    onKeyDown={e => { if (e.key === 'Enter') submitPin(e) }}
+                    type="password"
+                    inputMode="numeric"
+                    placeholder="PIN"
+                    aria-label="PIN"
+                    className="sush-lock-input"
+                    style={{ width: 190, textAlign: 'center', letterSpacing: 6 }}
+                  />
+                  <button type="submit" disabled={pin.length < 4 || busy} style={unlockBtn(accent, pin.length < 4 || busy)}>
+                    {busy ? 'Unlocking…' : 'Unlock'}
+                  </button>
+                  {error && !busy && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700 }}>{error}</div>}
+                </form>
+              ) : (
+                <div style={{ marginTop: 22 }}>
+                  <button autoFocus disabled={busy} onClick={() => attemptUnlock(selected, '')} style={unlockBtn(accent, busy)}>
+                    {busy ? 'Resuming…' : `Resume as ${selected?.name}`}
+                  </button>
+                </div>
+              )}
+
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.07)', width: '100%', display: 'flex', justifyContent: 'center' }}>
                 <GhostButton danger onClick={onSwitchRequest}>
                   <Icon name="users" size={13} /> Sign out &amp; switch profile
                 </GhostButton>
-              ) : (
-                <GhostButton onClick={() => { setMode('create'); setError(''); setForm({ name: '', color: USER_COLORS[(users.length) % USER_COLORS.length], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' }) }}>
-                  <Icon name="plus" size={13} /> New profile
-                </GhostButton>
+              </div>
+            </div>
+          ) : (
+            /* ── Pick (choose among profiles) ──────────────────────────────── */
+            <div>
+              <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#c6cdd4', marginBottom: 16 }}>
+                {needsPin ? `Enter ${selected?.name}'s PIN` : 'Who’s using Sush?'}
+              </div>
+
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginBottom: needsPin ? 18 : 4 }}>
+                {visibleUsers.map(user => {
+                  const isSel = selected?.id === user.id
+                  return (
+                    <button
+                      key={user.id}
+                      onClick={() => choose(user)}
+                      className="sush-lock-user"
+                      data-selected={isSel}
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center', width: 92, padding: 0 }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
+                        <div style={{ borderRadius: '30%', padding: 3, background: isSel ? `linear-gradient(150deg, ${rgba(user.color || accent, 0.9)}, transparent)` : 'transparent', transition: 'background .2s ease' }}>
+                          <Avatar user={user} size={62} dim={!isSel} ring={false} />
+                        </div>
+                        {user.hasPin && (
+                          <span className="flex items-center justify-center" style={{ position: 'absolute', right: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: '#aab3bb' }}>
+                            <Icon name="lock" size={9} strokeWidth={2.4} />
+                          </span>
+                        )}
+                        {(user.providers?.github || user.providers?.google) && (
+                          <span className="flex items-center justify-center" style={{ position: 'absolute', left: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: '#aab3bb' }}>
+                            <Icon name={user.providers?.github ? 'github' : 'google'} size={9} strokeWidth={2.2} />
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ marginTop: 9, fontSize: 12.5, fontWeight: 800, color: isSel ? '#f1f4f6' : '#8a939c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {needsPin && (
+                <form onSubmit={submitPin} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginBottom: 4 }}>
+                  <PinDots length={pin.length} error={!!error} />
+                  <input
+                    ref={pinInputRef}
+                    value={pin}
+                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    onKeyDown={e => { if (e.key === 'Enter') submitPin(e) }}
+                    type="password"
+                    inputMode="numeric"
+                    placeholder="PIN"
+                    aria-label="PIN"
+                    className="sush-lock-input"
+                    style={{ width: 190, textAlign: 'center', letterSpacing: 6 }}
+                  />
+                  <button type="submit" disabled={pin.length < 4 || busy} style={unlockBtn(accent, pin.length < 4 || busy)}>
+                    {busy ? 'Unlocking…' : 'Unlock'}
+                  </button>
+                  {error && !busy && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700 }}>{error}</div>}
+                </form>
+              )}
+
+              {!needsPin && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 12px' }}>
+                    <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+                    <span style={{ fontSize: 10, color: '#5a646d', fontWeight: 700, letterSpacing: 1 }}>OR</span>
+                    <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+                  </div>
+                  <ProviderButtons mode="signin" accent={accent} onResult={handleProviderResult} />
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+                    <GhostButton onClick={() => { setMode('create'); setError(''); resetCreateForm() }}>
+                      <Icon name="plus" size={13} /> New profile
+                    </GhostButton>
+                  </div>
+                </>
               )}
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       <div style={{ position: 'absolute', bottom: 18, fontSize: 10.5, color: '#3f4852', fontWeight: 700, letterSpacing: 1 }}>
@@ -547,4 +567,21 @@ export default function LockScreen({
       </div>
     </div>
   )
+}
+
+// Shared primary-action button style (unlock / resume).
+function unlockBtn(accent, disabled) {
+  return {
+    padding: '10px 30px',
+    borderRadius: 10,
+    border: 'none',
+    background: accent,
+    color: '#0a0a0c',
+    fontWeight: 900,
+    fontSize: 13,
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.45 : 1,
+    boxShadow: `0 8px 24px ${rgba(accent, 0.35)}`,
+    transition: 'opacity .15s ease'
+  }
 }

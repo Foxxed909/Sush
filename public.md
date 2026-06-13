@@ -6,6 +6,35 @@ built-in command layer.
 
 ---
 
+## 4.4.0 — "Lumen"
+
+A cleanup-and-polish release: dead weight removed, the lock screen rebuilt, and
+the live state shown in more places.
+
+### Changed — Lock screen redesign
+- **One frame, three states.** Pick, locked, and create now share a single
+  consistent glass card under a clean clock header — the old screen floated the
+  picker bare but boxed the create form, so it read as two different screens.
+  Tighter profile tiles with an accent ring on the selected one, a clearer
+  locked-resume view, and the same primary-action button throughout.
+
+### Added — More live state
+- **Status-bar clock.** The always-visible bottom strip now shows the time.
+- **Grid tiles show agent state.** A tile that's working (green pulse), needs you
+  (amber), or errored (red) now stands out in the grid — the same classifier the
+  sidebar uses, so you don't have to open Mission Control to spot it.
+- **Clear exited sessions.** A one-click "clear" in the sidebar header tidies up
+  every finished session at once (shows only when there are some).
+
+### Fixed / removed
+- **Split-pane is fully gone.** v4.3.0 retired the split *toggle*; this removes
+  the ~120 lines of now-unreachable split state, effects, and render behind it —
+  less surface area, fewer ways for layout state to drift.
+- **Keyboard-shortcuts help** updated to match: grid, Mission Control, and Hush
+  are listed; the dead split shortcut is gone.
+
+---
+
 ## 4.3.0 — "Vista"
 
 A look-and-feel pass: the wallpaper reaches everywhere, one clear layout choice,

@@ -256,6 +256,7 @@ export default function SessionRail({
   onClose,
   onCloseGroup,
   onAddToGroup,
+  onClearExited,
   onRenameGroup,
   onReorder,
   onProfiles,
@@ -393,6 +394,18 @@ export default function SessionRail({
           Workspaces
           <span style={{ color: '#4b545d' }}>{q ? `${sortedTabs.length}/${tabs.length}` : tabs.length}</span>
           <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${rgba(accent, 0.18)}, transparent)` }} />
+          {tabs.some(t => t.status === 'exited') && (
+            <button
+              onClick={onClearExited}
+              title="Close all exited sessions"
+              className="flex items-center"
+              style={{ gap: 4, background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, padding: 0, textTransform: 'uppercase' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ff8aa0' }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+            >
+              <Icon name="trash" size={11} strokeWidth={2} /> clear
+            </button>
+          )}
         </div>
 
         {tabs.length > 3 && (

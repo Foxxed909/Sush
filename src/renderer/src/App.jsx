@@ -29,6 +29,7 @@ import { agentById, MAX_SESSIONS, LOGIN_COMMANDS } from './lib/agents'
 import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
 import { useAgentActivity } from './hooks/useAgentActivity'
+import { STATES } from './lib/agentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { recordCommand } from './lib/commandFrequency'
 import JsonViewer from './components/JsonViewer'
@@ -246,11 +247,7 @@ export default function App() {
   const [commandHistory, setCommandHistory] = useState(loadCommandHistory)
   const [pinnedProjects, setPinnedProjects] = useState(loadPinnedProjects)
   const [broadcastMode, setBroadcastMode] = useState(false)
-  const [splitMode, setSplitMode] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
-  const [splitTabId, setSplitTabId] = useState(null)
-  const [splitRatio, setSplitRatio] = useState(0.5)   // left-pane fraction (0.2–0.8)
-  const [focusedPane, setFocusedPane] = useState('left')  // 'left' | 'right'
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
   const [renamingId, setRenamingId] = useState(null)
   const [handoffSource, setHandoffSource] = useState(null)
@@ -274,24 +271,18 @@ export default function App() {
   const mruRef = useRef([])          // tab ids, most-recently-active first
   const switcherRef = useRef(null)
   const lastClosedRef = useRef([])   // stack of recently closed sessions (for reopen)
-  const splitContainerRef = useRef(null)  // the split flex row, for divider drag math
 
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
 
-  // Boot a tab's terminal the first time it's actually shown (active in
-  // terminal view, or the right pane of a split). New tabs created at runtime
-  // boot via the same path because openTab/selectTab set view + activeId.
+  // Boot a tab's terminal the first time it's actually shown. New tabs created
+  // at runtime boot via the same path because openTab/selectTab set view +
+  // activeId. (Grid mode boots its tiles on click, via setBootedIds inline.)
   useEffect(() => {
     if (view !== 'terminal') return
-    const wanted = [activeId, splitMode ? splitTabId : null].filter(Boolean)
-    if (!wanted.some(id => !bootedIds.has(id))) return
-    setBootedIds(prev => {
-      const next = new Set(prev)
-      wanted.forEach(id => next.add(id))
-      return next
-    })
-  }, [view, activeId, splitMode, splitTabId, bootedIds])
+    if (bootedIds.has(activeId)) return
+    setBootedIds(prev => new Set(prev).add(activeId))
+  }, [view, activeId, bootedIds])
 
   // ── Idle sleep ─────────────────────────────────────────────────────────────
   // No input for idleSleepMinutes → dim the app, freeze animations, and gate
@@ -433,16 +424,15 @@ export default function App() {
   const agentStatesRef = useRef(agentStates)
   useEffect(() => { agentStatesRef.current = agentStates }, [agentStates])
 
-  // Never strand the user on a black screen: terminal view with zero
-  // sessions renders nothing (and split mode doubles the nothing), so fall
-  // back to Home and drop split whenever the last session goes away.
+  // Never strand the user on a black screen: terminal view with zero sessions
+  // renders nothing, so fall back to Home and drop grid when the last session
+  // goes away.
   useEffect(() => {
     if (tabs.length === 0) {
-      if (splitMode) setSplitMode(false)
       if (gridMode) setGridMode(false)
       if (view === 'terminal') setView('home')
     }
-  }, [tabs.length, view, splitMode])
+  }, [tabs.length, view, gridMode])
 
   // GitHub notifications badge. Lives here (not in the tab) so the count
   // shows with the panel closed. Main answers instantly with 0 when the
@@ -567,7 +557,7 @@ export default function App() {
         e.preventDefault()
         setGridMode(prev => {
           if (!prev && tabsRef.current.length < 2) return prev
-          if (!prev) { setSplitMode(false); setView('terminal') }
+          if (!prev) setView('terminal')
           return !prev
         })
       }
@@ -634,36 +624,6 @@ export default function App() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }, [rightWidth])
-
-  // Drag the split divider to re-balance the two panes.
-  const startSplitDrag = useCallback((e) => {
-    e.preventDefault()
-    const container = splitContainerRef.current
-    if (!container) return
-    const rect = container.getBoundingClientRect()
-    const onMove = (ev) => {
-      const ratio = (ev.clientX - rect.left) / rect.width
-      setSplitRatio(Math.max(0.2, Math.min(0.8, ratio)))
-    }
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }, [])
-
-  // Alt+Left / Alt+Right moves keyboard focus between split panes.
-  useEffect(() => {
-    if (!splitMode) return
-    const handler = (e) => {
-      if (!e.altKey || e.ctrlKey || e.metaKey) return
-      if (e.key === 'ArrowLeft') { e.preventDefault(); setFocusedPane('left') }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); setFocusedPane('right') }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [splitMode])
 
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
@@ -939,6 +899,12 @@ export default function App() {
     setTabs(prev => prev.map(t => t.groupId === groupId ? { ...t, groupLabel: next } : t))
   }, [])
 
+  // Close every session that has already exited — a one-click tidy for the rail
+  // after a swarm finishes, instead of dismissing each dead tab by hand.
+  const clearExitedSessions = useCallback(() => {
+    tabsRef.current.filter(t => t.status === 'exited').forEach(t => closeTabRef.current?.(t.id))
+  }, [])
+
   // Grow an existing workspace: open a fresh shell inside the same group, in the
   // group's working directory. `tag` forces a new session even when the cwd
   // matches an existing one (openTab otherwise dedupes by cwd).
@@ -1047,14 +1013,8 @@ export default function App() {
     // closeGroup) always read the most recent value, not a stale snapshot.
     const wasActive = id === activeIdRef.current
 
-    // Bug fixes: a queued prompt for a closing tab would leak forever, and a
-    // split pane pointed at a closed tab rendered as a blank pane.
+    // A queued prompt for a closing tab would otherwise leak forever.
     pendingPtyRef.current.delete(id)
-    setSplitTabId(prev => {
-      if (prev !== id) return prev
-      const fallback = tabsRef.current.find(t => t.id !== id && t.id !== activeIdRef.current)
-      return fallback?.id ?? null
-    })
 
     window.sush.closeTab({ tabId: id })
     setTabs(prev => {
@@ -1339,7 +1299,7 @@ export default function App() {
     else if (action === 'grid') {
       setGridMode(prev => {
         if (!prev && tabsRef.current.length < 2) return prev
-        if (!prev) { setSplitMode(false); setView('terminal') }
+        if (!prev) setView('terminal')
         return !prev
       })
     }
@@ -1507,6 +1467,7 @@ export default function App() {
           onClose={closeTab}
           onCloseGroup={closeGroup}
           onAddToGroup={addToGroup}
+          onClearExited={clearExitedSessions}
           onRenameGroup={renameGroup}
           onReorder={reorderTabs}
           onProfiles={() => setShowProfiles(true)}
@@ -1538,7 +1499,7 @@ export default function App() {
             onToggleGrid={() => {
               setGridMode(prev => {
                 if (!prev && tabsRef.current.length < 2) return prev
-                if (!prev) { setSplitMode(false); setView('terminal') }
+                if (!prev) setView('terminal')
                 return !prev
               })
             }}
@@ -1548,81 +1509,7 @@ export default function App() {
           )}
 
           <div className="flex-1 relative overflow-hidden">
-            {splitMode ? (
-              <div ref={splitContainerRef} style={{ display: 'flex', height: '100%' }}>
-                <div
-                  onMouseDown={() => setFocusedPane('left')}
-                  style={{
-                    flex: `${splitRatio} 1 0%`, position: 'relative', overflow: 'hidden',
-                    filter: focusedPane === 'left' ? 'none' : 'grayscale(0.35) brightness(0.62)',
-                    opacity: focusedPane === 'left' ? 1 : 0.62,
-                    transition: 'opacity .15s ease, filter .15s ease'
-                  }}
-                >
-                  {tabs.filter(tab => tab.id === activeId).map(tab => {
-                    const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
-                    const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = termTheme(getTheme(settings.themeId ?? prof?.themeId))
-                    return (
-                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'left'} splitVisible
-                        initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
-                        bootCommand={tab.bootCommand}
-                        broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
-                        restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
-                        persistScrollback={settings.persistScrollback !== false}
-                        transparentBg={wallpaperOnTerminals}
-                        onSessionState={(state) => handleSessionState(tab.id, state)}
-                        onReady={(state) => handleTerminalReady(tab.id, state)}
-                        onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
-                        onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
-                        onExport={() => exportSessionOutput(tab.id)}
-                      />
-                    )
-                  })}
-                  {focusedPane === 'left' && (
-                    <div style={{ position: 'absolute', inset: 0, border: `2px solid ${rgba(accent, 0.55)}`, pointerEvents: 'none', zIndex: 60 }} />
-                  )}
-                </div>
-                <div
-                  onMouseDown={startSplitDrag}
-                  title="Drag to resize"
-                  style={{ width: 6, background: rgba(accent, 0.18), flexShrink: 0, cursor: 'col-resize' }}
-                />
-                <div
-                  onMouseDown={() => setFocusedPane('right')}
-                  style={{
-                    flex: `${1 - splitRatio} 1 0%`, position: 'relative', overflow: 'hidden',
-                    filter: focusedPane === 'right' ? 'none' : 'grayscale(0.35) brightness(0.62)',
-                    opacity: focusedPane === 'right' ? 1 : 0.62,
-                    transition: 'opacity .15s ease, filter .15s ease'
-                  }}
-                >
-                  {tabs.filter(tab => tab.id === (splitTabId || tabs.find(t => t.id !== activeId)?.id)).map(tab => {
-                    const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
-                    const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = termTheme(getTheme(settings.themeId ?? prof?.themeId))
-                    return (
-                      <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'right'} splitVisible
-                        initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
-                        bootCommand={tab.bootCommand}
-                        broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
-                        restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
-                        persistScrollback={settings.persistScrollback !== false}
-                        transparentBg={wallpaperOnTerminals}
-                        onSessionState={(state) => handleSessionState(tab.id, state)}
-                        onReady={(state) => handleTerminalReady(tab.id, state)}
-                        onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
-                        onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
-                        onExport={() => exportSessionOutput(tab.id)}
-                      />
-                    )
-                  })}
-                  {focusedPane === 'right' && (
-                    <div style={{ position: 'absolute', inset: 0, border: `2px solid ${rgba(accent, 0.55)}`, pointerEvents: 'none', zIndex: 60 }} />
-                  )}
-                </div>
-              </div>
-            ) : (
+            {(
               // One container for both layouts. Grid mode is a STYLE switch on
               // the same keyed wrappers — terminals never remount on toggle, so
               // xterm buffers survive. Unbooted tabs tile as wake-on-click
@@ -1688,10 +1575,17 @@ export default function App() {
                               </div>
                             </div>
                           )}
-                          {gridMode && (
+                          {gridMode && (() => {
+                            // Live state dot, same classifier the rail uses, so a
+                            // tile that needs you (amber) or errored (red) stands
+                            // out in the grid without opening Mission Control.
+                            const st = tab.status === 'exited' ? null : (booted ? STATES[agentStates[tab.id]] : null)
+                            const dot = tab.status === 'exited' ? '#ff5370' : (st?.dot ?? '#42d392')
+                            const pulse = st && (agentStates[tab.id] === 'working' || agentStates[tab.id] === 'waiting')
+                            return (
                             <div className="flex items-center" style={{ position: 'absolute', top: 6, left: 8, right: 8, zIndex: 60, gap: 7, pointerEvents: 'none' }}>
                               <span className="flex items-center" style={{ gap: 6, padding: '2px 9px', borderRadius: 999, background: 'rgba(5,7,10,0.78)', border: `1px solid ${focused ? rgba(accent, 0.5) : 'rgba(255,255,255,0.1)'}` }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: tab.status === 'exited' ? '#ff5370' : '#42d392' }} />
+                                <span className={pulse ? 'sush-pulse-dot' : undefined} title={st?.label} style={{ width: 6, height: 6, borderRadius: '50%', background: dot, '--pulse': rgba(dot, 0.6) }} />
                                 <span style={{ fontSize: 10, fontWeight: 800, color: focused ? accent : '#aab3bb', whiteSpace: 'nowrap' }}>{tab.label}</span>
                               </span>
                               <span style={{ flex: 1 }} />
@@ -1704,7 +1598,8 @@ export default function App() {
                                 <Icon name="maximize" size={11} strokeWidth={2.2} />
                               </button>
                             </div>
-                          )}
+                            )
+                          })()}
                         </div>
                       )
                     })}
@@ -1823,7 +1718,7 @@ export default function App() {
           sessionCount={tabs.length}
           workspaceCount={new Set(tabs.map(t => t.groupId).filter(Boolean)).size}
           broadcastMode={broadcastMode}
-          splitMode={splitMode}
+          gridMode={gridMode}
           agentSummary={agentSummary}
           onOpenMission={() => setShowMission(true)}
         />

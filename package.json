@@ -1,7 +1,7 @@
 {
   "name": "sush",
-  "version": "4.3.0",
-  "codename": "vista",
+  "version": "4.4.0",
+  "codename": "lumen",
   "description": "Sush - the terminal your agents live in",
   "main": "out/main/index.js",
   "scripts": {

@@ -39,9 +39,10 @@ const SECTIONS = [
       { keys: ['Ctrl', 'Tab'], label: 'Quick switch (hold Ctrl, tap Tab)' },
       { keys: ['Ctrl', 'Shift', 'Tab'], label: 'Quick switch backwards' },
       { keys: ['Ctrl', 'Shift', 'D'], label: 'Duplicate active session' },
-      { keys: ['Ctrl', 'Shift', 'H'], label: 'Toggle split pane' },
-      { keys: ['Alt', '← / →'], label: 'Focus left / right split pane' },
+      { keys: ['Ctrl', 'Shift', 'G'], label: 'Toggle grid layout' },
       { keys: ['Ctrl', 'Shift', 'B'], label: 'Toggle broadcast mode' },
+      { keys: ['Ctrl', 'Shift', 'M'], label: 'Mission Control' },
+      { keys: ['Ctrl', 'Shift', 'S'], label: 'Hush voice dictation' },
       { keys: ['F2'], label: 'Rename active session' },
       { keys: ['Double-click'], label: 'Rename session in rail' },
     ]
