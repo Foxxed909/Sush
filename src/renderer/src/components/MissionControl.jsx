@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { STATES } from '../lib/agentActivity'
@@ -25,13 +25,14 @@ function StatePill({ stateId }) {
   )
 }
 
-function SessionRow({ tab, stateId, accent, onFocus, onClose, onPrompt }) {
+function SessionRow({ tab, stateId, limited, canSwitch, accent, onFocus, onClose, onPrompt, onSwitchResume }) {
   const agent = agentById(tab.agentId) || agentById('shell')
   const waiting = stateId === 'waiting'
+  const LIMIT = '#ff9f43'
   return (
     <div
       className="flex items-center sush-mc-row"
-      style={{ gap: 10, padding: '8px 12px', borderRadius: 'var(--r-md, 10px)', border: `1px solid ${rgba(accent, 0.08)}` }}
+      style={{ gap: 10, padding: '8px 12px', borderRadius: 'var(--r-md, 10px)', border: `1px solid ${limited ? rgba(LIMIT, 0.35) : rgba(accent, 0.08)}` }}
     >
       {/* Agent monogram */}
       <span style={{
@@ -52,7 +53,23 @@ function SessionRow({ tab, stateId, accent, onFocus, onClose, onPrompt }) {
         </span>
       </span>
 
-      <StatePill stateId={stateId} />
+      {limited ? (
+        <span className="flex items-center" style={{ gap: 6, flexShrink: 0 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: LIMIT }} />
+          <span style={{ fontSize: 11, fontWeight: 800, color: LIMIT, letterSpacing: 0.2 }}>Limit reached</span>
+        </span>
+      ) : (
+        <StatePill stateId={stateId} />
+      )}
+
+      {/* Limit hit + another account exists → switch & resume in one click. */}
+      {limited && canSwitch && (
+        <button className="sush-mc-btn" title="Switch to your other account for this CLI and resume the conversation here"
+          onClick={() => onSwitchResume(tab.id)}
+          style={{ fontSize: 11, fontWeight: 800, color: LIMIT, background: rgba(LIMIT, 0.12), border: `1px solid ${rgba(LIMIT, 0.4)}`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          Switch &amp; resume
+        </button>
+      )}
 
       {/* Quick answers for agents blocked on a prompt */}
       {waiting && (
@@ -81,7 +98,23 @@ function SessionRow({ tab, stateId, accent, onFocus, onClose, onPrompt }) {
   )
 }
 
-export default function MissionControl({ accent, tabs, states, summary, onFocus, onClose, onCloseGroup, onPrompt, onDismiss }) {
+export default function MissionControl({ accent, tabs, states, limits = {}, summary, onFocus, onClose, onCloseGroup, onPrompt, onSwitchResume, onDismiss }) {
+  // Which CLIs have a second account to switch to — so the "Switch & resume"
+  // action only appears when it can actually do something. Fetched once on open.
+  const [altProviders, setAltProviders] = useState(() => new Set())
+  useEffect(() => {
+    let live = true
+    window.sush.accountsList?.().then(r => {
+      if (!live || !r?.ok) return
+      const set = new Set()
+      for (const [p, st] of Object.entries(r.providers || {})) {
+        if ((st.slots?.length || 0) >= 2) set.add(p)
+      }
+      setAltProviders(set)
+    }).catch(() => {})
+    return () => { live = false }
+  }, [])
+
   // Group sessions by workspace; solo sessions collect under one bucket.
   const groups = useMemo(() => {
     const byId = new Map()
@@ -167,10 +200,13 @@ export default function MissionControl({ accent, tabs, states, summary, onFocus,
                     key={tab.id}
                     tab={tab}
                     stateId={states[tab.id] || 'idle'}
+                    limited={!!limits[tab.id]}
+                    canSwitch={altProviders.has(tab.agentId)}
                     accent={accent}
                     onFocus={onFocus}
                     onClose={onClose}
                     onPrompt={onPrompt}
+                    onSwitchResume={onSwitchResume}
                   />
                 ))}
               </div>

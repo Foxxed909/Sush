@@ -12,6 +12,17 @@ The calm release: fewer themes, quieter motion, a real account switcher, a
 lighter footprint — and a deliberate trim of features that didn't earn their
 place.
 
+### Added — Limit recovery & notifications
+- **Hit a limit mid-session? Switch & resume in one click.** When a live Claude
+  or Codex session shows a usage/limit message, Mission Control flags it and —
+  if you have a second account for that CLI — offers **Switch & resume**: it
+  hops to your other (longest-rested) account and relaunches the session in
+  resume mode (`claude --continue`, `codex resume --last`) so the conversation
+  carries over. This covers interactive sessions, not just Seducia's calls.
+- **Agent notifications.** A desktop notification when a session needs your
+  input, errors, or finishes while Sush is in the background (never while
+  focused). Toggle in Settings ▸ Window.
+
 ### Added — Custom agents
 - **Settings ▸ Agents.** Add any CLI as a first-class launcher tile — name,
   command, and an optional resume command. It shows up in the launcher,

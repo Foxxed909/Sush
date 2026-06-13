@@ -427,7 +427,7 @@ export default function App() {
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
   // Mission Control: live per-session state inferred from the PTY stream.
-  const { states: agentStates, summary: agentSummary } = useAgentActivity(tabs)
+  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false })
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
   const agentStatesRef = useRef(agentStates)
@@ -1067,6 +1067,39 @@ export default function App() {
   useEffect(() => {
     closeTabRef.current = closeTab
   }, [closeTab])
+
+  // Limit-hit recovery for INTERACTIVE agent sessions (the case the Seducia
+  // cascade can't reach): switch this CLI to the account that's rested longest
+  // and relaunch the session in resume mode, so the conversation continues on
+  // the fresh account (claude --continue, codex resume --last). Explicit, one
+  // click from Mission Control — never automatic, so a live session is never
+  // yanked out from under you.
+  const switchAndResume = useCallback(async (tabId) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    const provider = tab?.agentId
+    if (!tab || (provider !== 'claude' && provider !== 'codex')) return
+    try {
+      const list = await window.sush.accountsList?.()
+      const st = list?.providers?.[provider]
+      if (!st || (st.slots?.length || 0) < 2) return
+      const alt = st.slots
+        .filter(s => s.id !== st.active)
+        .sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
+      if (!alt) return
+      const sw = await window.sush.accountsSwitch({ provider, slotId: alt.id })
+      if (!sw?.ok) return
+      const agent = agentById(provider)
+      const { cwd, label } = tab
+      closeTab(tabId)
+      openTab(profiles[0], {
+        cwd,
+        agentId: provider,
+        command: agent?.resumeCommand ?? agent?.command,
+        label,
+        tag: `sess-${nextSessionTag++}`
+      })
+    } catch {}
+  }, [closeTab, openTab, profiles])
 
   const handleSessionState = useCallback((tabId, state) => {
     setTabs(prev => prev.map(tab => {
@@ -1893,11 +1926,13 @@ export default function App() {
           accent={accent}
           tabs={tabs}
           states={agentStates}
+          limits={agentLimits}
           summary={agentSummary}
           onFocus={(id) => { setActiveId(id); setView('terminal'); setShowMission(false) }}
           onClose={closeTab}
           onCloseGroup={closeGroup}
           onPrompt={promptSession}
+          onSwitchResume={switchAndResume}
           onDismiss={() => setShowMission(false)}
         />
       )}

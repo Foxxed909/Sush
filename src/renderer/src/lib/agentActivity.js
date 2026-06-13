@@ -37,6 +37,17 @@ const SHELL_PROMPT_RE = /(PS [^\n]*>\s*$|[^\n]*\$\s*$|[A-Za-z]:\\[^\n]*>\s*$|[^\
 // Surfaced failure signatures.
 const ERROR_RE = /\b(error|traceback|exception|fatal|panic|✖|✗|✘| not recognized| not found|command not found|cannot find|permission denied)\b/i
 
+// Usage/session-limit signatures from the agent CLIs (Claude/Codex). When one
+// of these shows up in a settled session, Sush can offer to switch to another
+// logged-in account for that CLI and resume. Kept specific so a session merely
+// *mentioning* the word "limit" doesn't trip it.
+const LIMIT_RE = /(usage|session|rate)[ -]?limit (reached|exceeded|hit)|(reached|hit) (your|the) (usage|session|rate)?[ -]?limit|limit (reached|exceeded)|too many requests|quota (exceeded|reached)|\b429\b|upgrade to continue|resets? (at|in)\b/i
+
+/** True when the tail looks like the CLI hit its usage/session limit. */
+export function detectLimit(tail) {
+  return LIMIT_RE.test(stripAnsi(tail || ''))
+}
+
 export const STATES = {
   working: { id: 'working', label: 'Working', color: '#5fd3a8', dot: '#5fd3a8', rank: 1 },
   waiting: { id: 'waiting', label: 'Needs you', color: '#ffcb6b', dot: '#ffcb6b', rank: 0 },

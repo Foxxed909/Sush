@@ -682,6 +682,19 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               </div>
             </Row>
             <Row>
+              <Label>Agent notifications</Label>
+              <button
+                onClick={() => set('agentNotifications', settings.agentNotifications === false)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.agentNotifications !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.agentNotifications !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.agentNotifications !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="activity" size={14} strokeWidth={2} />
+                {settings.agentNotifications !== false ? 'Notify when an agent needs you / finishes' : 'Agent notifications off'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                A desktop notification when a session needs input, errors, or finishes while Sush is in the background. Never fires while the window is focused.
+              </div>
+            </Row>
+            <Row>
               <Label>Sleep after inactivity</Label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {[0, 5, 10, 20, 30].map(mins => {

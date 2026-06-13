@@ -189,6 +189,37 @@ in Settings ▸ Accounts as "one login per profile" with a **Sign in** button.
 - Settings ▸ Accounts gained a "One login per profile" block (Gemini, OpenCode)
   with Sign-in buttons that open the CLI's own login session.
 
+## 4.2.0 follow-up #3 — interactive limit recovery + notifications
+
+### Limit detection (lib/agentActivity.js + useAgentActivity)
+- `detectLimit(tail)` + `LIMIT_RE` (specific: "...limit reached/exceeded",
+  "too many requests", "quota", "429", "upgrade to continue", "resets at/in").
+- `useAgentActivity(tabs, { notify })` now also returns a `limits` map (tabId →
+  true) — only set when the session is SETTLED (not working/booting), since an
+  active stream isn't blocked. Tick computes states + limits, re-renders only
+  on change.
+
+### Switch & resume (App.switchAndResume → MissionControl)
+- Explicit, never automatic (a live session is never yanked). For claude/codex
+  only (the slot-able CLIs). Reads accountsList, picks the alternate slot with
+  the oldest `lastLimitAt` (rested longest), `accountsSwitch`es to it, then
+  closeTab + openTab(same cwd) with `agent.resumeCommand ?? command`.
+- MissionControl: rows show a "Limit reached" pill + "Switch & resume" button
+  when `limits[id]` AND the provider has ≥2 accounts (fetched once on open).
+
+### Finish-notifications (useAgentActivity)
+- On a state transition into waiting/error/done while `!document.hasFocus()`,
+  fire `new Notification`. 30s per-session cooldown; done/error only when
+  coming out of working/booting. Gated by `settings.agentNotifications`
+  (default on), passed in via the hook's `notify` option. Toggle in
+  Settings ▸ Window.
+
+### Deliberately NOT done tonight (needs runtime testing, user was away)
+- **Seducia two-brains unification** — collapsing docked Seducia.jsx onto the
+  useSeducia hook + deleting the dead deterministic parser. Build can't verify
+  the LaunchCard/voice/scope behavior; do it when it can be exercised live.
+- Swarm presets, cost rollup, visual agent relay, .sush/workspace.json — bench.
+
 ## 4.0.0 — "Helm" implementation notes
 
 ### Seducia full control + scoping
