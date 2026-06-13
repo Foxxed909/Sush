@@ -128,8 +128,8 @@ export function parseIntent(input, activeCwd, dirs = []) {
     const names = SYNONYMS[agent.id] || [agent.id]
     let count = 0
     for (const name of names) {
-      const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|x)?\\s*${name}\\b`, 'i'))
-      const after = raw.match(new RegExp(`\\b${name}\\s*(?:x|x)\\s*(\\d+)`, 'i'))
+      const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|×)?\\s*${name}\\b`, 'i'))
+      const after = raw.match(new RegExp(`\\b${name}\\s*(?:x|×)\\s*(\\d+)`, 'i'))
       if (before) count = Math.max(count, parseInt(before[1], 10) || 0)
       else if (after) count = Math.max(count, parseInt(after[1], 10) || 0)
       else if (new RegExp(`\\b${name}\\b`, 'i').test(raw)) count = Math.max(count, 1)

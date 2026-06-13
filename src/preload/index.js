@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('sush', {
   closeTab: (payload) => ipcRenderer.invoke('sush:close-tab', payload),
   cancelCommand: (payload) => ipcRenderer.invoke('sush:cancel-command', payload),
   windowControl: (action) => ipcRenderer.invoke('sush:window-control', action),
+  setOpacity: (value) => ipcRenderer.invoke('sush:set-opacity', value),
   appVersion: () => ipcRenderer.invoke('sush:app-version'),
   homeDir: () => ipcRenderer.invoke('sush:home-dir'),
   seduciaCli: (payload) => ipcRenderer.invoke('sush:seducia-cli', payload),

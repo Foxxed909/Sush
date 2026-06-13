@@ -512,6 +512,12 @@ export default function App() {
     return () => { window.removeEventListener('keydown', handler); clearTimeout(zoomTimerRef.current) }
   }, [settings])
 
+  // Window opacity is an OS-level window property (main calls setOpacity), not
+  // a CSS opacity on the root — the latter faded the terminal text itself.
+  useEffect(() => {
+    window.sush.setOpacity?.((settings.opacity ?? 100) / 100)
+  }, [settings.opacity])
+
   const openRight = useCallback((tab) => {
     setRightTab(tab)
     setRightOpen(true)
@@ -1421,8 +1427,7 @@ export default function App() {
         // into the same background stack so terminal text stays readable.
         background: settings.bgImage
           ? `linear-gradient(rgba(2,3,5,${(settings.bgDim ?? 62) / 100}), rgba(2,3,5,${(settings.bgDim ?? 62) / 100})), url(${JSON.stringify(settings.bgImage)}) center / cover no-repeat fixed, ${theme.xterm.background}`
-          : theme.xterm.background,
-        opacity: (settings.opacity ?? 100) / 100
+          : theme.xterm.background
       }}
     >
       {!zenMode && (

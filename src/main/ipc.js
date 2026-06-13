@@ -917,6 +917,18 @@ export function registerIpcHandlers(win) {
     else if (action === 'close') win.close()
   })
 
+  // Real OS-level window opacity. The old approach put CSS `opacity` on the
+  // renderer root, which faded the terminal TEXT into unreadability; setting it
+  // on the window translucent-ifies the whole window uniformly (the expected
+  // "ghost the window" behaviour) without touching legibility relative to the
+  // rest of the UI. Clamped so you can never make the window invisible.
+  ipcMain.handle('sush:set-opacity', (event, value) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    if (!win) return
+    const v = Math.max(0.4, Math.min(1, Number(value) || 1))
+    try { win.setOpacity(v) } catch {}
+  })
+
   ipcMain.handle('sush:git-status', (event, { cwd }) => getGitStatus(cwd))
   ipcMain.handle('sush:list-dir', (event, { path }) => listDirectory(path))
   ipcMain.handle('sush:dir-exists', (event, { path }) => ({ path, exists: isDirectory(path) }))

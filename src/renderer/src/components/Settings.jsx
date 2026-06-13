@@ -618,7 +618,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {/* Window */}
           <Section title="Window" accent={accent}>
             <Row>
-              <Label>Background opacity</Label>
+              <Label>Window opacity</Label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input type="range" min={70} max={100} value={settings.opacity ?? 100} onChange={e => set('opacity', Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
                 <span style={{ color: '#e1e6ea', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.opacity ?? 100}%</span>
