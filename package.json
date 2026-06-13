@@ -1,7 +1,7 @@
 {
   "name": "sush",
-  "version": "4.1.0",
-  "codename": "helm",
+  "version": "4.2.0",
+  "codename": "macy",
   "description": "Sush - the terminal your agents live in",
   "main": "out/main/index.js",
   "scripts": {

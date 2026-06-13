@@ -809,7 +809,9 @@ export function registerIpcHandlers(win) {
   })
 
   ipcMain.on('sush:pty-input', (event, { tabId, data }) => {
-    ptySessions.get(tabId)?.proc.write(data)
+    // node-pty throws if the PTY died between the renderer's check and this
+    // write — an uncaught throw here takes down the whole main process.
+    try { ptySessions.get(tabId)?.proc.write(data) } catch {}
   })
 
   ipcMain.on('sush:pty-resize', (event, { tabId, cols, rows }) => {
@@ -889,9 +891,13 @@ export function registerIpcHandlers(win) {
   })
 
   ipcMain.handle('sush:close-tab', (event, { tabId }) => {
-    closePtySession(tabId)
-    contexts.delete(tabId)
-    tabMeta.delete(tabId)   // Bug fix: meta entries used to outlive their tab forever
+    try {
+      closePtySession(tabId)
+    } finally {
+      // Even if the PTY teardown throws, the per-tab maps must not leak.
+      contexts.delete(tabId)
+      tabMeta.delete(tabId)
+    }
   })
 
   ipcMain.handle('sush:window-control', (event, action) => {

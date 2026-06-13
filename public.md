@@ -6,6 +6,56 @@ built-in command layer.
 
 ---
 
+## 4.2.0 — "Macy"
+
+The calm release: fewer themes, quieter motion, a real account switcher, and
+a lighter footprint.
+
+### Changed — the Macy design pass
+- **Native-feeling chrome.** The app shell now uses your platform's UI font
+  (SF on macOS, Segoe Variable on Windows); commands, code and terminals stay
+  monospace. The whole UI reads cleaner instantly.
+- **One motion language.** Every entrance, modal and hover now rides the same
+  short Apple-style spring — panels stopped sliding around on hover, modals
+  pop in softly with a fading backdrop, and durations are uniform. Less
+  performance, more confirmation.
+- **Quiet scrollbars.** Neutral, slim, macOS-style — no more accent-coloured
+  bars competing with the content.
+- **Loading states everywhere.** A shared ring spinner, skeleton shimmer and
+  hairline progress bar; the splash shows real loading progress, the Run
+  button and Accounts panel spin while busy.
+- **Four themes instead of seventeen.** Glass Dark, Glass Dark Pro,
+  Sophisticated Purple and Pinkther — the curated glass family. Saved legacy
+  themes map automatically to the closest survivor.
+
+### Changed — Accounts
+- **Settings ▸ Accounts is now the account switcher.** Your Claude / Codex
+  logins as clean rows — Account 1, Account 2 … — with Add / Switch / Remove,
+  the Claude limit previewer, and the on-limit policy (Never / Ask / Auto) in
+  one place. Sign-in still happens in the CLI's own browser flow (Google
+  supported); Sush never sees credentials.
+- The Google/GitHub OAuth status plumbing is gone from Settings — that's the
+  app's concern, not yours. Lock-screen sign-in is unchanged.
+
+### Fixed
+- **Hush** no longer scolds you with "Didn't catch that / wake word" when you
+  deliberately tap the mic off; rapid toggles can no longer ghost-type stale
+  transcripts into the terminal; dictation language follows your system
+  locale instead of forcing en-US.
+- A dead PTY receiving input could crash the entire app (main process) — now
+  guarded. Closing a tab that fails teardown no longer leaks its context.
+- Abandoned OAuth sign-ins no longer pile up in memory for the app's lifetime.
+- The Claude limit probe re-parsed its whole stream on every chunk — fixed.
+- The Claude panel's per-directory session map and transcript are now capped
+  (they grew forever and could trip the storage quota).
+
+### Lighter
+- Terminal scrollback buffers trimmed 5000 → 2000 lines per session — with up
+  to 16 sessions mounted this is the biggest renderer-RAM lever; persistent
+  scrollback still covers history across reopens.
+
+---
+
 ## 4.1.0 — "Helm" continued
 
 The live-testing round: smarter handoffs, a grid cockpit, and a face.

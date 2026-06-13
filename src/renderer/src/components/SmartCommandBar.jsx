@@ -322,6 +322,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           className="sush-btn"
           style={{ gap: 6, height: 34, padding: '0 14px', border: 'none', borderRadius: 'var(--r-btn)', background: busy ? rgba(accent, 0.14) : accent, color: busy ? rgba(accent, 0.7) : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: busy ? 'default' : 'pointer', boxShadow: busy ? 'none' : `0 4px 16px ${rgba(accent, 0.34)}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}
         >
+          {busy && <span className="sush-spinner" style={{ width: 11, height: 11, marginRight: 6, color: accent }} />}
           {busy ? 'Running' : 'Run'}
           {!busy && <Icon name="enter" size={13} strokeWidth={2.2} color="#0a0a0a" style={{ marginLeft: 4 }} />}
         </button>

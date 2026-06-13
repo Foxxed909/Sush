@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { themes, defaultTheme } from '../themes'
+import { getTheme } from '../themes'
 
 export default function ProfilePicker({ profiles, onSelect, onClose, anchorRef }) {
   const ref = useRef(null)
@@ -31,7 +31,7 @@ export default function ProfilePicker({ profiles, onSelect, onClose, anchorRef }
         Open with profile
       </div>
       {profiles.map(p => {
-        const t = themes[p.themeId] ?? defaultTheme
+        const t = getTheme(p.themeId)
         return (
           <button
             key={p.id}

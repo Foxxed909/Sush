@@ -66,11 +66,12 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
 
   return (
     <div
+      className="sush-backdrop"
       style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', paddingTop: '14vh' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="sush-fade-up"
+        className="sush-pop"
         style={{ width: '100%', maxWidth: 580, background: '#0d1015', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 'var(--r-xl)', boxShadow: `0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px ${rgba(accent, 0.1)}`, overflow: 'hidden' }}
       >
         {/* Search input */}

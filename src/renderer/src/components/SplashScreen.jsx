@@ -91,6 +91,8 @@ export default function SplashScreen({ accent = '#ff6b9d', onDone }) {
           <span>Helm</span>
         </div>
         <div style={{ color: '#2a3540', fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tip}</div>
+        {/* Indeterminate hairline — the splash reads as loading, not frozen */}
+        <div className="sush-progress" style={{ width: 140, marginTop: 10, '--accent': accent }} />
       </div>
 
       {/* Bottom glow line */}

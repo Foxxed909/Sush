@@ -14,6 +14,63 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 4.2.0 — "Macy" implementation notes
+
+### Theme reduction
+- `themes/index.js` keeps ONLY glassdark / glassdarkpro / royal / pinkther.
+  `resolveThemeId()` maps every removed id to its closest survivor
+  (LEGACY_THEME_MAP) and `getTheme()` is the one resolver — App.jsx (4 call
+  sites) and ProfilePicker now go through it, so persisted themeIds from any
+  old install render instead of silently falling back. Settings/palette lists
+  iterate `Object.values(themes)` so they shrank for free. Don't re-add
+  `themes[id] ?? defaultTheme` lookups; they bypass the legacy map.
+
+### Macy design pass (index.css)
+- New tokens: `--font-ui` (platform UI stack) on body, `--font-mono` for
+  pre/code/kbd/`.sush-omni input`; xterm keeps its own fontFamily setting.
+- Motion tokens: `--ease-spring` (Apple sheet curve), `--dur-fast/med`. All
+  entrance keyframes re-timed onto them; hover transforms that MOVED rows
+  (translateX on .sush-row/.sush-session) removed — light up in place.
+- New primitives: `.sush-spinner` (ring, currentColor), `.sush-skeleton`
+  (shimmer), `.sush-progress` (indeterminate hairline, used on the splash),
+  `.sush-pop` + `.sush-backdrop` (modal entrance — applied to CommandPalette,
+  MissionControl, NewSessionModal), `.sush-page-in` (Settings fade).
+- Scrollbars are neutral white-alpha now, not accent.
+
+### Accounts panel (Settings)
+- The OAuth status section (Google/GitHub READY/SOON chips) is GONE from the
+  UI — `publicOauthConfig` and overrides still work, it just has no surface.
+- `AccountsSection` is the CLI account switcher: rows per slot ("Account 1"
+  = the default slot's display name), Add/Switch/Remove, the limit previewer,
+  and `cliLimitPolicy` moved here from the AI section. Add-account still
+  dispatches `sush:open-login-session` so the CLI's own browser sign-in runs
+  in a fresh session against the just-activated slot.
+
+### FIF (bugs fixed this release)
+- **Hush**: `stop()` sets `manualStopRef` so `onend` doesn't fire the
+  misleading wake-word error on a deliberate stop; `start()` aborts any
+  previous recognizer before binding a new one (replaced instances kept live
+  handlers → ghost inserts); transient timeouts tracked + cleared on unmount;
+  hotkey listener subscribes once via ref; `rec.lang` follows
+  `navigator.language`.
+- **ipc.js**: `sush:pty-input` wrapped in try/catch (node-pty write on a dead
+  PTY threw uncaught in main → app crash); `sush:close-tab` deletes
+  contexts/tabMeta in a `finally`.
+- **claudePanel.js** `checkClaudeLimits`: consume complete lines, keep the
+  partial tail (was re-splitting the full buffer every chunk → re-parsed and
+  re-sent earlier events).
+- **tickets.js**: expired tickets swept on each create (they leaked for the
+  app lifetime, each holding a profile + possibly a token).
+- **App.jsx**: zoom-indicator timer moved off `window.__zoomTimer` onto a ref
+  with effect cleanup.
+- **ClaudePanel.jsx**: per-cwd session map LRU-capped at 40; transcript
+  entries capped at ~300.
+
+### RAM
+- xterm `scrollback` 5000 → 2000 (per terminal × up to 16 mounted = the
+  dominant renderer buffer). Persistent scrollback (60KB/tab, disk) is the
+  long-history story.
+
 ## 4.0.0 — "Helm" implementation notes
 
 ### Seducia full control + scoping

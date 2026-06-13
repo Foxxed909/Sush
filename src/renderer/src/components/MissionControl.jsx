@@ -111,11 +111,12 @@ export default function MissionControl({ accent, tabs, states, summary, onFocus,
 
   return (
     <div
+      className="sush-backdrop"
       style={{ position: 'fixed', inset: 0, zIndex: 480, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(5px)', paddingTop: '9vh' }}
       onClick={e => { if (e.target === e.currentTarget) onDismiss() }}
     >
       <div
-        className="sush-fade-up sush-scroll"
+        className="sush-pop sush-scroll"
         style={{ width: '100%', maxWidth: 720, maxHeight: '78vh', overflowY: 'auto', background: rgba('#0b0e13', 0.94), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 'var(--r-xl, 16px)', boxShadow: `0 28px 70px rgba(0,0,0,0.7), 0 0 0 1px ${rgba(accent, 0.08)}` }}
       >
         {/* Header */}

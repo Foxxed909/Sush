@@ -25,7 +25,7 @@ import UserManager from './components/UserManager'
 import ProfileViewer from './components/ProfileViewer'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
-import { themes, defaultTheme } from './themes'
+import { themes, getTheme } from './themes'
 import { agentById, MAX_SESSIONS } from './lib/agents'
 import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
@@ -479,36 +479,42 @@ export default function App() {
     return () => clearTimeout(smartDismissRef.current)
   }, [smartResult])
 
-  const themeId = settings.themeId ?? activeProfile?.themeId ?? 'pink'
-  const theme = themes[themeId] ?? defaultTheme
+  const theme = getTheme(settings.themeId ?? activeProfile?.themeId)
+  const themeId = theme.id
   const accent = theme.ui.accent
   const fontSize = settings.fontSize ?? 14
   const fontFamily = settings.fontFamily ?? "'Cascadia Code'"
   const cursorStyle = settings.cursorStyle ?? 'block'
 
+  const zoomTimerRef = useRef(null)
   useEffect(() => {
+    const flash = (size) => {
+      setZoomIndicator(size)
+      clearTimeout(zoomTimerRef.current)
+      zoomTimerRef.current = setTimeout(() => setZoomIndicator(null), 1200)
+    }
     const handler = (e) => {
       if (!e.ctrlKey) return
       if (e.key === '=' || e.key === '+') {
         e.preventDefault()
         const next = Math.min((settings.fontSize ?? 14) + 1, 28)
         saveSettings({ ...settings, fontSize: next })
-        setZoomIndicator(next); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+        flash(next)
       }
       if (e.key === '-') {
         e.preventDefault()
         const next = Math.max((settings.fontSize ?? 14) - 1, 8)
         saveSettings({ ...settings, fontSize: next })
-        setZoomIndicator(next); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+        flash(next)
       }
       if (e.key === '0') {
         e.preventDefault()
         saveSettings({ ...settings, fontSize: 14 })
-        setZoomIndicator(14); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+        flash(14)
       }
     }
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    return () => { window.removeEventListener('keydown', handler); clearTimeout(zoomTimerRef.current) }
   }, [settings])
 
   const openRight = useCallback((tab) => {
@@ -1526,7 +1532,7 @@ export default function App() {
                   {tabs.filter(tab => tab.id === activeId).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                    const t = getTheme(settings.themeId ?? prof?.themeId)
                     return (
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'left'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
@@ -1563,7 +1569,7 @@ export default function App() {
                   {tabs.filter(tab => tab.id === (splitTabId || tabs.find(t => t.id !== activeId)?.id)).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                    const t = getTheme(settings.themeId ?? prof?.themeId)
                     return (
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'right'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
@@ -1601,7 +1607,7 @@ export default function App() {
                       const booted = bootedIds.has(tab.id)
                       const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                       const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                      const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                      const t = getTheme(settings.themeId ?? prof?.themeId)
                       const focused = tab.id === activeId
                       return (
                         <div

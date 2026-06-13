@@ -8,6 +8,20 @@
   --accent: #ff6b9d;
   --shadow-card: 0 2px 8px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.04);
   --shadow-float: 0 8px 32px rgba(0,0,0,0.48), 0 0 0 1px rgba(255,255,255,0.06);
+
+  /* ---- Typography ----
+     Chrome reads in the platform UI face (the macOS tell: SF on Mac, Segoe
+     Variable on Win 11); code, commands and terminals stay monospace. */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', 'SF Mono', monospace;
+
+  /* ---- Motion ----
+     One spring for everything (Apple's standard sheet curve) so the app
+     moves like a single object instead of seventeen different easings. */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 0.14s;
+  --dur-med: 0.26s;
   --accent-a06: rgba(255, 107, 157, 0.06);
   --accent-a10: rgba(255, 107, 157, 0.10);
   --accent-a16: rgba(255, 107, 157, 0.16);
@@ -49,7 +63,7 @@ body[data-corners="pill"] {
 }
 
 body {
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font-ui);
   background: #0d0d0d;
   color: #f0f0f0;
   height: 100vh;
@@ -59,6 +73,12 @@ body {
   text-rendering: optimizeLegibility;
   font-feature-settings: 'kern' 1, 'liga' 1;
   letter-spacing: -0.01em;
+}
+
+/* Anything that is code stays monospace (the terminal sets its own font). */
+pre, code, kbd, .sush-mono,
+.sush-omni input, .sush-omni textarea {
+  font-family: var(--font-mono);
 }
 
 #root {
@@ -76,12 +96,14 @@ body {
   overflow-y: auto !important;
 }
 
-/* ---- Scrollbars ---- */
-::-webkit-scrollbar { width: 9px; height: 9px; }
+/* ---- Scrollbars ----
+   Neutral and quiet, macOS-style: invisible until you need them, never a
+   second accent-coloured UI element fighting for attention. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--accent-a22); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: var(--accent-a55); background-clip: padding-box; }
-.sush-scroll { scrollbar-width: thin; scrollbar-color: var(--accent-a22) transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); background-clip: padding-box; }
+.sush-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
 
 /* ---- Horizontal panel tab strip ---- */
 .sush-htabs {
@@ -105,40 +127,106 @@ body {
 .sush-htabs::-webkit-scrollbar-thumb:hover { background: var(--accent-a55); }
 .sush-htabs > * { flex: 0 0 auto; }
 
-/* ---- Animations ---- */
+/* ---- Animations ----
+   Entrances are short, small-travel, and all on the same spring — the
+   macOS rule: motion confirms, it never performs. */
 @keyframes sush-fade-up {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.sush-fade-up { animation: sush-fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.sush-fade-up { animation: sush-fade-up var(--dur-med) var(--ease-spring) both; }
 
-/* Cinematic scale-reveal (splash, modals, view transitions) */
+/* Scale-reveal (splash, modals, view transitions) */
 @keyframes sush-reveal {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
 }
-.sush-reveal { animation: sush-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.sush-reveal { animation: sush-reveal 0.34s var(--ease-spring) both; }
+
+/* Full-page entrance (Settings) — pure fade, no movement. */
+@keyframes sush-page-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.sush-page-in { animation: sush-page-in 0.2s ease-out both; }
+
+/* Modal sheet pop — backdrop fades, card springs up a touch. */
+@keyframes sush-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.975); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.sush-pop { animation: sush-pop 0.3s var(--ease-spring) both; }
+@keyframes sush-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.sush-backdrop { animation: sush-backdrop-in 0.18s ease-out both; }
 
 /* Panel entrance — slide from left (SessionRail) */
 @keyframes sush-slide-right {
-  from { opacity: 0; transform: translateX(-18px); }
+  from { opacity: 0; transform: translateX(-14px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-.sush-slide-right { animation: sush-slide-right 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.sush-slide-right { animation: sush-slide-right 0.36s var(--ease-spring) both; }
 
 /* Panel entrance — slide from top (SmartCommandBar) */
 @keyframes sush-slide-down {
-  from { opacity: 0; transform: translateY(-14px); }
+  from { opacity: 0; transform: translateY(-10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.sush-slide-down { animation: sush-slide-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.sush-slide-down { animation: sush-slide-down 0.32s var(--ease-spring) both; }
 
 /* Panel entrance — slide from right (RightPanel) */
 @keyframes sush-slide-left {
-  from { opacity: 0; transform: translateX(20px); }
+  from { opacity: 0; transform: translateX(16px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-.sush-slide-left { animation: sush-slide-left 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.sush-slide-left { animation: sush-slide-left 0.36s var(--ease-spring) both; }
+
+/* ---- Loading primitives ---- */
+/* Ring spinner: size it with inline width/height; inherits currentColor. */
+.sush-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  border-top-color: currentColor;
+  animation: sush-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+/* Skeleton shimmer for rows/cards that are still fetching. */
+@keyframes sush-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+.sush-skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, rgba(255,255,255,0.045) 25%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.045) 75%);
+  background-size: 200% 100%;
+  animation: sush-shimmer 1.4s ease-in-out infinite;
+}
+/* Indeterminate hairline progress (splash / busy bars). */
+@keyframes sush-progress-slide {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(250%); }
+}
+.sush-progress {
+  position: relative;
+  height: 2px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.07);
+}
+.sush-progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: sush-progress-slide 1.1s var(--ease-out) infinite;
+}
+.sush-lite .sush-skeleton, .sush-lite .sush-progress::after { animation-duration: 2.4s; }
 
 /* Splash letter stagger */
 @keyframes sush-letter {
@@ -244,25 +332,25 @@ body {
 
 /* ---- Quick action tiles ---- */
 .sush-tile {
-  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur-fast) ease, background var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 .sush-tile:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   border-color: var(--accent-a55) !important;
-  box-shadow: 0 14px 30px rgba(0,0,0,0.45), 0 0 0 1px var(--accent-a16);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.4), 0 0 0 1px var(--accent-a16);
 }
-.sush-tile:active { transform: translateY(-1px); }
+.sush-tile:active { transform: translateY(0); }
 .sush-tile-icon { transition: background .16s ease, box-shadow .16s ease; }
 .sush-tile:hover .sush-tile-icon { box-shadow: 0 0 18px var(--accent-a35); }
 .sush-tile-arrow { opacity: 0; transition: opacity .16s ease, transform .16s ease; }
 .sush-tile:hover .sush-tile-arrow { opacity: 1; transform: translateX(3px); }
 
-/* ---- List rows (workdirs / recent) ---- */
+/* ---- List rows (workdirs / recent) ----
+   Rows light up in place; the old sideways nudge made lists feel jumpy. */
 .sush-row {
-  transition: transform .14s ease, border-color .14s ease, background .14s ease;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 .sush-row:hover {
-  transform: translateX(3px);
   border-color: var(--accent-a35) !important;
   background: var(--accent-a06) !important;
 }
@@ -325,8 +413,8 @@ body {
 .sush-mini-btn:hover { border-color: var(--accent-a55) !important; color: var(--accent) !important; background: var(--accent-a06) !important; }
 
 /* ---- Session rail items ---- */
-.sush-session { transition: border-color .14s ease, background .14s ease, transform .14s ease; }
-.sush-session:hover { border-color: var(--accent-a35) !important; transform: translateX(2px); }
+.sush-session { transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease; }
+.sush-session:hover { border-color: var(--accent-a35) !important; }
 .sush-session-close { opacity: 0; transition: opacity .14s ease, background .14s ease, color .14s ease; }
 .sush-session:hover .sush-session-close { opacity: 1; }
 .sush-session-close:hover { background: var(--accent-a16) !important; color: var(--accent) !important; }

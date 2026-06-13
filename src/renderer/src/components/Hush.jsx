@@ -24,10 +24,24 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
   const [partial, setPartial] = useState('')
   const [errMsg, setErrMsg] = useState('')
   const recRef = useRef(null)
+  const timersRef = useRef([])
+  const manualStopRef = useRef(false)
   const stateRef = useRef(state)
   stateRef.current = state
 
+  // Every transient state flip goes through here so unmount can clear them —
+  // a fire-and-forget setTimeout used to setState on an unmounted component.
+  const later = useCallback((fn, ms) => {
+    timersRef.current.push(setTimeout(fn, ms))
+  }, [])
+
   const stop = useCallback(() => {
+    // A deliberate stop is not a failure: without this flag, onend fired the
+    // "Didn't catch that / wake word" warning every time you tapped the mic
+    // off before a final result landed.
+    manualStopRef.current = true
+    setPartial('')
+    setState('idle')
     try { recRef.current?.stop() } catch {}
   }, [])
 
@@ -36,13 +50,17 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
     if (!msg) { setState('idle'); return }
     setErrMsg(msg)
     setState('error')
-    setTimeout(() => { setErrMsg(''); setState('idle') }, 2600)
-  }, [])
+    later(() => { setErrMsg(''); setState('idle') }, 2600)
+  }, [later])
 
   const start = useCallback(() => {
     if (!SR || stateRef.current === 'listening') return
+    // Kill any straggler before binding a new recognizer — a replaced
+    // instance kept live handlers and could ghost-insert into the terminal.
+    try { recRef.current?.abort() } catch {}
+    manualStopRef.current = false
     const rec = new SR()
-    rec.lang = 'en-US'
+    rec.lang = navigator.language || 'en-US'
     rec.interimResults = true
     rec.continuous = false
     let got = false
@@ -53,7 +71,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
         got = true
         onInsert?.(text)
         setState('flash')
-        setTimeout(() => { setPartial(''); setState('idle') }, 1100)
+        later(() => { setPartial(''); setState('idle') }, 1100)
       }
     }
     rec.onerror = (e) => {
@@ -63,7 +81,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
     rec.onend = () => {
       // Ended without a final result OR an error event (Chrome does this when
       // the mic is held by another recognizer, e.g. Seducia's wake word).
-      if (!got && stateRef.current === 'listening') {
+      if (!got && !manualStopRef.current && stateRef.current === 'listening') {
         fail("Didn't catch that. If Seducia's wake word is on, turn it off - only one listener can hold the mic.")
       }
     }
@@ -72,7 +90,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
     setErrMsg('')
     setState('listening')
     try { rec.start() } catch { fail('Could not start the microphone.') }
-  }, [onInsert, fail])
+  }, [onInsert, fail, later])
 
   const toggle = useCallback(() => {
     if (stateRef.current === 'listening') stop()
@@ -80,14 +98,20 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
   }, [start, stop])
 
   // App-level hotkey (Ctrl+Shift+S) arrives as a window event so terminals,
-  // modals, and the home screen all reach the same toggle.
+  // modals, and the home screen all reach the same toggle. Routed through a
+  // ref so the listener is subscribed exactly once.
+  const toggleRef = useRef(toggle)
+  toggleRef.current = toggle
   useEffect(() => {
-    const handler = () => toggle()
+    const handler = () => toggleRef.current()
     window.addEventListener('sush:hush-toggle', handler)
     return () => window.removeEventListener('sush:hush-toggle', handler)
-  }, [toggle])
+  }, [])
 
-  useEffect(() => () => { try { recRef.current?.abort() } catch {} }, [])
+  useEffect(() => () => {
+    try { recRef.current?.abort() } catch {}
+    timersRef.current.forEach(clearTimeout)
+  }, [])
 
   if (!enabled || !speechRecognitionSupported) return null
   const listening = state === 'listening'

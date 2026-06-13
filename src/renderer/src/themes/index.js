@@ -1,45 +1,49 @@
-import { pink } from './pink'
-import { dark } from './dark'
-import { light } from './light'
-import { dracula } from './dracula'
-import { nord } from './nord'
-import { catppuccin } from './catppuccin'
-import { tokyonight } from './tokyonight'
-import { solarized } from './solarized'
-import { gruvbox } from './gruvbox'
-import { glass } from './glass'
 import { glassdark } from './glassdark'
 import { glassdarkpro } from './glassdarkpro'
 import { pinkther } from './pinkther'
 import { royal } from './royal'
-import { emerald } from './emerald'
-import { amber } from './amber'
-import { midnight } from './midnight'
 
-// Premium glass family first (the toggleable, cohesive "same product, different
-// colour" set), then the classic flat palettes for back-compat.
+// The curated set — four cohesive glass presets that read as the same
+// product in different colours. The old 17-theme grab bag (legacy flat
+// palettes + near-duplicate glass tints) is gone; saved ids from any
+// removed theme are mapped to their closest survivor below, so nobody's
+// settings break on upgrade.
 export const themes = {
   glassdark,
   glassdarkpro,
-  pinkther,
   royal,
-  emerald,
-  amber,
-  midnight,
-  glass,
-  pink,
-  dark,
-  light,
-  dracula,
-  nord,
-  catppuccin,
-  tokyonight,
-  solarized,
-  gruvbox
+  pinkther
 }
 
-// IDs of the curated premium glass presets, in display order — used by the
-// in-shell theme switcher so it offers the family without the legacy palettes.
-export const presetThemeIds = ['glassdark', 'glassdarkpro', 'pinkther', 'royal', 'emerald', 'amber', 'midnight']
+// Removed theme id -> closest kept theme. Read once wherever a persisted
+// themeId is resolved (settings, profiles, palette actions).
+const LEGACY_THEME_MAP = {
+  glass: 'glassdark',
+  dark: 'glassdark',
+  midnight: 'glassdark',
+  nord: 'glassdark',
+  tokyonight: 'glassdark',
+  emerald: 'glassdark',
+  gruvbox: 'glassdark',
+  light: 'glassdarkpro',
+  solarized: 'glassdarkpro',
+  amber: 'glassdarkpro',
+  dracula: 'royal',
+  catppuccin: 'pinkther',
+  pink: 'pinkther',
+  pinkther: 'pinkther'
+}
+
+export function resolveThemeId(id) {
+  if (id && themes[id]) return id
+  return LEGACY_THEME_MAP[id] ?? 'glassdark'
+}
+
+export function getTheme(id) {
+  return themes[resolveThemeId(id)]
+}
+
+// All four presets are first-class in the in-shell switcher now.
+export const presetThemeIds = ['glassdark', 'glassdarkpro', 'royal', 'pinkther']
 
 export const defaultTheme = glassdark

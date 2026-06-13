@@ -32,13 +32,13 @@ function Section({ title, accent, children }) {
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
   { label: 'Plan', sec: 'Plan', icon: 'spark' },
-  { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
   { label: 'Accounts', sec: 'Accounts', icon: 'users' },
+  { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
   { label: 'Voice', sec: 'Voice / Jarvis', icon: 'mic' },
   { label: 'Terminal', sec: 'Terminal', icon: 'terminal' },
   { label: 'Appearance', sec: 'Appearance', icon: 'palette' },
-  { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText' },
   { label: 'Theme', sec: 'Theme', icon: 'layout' },
+  { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText' },
   { label: 'Window', sec: 'Window', icon: 'layers' }
 ]
 
@@ -162,19 +162,22 @@ function WallpaperRow({ accent, settings, set }) {
   )
 }
 
-// CLI account slots: several Claude/Codex logins per identity, switchable
-// when a session limit bites. Adding a slot makes it active — the next
-// session you open for that CLI is where you log the new account in.
-function CliAccountsBlock({ accent }) {
+// The account switcher. One row per signed-in account, per CLI: "Account 1"
+// is the identity's own login, extra accounts get their own isolated config
+// dir. Adding one opens a session running that CLI so its normal browser
+// sign-in (Google and friends) takes over — Sush never sees the credentials,
+// it only points the CLI at the right slot. The OAuth plumbing that used to
+// live here (GitHub/Google client status) is an app concern, not a user one,
+// so it no longer has UI.
+function AccountsSection({ accent, settings, set }) {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [limits, setLimits] = useState(null)
   const [checking, setChecking] = useState(false)
 
-  const refresh = () => window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
   useEffect(() => {
-    refresh()
+    window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
     window.sush.claudeLimitsGet?.().then(r => { if (r?.limits) setLimits(r.limits) }).catch(() => {})
   }, [])
 
@@ -198,17 +201,35 @@ function CliAccountsBlock({ accent }) {
     setBusy(false)
   }
 
-  if (!data) return null
-  const providers = [['claude', 'Claude Code'], ['codex', 'Codex']]
+  const providers = [
+    ['claude', 'Claude', 'Claude Pro / Max subscription'],
+    ['codex', 'Codex', 'ChatGPT subscription']
+  ]
+  const slotName = (slot, i) => slot.id === 'default' ? 'Account 1' : (slot.label || `Account ${i + 1}`)
+
   return (
-    <Row>
-      <Label>CLI accounts</Label>
-      {providers.map(([p, label]) => {
+    <Section title="Accounts" accent={accent}>
+      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 14 }}>
+        Each account is a separate CLI login. Add a second one and Sush can hop
+        over when the first hits its session limit. Sign-in happens in the
+        CLI's own browser flow (Google sign-in supported) — Sush never sees
+        your credentials.
+      </div>
+      {!data && (
+        <div className="flex items-center" style={{ gap: 8, color: '#5a646d', fontSize: 11.5, fontWeight: 700, padding: '6px 0 14px' }}>
+          <span className="sush-spinner" style={{ width: 13, height: 13 }} />
+          Loading accounts…
+        </div>
+      )}
+      {data && providers.map(([p, label, sub]) => {
         const st = data[p] || { active: 'default', slots: [] }
         return (
-          <div key={p} style={{ marginBottom: 10 }}>
-            <div className="flex items-center" style={{ gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 800, color: '#c6cdd4' }}>{label}</span>
+          <div key={p} style={{ marginBottom: 14, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
+            <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#e6ebef' }}>{label}</div>
+                <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub}</div>
+              </div>
               <button
                 onClick={() => call(async () => {
                   const r = await window.sush.accountsAdd({ provider: p })
@@ -219,33 +240,43 @@ function CliAccountsBlock({ accent }) {
                   return r
                 })}
                 disabled={busy}
-                style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '2px 10px', cursor: 'pointer' }}
+                className="sush-mini-btn"
+                style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 999, padding: '4px 12px', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
               >
                 + Add account
               </button>
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {st.slots.map(slot => {
-                const on = st.active === slot.id
-                return (
-                  <span key={slot.id} className="flex items-center" style={{ gap: 6, borderRadius: 8, padding: '5px 9px', fontSize: 11.5, fontWeight: 700, background: on ? rgba(accent, 0.12) : '#0f1318', border: `1px solid ${on ? rgba(accent, 0.45) : '#20272e'}`, color: on ? accent : '#8a939c' }}>
-                    <button onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))} disabled={busy || on} style={{ background: 'none', border: 'none', color: 'inherit', fontWeight: 700, fontSize: 11.5, cursor: on ? 'default' : 'pointer', padding: 0 }}>
-                      {slot.label}{on ? ' ✓' : ''}
+            {st.slots.map((slot, i) => {
+              const on = st.active === slot.id
+              return (
+                <div key={slot.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: on ? '#5fd3a8' : 'rgba(255,255,255,0.16)', boxShadow: on ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? '#e6ebef' : '#8a939c' }}>{slotName(slot, i)}</span>
+                  {on ? (
+                    <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, color: '#5fd3a8' }}>ACTIVE</span>
+                  ) : (
+                    <button
+                      onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))}
+                      disabled={busy}
+                      style={{ fontSize: 10.5, fontWeight: 800, color: '#aab3bb', background: 'transparent', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
+                    >
+                      Switch
                     </button>
-                    {slot.id !== 'default' && (
-                      <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account slot" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>
-                        ×
-                      </button>
-                    )}
-                  </span>
-                )
-              })}
-            </div>
+                  )}
+                  {slot.id !== 'default' && (
+                    <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>
+                      ×
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )
       })}
+
       {/* Claude limit previewer — passive capture from panel runs + an active probe */}
-      <div className="flex items-center" style={{ gap: 10, marginTop: 4, marginBottom: 8, padding: '8px 11px', borderRadius: 9, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="flex items-center" style={{ gap: 10, marginBottom: 12, padding: '9px 13px', borderRadius: 'var(--r-lg)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
         <Icon name="activity" size={13} color={limits?.status === 'allowed' ? '#5fd3a8' : limits ? '#ffb74d' : '#5a646d'} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 11.5, fontWeight: 800, color: '#c6cdd4' }}>
@@ -264,66 +295,36 @@ function CliAccountsBlock({ accent }) {
         <button
           onClick={checkLimits}
           disabled={checking}
-          style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '3px 11px', cursor: 'pointer', opacity: checking ? 0.5 : 1 }}
+          className="flex items-center"
+          style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '3px 11px', cursor: 'pointer', opacity: checking ? 0.6 : 1 }}
         >
-          {checking ? 'Checking...' : 'Check now'}
+          {checking && <span className="sush-spinner" style={{ width: 10, height: 10 }} />}
+          {checking ? 'Checking…' : 'Check now'}
         </button>
       </div>
-      {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700 }}>{err}</div>}
-      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 2, lineHeight: 1.5 }}>
-        Adding an account opens a sign-in session for it automatically — complete the login there and you're done. Switching changes which login every new session (and Seducia) uses. Gemini has no config redirect, so it stays one account per identity.
-      </div>
-    </Row>
-  )
-}
 
-// Sign-in providers ship with built-in app registrations — no user-facing
-// config. Power users can still override via userData/sush-oauth.json; this
-// section just reports what's live.
-function AccountsSection({ accent }) {
-  const [cfg, setCfg] = useState(null)
-
-  useEffect(() => {
-    window.sush.oauthConfigGet?.().then(setCfg).catch(() => {})
-  }, [])
-
-  if (!cfg) return null
-  const rows = [
-    {
-      icon: 'github',
-      label: 'GitHub sign-in',
-      ready: cfg.github?.configured !== false,
-      note: cfg.github?.usingBuiltIn === false ? 'Custom OAuth App (sush-oauth.json)' : 'Built-in Sush app - works out of the box'
-    },
-    {
-      icon: 'google',
-      label: 'Google sign-in',
-      ready: !!cfg.google?.configured,
-      note: cfg.google?.configured
-        ? (cfg.google?.usingBuiltIn === false ? 'Custom OAuth client (sush-oauth.json)' : 'Built-in Sush app - works out of the box')
-        : 'Not configured'
-    }
-  ]
-  return (
-    <Section title="Accounts" accent={accent}>
-      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 12 }}>
-        "Sign in with..." on the lock screen ships ready to use. Link or unlink accounts per user from the profile viewer or Manage Users.
-      </div>
-      {rows.map(r => (
-        <div key={r.label} className="flex items-center" style={{ gap: 10, padding: '7px 0' }}>
-          <Icon name={r.icon} size={14} color="#aab3bb" />
-          <span style={{ fontSize: 12.5, color: '#e6ebef', fontWeight: 700, flex: 1 }}>{r.label}</span>
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, borderRadius: 999, padding: '2px 9px', color: r.ready ? '#5fd3a8' : '#8a939c', background: r.ready ? 'rgba(95,211,168,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${r.ready ? 'rgba(95,211,168,0.3)' : 'rgba(255,255,255,0.1)'}` }}>
-            {r.ready ? 'READY' : 'SOON'}
-          </span>
-          <span style={{ fontSize: 10.5, color: '#5a646d', minWidth: 0, maxWidth: 220, textAlign: 'right' }}>{r.note}</span>
+      <Row>
+        <Label>When an account hits its limit</Label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['never', 'Never switch'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
+            const current = settings.cliLimitPolicy || 'ask'
+            const on = current === val
+            return (
+              <button
+                key={val}
+                onClick={() => set('cliLimitPolicy', val)}
+                style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+              >
+                {lbl}
+              </button>
+            )
+          })}
         </div>
-      ))}
-      {cfg.safeStorage === false && (
-        <div style={{ fontSize: 10.5, color: '#ffb74d', marginTop: 8, lineHeight: 1.5 }}>
-          OS encryption unavailable: GitHub sign-in tokens will not be stored. The gh CLI login still works.
+        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+          With a second account added: keep failing, tell you a switch is available, or hop accounts and retry automatically.
         </div>
-      )}
+      </Row>
+      {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 4 }}>{err}</div>}
     </Section>
   )
 }
@@ -368,7 +369,7 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
   }, [onClose])
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: '#08090c' }}>
+    <div className="sush-page-in" style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: '#08090c' }}>
       {/* Page header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 26px', borderBottom: '1px solid #171c22', flexShrink: 0 }}>
         <div className="flex items-center" style={{ gap: 11 }}>
@@ -470,30 +471,8 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                   </div>
                 </Row>
                 <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
-                  Seducia drives your logged-in agent CLIs — no API key, no extra billing. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing (handy for Claude session limits). Replies arrive as a single message.
+                  Seducia drives your logged-in agent CLIs — no API key, no extra billing. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing (handy for Claude session limits). Replies arrive as a single message. Manage logins and limit behaviour under <strong style={{ color: accent }}>Accounts</strong>.
                 </div>
-                <Row>
-                  <Label>On session limit</Label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[['never', 'Never switch'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
-                      const current = settings.cliLimitPolicy || 'ask'
-                      const on = current === val
-                      return (
-                        <button
-                          key={val}
-                          onClick={() => set('cliLimitPolicy', val)}
-                          style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
-                        >
-                          {lbl}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-                    What happens when a CLI hits its limit and you have another account for it below: keep failing, tell you a switch is available, or hop accounts automatically and retry.
-                  </div>
-                </Row>
-                <CliAccountsBlock accent={accent} />
               </>
             ) : (
               <>
@@ -515,8 +494,8 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
             )}
           </Section>
 
-          {/* Accounts (Google / GitHub sign-in) */}
-          <AccountsSection accent={accent} />
+          {/* Accounts — the Claude/Codex account switcher */}
+          <AccountsSection accent={accent} settings={settings} set={set} />
 
           {/* Voice */}
           <Section title="Voice / Jarvis" accent={accent}>

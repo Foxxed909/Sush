@@ -83,12 +83,12 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center"
+      className="fixed inset-0 flex items-center justify-center sush-backdrop"
       style={{ ...accentVars(accent), zIndex: 400, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(3px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="sush-fade-up sush-scroll flex flex-col"
+        className="sush-pop sush-scroll flex flex-col"
         style={{
           width: 'min(680px, 94vw)',
           maxHeight: '88vh',

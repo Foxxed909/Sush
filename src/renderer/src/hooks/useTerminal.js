@@ -100,7 +100,10 @@ export function useTerminal({
       cursorBlink: true,
       cursorStyle,
       theme: theme?.xterm,
-      scrollback: 5000,
+      // 2000 lines, not 5000: the buffer is per terminal and up to 16 stay
+      // mounted at once, so this is the single biggest renderer-RAM lever.
+      // Persistent scrollback already covers "I closed it and want history".
+      scrollback: 2000,
       allowTransparency: true,
       copyOnSelect: true
     })
