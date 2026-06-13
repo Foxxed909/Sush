@@ -69,7 +69,7 @@ export function useSeducia({
   }, [scopeKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const aiEnabled = !!getStreamer(settings)
-  const hasAI = settings.seduciaProvider === 'cli' || !!(settings.anthropicKey || settings.openaiKey)
+  const hasAI = aiEnabled  // CLI is the only provider; AI is on whenever the bridge is present
   const ttsOn = !!settings.ttsEnabled
 
   const push = useCallback((role, text, extra = {}) => {

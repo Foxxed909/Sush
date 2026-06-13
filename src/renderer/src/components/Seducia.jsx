@@ -12,22 +12,11 @@ function pathLabel(cwd) {
 }
 
 const SYNONYMS = {
-  shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
+    shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
   claude: ['claude'],
   codex: ['codex'],
   gemini: ['gemini'],
-  opencode: ['opencode', 'open code'],
-  hermes: ['hermes'],
-  aipex: ['aipex', 'apx'],
-  trident: ['trident'],
-  bedrock: ['bedrock'],
-  quill: ['quill'],
-  razor: ['razor'],
-  serenity: ['serenity'],
-  sydney: ['sydney'],
-  ocp: ['ocp', 'open cli platform'],
-  erosion: ['erosion'],
-  evm: ['evm', 'environment monitor']
+  opencode: ['opencode', 'open code']
 }
 
 function agentIdFromToken(token) {
@@ -413,7 +402,7 @@ export default function Seducia({
     try { rec.start() } catch { setListening(false) }
   }, [listening, voiceEnabled, handsFree, handle])
 
-  const hasAIKey = settings.seduciaProvider === 'cli' || !!(settings.anthropicKey || settings.openaiKey)
+  const hasAIKey = aiEnabled  // CLI-only now
 
   const body = (
     <div

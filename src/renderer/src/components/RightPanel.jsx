@@ -6,6 +6,7 @@ import GitHubTab from './GitHubTab'
 import ClaudePanel from './ClaudePanel'
 import { rgba, accentVars } from '../lib/ui'
 import { renderMarkdown } from '../lib/markdown'
+import { cliComplete } from '../lib/ai'
 import { usePolling } from '../hooks/usePolling'
 
 const TABS = [
@@ -309,28 +310,13 @@ function TabHeader({ accent, icon, title, sub, onRefresh, right }) {
 }
 
 // ---------- Changes + Git Commit Helper ----------
-async function aiSuggestCommit(files, settings) {
+// One-shot via the logged-in CLI (no API key) — first line only, since the
+// CLI may add a sign-off.
+async function aiSuggestCommit(files, cwd) {
   const summary = files.slice(0, 20).map(f => `${f.status} ${f.path}`).join('\n')
   const prompt = `Write a concise git commit message (under 72 chars, imperative mood) for these changes:\n${summary}\nRespond with ONLY the commit message, no quotes or explanation.`
-  if (settings.anthropicKey) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.content?.[0]?.text?.trim() || null
-  }
-  if (settings.openaiKey) {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.choices?.[0]?.message?.content?.trim() || null
-  }
-  return null
+  const text = await cliComplete(prompt, { cwd })
+  return text ? text.split('\n')[0].trim() : null
 }
 
 function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
@@ -401,13 +387,11 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
   }
 
   const suggestMessage = async () => {
-    const hasKey = !!(settings.anthropicKey || settings.openaiKey)
-    if (!hasKey) { setCommitMsg('Add an API key in Settings to use AI suggest'); return }
     setSuggesting(true)
     try {
       const files = data?.files || []
-      const text = await aiSuggestCommit(files, settings)
-      if (text) setCommitMsg(text)
+      const text = await aiSuggestCommit(files, cwd)
+      setCommitMsg(text || 'Could not suggest (is the Claude/Codex CLI installed and signed in?)')
     } catch {}
     finally { setSuggesting(false) }
   }
@@ -767,27 +751,10 @@ function ScriptsTab({ accent, cwd, onRun }) {
 }
 
 // ---------- Command History + Explainer ----------
-async function explainCommand(cmd, settings) {
+// One-shot via the logged-in CLI (no API key).
+async function explainCommand(cmd) {
   const prompt = `Explain this shell command in 1-2 concise sentences for a developer. Be direct.\n\nCommand: ${cmd}`
-  if (settings.anthropicKey) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 120, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.content?.[0]?.text?.trim() || null
-  }
-  if (settings.openaiKey) {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 120, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.choices?.[0]?.message?.content?.trim() || null
-  }
-  return null
+  return cliComplete(prompt)
 }
 
 function HistoryTab({ accent, history, onRun, settings = {} }) {
@@ -795,14 +762,13 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
   const [explanations, setExplanations] = useState({})
   const [explaining, setExplaining] = useState(new Set())
   const displayed = history.filter(cmd => !search || cmd.toLowerCase().includes(search.toLowerCase())).slice().reverse()
-  const hasKey = !!(settings.anthropicKey || settings.openaiKey)
 
   const explain = async (cmd) => {
     if (explanations[cmd]) { setExplanations(p => { const n = { ...p }; delete n[cmd]; return n }); return }
     setExplaining(p => new Set([...p, cmd]))
     try {
-      const text = hasKey ? await explainCommand(cmd, settings) : null
-      setExplanations(p => ({ ...p, [cmd]: text || (hasKey ? 'Could not explain' : 'Add an API key in Settings to use this.') }))
+      const text = await explainCommand(cmd)
+      setExplanations(p => ({ ...p, [cmd]: text || 'Could not explain (is the Claude/Codex CLI installed and signed in?)' }))
     } catch (e) {
       setExplanations(p => ({ ...p, [cmd]: `Error: ${e.message}` }))
     } finally {

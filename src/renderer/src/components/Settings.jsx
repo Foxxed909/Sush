@@ -39,51 +39,6 @@ function Row({ children }) {
   return <div style={{ marginBottom: 16 }}>{children}</div>
 }
 
-function ApiKeyField({ label, value, onChange, accent, placeholder }) {
-  const [show, setShow] = useState(false)
-  return (
-    <Row>
-      <Label>{label}</Label>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#0f1318', border: `1px solid ${value ? rgba(accent, 0.4) : '#20272e'}`, borderRadius: 8, padding: '0 10px', height: 36, gap: 8 }}>
-          <Icon name="key" size={13} color={value ? accent : '#5a646d'} />
-          <input
-            type={show ? 'text' : 'password'}
-            value={value ?? ''}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder || 'sk-...'}
-            spellCheck={false}
-            autoComplete="new-password"
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#f1f4f6', fontSize: 12.5 }}
-          />
-        </div>
-        <button
-          onClick={() => setShow(s => !s)}
-          title={show ? 'Hide' : 'Show'}
-          style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: '#76808a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Icon name={show ? 'eyeOff' : 'eye'} size={14} />
-        </button>
-        {value && (
-          <button
-            onClick={() => onChange('')}
-            title="Clear"
-            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,83,112,0.3)', background: 'rgba(255,83,112,0.07)', color: '#ff5370', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Icon name="x" size={13} />
-          </button>
-        )}
-      </div>
-      {value && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, fontSize: 10.5, color: '#7ee787' }}>
-          <Icon name="check" size={11} color="#7ee787" strokeWidth={2.6} />
-          Key saved
-        </div>
-      )}
-    </Row>
-  )
-}
-
 // Custom wallpaper: picked image -> downscaled JPEG data URL in settings
 // (localStorage, per user). Shows behind glass surfaces and the home screen;
 // the dim slider keeps text readable over busy images.
@@ -477,16 +432,16 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {/* AI */}
           <Section title="AI -- Seducia" accent={accent}>
             <Row>
-              <Label>Provider</Label>
+              <Label>CLI engine</Label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {[['key', 'API key'], ['cli', 'Claude CLI']].map(([val, lbl]) => {
-                  const current = settings.seduciaProvider === 'cli' ? 'cli' : 'key'
+                {[['auto', 'Auto'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']].map(([val, lbl]) => {
+                  const current = settings.seduciaCliEngine || 'auto'
                   const on = current === val
                   return (
                     <button
                       key={val}
-                      onClick={() => set('seduciaProvider', val)}
-                      style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                      onClick={() => set('seduciaCliEngine', val)}
+                      style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
                     >
                       {lbl}
                     </button>
@@ -494,48 +449,9 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                 })}
               </div>
             </Row>
-            {settings.seduciaProvider === 'cli' ? (
-              <>
-                <Row>
-                  <Label>CLI engine</Label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[['auto', 'Auto'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']].map(([val, lbl]) => {
-                      const current = settings.seduciaCliEngine || 'auto'
-                      const on = current === val
-                      return (
-                        <button
-                          key={val}
-                          onClick={() => set('seduciaCliEngine', val)}
-                          style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
-                        >
-                          {lbl}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </Row>
-                <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
-                  Seducia drives your logged-in agent CLIs — no API key, no extra billing. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing (handy for Claude session limits). Replies arrive as a single message. Manage logins and limit behaviour under <strong style={{ color: accent }}>Accounts</strong>.
-                </div>
-              </>
-            ) : (
-              <>
-                <ApiKeyField
-                  label="Anthropic API key"
-                  value={settings.anthropicKey ?? ''}
-                  onChange={v => set('anthropicKey', v)}
-                  accent={accent}
-                  placeholder="sk-ant-..."
-                />
-                <ApiKeyField
-                  label="OpenAI API key"
-                  value={settings.openaiKey ?? ''}
-                  onChange={v => set('openaiKey', v)}
-                  accent={accent}
-                  placeholder="sk-..."
-                />
-              </>
-            )}
+            <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
+              Seducia drives your logged-in agent CLIs — no API key, no extra billing, it just rides your existing subscription. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing. Manage logins and limit behaviour under <strong style={{ color: accent }}>Accounts</strong>.
+            </div>
           </Section>
 
           {/* Accounts — the Claude/Codex account switcher */}

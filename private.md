@@ -128,6 +128,30 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
 - `.github/workflows/build.yml`: `npm ci && npm run build` on push/PR. The
   repo had zero CI before.
 
+## 4.2.0 follow-up #2 — CLI-only AI + agent trim
+
+### One AI provider (lib/ai.js)
+- `streamAnthropic`/`streamOpenAI` + their model constants DELETED. `getStreamer`
+  always returns the CLI streamer (or null if `window.sush.seduciaCli` is
+  missing). New `cliComplete(prompt, {cwd, engine})` — one-shot CLI text helper
+  (`limitPolicy: 'never'`) for the small helpers.
+- `useSeducia.hasAI` / docked `Seducia.hasAIKey` collapse to `aiEnabled`.
+  `settings.seduciaProvider`/`anthropicKey`/`openaiKey` no longer read anywhere.
+- **Ancillary AI helpers repointed to `cliComplete`:** RightPanel commit-message
+  suggest (`aiSuggestCommit(files, cwd)` → first line only) and command
+  explainer (`explainCommand(cmd)`). SmartCommandBar keystroke autocomplete
+  CUT entirely (per-keystroke `claude -p` spawn = unusable; was key-only).
+- Settings AI section: provider toggle + both `ApiKeyField`s removed (the
+  `ApiKeyField` component is deleted); just the CLI-engine selector remains.
+
+### Built-in agents trimmed (lib/agents.js)
+- `BUILTIN_AGENTS` = shell, claude, codex, gemini, opencode. The 9 niche CLIs
+  (hermes/aipex/trident/bedrock/razor/serenity/sydney/erosion/evm) removed —
+  they were the dev's personal PC tools and shipped as locked tiles for
+  everyone. They're custom-agent material now. SYNONYMS maps in `lib/seducia.js`
+  + docked `Seducia.jsx` trimmed to match (deterministic parser is dead code
+  anyway now that AI is always on, but kept tidy).
+
 ## 4.0.0 — "Helm" implementation notes
 
 ### Seducia full control + scoping

@@ -33,6 +33,15 @@ place.
   there.
 - A **CI build workflow** runs `npm ci && npm run build` on every push and PR.
 
+### Changed — one AI path, no keys
+- **Seducia (and the commit-message + command-explainer helpers) run only on
+  your logged-in CLI now.** The Anthropic/OpenAI API-key fields are gone —
+  no pasting billing credentials, it just rides your subscription. The
+  keystroke autocomplete (key-only, and too slow over a CLI spawn) was cut.
+- **Built-in agents trimmed to the real ones** — Claude, Codex, Gemini,
+  OpenCode. The niche/personal CLIs that used to ship as locked tiles are
+  gone; add the ones you actually have under Settings ▸ Agents.
+
 ### Removed — trimmed the fat
 - **Plans / upgrade tiers are gone.** Everyone gets the full app. No paywall,
   no feature gates.

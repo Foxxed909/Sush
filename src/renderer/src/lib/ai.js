@@ -1,10 +1,11 @@
-// Thin wrappers around AI provider streaming APIs.
-// Runs in the Electron renderer -- no CORS restrictions apply.
+// Seducia's AI plumbing. There is ONE provider now: the logged-in agent CLI
+// (Claude / Codex / Gemini), driven over stdin in the main process — it rides
+// the user's existing subscription, so no API key is ever pasted or stored.
+// The old direct-to-Anthropic / direct-to-OpenAI HTTP streamers (which needed
+// a key) were removed with the plan tiers.
 
 import { AGENTS } from './agents'
 
-const ANTHROPIC_MODEL = 'claude-opus-4-8'
-const OPENAI_MODEL = 'gpt-4o'
 const AGENT_IDS = AGENTS.map(agent => agent.id).join(', ')
 
 function sedusiaSystemPrompt(tabs, activeCwd, scope) {
@@ -49,96 +50,6 @@ Current state:
 - Focused session (what the user is looking at): ${scope?.focusedLabel ? `"${scope.focusedLabel}"` : 'none -- they are on the home screen'}
 - Live sessions:
 ${sessionSummary}`
-}
-
-export async function* streamAnthropic(messages, { apiKey, tabs, activeCwd, scope }) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 512,
-      stream: true,
-      system: sedusiaSystemPrompt(tabs, activeCwd, scope),
-      messages
-    })
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Anthropic ${res.status}: ${body}`)
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    const lines = buf.split('\n')
-    buf = lines.pop()
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      const data = line.slice(6).trim()
-      if (data === '[DONE]') return
-      try {
-        const evt = JSON.parse(data)
-        if (evt.type === 'content_block_delta' && evt.delta?.text) {
-          yield evt.delta.text
-        }
-      } catch {}
-    }
-  }
-}
-
-export async function* streamOpenAI(messages, { apiKey, tabs, activeCwd, scope }) {
-  const systemMsg = { role: 'system', content: sedusiaSystemPrompt(tabs, activeCwd, scope) }
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      max_tokens: 512,
-      stream: true,
-      messages: [systemMsg, ...messages]
-    })
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`OpenAI ${res.status}: ${body}`)
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    const lines = buf.split('\n')
-    buf = lines.pop()
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      const data = line.slice(6).trim()
-      if (data === '[DONE]') return
-      try {
-        const evt = JSON.parse(data)
-        const text = evt.choices?.[0]?.delta?.content
-        if (text) yield text
-      } catch {}
-    }
-  }
 }
 
 // CLI-backed "streamer": shell out to the user's logged-in agent CLIs via the
@@ -215,16 +126,27 @@ export function parseAIResponse(full) {
   return { message: kept.join('\n').trim(), actions, engine }
 }
 
-// Pick the right streaming function. When the provider is set to 'cli', Seducia
-// drives the local agent CLI logins (no key); otherwise it falls back to
-// whichever API key is configured.
-export function getStreamer(settings) {
-  if (settings.seduciaProvider === 'cli') {
-    const engine = settings.seduciaCliEngine || 'auto'
-    const limitPolicy = settings.cliLimitPolicy || 'ask'
-    return (msgs, ctx) => streamAgentCli(msgs, { ...ctx, engine, limitPolicy })
+// Seducia's streamer: always the logged-in agent CLI (no key path). Returns
+// null only when the CLI bridge isn't wired (non-Electron / preload missing).
+export function getStreamer(settings = {}) {
+  if (typeof window === 'undefined' || !window.sush?.seduciaCli) return null
+  const engine = settings.seduciaCliEngine || 'auto'
+  const limitPolicy = settings.cliLimitPolicy || 'ask'
+  return (msgs, ctx) => streamAgentCli(msgs, { ...ctx, engine, limitPolicy })
+}
+
+// One-shot text completion via the logged-in CLI, for the small AI helpers
+// (commit messages, command explainer) that used to hit the Anthropic/OpenAI
+// APIs with a pasted key. `limitPolicy: 'never'` — a helper shouldn't burn an
+// account rotation. Returns the trimmed reply, or null on failure.
+export async function cliComplete(prompt, { cwd, engine = 'auto' } = {}) {
+  if (typeof window === 'undefined' || !window.sush?.seduciaCli) return null
+  const order = engine === 'auto' ? CLI_ENGINE_ORDER : [engine]
+  for (const id of order) {
+    try {
+      const res = await window.sush.seduciaCli({ prompt, cwd, engine: id, limitPolicy: 'never' })
+      if (res?.ok && res.text) return String(res.text).trim()
+    } catch {}
   }
-  if (settings.anthropicKey) return (msgs, ctx) => streamAnthropic(msgs, { apiKey: settings.anthropicKey, ...ctx })
-  if (settings.openaiKey) return (msgs, ctx) => streamOpenAI(msgs, { apiKey: settings.openaiKey, ...ctx })
   return null
 }
