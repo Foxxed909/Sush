@@ -25,7 +25,7 @@ import ProfileViewer from './components/ProfileViewer'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { themes, getTheme } from './themes'
-import { agentById, MAX_SESSIONS } from './lib/agents'
+import { agentById, MAX_SESSIONS, LOGIN_COMMANDS } from './lib/agents'
 import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
 import { useAgentActivity } from './hooks/useAgentActivity'
@@ -856,18 +856,21 @@ export default function App() {
     // Seducia stays open so you can keep orchestrating after a launch.
   }, [openTab, profiles])
 
-  // Settings "Add account" hands off here: open a session running the CLI so
-  // its own login flow (browser OAuth) starts in the freshly-activated slot.
+  // Settings "Add account" / "Sign in" hands off here: open a session running
+  // the CLI's own login so its browser OAuth (Google where supported) starts.
+  // For slot CLIs (claude/codex) the freshly-activated slot captures it; for
+  // per-profile CLIs (gemini/opencode) it signs into the profile's one login.
   useEffect(() => {
     const handler = (e) => {
       const provider = e.detail?.provider
-      if (provider !== 'claude' && provider !== 'codex') return
+      const spec = LOGIN_COMMANDS[provider]
+      if (!spec) return
       setShowSettings(false)
       openTab(profiles[0], {
-        command: provider,
+        command: spec.command,
         agentId: provider,
         tag: `sess-${nextSessionTag++}`,
-        label: `${provider === 'claude' ? 'Claude' : 'Codex'} sign-in`
+        label: spec.label
       })
     }
     window.addEventListener('sush:open-login-session', handler)

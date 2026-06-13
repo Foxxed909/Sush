@@ -152,6 +152,43 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   + docked `Seducia.jsx` trimmed to match (deterministic parser is dead code
   anyway now that AI is always on, but kept tidy).
 
+## CLI auth research — why only Claude + Codex get account slots
+
+Researched each CLI's credential storage (June 2026) to decide which can hold
+multiple switchable accounts. The rule: a slot works ONLY if the CLI relocates
+its **credentials** via a dedicated, CLI-specific env var (so Sush can point
+each slot at its own dir without side effects). Findings:
+
+- **Claude** — `CLAUDE_CONFIG_DIR` relocates everything incl. login. ✅ slot.
+- **Codex** — `CODEX_HOME` (default `~/.codex`); creds in `auth.json` under it.
+  ✅ slot. Caveat: `cli_auth_credentials_store: keyring` puts creds in the OS
+  keychain instead of `auth.json` — slots won't isolate that mode (default is
+  file, which does isolate). [developers.openai.com/codex/auth]
+- **Gemini** — login cached in `~/.gemini/oauth_creds.json`; NO documented env
+  to relocate it (only `.env` discovery + `GEMINI_API_KEY`). Keys off HOME, so
+  it's isolated per *profile* (full-home isolation), not per slot.
+  [google-gemini/gemini-cli docs]
+- **OpenCode** — `OPENCODE_CONFIG_DIR` moves CONFIG (agents/commands), but auth
+  lives in `~/.local/share/opencode/auth.json` = `$XDG_DATA_HOME/opencode`.
+  No OpenCode-specific env relocates auth; redirecting `XDG_DATA_HOME` would
+  leak into every spawned session (slot env is applied to all PTYs), so NOT a
+  clean slot. Per-profile only. [opencode.ai/docs, deepwiki]
+
+**Conclusion:** the misconception was "Claude blocks OAuth, others allow it."
+Reality: none let a third-party app capture their auth, and ALL let you sign in
+through their own CLI (often via Google). The only real per-provider difference
+is whether credentials sit behind a relocatable CLI-specific env var — true for
+Claude + Codex only. So slots stay claude+codex; gemini/opencode are surfaced
+in Settings ▸ Accounts as "one login per profile" with a **Sign in** button.
+
+### What shipped
+- `lib/agents.js` `LOGIN_COMMANDS` map (claude/codex/gemini/opencode → the
+  command that triggers each CLI's native login; opencode uses
+  `opencode auth login`). App's `sush:open-login-session` handler generalized
+  to use it (was hardcoded to claude/codex).
+- Settings ▸ Accounts gained a "One login per profile" block (Gemini, OpenCode)
+  with Sign-in buttons that open the CLI's own login session.
+
 ## 4.0.0 — "Helm" implementation notes
 
 ### Seducia full control + scoping

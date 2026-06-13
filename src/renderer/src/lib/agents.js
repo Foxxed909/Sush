@@ -75,6 +75,19 @@ export function allAgents() {
 // (e.g. the AI system prompt's id catalog, built at module scope).
 export const AGENTS = BUILTIN_AGENTS
 
+// How to trigger each CLI's OWN sign-in when connecting an account. Running
+// the command opens the vendor's native login (browser OAuth — "Continue with
+// Google" wherever the vendor offers it). Sush never sees the credentials; it
+// only points the CLI at the right config dir and lets the CLI log itself in.
+// `agent` simply runs the agent on first use (which prompts login); a few CLIs
+// have an explicit login subcommand instead.
+export const LOGIN_COMMANDS = {
+  claude: { command: 'claude', label: 'Claude sign-in' },
+  codex: { command: 'codex', label: 'Codex sign-in' },
+  gemini: { command: 'gemini', label: 'Gemini sign-in' },
+  opencode: { command: 'opencode auth login', label: 'OpenCode sign-in' }
+}
+
 // Mirrors BridgeSpace: spin up one agent or a whole swarm, capped so the
 // terminal grid stays manageable.
 export const MAX_SESSIONS = 16

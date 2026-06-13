@@ -254,6 +254,28 @@ function AccountsSection({ accent, settings, set }) {
         )
       })}
 
+      {/* CLIs that keep their login outside a relocatable, CLI-specific config
+          dir (Gemini → ~/.gemini, OpenCode → ~/.local/share/opencode) can't be
+          cleanly multi-accounted without leaking env into every session, so
+          they're one login per profile. You can still connect them here. */}
+      <div style={{ marginBottom: 14, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
+        <div style={{ padding: '9px 13px 4px', fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, color: '#69737d', textTransform: 'uppercase' }}>One login per profile</div>
+        {[['gemini', 'Gemini', 'Google account'], ['opencode', 'OpenCode', 'any provider']].map(([p, label, sub]) => (
+          <div key={p} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#c6cdd4' }}>{label}</div>
+              <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub} — separate per profile</div>
+            </div>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('sush:open-login-session', { detail: { provider: p } }))}
+              style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 999, padding: '4px 12px', cursor: 'pointer' }}
+            >
+              Sign in
+            </button>
+          </div>
+        ))}
+      </div>
+
       {/* Claude limit previewer — passive capture from panel runs + an active probe */}
       <div className="flex items-center" style={{ gap: 10, marginBottom: 12, padding: '9px 13px', borderRadius: 'var(--r-lg)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
         <Icon name="activity" size={13} color={limits?.status === 'allowed' ? '#5fd3a8' : limits ? '#ffb74d' : '#5a646d'} />
