@@ -255,6 +255,7 @@ export default function SessionRail({
   onNewSession,
   onClose,
   onCloseGroup,
+  onAddToGroup,
   onRenameGroup,
   onReorder,
   onProfiles,
@@ -466,6 +467,17 @@ export default function SessionRail({
                   <span style={{ fontSize: 9.5, fontWeight: 800, color: accent, background: rgba(accent, 0.14), borderRadius: 999, padding: '1px 7px' }}>
                     {running}/{block.tabs.length}
                   </span>
+                  <button
+                    type="button"
+                    title="Add a session to this workspace"
+                    onClick={(e) => { e.stopPropagation(); onAddToGroup?.(block) }}
+                    className="flex items-center justify-center"
+                    style={{ width: 20, height: 20, borderRadius: 6, border: 'none', background: 'transparent', color: '#69737d', cursor: 'pointer' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = accent }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#69737d' }}
+                  >
+                    <Icon name="plus" size={14} strokeWidth={2.4} />
+                  </button>
                   <button
                     type="button"
                     title="Close workspace"

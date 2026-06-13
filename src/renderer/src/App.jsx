@@ -481,6 +481,17 @@ export default function App() {
   const fontFamily = settings.fontFamily ?? "'Cascadia Code'"
   const cursorStyle = settings.cursorStyle ?? 'block'
 
+  // "Show wallpaper through terminals": when a wallpaper is set and the user
+  // opts in, hand xterm a transparent background so the (already dimmed)
+  // wallpaper shows behind the text — allowTransparency is always on in
+  // useTerminal, so this is just a theme override. Terminal container tiles go
+  // transparent too (see grid render). Off → terminals keep their solid theme bg.
+  const wallpaperOnTerminals = !!settings.bgImage && settings.terminalWallpaper === true
+  const termTheme = useCallback((base) => {
+    if (!wallpaperOnTerminals || !base?.xterm) return base
+    return { ...base, xterm: { ...base.xterm, background: 'rgba(0,0,0,0)' } }
+  }, [wallpaperOnTerminals])
+
   const zoomTimerRef = useRef(null)
   useEffect(() => {
     const flash = (size) => {
@@ -545,19 +556,6 @@ export default function App() {
       if (ctrl && (key === '?' || (e.shiftKey && key === '/'))) { e.preventDefault(); setShowShortcuts(prev => !prev) }
       // Ctrl+Shift+Z → zen mode
       if (ctrl && e.shiftKey && key === 'z') { e.preventDefault(); setZenMode(prev => !prev) }
-      // Ctrl+Shift+H → split pane (needs two live sessions)
-      if (ctrl && e.shiftKey && key === 'h') {
-        e.preventDefault()
-        setSplitMode(prev => {
-          if (!prev) {
-            if (tabsRef.current.length < 2) return prev
-            const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
-            if (others.length) setSplitTabId(others[0].id)
-            setFocusedPane('left')
-          }
-          return !prev
-        })
-      }
       // Ctrl+Shift+B → broadcast mode
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
       // Ctrl+Shift+M → Mission Control (Ctrl+M alone is Enter in a terminal)
@@ -940,6 +938,20 @@ export default function App() {
     if (!next) return
     setTabs(prev => prev.map(t => t.groupId === groupId ? { ...t, groupLabel: next } : t))
   }, [])
+
+  // Grow an existing workspace: open a fresh shell inside the same group, in the
+  // group's working directory. `tag` forces a new session even when the cwd
+  // matches an existing one (openTab otherwise dedupes by cwd).
+  const addToGroup = useCallback((block) => {
+    if (!block?.id) return
+    const cwd = block.tabs?.find(t => t.cwd)?.cwd ?? null
+    openTab(profiles[0], {
+      cwd,
+      groupId: block.id,
+      groupLabel: block.label,
+      tag: 'group-add'
+    })
+  }, [openTab, profiles])
 
   // ── Seducia control surface ────────────────────────────────────────────────
   // Everything the UI buttons can do, exposed as callable actions so Seducia
@@ -1324,13 +1336,10 @@ export default function App() {
     else if (action === 'switch-user') identity.signOut()
     else if (action === 'manage-users') setShowUserManager(true)
     else if (action === 'broadcast') setBroadcastMode(prev => !prev)
-    else if (action === 'split') {
-      setSplitMode(prev => {
-        if (!prev) {
-          const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
-          if (others.length) setSplitTabId(others[0].id)
-          setFocusedPane('left')
-        }
+    else if (action === 'grid') {
+      setGridMode(prev => {
+        if (!prev && tabsRef.current.length < 2) return prev
+        if (!prev) { setSplitMode(false); setView('terminal') }
         return !prev
       })
     }
@@ -1362,7 +1371,7 @@ export default function App() {
       { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
     ]
     base.push(
-      { id: 'act-split', label: 'Toggle Split Pane', description: 'Side-by-side terminals (Ctrl+Shift+H)', icon: 'layout', action: 'split' },
+      { id: 'act-grid', label: 'Toggle Grid Layout', description: 'Tile every session in an auto-sized grid (Ctrl+Shift+G)', icon: 'grid', action: 'grid' },
       { id: 'act-broadcast', label: 'Toggle Broadcast', description: 'Type into all sessions at once (Ctrl+Shift+B)', icon: 'terminal', action: 'broadcast' },
     )
     const sessions = tabs.map(t => ({
@@ -1497,6 +1506,7 @@ export default function App() {
           onNewSession={() => setShowLauncher(true)}
           onClose={closeTab}
           onCloseGroup={closeGroup}
+          onAddToGroup={addToGroup}
           onRenameGroup={renameGroup}
           onReorder={reorderTabs}
           onProfiles={() => setShowProfiles(true)}
@@ -1524,21 +1534,6 @@ export default function App() {
             busy={smartBusy}
             broadcastMode={broadcastMode}
             onToggleBroadcast={() => setBroadcastMode(prev => !prev)}
-            splitMode={splitMode}
-            onToggleSplit={() => {
-              // Split needs two live sessions — entering it with fewer just
-              // paints an empty pane (or, with zero, a black void).
-              if (!splitMode && tabsRef.current.length < 2) return
-              setGridMode(false)
-              setSplitMode(prev => {
-                if (!prev) {
-                  const others = tabsRef.current.filter(t => t.id !== activeIdRef.current)
-                  if (others.length) setSplitTabId(others[0].id)
-                  setFocusedPane('left')
-                }
-                return !prev
-              })
-            }}
             gridMode={gridMode}
             onToggleGrid={() => {
               setGridMode(prev => {
@@ -1567,7 +1562,7 @@ export default function App() {
                   {tabs.filter(tab => tab.id === activeId).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = getTheme(settings.themeId ?? prof?.themeId)
+                    const t = termTheme(getTheme(settings.themeId ?? prof?.themeId))
                     return (
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'left'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
@@ -1575,6 +1570,7 @@ export default function App() {
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
                         restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                         persistScrollback={settings.persistScrollback !== false}
+                        transparentBg={wallpaperOnTerminals}
                         onSessionState={(state) => handleSessionState(tab.id, state)}
                         onReady={(state) => handleTerminalReady(tab.id, state)}
                         onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -1604,7 +1600,7 @@ export default function App() {
                   {tabs.filter(tab => tab.id === (splitTabId || tabs.find(t => t.id !== activeId)?.id)).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = getTheme(settings.themeId ?? prof?.themeId)
+                    const t = termTheme(getTheme(settings.themeId ?? prof?.themeId))
                     return (
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'right'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
@@ -1612,6 +1608,7 @@ export default function App() {
                         broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
                         restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                         persistScrollback={settings.persistScrollback !== false}
+                        transparentBg={wallpaperOnTerminals}
                         onSessionState={(state) => handleSessionState(tab.id, state)}
                         onReady={(state) => handleTerminalReady(tab.id, state)}
                         onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -1631,9 +1628,15 @@ export default function App() {
               // xterm buffers survive. Unbooted tabs tile as wake-on-click
               // placeholders (the lazy-boot CPU guard extends into the grid).
               (() => {
-                const gridTabs = gridMode ? tabs.slice(0, 9) : tabs.filter(tab => bootedIds.has(tab.id))
+                // Grid auto-sizes to the session count: a near-square layout
+                // (2 sessions → 1×2, 3-4 → 2×2, 5-9 → 3×3, 10-16 → 4×4). Capped
+                // at 16 live tiles — the lazy-boot CPU guard, honest about it via
+                // the "showing X of N" note below — so a weak machine isn't asked
+                // to paint 30+ WebGL terminals at once.
+                const GRID_CAP = 16
+                const gridTabs = gridMode ? tabs.slice(0, GRID_CAP) : tabs.filter(tab => bootedIds.has(tab.id))
                 const n = gridTabs.length
-                const cols = gridMode ? (n <= 2 ? n : n <= 4 ? 2 : 3) : 1
+                const cols = gridMode ? Math.max(1, Math.ceil(Math.sqrt(n))) : 1
                 return (
                   <div style={gridMode
                     ? { position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gap: 7, padding: 8 }
@@ -1642,7 +1645,7 @@ export default function App() {
                       const booted = bootedIds.has(tab.id)
                       const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                       const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                      const t = getTheme(settings.themeId ?? prof?.themeId)
+                      const t = termTheme(getTheme(settings.themeId ?? prof?.themeId))
                       const focused = tab.id === activeId
                       return (
                         <div
@@ -1652,7 +1655,7 @@ export default function App() {
                             setActiveId(tab.id)
                           } : undefined}
                           style={gridMode
-                            ? { position: 'relative', overflow: 'hidden', borderRadius: 10, border: `1px solid ${focused ? rgba(accent, 0.6) : 'rgba(255,255,255,0.08)'}`, boxShadow: focused ? `0 0 0 1px ${rgba(accent, 0.35)}` : 'none', background: '#07090b' }
+                            ? { position: 'relative', overflow: 'hidden', borderRadius: 10, border: `1px solid ${focused ? rgba(accent, 0.6) : 'rgba(255,255,255,0.08)'}`, boxShadow: focused ? `0 0 0 1px ${rgba(accent, 0.35)}` : 'none', background: wallpaperOnTerminals ? 'transparent' : '#07090b' }
                             : { position: 'absolute', inset: 0 }}
                         >
                           {booted ? (
@@ -1670,6 +1673,7 @@ export default function App() {
                               broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
                               restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                               persistScrollback={settings.persistScrollback !== false}
+                              transparentBg={wallpaperOnTerminals}
                               onSessionState={(state) => handleSessionState(tab.id, state)}
                               onReady={(state) => handleTerminalReady(tab.id, state)}
                               onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -1704,9 +1708,9 @@ export default function App() {
                         </div>
                       )
                     })}
-                    {gridMode && tabs.length > 9 && (
+                    {gridMode && tabs.length > GRID_CAP && (
                       <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 70, fontSize: 10.5, fontWeight: 700, color: '#8a939c', background: 'rgba(5,7,10,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '4px 12px' }}>
-                        showing 9 of {tabs.length} (CPU guard)
+                        showing {GRID_CAP} of {tabs.length} (CPU guard)
                       </div>
                     )}
                   </div>

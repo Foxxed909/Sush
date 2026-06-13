@@ -6,6 +6,45 @@ built-in command layer.
 
 ---
 
+## 4.3.0 — "Vista"
+
+A look-and-feel pass: the wallpaper reaches everywhere, one clear layout choice,
+a live usage dashboard, and a quieter status system.
+
+### Added — Usage dashboard
+- **Settings ▸ Usage.** A live, auto-refreshing view of every agent CLI: install
+  state, your active account, when each account last hit a limit, and Claude's
+  current rate-limit window + reset time. Pick the refresh rate (off / 30s / 1m /
+  5m) — the auto-poll never launches a CLI, so it's safe to leave running. A
+  **Check Claude live** button does an on-demand probe of Claude's real window.
+
+### Added — Wallpaper everywhere
+- **Wallpaper shows on the Home screen.** The home dashboard no longer paints an
+  opaque panel over your background image.
+- **Wallpaper through terminals** (Settings ▸ Appearance, shown when a wallpaper
+  is set). Lets your background sit behind terminal text; the Dim slider keeps it
+  readable. (Turning it on switches that terminal to the DOM renderer so the
+  transparency actually shows — a deliberate, opt-in trade.)
+
+### Changed — One layout choice
+- **Sidebar or Grid — that's it.** The redundant split-pane mode is gone. The
+  **Grid** now auto-sizes to your session count (2 → 1×2, 3-4 → 2×2, 5-9 → 3×3,
+  up to 4×4), capped at 16 live tiles for weaker machines.
+- **Add sessions to a workspace.** Each workspace header in the sidebar now has a
+  **+** button to open another session inside it — not just the close button.
+
+### Fixed
+- **"Needs you" false alarms.** A plain shell sitting at its prompt no longer
+  reads as needing attention — the waiting/error detection now runs for agent
+  sessions only.
+- **Account rename is discoverable.** A visible pencil button on each account row
+  (the double-click rename still works too).
+
+### Changed — Icon
+- New **app icon**: a glass orb in the brand teal/cyan, on a dark tile.
+
+---
+
 ## 4.2.0 — "Macy"
 
 The calm release: fewer themes, quieter motion, a real account switcher, a

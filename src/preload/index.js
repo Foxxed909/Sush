@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('sush', {
   claudePanelStop: (payload) => ipcRenderer.invoke('sush:claude-panel-stop', payload),
   claudeLimitsGet: () => ipcRenderer.invoke('sush:claude-limits-get'),
   claudeLimitsCheck: () => ipcRenderer.invoke('sush:claude-limits-check'),
+  usageSnapshot: () => ipcRenderer.invoke('sush:usage-snapshot'),
   onClaudePanelEvent: (callback) => {
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on('sush:claude-panel-event', listener)

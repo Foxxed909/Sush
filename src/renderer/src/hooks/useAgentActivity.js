@@ -32,9 +32,15 @@ export function useAgentActivity(tabs, { notify = false } = {}) {
     const recs = recordsRef.current
     for (const id of recs.keys()) if (!live.has(id)) recs.delete(id)
     // Seed a record for any freshly-opened tab so it can show "Starting".
+    // isAgent gates the "Needs you"/error sniffing — plain shells skip it so an
+    // idle prompt never reads as needing attention. Refresh it on every tabs
+    // change so a session that gains/loses an agent stays correctly classified.
     const now = Date.now()
     for (const t of tabs) {
-      if (!recs.has(t.id)) recs.set(t.id, { tail: '', lastDataAt: 0, exited: false, exitCode: 0, startedAt: now })
+      const isAgent = !!t.agentId && t.agentId !== 'shell'
+      const rec = recs.get(t.id)
+      if (!rec) recs.set(t.id, { tail: '', lastDataAt: 0, exited: false, exitCode: 0, startedAt: now, isAgent })
+      else rec.isAgent = isAgent
     }
   }, [tabs])
 

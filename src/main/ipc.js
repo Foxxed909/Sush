@@ -1048,6 +1048,35 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:claude-limits-get', () => getClaudeLimits())
   ipcMain.handle('sush:claude-limits-check', () => checkClaudeLimits())
 
+  // ── Usage snapshot (the Usage settings panel) ─────────────────────────────
+  // Cheap, spawn-free aggregate the Usage panel polls on a timer: per-CLI
+  // install state (cached presence), the active account slot + when it last hit
+  // a limit (from accounts.json), and the LAST CAPTURED Claude rate-limit window
+  // (passive — getClaudeLimits never spawns). The live Claude probe stays on
+  // its own handler (claude-limits-check) so auto-refresh can't hammer a weak
+  // CPU with real `claude` runs every tick.
+  ipcMain.handle('sush:usage-snapshot', () => {
+    const user = getActiveUser()
+    const providers = (user ? listAccounts(user.id) : {}).providers || {}
+    const activeOf = (p) => {
+      const st = providers[p]
+      if (!st) return null
+      const slot = st.slots?.find(s => s.id === st.active)
+      return slot ? { label: slot.label, lastLimitAt: slot.lastLimitAt || null, count: st.slots.length } : null
+    }
+    const present = (name) => {
+      if (!cliPresence.has(name)) cliPresence.set(name, !!resolveExecutable(name))
+      return cliPresence.get(name)
+    }
+    return {
+      ok: true,
+      signedIn: !!user,
+      claude: { installed: present('claude'), account: activeOf('claude'), limits: getClaudeLimits() },
+      codex: { installed: present('codex'), account: activeOf('codex') },
+      gemini: { installed: present('gemini'), account: null }
+    }
+  })
+
   // ── CLI availability (locked tiles in the launcher) ──────────────────────
   // Each name costs one where.exe spawn the first time, then it's cached for
   // the app's lifetime; pass refresh:true after installing something new.

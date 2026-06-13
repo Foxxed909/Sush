@@ -81,7 +81,11 @@ export default function HomeDashboard({
       className="absolute inset-0 overflow-y-auto sush-scroll"
       style={{
         ...accentVars(accent),
-        background: `radial-gradient(1100px 460px at 12% -8%, ${rgba(accent, 0.12)}, transparent 70%), radial-gradient(900px 500px at 100% 0%, ${rgba(accent, 0.06)}, transparent 60%), #0a0c0e`,
+        // Base is transparent so the app-level wallpaper (already dimmed in
+        // App.jsx) shows through the home view like it does behind terminals.
+        // With no wallpaper, the parent paints theme.xterm.background — same
+        // dark as before. The accent glows still stack on top either way.
+        background: `radial-gradient(1100px 460px at 12% -8%, ${rgba(accent, 0.12)}, transparent 70%), radial-gradient(900px 500px at 100% 0%, ${rgba(accent, 0.06)}, transparent 60%), transparent`,
         color: '#e8edf1',
         padding: '32px clamp(18px, 4vw, 48px) 44px'
       }}

@@ -57,7 +57,7 @@ function usePathSuggestions(input) {
   return { suggestions, complete, hasToken: !!token }
 }
 
-export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, onTogglePanel, rightOpen, busy, broadcastMode, onToggleBroadcast, splitMode, onToggleSplit, gridMode, onToggleGrid, settings = {} }) {
+export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, onTogglePanel, rightOpen, busy, broadcastMode, onToggleBroadcast, gridMode, onToggleGrid, settings = {} }) {
   const [value, setValue] = useState('')
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -295,24 +295,15 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           </button>
         )}
 
-        {/* Split pane toggle */}
-        {onToggleSplit && (
-          <button
-            type="button"
-            title={splitMode ? 'Exit split pane (Ctrl+Shift+H)' : 'Split pane (Ctrl+Shift+H)'}
-            onClick={onToggleSplit}
-            className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${splitMode ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: splitMode ? rgba(accent, 0.1) : rgba(accent, 0.04), color: splitMode ? accent : '#8a939c', cursor: 'pointer', flexShrink: 0 }}
-          >
-            <Icon name="layout" size={14} />
-          </button>
-        )}
-
-        {/* Grid layout toggle — every session tiled at once */}
+        {/* Layout: one toggle, two choices — sidebar (off) or auto-grid (on).
+            Grid tiles every session in a near-square that grows with the
+            session count; turning it off returns to the single-session +
+            sidebar view. (Split-pane was retired — it was a third, redundant
+            layout mode.) */}
         {onToggleGrid && (
           <button
             type="button"
-            title={gridMode ? 'Exit grid (Ctrl+Shift+G)' : 'Grid - all sessions tiled (Ctrl+Shift+G)'}
+            title={gridMode ? 'Sidebar layout (Ctrl+Shift+G)' : 'Grid layout - tile all sessions (Ctrl+Shift+G)'}
             onClick={onToggleGrid}
             className="sush-icon-btn flex items-center justify-center"
             style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${gridMode ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: gridMode ? rgba(accent, 0.1) : rgba(accent, 0.04), color: gridMode ? accent : '#8a939c', cursor: 'pointer', flexShrink: 0 }}

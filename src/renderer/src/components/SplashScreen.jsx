@@ -88,7 +88,7 @@ export default function SplashScreen({ accent = '#ff6b9d', onDone }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#364048', fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
           <span>{version}</span>
           <span style={{ color: '#222a32' }}>·</span>
-          <span>Helm</span>
+          <span>Vista</span>
         </div>
         <div style={{ color: '#2a3540', fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tip}</div>
         {/* Indeterminate hairline — the splash reads as loading, not frozen */}

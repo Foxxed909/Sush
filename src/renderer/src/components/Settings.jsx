@@ -25,6 +25,7 @@ function Section({ title, accent, children }) {
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
   { label: 'Accounts', sec: 'Accounts', icon: 'users' },
+  { label: 'Usage', sec: 'Usage', icon: 'activity' },
   { label: 'Agents', sec: 'Agents', icon: 'rocket' },
   { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
   { label: 'Voice', sec: 'Voice', icon: 'mic' },
@@ -102,9 +103,19 @@ function WallpaperRow({ accent, settings, set }) {
           <span style={{ color: '#e1e6ea', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.bgDim ?? 62}%</span>
         </div>
       )}
+      {settings.bgImage && (
+        <button
+          onClick={() => set('terminalWallpaper', settings.terminalWallpaper !== true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, marginTop: 10, background: settings.terminalWallpaper === true ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.terminalWallpaper === true ? rgba(accent, 0.4) : '#20272e'}`, color: settings.terminalWallpaper === true ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+        >
+          <Icon name="terminal" size={14} strokeWidth={2} />
+          {settings.terminalWallpaper === true ? 'Wallpaper shows through terminals' : 'Terminals stay solid (wallpaper hidden)'}
+        </button>
+      )}
       {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 6 }}>{err}</div>}
       <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.5 }}>
         Shows through the glass chrome and the home screen (glass themes show the most). Stored per user.
+        Turn on “shows through terminals” to let it sit behind your terminal text too — the Dim slider keeps text readable.
       </div>
     </Row>
   )
@@ -242,6 +253,19 @@ function AccountsSection({ accent, settings, set }) {
                       Switch
                     </button>
                   )}
+                  {!(editing && editing.provider === p && editing.slotId === slot.id) && (
+                    <button
+                      onClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
+                      disabled={busy}
+                      title="Rename this account"
+                      className="flex items-center justify-center"
+                      style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = accent }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+                    >
+                      <Icon name="edit" size={12} strokeWidth={2.2} />
+                    </button>
+                  )}
                   {slot.id !== 'default' && (
                     <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>
                       ×
@@ -326,6 +350,158 @@ function AccountsSection({ accent, settings, set }) {
         </div>
       </Row>
       {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 4 }}>{err}</div>}
+    </Section>
+  )
+}
+
+// Live usage/limit dashboard across every agent CLI. Polls a cheap, spawn-free
+// snapshot (install state, active account, when each account last hit a limit,
+// and Claude's last captured rate-limit window) on a user-chosen interval, plus
+// a live Claude probe on demand. The auto-poll never spawns a CLI — only the
+// "Check Claude live" button does, so it's safe to leave running on a weak CPU.
+function ago(ts) {
+  if (!ts) return null
+  const m = (Date.now() - ts) / 60000
+  if (m < 1) return 'just now'
+  if (m < 60) return `${Math.round(m)}m ago`
+  const h = m / 60
+  if (h < 24) return `${Math.round(h)}h ago`
+  return `${Math.round(h / 24)}d ago`
+}
+
+const USAGE_INTERVALS = [[0, 'Off'], [30, '30s'], [60, '1 min'], [300, '5 min']]
+
+function UsageSection({ accent, settings, set }) {
+  const [snap, setSnap] = useState(null)
+  const [live, setLive] = useState(null)        // live Claude probe result
+  const [checking, setChecking] = useState(false)
+  const [lastAt, setLastAt] = useState(null)
+  const interval = settings.usageRefresh ?? 60   // seconds; 0 = off
+
+  const pull = React.useCallback(async () => {
+    try {
+      const r = await window.sush.usageSnapshot?.()
+      if (r?.ok) { setSnap(r); setLastAt(Date.now()) }
+    } catch {}
+  }, [])
+
+  useEffect(() => { pull() }, [pull])
+
+  // Auto-refresh on the chosen interval (cheap snapshot only).
+  useEffect(() => {
+    if (!interval) return
+    const id = setInterval(pull, interval * 1000)
+    return () => clearInterval(id)
+  }, [interval, pull])
+
+  const checkLive = async () => {
+    setChecking(true)
+    try {
+      const r = await window.sush.claudeLimitsCheck?.()
+      if (r?.limits) setLive(r.limits)
+    } catch {}
+    setChecking(false)
+    pull()
+  }
+
+  const claudeLimit = live || snap?.claude?.limits || null
+  const clock = (ts) => ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+
+  const Card = ({ name, label, sub, data, children }) => {
+    const installed = data?.installed
+    return (
+      <div style={{ marginBottom: 12, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
+        <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: installed ? '#5fd3a8' : 'rgba(255,255,255,0.18)', boxShadow: installed ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: '#e6ebef' }}>{label}</div>
+            <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub}</div>
+          </div>
+          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: installed ? '#5fd3a8' : '#69737d' }}>
+            {installed ? 'INSTALLED' : 'NOT FOUND'}
+          </span>
+        </div>
+        <div style={{ padding: '9px 13px', fontSize: 11.5, color: '#aab3bb', lineHeight: 1.7 }}>
+          {!installed
+            ? <span style={{ color: '#69737d' }}>This CLI isn’t on your PATH, so there’s nothing to report.</span>
+            : children}
+        </div>
+      </div>
+    )
+  }
+
+  const AccountLine = ({ account }) => {
+    if (!account) return <div style={{ color: '#69737d' }}>Signed-in account: <span style={{ color: '#c6cdd4' }}>default</span></div>
+    const limited = ago(account.lastLimitAt)
+    return (
+      <>
+        <div>Active account: <span style={{ color: '#e6ebef', fontWeight: 700 }}>{account.label}</span>{account.count > 1 ? <span style={{ color: '#5a646d' }}> · {account.count} on file</span> : null}</div>
+        <div>Last limit hit: {limited ? <span style={{ color: '#ffb74d', fontWeight: 700 }}>{limited}</span> : <span style={{ color: '#5fd3a8' }}>none recorded</span>}</div>
+      </>
+    )
+  }
+
+  return (
+    <Section title="Usage" accent={accent}>
+      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 14 }}>
+        Live account &amp; limit status for every agent CLI. The auto-refresh below reads a
+        cheap snapshot (no CLI is launched) — install state, your active account, and when
+        each account last got rate-limited. Use <strong style={{ color: accent }}>Check Claude live</strong> to
+        actually probe Claude’s current window and reset time.
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, color: '#76808a', fontWeight: 700 }}>Auto-refresh</span>
+        {USAGE_INTERVALS.map(([val, lbl]) => {
+          const on = interval === val
+          return (
+            <button
+              key={val}
+              onClick={() => set('usageRefresh', val)}
+              style={{ padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+            >
+              {lbl}
+            </button>
+          )
+        })}
+        <span style={{ flex: 1 }} />
+        <button
+          onClick={checkLive}
+          disabled={checking}
+          className="flex items-center"
+          style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '5px 13px', cursor: 'pointer', opacity: checking ? 0.6 : 1 }}
+        >
+          {checking && <span className="sush-spinner" style={{ width: 10, height: 10 }} />}
+          {checking ? 'Probing…' : 'Check Claude live'}
+        </button>
+      </div>
+
+      <Card name="claude" label="Claude Code" sub="Claude Pro / Max" data={snap?.claude}>
+        <AccountLine account={snap?.claude?.account} />
+        <div>
+          Limit window:{' '}
+          {!claudeLimit
+            ? <span style={{ color: '#69737d' }}>unknown — run a Claude panel session or click “Check Claude live”.</span>
+            : claudeLimit.status === 'allowed'
+              ? <span style={{ color: '#5fd3a8', fontWeight: 700 }}>OK</span>
+              : <span style={{ color: '#ffb74d', fontWeight: 700 }}>{String(claudeLimit.status).replace(/_/g, ' ')}</span>}
+          {claudeLimit?.resetsAt && <span style={{ color: '#8a939c' }}> · resets {clock(claudeLimit.resetsAt)}</span>}
+        </div>
+      </Card>
+
+      <Card name="codex" label="Codex" sub="ChatGPT subscription" data={snap?.codex}>
+        <AccountLine account={snap?.codex?.account} />
+        <div style={{ color: '#5a646d' }}>Codex has no live usage probe — Sush tracks limits as its sessions hit them.</div>
+      </Card>
+
+      <Card name="gemini" label="Gemini" sub="Google account" data={snap?.gemini}>
+        <div style={{ color: '#5a646d' }}>One login per profile. No live usage probe; limits surface in-session.</div>
+      </Card>
+
+      <div style={{ fontSize: 10, color: '#4b545d', marginTop: 4 }}>
+        {lastAt ? `Snapshot updated ${clock(lastAt)}${interval ? ` · auto every ${interval < 60 ? interval + 's' : interval / 60 + ' min'}` : ' · auto-refresh off'}` : 'Loading…'}
+      </div>
     </Section>
   )
 }
@@ -478,6 +654,9 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
 
           {/* Accounts — the Claude/Codex account switcher */}
           <AccountsSection accent={accent} settings={settings} set={set} />
+
+          {/* Usage — live limit/account dashboard across all CLIs */}
+          <UsageSection accent={accent} settings={settings} set={set} />
 
           {/* Agents — built-ins + the user's custom CLIs */}
           <AgentsSection accent={accent} />

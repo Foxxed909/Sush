@@ -1,4 +1,5 @@
-# Generates the Sush app icon set: a glossy pink orb on a dark rounded tile.
+# Generates the Sush app icon set: a glossy cyan orb on a dark rounded tile.
+# (Cyan #8fdcff -> deep teal #0e7490, to match the in-app accent/brand.)
 # Outputs resources/icon.ico (multi-size) + resources/icon.png (256px).
 # Pure System.Drawing - no external tools. Re-run any time to regenerate.
 # (PowerShell 5.1: all arithmetic precomputed - inline math in constructor
@@ -28,7 +29,7 @@ function Draw-SushIcon([int]$size) {
   $path.AddArc($right, $bottom, $r, $r, 0, 90)
   $path.AddArc($x, $bottom, $r, $r, 90, 90)
   $path.CloseFigure()
-  $tileColor = [System.Drawing.Color]::FromArgb(255, 9, 11, 16)
+  $tileColor = [System.Drawing.Color]::FromArgb(255, 5, 7, 10)
   $tileBrush = New-Object System.Drawing.SolidBrush($tileColor)
   $g.FillPath($tileBrush, $path)
 
@@ -42,8 +43,10 @@ function Draw-SushIcon([int]$size) {
   $orb = New-Object System.Drawing.Drawing2D.PathGradientBrush($orbPath)
   $cpx = [single]($cx - ($orbR * 0.35)); $cpy = [single]($cy - ($orbR * 0.4))
   $orb.CenterPoint = New-Object System.Drawing.PointF($cpx, $cpy)
-  $orb.CenterColor = [System.Drawing.Color]::FromArgb(255, 255, 158, 196)
-  $orb.SurroundColors = [System.Drawing.Color[]]@([System.Drawing.Color]::FromArgb(255, 209, 46, 104))
+  # Dark variant: a moody deep-teal sphere lit from the upper-left, fading to
+  # near-black at the rim so it reads as a dark glass orb rather than a bright bubble.
+  $orb.CenterColor = [System.Drawing.Color]::FromArgb(255, 72, 173, 199)
+  $orb.SurroundColors = [System.Drawing.Color[]]@([System.Drawing.Color]::FromArgb(255, 8, 40, 52))
   $g.FillEllipse($orb, $ox, $oy, $od, $od)
 
   # Specular highlight
@@ -54,7 +57,7 @@ function Draw-SushIcon([int]$size) {
   $hlPath = New-Object System.Drawing.Drawing2D.GraphicsPath
   $hlPath.AddEllipse($hx, $hy, $hlW, $hlH)
   $hl = New-Object System.Drawing.Drawing2D.PathGradientBrush($hlPath)
-  $hl.CenterColor = [System.Drawing.Color]::FromArgb(185, 255, 255, 255)
+  $hl.CenterColor = [System.Drawing.Color]::FromArgb(140, 200, 240, 255)
   $hl.SurroundColors = [System.Drawing.Color[]]@([System.Drawing.Color]::FromArgb(0, 255, 255, 255))
   $g.FillEllipse($hl, $hx, $hy, $hlW, $hlH)
 

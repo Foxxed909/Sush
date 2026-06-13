@@ -76,14 +76,19 @@ export function classify(rec, now) {
   // Actively streaming, or a spinner is on screen → working.
   if (quietMs < QUIET_MS || BUSY_RE.test(tail)) return 'working'
 
-  // Settled. Is it asking us something?
-  const trimmed = tail.replace(/\s+$/, '')
-  if (WAITING_RE.test(trimmed) || PROMPT_TAIL_RE.test(tail)) {
-    // ...unless that "prompt" is really just an idle shell.
-    if (!SHELL_PROMPT_RE.test(trimmed)) return 'waiting'
+  // Prompt / error sniffing is AGENT-ONLY. A plain shell sitting at its prompt
+  // is "waiting for input" by its very nature — calling that "Needs you" is just
+  // noise (it's why an untouched PowerShell, especially with a starship/oh-my-posh
+  // ❯ prompt, read as "Needs you"). For shells we stop at working/idle/exited.
+  if (rec.isAgent) {
+    // Settled. Is the agent asking us something?
+    const trimmed = tail.replace(/\s+$/, '')
+    if (WAITING_RE.test(trimmed) || PROMPT_TAIL_RE.test(tail)) {
+      // ...unless that "prompt" is really just an idle shell inside the agent pane.
+      if (!SHELL_PROMPT_RE.test(trimmed)) return 'waiting'
+    }
+    if (ERROR_RE.test(tail) && !SHELL_PROMPT_RE.test(trimmed)) return 'error'
   }
-
-  if (ERROR_RE.test(tail) && !SHELL_PROMPT_RE.test(trimmed)) return 'error'
 
   return 'idle'
 }

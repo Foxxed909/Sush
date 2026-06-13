@@ -19,6 +19,7 @@ export function useTerminal({
   broadcastTabIds,
   restoreKey,
   persistScrollback = true,
+  transparentBg = false,
   onAutoCopy,
   onCommand,
   onSessionState,
@@ -117,12 +118,20 @@ export function useTerminal({
     // and across a swarm. Must load AFTER open() (needs a live context). On
     // context loss (driver hiccup / GPU reset) we dispose it and xterm silently
     // falls back to the DOM renderer.
+    //
+    // SKIP webgl when a transparent background is wanted: the WebGL canvas paints
+    // its own opaque backing, so a transparent theme bg never shows the wallpaper
+    // through it. The DOM renderer honours `allowTransparency` correctly. This is
+    // opt-in (the "wallpaper through terminals" setting), so the perf trade only
+    // applies when the user has explicitly chosen looks over raw throughput.
     let webglAddon = null
-    try {
-      webglAddon = new WebglAddon()
-      webglAddon.onContextLoss(() => { try { webglAddon?.dispose() } catch {}; webglAddon = null })
-      term.loadAddon(webglAddon)
-    } catch { webglAddon = null }
+    if (!transparentBg) {
+      try {
+        webglAddon = new WebglAddon()
+        webglAddon.onContextLoss(() => { try { webglAddon?.dispose() } catch {}; webglAddon = null })
+        term.loadAddon(webglAddon)
+      } catch { webglAddon = null }
+    }
 
     try { fitAddon.fit() } catch {}
     term.focus()
@@ -308,7 +317,7 @@ export function useTerminal({
       fitAddonRef.current = null
       searchAddonRef.current = null
     }
-  }, [containerRef, profile?.id, profile?.shell, resizePty, tabId])
+  }, [containerRef, profile?.id, profile?.shell, resizePty, tabId, transparentBg])
 
   useEffect(() => {
     if (termRef.current) {
