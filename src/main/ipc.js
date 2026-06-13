@@ -20,7 +20,7 @@ import {
   deleteUser, activateUser, signOut, activeUserEnv, linkProvider, unlinkProvider
 } from './users'
 import {
-  listAccounts, addAccount, switchAccount, removeAccount, nextAccount, peekNextAccount
+  listAccounts, addAccount, switchAccount, removeAccount, renameAccount, nextAccount, peekNextAccount, markLimitHit
 } from './accounts'
 import {
   setClaudePanelSender, startClaudePanelRun, stopClaudePanelRun, stopAllClaudePanelRuns,
@@ -166,9 +166,13 @@ function runCliEngine(engine, { prompt, cwd }) {
 // the renderer can offer the switch; 'never' just reports the failure.
 async function runCliEngineWithAccounts(engine, opts, policy = 'ask') {
   const first = await runCliEngine(engine, opts)
-  if (first.ok || !first.limitHit || policy === 'never') return first
+  if (first.ok || !first.limitHit) return first
   const user = getActiveUser()
   if (!user) return first
+  // Remember the hit on the slot that took it — rotation prefers the slot
+  // that has rested longest, and the Accounts panel shows "limited Xh ago".
+  markLimitHit(user.id, engine)
+  if (policy === 'never') return first
   if (policy === 'auto') {
     const rotated = nextAccount(user.id, engine)
     if (!rotated.ok) return first
@@ -207,11 +211,16 @@ function getDefaultShell(shellId = 'powershell') {
     }
   }
 
+  // macOS / Linux: honour $SHELL (zsh default on macOS), spawn as a login
+  // shell so the user's rc files (PATH, nvm, etc.) load — agent CLIs are
+  // almost always installed via a PATH set up there.
+  const file = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash')
+  const name = file.split('/').pop()
   return {
-    id: 'shell',
-    label: process.env.SHELL || 'Shell',
-    file: process.env.SHELL || '/bin/bash',
-    args: []
+    id: name,
+    label: name,
+    file,
+    args: ['-l']
   }
 }
 
@@ -809,7 +818,9 @@ export function registerIpcHandlers(win) {
   })
 
   ipcMain.on('sush:pty-input', (event, { tabId, data }) => {
-    ptySessions.get(tabId)?.proc.write(data)
+    // node-pty throws if the PTY died between the renderer's check and this
+    // write — an uncaught throw here takes down the whole main process.
+    try { ptySessions.get(tabId)?.proc.write(data) } catch {}
   })
 
   ipcMain.on('sush:pty-resize', (event, { tabId, cols, rows }) => {
@@ -889,9 +900,13 @@ export function registerIpcHandlers(win) {
   })
 
   ipcMain.handle('sush:close-tab', (event, { tabId }) => {
-    closePtySession(tabId)
-    contexts.delete(tabId)
-    tabMeta.delete(tabId)   // Bug fix: meta entries used to outlive their tab forever
+    try {
+      closePtySession(tabId)
+    } finally {
+      // Even if the PTY teardown throws, the per-tab maps must not leak.
+      contexts.delete(tabId)
+      tabMeta.delete(tabId)
+    }
   })
 
   ipcMain.handle('sush:window-control', (event, action) => {
@@ -900,6 +915,18 @@ export function registerIpcHandlers(win) {
     else if (action === 'minimize-tray') hideToTray()
     else if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize()
     else if (action === 'close') win.close()
+  })
+
+  // Real OS-level window opacity. The old approach put CSS `opacity` on the
+  // renderer root, which faded the terminal TEXT into unreadability; setting it
+  // on the window translucent-ifies the whole window uniformly (the expected
+  // "ghost the window" behaviour) without touching legibility relative to the
+  // rest of the UI. Clamped so you can never make the window invisible.
+  ipcMain.handle('sush:set-opacity', (event, value) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    if (!win) return
+    const v = Math.max(0.4, Math.min(1, Number(value) || 1))
+    try { win.setOpacity(v) } catch {}
   })
 
   ipcMain.handle('sush:git-status', (event, { cwd }) => getGitStatus(cwd))
@@ -1010,6 +1037,7 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:accounts-add', requireUser((user, { provider, label }) => addAccount(user.id, provider, label)))
   ipcMain.handle('sush:accounts-switch', requireUser((user, { provider, slotId }) => switchAccount(user.id, provider, slotId)))
   ipcMain.handle('sush:accounts-remove', requireUser((user, { provider, slotId }) => removeAccount(user.id, provider, slotId)))
+  ipcMain.handle('sush:accounts-rename', requireUser((user, { provider, slotId, label }) => renameAccount(user.id, provider, slotId, label)))
 
   // ── Claude Code panel (stream-json driver) ────────────────────────────────
   setClaudePanelSender((payload) => {

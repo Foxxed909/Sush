@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react'
+import React, { useEffect, useRef, useCallback } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -32,9 +32,6 @@ export function useTerminal({
   const onSessionStateRef = useRef(onSessionState)
   const onReadyRef = useRef(onReady)
   const broadcastTabIdsRef = useRef(broadcastTabIds)
-  const recordingRef = useRef(false)
-  const recordStartRef = useRef(0)
-  const recordEventsRef = useRef([])
   // Accent colour for command-start markers; kept in a ref so the create-effect
   // (which doesn't depend on theme) always reads the current value.
   const accentRef = useRef(theme?.ui?.accent ?? '#ff6b9d')
@@ -100,7 +97,10 @@ export function useTerminal({
       cursorBlink: true,
       cursorStyle,
       theme: theme?.xterm,
-      scrollback: 5000,
+      // 2000 lines, not 5000: the buffer is per terminal and up to 16 stay
+      // mounted at once, so this is the single biggest renderer-RAM lever.
+      // Persistent scrollback already covers "I closed it and want history".
+      scrollback: 2000,
       allowTransparency: true,
       copyOnSelect: true
     })
@@ -181,10 +181,6 @@ export function useTerminal({
     const removeDataListener = window.sush.onPtyData(({ tabId: incomingTabId, data }) => {
       if (incomingTabId !== tabId) return
       term.write(data)
-      if (recordingRef.current) {
-        const ts = (Date.now() - recordStartRef.current) / 1000
-        recordEventsRef.current.push([ts, 'o', data])
-      }
     })
 
     const removeExitListener = window.sush.onPtyExit(({ tabId: incomingTabId, exitCode }) => {
@@ -378,31 +374,5 @@ export function useTerminal({
     termRef.current?.focus()
   }, [])
 
-  const [isRecording, setIsRecording] = useState(false)
-
-  const startRecording = useCallback(() => {
-    recordingRef.current = true
-    recordStartRef.current = Date.now()
-    recordEventsRef.current = []
-    setIsRecording(true)
-  }, [])
-
-  const stopRecording = useCallback(() => {
-    recordingRef.current = false
-    setIsRecording(false)
-    const term = termRef.current
-    const header = JSON.stringify({ version: 2, width: term?.cols ?? 80, height: term?.rows ?? 24, timestamp: Math.floor(recordStartRef.current / 1000) })
-    const events = recordEventsRef.current.map(e => JSON.stringify(e)).join('\n')
-    const content = header + '\n' + events + '\n'
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `sush-recording-${Date.now()}.cast`
-    a.click()
-    URL.revokeObjectURL(url)
-    recordEventsRef.current = []
-  }, [])
-
-  return { term: termRef, fit, focus, pasteText, search, searchPrev, clearSearch, getSelection, clear, startRecording, stopRecording, isRecording }
+  return { term: termRef, fit, focus, pasteText, search, searchPrev, clearSearch, getSelection, clear }
 }

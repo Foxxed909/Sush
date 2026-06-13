@@ -61,8 +61,13 @@ export function checkClaudeLimits() {
     }
     const timer = setTimeout(() => done({ ok: false, error: 'Timed out checking limits (60s).' }), 60000)
     child.stdout.on('data', d => {
+      // Consume complete lines, keep the partial tail — the old version split
+      // the whole accumulated buffer every chunk, re-parsing (and re-sending)
+      // every earlier event each time data arrived.
       buf += d
-      for (const line of buf.split('\n')) {
+      const lines = buf.split('\n')
+      buf = lines.pop()
+      for (const line of lines) {
         if (!line.trim()) continue
         try {
           const msg = JSON.parse(line)

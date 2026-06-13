@@ -69,7 +69,6 @@ const SECTIONS = [
       { keys: ['duplicate'], label: 'Duplicate current session', isCmd: true },
       { keys: ['handoff'], label: 'Hand off session context', isCmd: true },
       { keys: ['sushrc'], label: 'Edit your .sushrc profile', isCmd: true },
-      { keys: ['corners'], label: 'Cycle UI corner style', isCmd: true },
     ]
   }
 ]

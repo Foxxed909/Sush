@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
-import { AGENTS, agentById } from '../lib/agents'
+import { allAgents, agentById } from '../lib/agents'
 import { getStreamer, parseAIResponse } from '../lib/ai'
 import { applyAction } from '../lib/seduciaActions'
-import { can } from '../lib/plan'
 
 function pathLabel(cwd) {
   if (!cwd) return 'this directory'
@@ -13,22 +12,11 @@ function pathLabel(cwd) {
 }
 
 const SYNONYMS = {
-  shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
+    shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
   claude: ['claude'],
   codex: ['codex'],
   gemini: ['gemini'],
-  opencode: ['opencode', 'open code'],
-  hermes: ['hermes'],
-  aipex: ['aipex', 'apx'],
-  trident: ['trident'],
-  bedrock: ['bedrock'],
-  quill: ['quill'],
-  razor: ['razor'],
-  serenity: ['serenity'],
-  sydney: ['sydney'],
-  ocp: ['ocp', 'open cli platform'],
-  erosion: ['erosion'],
-  evm: ['evm', 'environment monitor']
+  opencode: ['opencode', 'open code']
 }
 
 function agentIdFromToken(token) {
@@ -103,7 +91,7 @@ function parseIntent(input, activeCwd, dirs = []) {
   }
 
   const agents = []
-  for (const agent of AGENTS) {
+  for (const agent of allAgents()) {
     const names = SYNONYMS[agent.id] || [agent.id]
     let count = 0
     for (const name of names) {
@@ -143,24 +131,6 @@ function speak(text, voiceSettings = {}) {
     if (v) utt.voice = v
   }
   window.speechSynthesis.speak(utt)
-}
-
-// ElevenLabs TTS: fetch streaming audio and play it.
-async function elevenLabsSpeak(text, apiKey, voiceId) {
-  if (!text || !apiKey || !voiceId) return
-  try {
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
-      method: 'POST',
-      headers: { 'xi-api-key': apiKey, 'content-type': 'application/json', 'accept': 'audio/mpeg' },
-      body: JSON.stringify({ text: text.slice(0, 500), model_id: 'eleven_monolingual_v1', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
-    })
-    if (!res.ok) return
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const audio = new Audio(url)
-    audio.play()
-    audio.onended = () => URL.revokeObjectURL(url)
-  } catch {}
 }
 
 const QUICK = [
@@ -237,8 +207,7 @@ export default function Seducia({
   onOpenLauncher,
   onClose,
   docked = false,
-  settings = {},
-  planId = 'free'
+  settings = {}
 }) {
   // Project scope: only this workspace's sessions, default dir = its cwd.
   const scopedTabs = scope?.groupId ? tabs.filter(t => t.groupId === scope.groupId) : tabs
@@ -262,8 +231,8 @@ export default function Seducia({
   const recognitionRef = useRef(null)
   const streamAbortRef = useRef(null)
 
-  const aiEnabled = can(planId, 'seduciaAI') && !!getStreamer(settings)
-  const voiceEnabled = can(planId, 'voiceMode')
+  const aiEnabled = !!getStreamer(settings)
+  const voiceEnabled = !!SpeechRecognition
 
   useEffect(() => { inputRef.current?.focus() }, [])
   useEffect(() => {
@@ -371,14 +340,10 @@ export default function Seducia({
     launches.forEach(launch => push('seducia', '', { kind: 'launch-card', launch }))
     setStreaming(false)
 
-    // TTS: prefer ElevenLabs if configured, fall back to Web Speech API.
+    // TTS: system voice (ElevenLabs streaming was retired).
     if (voiceEnabled && settings.ttsEnabled) {
       const ttsText = finalText.replace(/ACTION:[^\n]*/g, '').trim()
-      if (settings.elevenLabsKey && settings.elevenLabsVoice) {
-        elevenLabsSpeak(ttsText, settings.elevenLabsKey, settings.elevenLabsVoice)
-      } else {
-        speak(ttsText, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
-      }
+      speak(ttsText, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
     }
 
     setAiMessages([...newHistory, { role: 'assistant', content: full }])
@@ -404,11 +369,7 @@ export default function Seducia({
     push('seducia', response)
 
     if (voiceEnabled && settings.ttsEnabled) {
-      if (settings.elevenLabsKey && settings.elevenLabsVoice) {
-        elevenLabsSpeak(response, settings.elevenLabsKey, settings.elevenLabsVoice)
-      } else {
-        speak(response, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
-      }
+      speak(response, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
     }
   }, [streaming, aiEnabled, scopedCwd, dirs, push, handleAI, applyIntent, voiceEnabled, settings])
 
@@ -441,7 +402,7 @@ export default function Seducia({
     try { rec.start() } catch { setListening(false) }
   }, [listening, voiceEnabled, handsFree, handle])
 
-  const hasAIKey = settings.seduciaProvider === 'cli' || !!(settings.anthropicKey || settings.openaiKey)
+  const hasAIKey = aiEnabled  // CLI-only now
 
   const body = (
     <div
@@ -518,14 +479,9 @@ export default function Seducia({
       </div>
 
       {/* No AI key notice */}
-      {!hasAIKey && can(planId, 'seduciaAI') && (
+      {!hasAIKey && (
         <div style={{ margin: '8px 10px 0', padding: '8px 12px', borderRadius: 8, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.2)}`, fontSize: 11, color: '#aab3bb' }}>
           Add an API key in <strong style={{ color: accent }}>Settings → AI</strong> to enable AI responses.
-        </div>
-      )}
-      {!can(planId, 'seduciaAI') && (
-        <div style={{ margin: '8px 10px 0', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,183,77,0.07)', border: '1px solid rgba(255,183,77,0.2)', fontSize: 11, color: '#aab3bb' }}>
-          Upgrade to <strong style={{ color: '#ffb74d' }}>Quiet</strong> or higher to enable AI mode.
         </div>
       )}
 

@@ -6,6 +6,7 @@ import GitHubTab from './GitHubTab'
 import ClaudePanel from './ClaudePanel'
 import { rgba, accentVars } from '../lib/ui'
 import { renderMarkdown } from '../lib/markdown'
+import { cliComplete } from '../lib/ai'
 import { usePolling } from '../hooks/usePolling'
 
 const TABS = [
@@ -21,10 +22,8 @@ const TABS = [
   { id: 'snippets', label: 'Snippets', icon: 'command' },
   { id: 'ports', label: 'Ports', icon: 'ports' },
   { id: 'docker', label: 'Docker', icon: 'layers' },
-  { id: 'api', label: 'API', icon: 'globe' },
   { id: 'env', label: 'Env', icon: 'key' },
   { id: 'ssh', label: 'SSH', icon: 'lock' },
-  { id: 'regex', label: 'Regex', icon: 'spark' },
   { id: 'convert', label: 'Convert', icon: 'code' },
   { id: 'color', label: 'Color', icon: 'palette' },
   { id: 'hash', label: 'Hash', icon: 'hash' },
@@ -84,7 +83,6 @@ export default function RightPanel({
   onClose,
   onNewTab,
   settings = {},
-  planId = 'free',
   commandHistory = [],
   ghNotifCount = 0,
   onManageUsers,
@@ -134,7 +132,6 @@ export default function RightPanel({
             onOpenLauncher={onOpenLauncher}
             onClose={onClose}
             settings={settings}
-            planId={planId}
           />
         )}
         {/* Kept mounted so a running Claude turn isn't killed by a tab switch. */}
@@ -154,10 +151,8 @@ export default function RightPanel({
         {tab === 'snippets' && <SnippetsTab accent={accent} onRun={onRun} />}
         {tab === 'ports' && <PortsTab accent={accent} onRun={onRun} />}
         {tab === 'docker' && <DockerTab accent={accent} onRun={onRun} />}
-        {tab === 'api' && <ApiTesterTab accent={accent} />}
         {tab === 'env' && <EnvManagerTab accent={accent} cwd={activeCwd} />}
         {tab === 'ssh' && <SshTab accent={accent} onNewTab={onNewTab} onRun={onRun} />}
-        {tab === 'regex' && <RegexTab accent={accent} />}
         {tab === 'convert' && <ConvertTab accent={accent} />}
         {tab === 'color' && <ColorTab accent={accent} />}
         {tab === 'hash' && <HashTab accent={accent} />}
@@ -315,28 +310,13 @@ function TabHeader({ accent, icon, title, sub, onRefresh, right }) {
 }
 
 // ---------- Changes + Git Commit Helper ----------
-async function aiSuggestCommit(files, settings) {
+// One-shot via the logged-in CLI (no API key) — first line only, since the
+// CLI may add a sign-off.
+async function aiSuggestCommit(files, cwd) {
   const summary = files.slice(0, 20).map(f => `${f.status} ${f.path}`).join('\n')
   const prompt = `Write a concise git commit message (under 72 chars, imperative mood) for these changes:\n${summary}\nRespond with ONLY the commit message, no quotes or explanation.`
-  if (settings.anthropicKey) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.content?.[0]?.text?.trim() || null
-  }
-  if (settings.openaiKey) {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 80, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.choices?.[0]?.message?.content?.trim() || null
-  }
-  return null
+  const text = await cliComplete(prompt, { cwd })
+  return text ? text.split('\n')[0].trim() : null
 }
 
 function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
@@ -407,13 +387,11 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
   }
 
   const suggestMessage = async () => {
-    const hasKey = !!(settings.anthropicKey || settings.openaiKey)
-    if (!hasKey) { setCommitMsg('Add an API key in Settings to use AI suggest'); return }
     setSuggesting(true)
     try {
       const files = data?.files || []
-      const text = await aiSuggestCommit(files, settings)
-      if (text) setCommitMsg(text)
+      const text = await aiSuggestCommit(files, cwd)
+      setCommitMsg(text || 'Could not suggest (is the Claude/Codex CLI installed and signed in?)')
     } catch {}
     finally { setSuggesting(false) }
   }
@@ -773,27 +751,10 @@ function ScriptsTab({ accent, cwd, onRun }) {
 }
 
 // ---------- Command History + Explainer ----------
-async function explainCommand(cmd, settings) {
+// One-shot via the logged-in CLI (no API key).
+async function explainCommand(cmd) {
   const prompt = `Explain this shell command in 1-2 concise sentences for a developer. Be direct.\n\nCommand: ${cmd}`
-  if (settings.anthropicKey) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 120, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.content?.[0]?.text?.trim() || null
-  }
-  if (settings.openaiKey) {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 120, messages: [{ role: 'user', content: prompt }] })
-    })
-    const d = await res.json()
-    return d.choices?.[0]?.message?.content?.trim() || null
-  }
-  return null
+  return cliComplete(prompt)
 }
 
 function HistoryTab({ accent, history, onRun, settings = {} }) {
@@ -801,14 +762,13 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
   const [explanations, setExplanations] = useState({})
   const [explaining, setExplaining] = useState(new Set())
   const displayed = history.filter(cmd => !search || cmd.toLowerCase().includes(search.toLowerCase())).slice().reverse()
-  const hasKey = !!(settings.anthropicKey || settings.openaiKey)
 
   const explain = async (cmd) => {
     if (explanations[cmd]) { setExplanations(p => { const n = { ...p }; delete n[cmd]; return n }); return }
     setExplaining(p => new Set([...p, cmd]))
     try {
-      const text = hasKey ? await explainCommand(cmd, settings) : null
-      setExplanations(p => ({ ...p, [cmd]: text || (hasKey ? 'Could not explain' : 'Add an API key in Settings to use this.') }))
+      const text = await explainCommand(cmd)
+      setExplanations(p => ({ ...p, [cmd]: text || 'Could not explain (is the Claude/Codex CLI installed and signed in?)' }))
     } catch (e) {
       setExplanations(p => ({ ...p, [cmd]: `Error: ${e.message}` }))
     } finally {
@@ -1417,143 +1377,6 @@ const REGEX_PRESETS = [
   { label: 'Date', pattern: '\\d{4}-\\d{2}-\\d{2}' }
 ]
 
-function RegexTab({ accent }) {
-  const [pattern, setPattern] = useState('')
-  const [flags, setFlags] = useState('g')
-  const [testStr, setTestStr] = useState('')
-
-  const { matches, highlighted, error } = useMemo(() => {
-    if (!pattern) return { matches: [], highlighted: testStr ? [{ text: testStr, match: false }] : [], error: null }
-    try {
-      const gFlags = flags.includes('g') ? flags : flags + 'g'
-      const ms = [...testStr.matchAll(new RegExp(pattern, gFlags))]
-      const parts = []
-      let last = 0
-      for (const m of ms) {
-        if (m.index > last) parts.push({ text: testStr.slice(last, m.index), match: false })
-        parts.push({ text: m[0], match: true, groups: m.slice(1) })
-        last = m.index + m[0].length
-      }
-      if (last < testStr.length) parts.push({ text: testStr.slice(last), match: false })
-      return { matches: ms, highlighted: parts.length ? parts : [{ text: testStr, match: false }], error: null }
-    } catch (e) {
-      return { matches: [], highlighted: [], error: e.message }
-    }
-  }, [pattern, flags, testStr])
-
-  const toggleFlag = (f) => setFlags(prev => prev.includes(f) ? prev.replace(f, '') : prev + f)
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader
-        accent={accent}
-        icon="spark"
-        title="Regex Tester"
-        sub={pattern && !error ? `${matches.length} match${matches.length !== 1 ? 'es' : ''}` : 'Live pattern tester'}
-      />
-
-      <div style={{ padding: '10px 10px 8px', borderBottom: '1px solid #1b2127', display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {/* Pattern input styled like /regex/ */}
-        <div className="sush-omni flex items-center" style={{ gap: 6, height: 36, borderColor: error ? 'rgba(255,83,112,0.4)' : undefined }}>
-          <span style={{ color: '#5a646d', fontSize: 15, fontFamily: 'monospace', fontWeight: 800, paddingLeft: 2, flexShrink: 0 }}>/</span>
-          <input
-            value={pattern}
-            onChange={e => setPattern(e.target.value)}
-            placeholder="pattern..."
-            spellCheck={false}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: error ? '#ff5370' : '#f1f4f6', outline: 'none', fontSize: 13.5, fontFamily: 'monospace' }}
-          />
-          <span style={{ color: '#5a646d', fontSize: 15, fontFamily: 'monospace', fontWeight: 800, paddingRight: 4, flexShrink: 0 }}>/{flags}</span>
-        </div>
-
-        {/* Flags row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {['g', 'i', 'm', 's'].map(f => (
-            <button
-              key={f}
-              onClick={() => toggleFlag(f)}
-              style={{ width: 26, height: 22, borderRadius: 5, border: `1px solid ${flags.includes(f) ? rgba(accent, 0.4) : '#20272e'}`, background: flags.includes(f) ? rgba(accent, 0.12) : 'transparent', color: flags.includes(f) ? accent : '#3f4852', fontSize: 11, fontWeight: 800, fontFamily: 'monospace', cursor: 'pointer' }}
-            >
-              {f}
-            </button>
-          ))}
-          {error
-            ? <span style={{ fontSize: 10, color: '#ff5370', marginLeft: 6, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{error}</span>
-            : pattern && <span style={{ fontSize: 10.5, color: matches.length ? accent : '#3f4852', marginLeft: 6, fontWeight: 700 }}>{matches.length} match{matches.length !== 1 ? 'es' : ''}</span>
-          }
-        </div>
-
-        {/* Quick-insert preset patterns */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {REGEX_PRESETS.map(p => (
-            <button
-              key={p.label}
-              onClick={() => setPattern(p.pattern)}
-              title={p.pattern}
-              className="sush-mini-btn"
-              style={{ padding: '2px 7px', borderRadius: 5, border: '1px solid #20272e', background: 'transparent', color: '#8a939c', fontSize: 9.5, fontWeight: 700, cursor: 'pointer' }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Test string area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ padding: '5px 10px 3px', fontSize: 9.5, fontWeight: 800, color: '#3f4852', textTransform: 'uppercase', letterSpacing: 0.6 }}>Test string</div>
-          <textarea
-            value={testStr}
-            onChange={e => setTestStr(e.target.value)}
-            placeholder="Paste text to test against..."
-            spellCheck={false}
-            style={{ flex: 1, padding: '6px 10px', background: '#0a0c0f', border: 'none', borderTop: '1px solid #141a1f', color: '#9aa3ab', outline: 'none', resize: 'none', fontSize: 12, lineHeight: 1.65, fontFamily: 'monospace' }}
-          />
-        </div>
-
-        {/* Match highlights + group list */}
-        {testStr && pattern && !error && (
-          <div style={{ borderTop: '1px solid #1b2127', maxHeight: '40%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            {highlighted.length > 0 && (
-              <div style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.9, wordBreak: 'break-all', borderBottom: '1px solid #141a1f' }}>
-                {highlighted.map((p, i) =>
-                  p.match
-                    ? <mark key={i} style={{ background: rgba(accent, 0.28), color: accent, borderRadius: 3, padding: '0 1px' }}>{p.text}</mark>
-                    : <span key={i} style={{ color: '#5a646d' }}>{p.text}</span>
-                )}
-              </div>
-            )}
-            {matches.length > 0 && (
-              <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <button
-                  onClick={() => copyToClipboard(matches.map(m => m[0]).join('\n'))}
-                  className="sush-mini-btn flex items-center"
-                  style={{ alignSelf: 'flex-start', gap: 5, padding: '2px 8px', borderRadius: 5, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: accent, fontSize: 9.5, fontWeight: 700, cursor: 'pointer', marginBottom: 2 }}
-                >
-                  <Icon name="copy" size={10} /> Copy {matches.length} match{matches.length !== 1 ? 'es' : ''}
-                </button>
-                {matches.slice(0, 12).map((m, i) => (
-                  <div key={i} style={{ fontSize: 10.5, display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                    <span style={{ color: accent, fontWeight: 700, flexShrink: 0 }}>#{i + 1}</span>
-                    <code style={{ color: '#c3e88d', fontFamily: 'monospace' }}>{m[0] || '(empty)'}</code>
-                    {m.length > 1 && m.slice(1).map((g, gi) => (
-                      <code key={gi} style={{ color: '#82aaff', fontFamily: 'monospace' }}>${gi + 1}:{g ?? '∅'}</code>
-                    ))}
-                    <span style={{ color: '#3f4852', marginLeft: 'auto', flexShrink: 0 }}>@{m.index}</span>
-                  </div>
-                ))}
-                {matches.length > 12 && <div style={{ fontSize: 10, color: '#3f4852' }}>...{matches.length - 12} more matches</div>}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------- Docker ----------
 function DockerTab({ accent, onRun }) {
   const [data, setData] = useState(null)
   const [logs, setLogs] = useState({})
@@ -1658,207 +1481,6 @@ const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'
 const API_HISTORY_KEY = 'sush-api-history'
 function loadApiHistory() {
   try { return JSON.parse(localStorage.getItem(API_HISTORY_KEY) ?? '[]') } catch { return [] }
-}
-
-function ApiTesterTab({ accent }) {
-  const [method, setMethod] = useState('GET')
-  const [url, setUrl] = useState('')
-  const [headersText, setHeadersText] = useState('Content-Type: application/json')
-  const [body, setBody] = useState('')
-  const [response, setResponse] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [history, setHistory] = useState(loadApiHistory)
-  const [showHistory, setShowHistory] = useState(false)
-  const abortRef = useRef(null)
-
-  const rememberRequest = (req) => {
-    setHistory(prev => {
-      const next = [req, ...prev.filter(h => !(h.method === req.method && h.url === req.url))].slice(0, 15)
-      localStorage.setItem(API_HISTORY_KEY, JSON.stringify(next))
-      return next
-    })
-  }
-  const recall = (h) => {
-    setMethod(h.method); setUrl(h.url)
-    if (h.headersText != null) setHeadersText(h.headersText)
-    if (h.body != null) setBody(h.body)
-    setShowHistory(false)
-  }
-  const clearHistory = () => { setHistory([]); localStorage.removeItem(API_HISTORY_KEY) }
-
-  const send = async () => {
-    if (!url.trim() || loading) return
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-    setLoading(true)
-    setResponse(null)
-    const start = Date.now()
-
-    try {
-      const headers = {}
-      headersText.split('\n').forEach(line => {
-        const i = line.indexOf(':')
-        if (i > 0) headers[line.slice(0, i).trim()] = line.slice(i + 1).trim()
-      })
-      const opts = { method, headers, signal: controller.signal }
-      if (!['GET', 'HEAD'].includes(method) && body.trim()) opts.body = body
-
-      const res = await fetch(url.trim(), opts)
-      const elapsed = Date.now() - start
-      const respHeaders = {}
-      res.headers.forEach((v, k) => { respHeaders[k] = v })
-      let text = ''
-      try { text = await res.text() } catch {}
-      setResponse({ status: res.status, statusText: res.statusText, headers: respHeaders, body: text, elapsed })
-      rememberRequest({ method, url: url.trim(), headersText, body })
-    } catch (e) {
-      if (e.name !== 'AbortError') setResponse({ error: e.message })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const statusColor = response?.status ? (response.status < 300 ? '#c3e88d' : response.status < 400 ? '#ffcb6b' : '#ff5370') : accent
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader
-        accent={accent}
-        icon="globe"
-        title="API Tester"
-        sub="HTTP request builder"
-        right={history.length > 0 && (
-          <button
-            onClick={() => setShowHistory(s => !s)}
-            title="Recent requests"
-            className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${showHistory ? rgba(accent, 0.4) : '#20272e'}`, background: showHistory ? rgba(accent, 0.1) : '#11151a', color: showHistory ? accent : '#8a939c', cursor: 'pointer' }}
-          >
-            <Icon name="clock" size={13} />
-          </button>
-        )}
-      />
-
-      {showHistory && history.length > 0 && (
-        <div style={{ borderBottom: '1px solid #1b2127', maxHeight: 160, overflowY: 'auto', padding: 6 }} className="sush-scroll">
-          <div style={{ display: 'flex', alignItems: 'center', padding: '2px 4px 5px' }}>
-            <span style={{ fontSize: 9.5, fontWeight: 800, color: '#3f4852', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 }}>Recent</span>
-            <button onClick={clearHistory} style={{ fontSize: 9.5, color: '#5a646d', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>Clear</button>
-          </div>
-          {history.map((h, i) => (
-            <button
-              key={i}
-              onClick={() => recall(h)}
-              className="sush-row flex items-center"
-              style={{ gap: 7, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 7, background: '#0f1318', color: '#cdd5dc', padding: '5px 8px', marginBottom: 4, cursor: 'pointer' }}
-            >
-              <span style={{ fontSize: 9.5, fontWeight: 800, color: accent, minWidth: 38, flexShrink: 0, fontFamily: 'monospace' }}>{h.method}</span>
-              <span style={{ fontSize: 10.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{h.url}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div style={{ padding: '8px 10px', borderBottom: '1px solid #1b2127', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {/* Method + URL */}
-        <div style={{ display: 'flex', gap: 5 }}>
-          <select
-            value={method}
-            onChange={e => setMethod(e.target.value)}
-            style={{ padding: '5px 7px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: accent, fontSize: 11, fontWeight: 800, outline: 'none', cursor: 'pointer' }}
-          >
-            {HTTP_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <input
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send()}
-            placeholder="https://api.example.com/endpoint"
-            spellCheck={false}
-            style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#f1f4f6', fontSize: 11, outline: 'none', fontFamily: 'monospace' }}
-          />
-        </div>
-        {/* Headers */}
-        <textarea
-          value={headersText}
-          onChange={e => setHeadersText(e.target.value)}
-          placeholder="Headers (one per line, Name: value)"
-          spellCheck={false}
-          rows={2}
-          style={{ padding: '5px 8px', background: '#070909', border: '1px solid #1b2127', borderRadius: 7, color: '#9aa3ab', fontSize: 10.5, outline: 'none', resize: 'none', fontFamily: 'monospace', lineHeight: 1.6 }}
-        />
-        {/* Body */}
-        {!['GET', 'HEAD'].includes(method) && (
-          <textarea
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            placeholder='{"key": "value"}'
-            spellCheck={false}
-            rows={3}
-            style={{ padding: '5px 8px', background: '#070909', border: '1px solid #1b2127', borderRadius: 7, color: '#9aa3ab', fontSize: 10.5, outline: 'none', resize: 'none', fontFamily: 'monospace', lineHeight: 1.6 }}
-          />
-        )}
-        <button
-          onClick={loading ? () => abortRef.current?.abort() : send}
-          style={{ padding: '6px 0', borderRadius: 7, border: 'none', background: loading ? 'rgba(255,83,112,0.1)' : (url.trim() ? accent : '#1c2126'), color: loading ? '#ff5370' : (url.trim() ? '#0a0a0a' : '#3f4852'), fontSize: 12, fontWeight: 800, cursor: url.trim() ? 'pointer' : 'default' }}
-        >
-          {loading ? 'Cancel' : 'Send'}
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 8 }}>
-        {!response && !loading && <PanelEmpty icon="globe" accent={accent} hint="Fill in a URL and click Send.">No response yet</PanelEmpty>}
-        {response?.error && <div style={{ padding: 10, color: '#ff5370', fontSize: 12 }}>{response.error}</div>}
-        {response && !response.error && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#0f1318', border: `1px solid ${statusColor}44`, borderRadius: 8 }}>
-              <span style={{ fontSize: 15, fontWeight: 900, color: statusColor, fontFamily: 'monospace' }}>{response.status}</span>
-              <span style={{ fontSize: 11, color: '#9aa3ab' }}>{response.statusText}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 10, color: '#5a646d' }}>{response.elapsed}ms</span>
-            </div>
-            {Object.keys(response.headers).length > 0 && (
-              <div style={{ padding: '6px 8px', background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 8 }}>
-                <div style={{ fontSize: 9.5, fontWeight: 800, color: '#3f4852', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5 }}>Response Headers</div>
-                {Object.entries(response.headers).slice(0, 12).map(([k, v]) => (
-                  <div key={k} style={{ fontSize: 10, fontFamily: 'monospace', color: '#69737d', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <span style={{ color: accent }}>{k}</span>: {v}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ padding: '6px 8px', background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 5 }}>
-                <div style={{ fontSize: 9.5, fontWeight: 800, color: '#3f4852', textTransform: 'uppercase', letterSpacing: 0.6, flex: 1 }}>Body</div>
-                <button
-                  onClick={() => copyToClipboard(response.body || '')}
-                  title="Copy response body"
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '1px 6px', borderRadius: 5, border: '1px solid #20272e', background: 'transparent', color: '#69737d', fontSize: 9.5, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  <Icon name="copy" size={10} /> Copy
-                </button>
-              </div>
-              <pre style={{ margin: 0, fontSize: 10.5, lineHeight: 1.65, color: '#c5cdd5', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 300, overflowY: 'auto' }}>
-                {(() => {
-                  try { return JSON.stringify(JSON.parse(response.body), null, 2) } catch { return response.body || '(empty)' }
-                })()}
-              </pre>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------- Env Manager ----------
-// Drop a single pair of matching surrounding quotes, leaving inner text intact.
-function unquoteEnv(v) {
-  const s = String(v)
-  if (s.length >= 2 && ((s[0] === '"' && s.endsWith('"')) || (s[0] === "'" && s.endsWith("'")))) {
-    return s.slice(1, -1)
-  }
-  return s
 }
 
 function EnvManagerTab({ accent, cwd }) {

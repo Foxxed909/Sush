@@ -68,9 +68,35 @@ export function listAccounts(userId) {
   const providers = {}
   for (const p of Object.keys(SLOT_PROVIDERS)) {
     const st = providerState(data, p)
-    providers[p] = { active: st.active, slots: st.slots.map(s => ({ id: s.id, label: s.label })) }
+    providers[p] = { active: st.active, slots: st.slots.map(s => ({ id: s.id, label: s.label, lastLimitAt: s.lastLimitAt || null })) }
   }
   return { ok: true, providers }
+}
+
+export function renameAccount(userId, provider, slotId, label) {
+  if (!userId) return { ok: false, error: 'no-user' }
+  if (!SLOT_PROVIDERS[provider]) return { ok: false, error: 'Unknown provider' }
+  const name = String(label ?? '').trim().slice(0, 24)
+  if (!name) return { ok: false, error: 'Name cannot be empty' }
+  const data = load(userId)
+  const st = providerState(data, provider)
+  const slot = st.slots.find(s => s.id === slotId)
+  if (!slot) return { ok: false, error: 'No such account' }
+  slot.label = name
+  if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
+  return { ok: true, ...listAccounts(userId) }
+}
+
+// Remember that the active slot just hit its limit, so rotation can prefer
+// the slot that has rested longest and the UI can show "limited Xh ago".
+export function markLimitHit(userId, provider) {
+  if (!userId || !SLOT_PROVIDERS[provider]) return
+  const data = load(userId)
+  const st = providerState(data, provider)
+  const slot = st.slots.find(s => s.id === st.active)
+  if (!slot) return
+  slot.lastLimitAt = Date.now()
+  save(userId, data)
 }
 
 // Creates the slot and makes it active, so the very next session spawned uses
@@ -106,15 +132,17 @@ export function switchAccount(userId, provider, slotId) {
   return { ok: true, slotId: slot.id, label: slot.label, ...listAccounts(userId) }
 }
 
-// Rotate to the next slot (used by the limit cascade). Returns the slot we
-// landed on, or ok:false when there is nowhere to rotate to.
+// Rotate to another slot (used by the limit cascade): prefer the slot whose
+// last limit hit is the OLDEST — it has had the most time to reset — instead
+// of blind round-robin (which could hop straight onto another limited login).
+// Returns the slot we landed on, or ok:false when there is nowhere to rotate.
 export function nextAccount(userId, provider) {
   if (!userId) return { ok: false, error: 'no-user' }
   const data = load(userId)
   const st = providerState(data, provider)
   if (st.slots.length < 2) return { ok: false, error: 'no-alternate' }
-  const idx = st.slots.findIndex(s => s.id === st.active)
-  const next = st.slots[(idx + 1) % st.slots.length]
+  const others = st.slots.filter(s => s.id !== st.active)
+  const next = others.sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
   st.active = next.id
   if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
   return { ok: true, slotId: next.id, label: next.label }

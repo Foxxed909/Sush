@@ -123,6 +123,7 @@ export default function LockScreen({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ name: '', color: USER_COLORS[0], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' })
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const pinInputRef = useRef(null)
   const avatarFileRef = useRef(null)
   const now = useClock()
@@ -303,10 +304,10 @@ export default function LockScreen({
                 }}
               />
               <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>
-                {firstRun ? 'Welcome to Sush' : 'New user'}
+                {firstRun ? 'Welcome to Sush' : 'New profile'}
               </div>
               <div style={{ marginTop: 4, fontSize: 12, color: '#8a939c' }}>
-                {firstRun ? 'Create your identity — your CLI logins, theme and sessions stay yours.' : 'Their CLI logins and workspace stay fully separate.'}
+                {firstRun ? 'A profile is your own sealed world — CLI logins, theme, and sessions stay yours.' : 'A separate world: its own CLI logins, theme, and sessions.'}
               </div>
             </div>
 
@@ -345,42 +346,58 @@ export default function LockScreen({
               </div>
             )}
 
-            <input
-              value={form.pin}
-              onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
-              placeholder="PIN (optional, 4–8 digits)"
-              inputMode="numeric"
-              type="password"
-              className="sush-lock-input"
-            />
-            <div style={{ fontSize: 10.5, color: '#5a646d', margin: '6px 2px 12px', lineHeight: 1.5 }}>
-              A PIN keeps casual eyes out on a shared PC — it isn't encryption.
-            </div>
+            {/* Advanced is collapsed by default — a fresh profile just needs a
+                name. PIN ("curious eyes" lock) and isolation level live here. */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(s => !s)}
+              className="flex items-center"
+              style={{ gap: 6, width: '100%', justifyContent: 'center', background: 'none', border: 'none', color: '#6b757e', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '4px 0 12px' }}
+            >
+              <Icon name={showAdvanced ? 'chevronDown' : 'chevronRight'} size={12} />
+              {showAdvanced ? 'Hide options' : 'PIN & isolation (optional)'}
+            </button>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-              {[
-                { id: 'cli', label: 'CLI isolation', desc: 'claude · codex · gh · XDG' },
-                { id: 'full', label: 'Full home', desc: 'HOME / USERPROFILE too' }
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, isolation: opt.id }))}
-                  style={{
-                    flex: 1,
-                    textAlign: 'left',
-                    padding: '9px 11px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    border: `1px solid ${form.isolation === opt.id ? rgba(form.color, 0.6) : 'rgba(255,255,255,0.1)'}`,
-                    background: form.isolation === opt.id ? rgba(form.color, 0.12) : 'rgba(255,255,255,0.03)'
-                  }}
-                >
-                  <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: form.isolation === opt.id ? '#f1f4f6' : '#aab3bb' }}>{opt.label}</span>
-                  <span style={{ display: 'block', fontSize: 10, color: '#69737d', marginTop: 2 }}>{opt.desc}</span>
-                </button>
-              ))}
-            </div>
+            {showAdvanced && (
+              <div className="sush-fade-up">
+                <input
+                  value={form.pin}
+                  onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
+                  placeholder="PIN (optional, 4–8 digits)"
+                  inputMode="numeric"
+                  type="password"
+                  className="sush-lock-input"
+                />
+                <div style={{ fontSize: 10.5, color: '#5a646d', margin: '6px 2px 12px', lineHeight: 1.5 }}>
+                  A PIN keeps curious eyes out on a shared PC — it isn't encryption.
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                  {[
+                    { id: 'cli', label: 'CLI isolation', desc: 'Recommended — separate agent logins' },
+                    { id: 'full', label: 'Full home', desc: 'Also separate git / ssh / npm' }
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, isolation: opt.id }))}
+                      style={{
+                        flex: 1,
+                        textAlign: 'left',
+                        padding: '9px 11px',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        border: `1px solid ${form.isolation === opt.id ? rgba(form.color, 0.6) : 'rgba(255,255,255,0.1)'}`,
+                        background: form.isolation === opt.id ? rgba(form.color, 0.12) : 'rgba(255,255,255,0.03)'
+                      }}
+                    >
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: form.isolation === opt.id ? '#f1f4f6' : '#aab3bb' }}>{opt.label}</span>
+                      <span style={{ display: 'block', fontSize: 10, color: '#69737d', marginTop: 2 }}>{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {error && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 10 }}>{error}</div>}
 
@@ -401,7 +418,7 @@ export default function LockScreen({
                 boxShadow: `0 10px 28px ${rgba(form.color, 0.35)}`
               }}
             >
-              {busy ? 'Creating…' : firstRun ? 'Start using Sush' : 'Create user'}
+              {busy ? 'Creating…' : firstRun ? 'Start using Sush' : 'Create profile'}
             </button>
 
             {!firstRun && (
@@ -513,11 +530,11 @@ export default function LockScreen({
             <div style={{ display: 'flex', gap: 10 }}>
               {mode === 'locked' ? (
                 <GhostButton danger onClick={onSwitchRequest}>
-                  <Icon name="users" size={13} /> Sign out &amp; switch user
+                  <Icon name="users" size={13} /> Sign out &amp; switch profile
                 </GhostButton>
               ) : (
                 <GhostButton onClick={() => { setMode('create'); setError(''); setForm({ name: '', color: USER_COLORS[(users.length) % USER_COLORS.length], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' }) }}>
-                  <Icon name="plus" size={13} /> New user
+                  <Icon name="plus" size={13} /> New profile
                 </GhostButton>
               )}
             </div>
@@ -526,7 +543,7 @@ export default function LockScreen({
       </div>
 
       <div style={{ position: 'absolute', bottom: 18, fontSize: 10.5, color: '#3f4852', fontWeight: 700, letterSpacing: 1 }}>
-        SUSH IDENTITIES · separate logins, zero bleed
+        SUSH PROFILES · separate worlds, zero bleed
       </div>
     </div>
   )

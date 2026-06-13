@@ -14,6 +14,212 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 4.2.0 — "Macy" implementation notes
+
+### Theme reduction
+- `themes/index.js` keeps ONLY glassdark / glassdarkpro / royal / pinkther.
+  `resolveThemeId()` maps every removed id to its closest survivor
+  (LEGACY_THEME_MAP) and `getTheme()` is the one resolver — App.jsx (4 call
+  sites) and ProfilePicker now go through it, so persisted themeIds from any
+  old install render instead of silently falling back. Settings/palette lists
+  iterate `Object.values(themes)` so they shrank for free. Don't re-add
+  `themes[id] ?? defaultTheme` lookups; they bypass the legacy map.
+
+### Macy design pass (index.css)
+- New tokens: `--font-ui` (platform UI stack) on body, `--font-mono` for
+  pre/code/kbd/`.sush-omni input`; xterm keeps its own fontFamily setting.
+- Motion tokens: `--ease-spring` (Apple sheet curve), `--dur-fast/med`. All
+  entrance keyframes re-timed onto them; hover transforms that MOVED rows
+  (translateX on .sush-row/.sush-session) removed — light up in place.
+- New primitives: `.sush-spinner` (ring, currentColor), `.sush-skeleton`
+  (shimmer), `.sush-progress` (indeterminate hairline, used on the splash),
+  `.sush-pop` + `.sush-backdrop` (modal entrance — applied to CommandPalette,
+  MissionControl, NewSessionModal), `.sush-page-in` (Settings fade).
+- Scrollbars are neutral white-alpha now, not accent.
+
+### Accounts panel (Settings)
+- The OAuth status section (Google/GitHub READY/SOON chips) is GONE from the
+  UI — `publicOauthConfig` and overrides still work, it just has no surface.
+- `AccountsSection` is the CLI account switcher: rows per slot ("Account 1"
+  = the default slot's display name), Add/Switch/Remove, the limit previewer,
+  and `cliLimitPolicy` moved here from the AI section. Add-account still
+  dispatches `sush:open-login-session` so the CLI's own browser sign-in runs
+  in a fresh session against the just-activated slot.
+
+### FIF (bugs fixed this release)
+- **Hush**: `stop()` sets `manualStopRef` so `onend` doesn't fire the
+  misleading wake-word error on a deliberate stop; `start()` aborts any
+  previous recognizer before binding a new one (replaced instances kept live
+  handlers → ghost inserts); transient timeouts tracked + cleared on unmount;
+  hotkey listener subscribes once via ref; `rec.lang` follows
+  `navigator.language`.
+- **ipc.js**: `sush:pty-input` wrapped in try/catch (node-pty write on a dead
+  PTY threw uncaught in main → app crash); `sush:close-tab` deletes
+  contexts/tabMeta in a `finally`.
+- **claudePanel.js** `checkClaudeLimits`: consume complete lines, keep the
+  partial tail (was re-splitting the full buffer every chunk → re-parsed and
+  re-sent earlier events).
+- **tickets.js**: expired tickets swept on each create (they leaked for the
+  app lifetime, each holding a profile + possibly a token).
+- **App.jsx**: zoom-indicator timer moved off `window.__zoomTimer` onto a ref
+  with effect cleanup.
+- **ClaudePanel.jsx**: per-cwd session map LRU-capped at 40; transcript
+  entries capped at ~300.
+
+### RAM
+- xterm `scrollback` 5000 → 2000 (per terminal × up to 16 mounted = the
+  dominant renderer buffer). Persistent scrollback (60KB/tab, disk) is the
+  long-history story.
+
+## 4.2.0 follow-up — feature adds + the cull
+
+### Custom agents (lib/agents.js)
+- `BUILTIN_AGENTS` is the static list (machine-specific Quill/OCP paths and
+  the `probeDir`/`localPython` hardcodes are GONE). `loadCustomAgents()` reads
+  per-user localStorage (`sush-custom-agents`), validated/clamped on read.
+  `allAgents()` = built-ins + custom and is what the launcher
+  (NewSessionModal snapshots it once per open), Seducia catalog
+  (`lib/seducia.js`, `components/Seducia.jsx`), `useCliAvailability`, and
+  `agentById` now iterate. `AGENTS` is kept as an alias of `BUILTIN_AGENTS`
+  for module-scope consumers (`lib/ai.js` id catalog). Settings ▸ Agents
+  (`AgentsSection`) does add/remove. Codex got `resumeCommand: 'codex resume
+  --last'`.
+
+### Accounts (accounts.js + ipc.js)
+- `renameAccount` + `markLimitHit` added; `listAccounts` now returns
+  `lastLimitAt` per slot. `nextAccount` rotates to the slot with the OLDEST
+  `lastLimitAt` (rested longest) instead of round-robin. The cascade in
+  `runCliEngineWithAccounts` calls `markLimitHit` on every limit hit (before
+  the policy branch). Preload gained `accountsRename`. Settings shows inline
+  rename (double-click) + "limit hit Xh ago" (<12h).
+
+### Brief-typing readiness (App.jsx launchSessions)
+- The blind `4500 + i*400` timer is replaced by a 500ms poll that fires the
+  brief when the activity classifier reports `waiting`/`idle` (min
+  `2500 + i*300`ms in), hard fallback at 12s. Reads `agentStatesRef` (a ref
+  mirror of useAgentActivity's states) so the closure never goes stale.
+
+### POSIX shells (ipc.js getDefaultShell)
+- macOS/Linux: `$SHELL` (zsh default on darwin) spawned `-l` (login) so rc
+  files load. Was a bare non-login `/bin/bash`.
+
+### The cull (everyone gets full Sush)
+- **Plans**: `lib/plan.js` DELETED, `PlansModal.jsx` deleted. All `can()` /
+  plan-gate call sites in useSeducia, SeduciaOrb, Seducia, Settings, App,
+  RightPanel removed; `aiEnabled`/`voiceMode` gates collapse to "AI on if a
+  streamer is configured", "voice on if mic supported".
+- **Wake word + ElevenLabs**: `lib/voice.js` rewritten — VoiceEngine is now
+  push-to-talk STT + system `SpeechSynthesis` only. `startWakeWord`/
+  `stopWakeWord`/`speakEleven`/MediaSource streaming/wake patterns gone. The
+  docked `Seducia.jsx` lost its inline `elevenLabsSpeak`. Settings Voice
+  section is system-voice-only. (Hands-free auto-resubmit in the docked panel
+  stays — it's one-shot recognition, not an always-on mic.)
+- **Session recording**: removed from `Terminal.jsx` + all recording refs/
+  `.cast` export from `useTerminal.js`.
+- **RightPanel dev-tabs**: `api` (ApiTesterTab) and `regex` (RegexTab)
+  removed — registry entries, render lines, and function bodies. (JsonViewer
+  stays — it's the smart-output renderer, not a tab.)
+- **Corner styles**: `cornerStyle`/`cycleCorners`/`corners` command + the
+  `body[data-corners]` CSS overrides removed; UI is the single rounded
+  `--r-*` scale. `TopBar.jsx`/`TabBar.jsx` (already-dead) deleted.
+- **Broadcast mode KEPT** (user: "continue").
+
+### CI
+- `.github/workflows/build.yml`: `npm ci && npm run build` on push/PR. The
+  repo had zero CI before.
+
+## 4.2.0 follow-up #2 — CLI-only AI + agent trim
+
+### One AI provider (lib/ai.js)
+- `streamAnthropic`/`streamOpenAI` + their model constants DELETED. `getStreamer`
+  always returns the CLI streamer (or null if `window.sush.seduciaCli` is
+  missing). New `cliComplete(prompt, {cwd, engine})` — one-shot CLI text helper
+  (`limitPolicy: 'never'`) for the small helpers.
+- `useSeducia.hasAI` / docked `Seducia.hasAIKey` collapse to `aiEnabled`.
+  `settings.seduciaProvider`/`anthropicKey`/`openaiKey` no longer read anywhere.
+- **Ancillary AI helpers repointed to `cliComplete`:** RightPanel commit-message
+  suggest (`aiSuggestCommit(files, cwd)` → first line only) and command
+  explainer (`explainCommand(cmd)`). SmartCommandBar keystroke autocomplete
+  CUT entirely (per-keystroke `claude -p` spawn = unusable; was key-only).
+- Settings AI section: provider toggle + both `ApiKeyField`s removed (the
+  `ApiKeyField` component is deleted); just the CLI-engine selector remains.
+
+### Built-in agents trimmed (lib/agents.js)
+- `BUILTIN_AGENTS` = shell, claude, codex, gemini, opencode. The 9 niche CLIs
+  (hermes/aipex/trident/bedrock/razor/serenity/sydney/erosion/evm) removed —
+  they were the dev's personal PC tools and shipped as locked tiles for
+  everyone. They're custom-agent material now. SYNONYMS maps in `lib/seducia.js`
+  + docked `Seducia.jsx` trimmed to match (deterministic parser is dead code
+  anyway now that AI is always on, but kept tidy).
+
+## CLI auth research — why only Claude + Codex get account slots
+
+Researched each CLI's credential storage (June 2026) to decide which can hold
+multiple switchable accounts. The rule: a slot works ONLY if the CLI relocates
+its **credentials** via a dedicated, CLI-specific env var (so Sush can point
+each slot at its own dir without side effects). Findings:
+
+- **Claude** — `CLAUDE_CONFIG_DIR` relocates everything incl. login. ✅ slot.
+- **Codex** — `CODEX_HOME` (default `~/.codex`); creds in `auth.json` under it.
+  ✅ slot. Caveat: `cli_auth_credentials_store: keyring` puts creds in the OS
+  keychain instead of `auth.json` — slots won't isolate that mode (default is
+  file, which does isolate). [developers.openai.com/codex/auth]
+- **Gemini** — login cached in `~/.gemini/oauth_creds.json`; NO documented env
+  to relocate it (only `.env` discovery + `GEMINI_API_KEY`). Keys off HOME, so
+  it's isolated per *profile* (full-home isolation), not per slot.
+  [google-gemini/gemini-cli docs]
+- **OpenCode** — `OPENCODE_CONFIG_DIR` moves CONFIG (agents/commands), but auth
+  lives in `~/.local/share/opencode/auth.json` = `$XDG_DATA_HOME/opencode`.
+  No OpenCode-specific env relocates auth; redirecting `XDG_DATA_HOME` would
+  leak into every spawned session (slot env is applied to all PTYs), so NOT a
+  clean slot. Per-profile only. [opencode.ai/docs, deepwiki]
+
+**Conclusion:** the misconception was "Claude blocks OAuth, others allow it."
+Reality: none let a third-party app capture their auth, and ALL let you sign in
+through their own CLI (often via Google). The only real per-provider difference
+is whether credentials sit behind a relocatable CLI-specific env var — true for
+Claude + Codex only. So slots stay claude+codex; gemini/opencode are surfaced
+in Settings ▸ Accounts as "one login per profile" with a **Sign in** button.
+
+### What shipped
+- `lib/agents.js` `LOGIN_COMMANDS` map (claude/codex/gemini/opencode → the
+  command that triggers each CLI's native login; opencode uses
+  `opencode auth login`). App's `sush:open-login-session` handler generalized
+  to use it (was hardcoded to claude/codex).
+- Settings ▸ Accounts gained a "One login per profile" block (Gemini, OpenCode)
+  with Sign-in buttons that open the CLI's own login session.
+
+## 4.2.0 follow-up #3 — interactive limit recovery + notifications
+
+### Limit detection (lib/agentActivity.js + useAgentActivity)
+- `detectLimit(tail)` + `LIMIT_RE` (specific: "...limit reached/exceeded",
+  "too many requests", "quota", "429", "upgrade to continue", "resets at/in").
+- `useAgentActivity(tabs, { notify })` now also returns a `limits` map (tabId →
+  true) — only set when the session is SETTLED (not working/booting), since an
+  active stream isn't blocked. Tick computes states + limits, re-renders only
+  on change.
+
+### Switch & resume (App.switchAndResume → MissionControl)
+- Explicit, never automatic (a live session is never yanked). For claude/codex
+  only (the slot-able CLIs). Reads accountsList, picks the alternate slot with
+  the oldest `lastLimitAt` (rested longest), `accountsSwitch`es to it, then
+  closeTab + openTab(same cwd) with `agent.resumeCommand ?? command`.
+- MissionControl: rows show a "Limit reached" pill + "Switch & resume" button
+  when `limits[id]` AND the provider has ≥2 accounts (fetched once on open).
+
+### Finish-notifications (useAgentActivity)
+- On a state transition into waiting/error/done while `!document.hasFocus()`,
+  fire `new Notification`. 30s per-session cooldown; done/error only when
+  coming out of working/booting. Gated by `settings.agentNotifications`
+  (default on), passed in via the hook's `notify` option. Toggle in
+  Settings ▸ Window.
+
+### Deliberately NOT done tonight (needs runtime testing, user was away)
+- **Seducia two-brains unification** — collapsing docked Seducia.jsx onto the
+  useSeducia hook + deleting the dead deterministic parser. Build can't verify
+  the LaunchCard/voice/scope behavior; do it when it can be exercised live.
+- Swarm presets, cost rollup, visual agent relay, .sush/workspace.json — bench.
+
 ## 4.0.0 — "Helm" implementation notes
 
 ### Seducia full control + scoping

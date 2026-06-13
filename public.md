@@ -6,6 +6,107 @@ built-in command layer.
 
 ---
 
+## 4.2.0 — "Macy"
+
+The calm release: fewer themes, quieter motion, a real account switcher, a
+lighter footprint — and a deliberate trim of features that didn't earn their
+place.
+
+### Added — Limit recovery & notifications
+- **Hit a limit mid-session? Switch & resume in one click.** When a live Claude
+  or Codex session shows a usage/limit message, Mission Control flags it and —
+  if you have a second account for that CLI — offers **Switch & resume**: it
+  hops to your other (longest-rested) account and relaunches the session in
+  resume mode (`claude --continue`, `codex resume --last`) so the conversation
+  carries over. This covers interactive sessions, not just Seducia's calls.
+- **Agent notifications.** A desktop notification when a session needs your
+  input, errors, or finishes while Sush is in the background (never while
+  focused). Toggle in Settings ▸ Window.
+
+### Added — Custom agents
+- **Settings ▸ Agents.** Add any CLI as a first-class launcher tile — name,
+  command, and an optional resume command. It shows up in the launcher,
+  Seducia can spawn it, and the install-check covers it. (This replaces the
+  machine-specific agent paths that used to be hardcoded in the app.)
+- **Codex sessions resume** on restart now (`codex resume --last`), alongside
+  Claude's `--continue`.
+
+### Added — Smarter accounts
+- **Rename accounts** inline (double-click the name) — "work gmail",
+  "personal", whatever fits.
+- **Limit memory.** When an account hits its session limit, Sush remembers
+  *when* and shows "limit hit Xh ago"; auto-switch now rotates to the account
+  that has rested longest instead of blind round-robin.
+
+### Added — Cross-platform + CI
+- **macOS / Linux shells** spawn as proper login shells (`$SHELL -l`, zsh on
+  macOS) so your PATH and rc files load — agent CLIs are usually installed
+  there.
+- A **CI build workflow** runs `npm ci && npm run build` on every push and PR.
+
+### Changed — one AI path, no keys
+- **Seducia (and the commit-message + command-explainer helpers) run only on
+  your logged-in CLI now.** The Anthropic/OpenAI API-key fields are gone —
+  no pasting billing credentials, it just rides your subscription. The
+  keystroke autocomplete (key-only, and too slow over a CLI spawn) was cut.
+- **Built-in agents trimmed to the real ones** — Claude, Codex, Gemini,
+  OpenCode. The niche/personal CLIs that used to ship as locked tiles are
+  gone; add the ones you actually have under Settings ▸ Agents.
+
+### Removed — trimmed the fat
+- **Plans / upgrade tiers are gone.** Everyone gets the full app. No paywall,
+  no feature gates.
+- **The always-on wake word and ElevenLabs voice** are retired — the wake
+  loop held the mic hostage (and fought Hush for it) and ElevenLabs was a
+  paid demo. Push-to-talk dictation and system text-to-speech stay.
+- **Session recording, the API tester, the Regex tab, and corner styles** are
+  gone — breadth that diluted the core. The UI is rounded, full stop.
+
+### Changed — the Macy design pass
+- **Native-feeling chrome.** The app shell now uses your platform's UI font
+  (SF on macOS, Segoe Variable on Windows); commands, code and terminals stay
+  monospace. The whole UI reads cleaner instantly.
+- **One motion language.** Every entrance, modal and hover now rides the same
+  short Apple-style spring — panels stopped sliding around on hover, modals
+  pop in softly with a fading backdrop, and durations are uniform. Less
+  performance, more confirmation.
+- **Quiet scrollbars.** Neutral, slim, macOS-style — no more accent-coloured
+  bars competing with the content.
+- **Loading states everywhere.** A shared ring spinner, skeleton shimmer and
+  hairline progress bar; the splash shows real loading progress, the Run
+  button and Accounts panel spin while busy.
+- **Four themes instead of seventeen.** Glass Dark, Glass Dark Pro,
+  Sophisticated Purple and Pinkther — the curated glass family. Saved legacy
+  themes map automatically to the closest survivor.
+
+### Changed — Accounts
+- **Settings ▸ Accounts is now the account switcher.** Your Claude / Codex
+  logins as clean rows — Account 1, Account 2 … — with Add / Switch / Remove,
+  the Claude limit previewer, and the on-limit policy (Never / Ask / Auto) in
+  one place. Sign-in still happens in the CLI's own browser flow (Google
+  supported); Sush never sees credentials.
+- The Google/GitHub OAuth status plumbing is gone from Settings — that's the
+  app's concern, not yours. Lock-screen sign-in is unchanged.
+
+### Fixed
+- **Hush** no longer scolds you with "Didn't catch that / wake word" when you
+  deliberately tap the mic off; rapid toggles can no longer ghost-type stale
+  transcripts into the terminal; dictation language follows your system
+  locale instead of forcing en-US.
+- A dead PTY receiving input could crash the entire app (main process) — now
+  guarded. Closing a tab that fails teardown no longer leaks its context.
+- Abandoned OAuth sign-ins no longer pile up in memory for the app's lifetime.
+- The Claude limit probe re-parsed its whole stream on every chunk — fixed.
+- The Claude panel's per-directory session map and transcript are now capped
+  (they grew forever and could trip the storage quota).
+
+### Lighter
+- Terminal scrollback buffers trimmed 5000 → 2000 lines per session — with up
+  to 16 sessions mounted this is the biggest renderer-RAM lever; persistent
+  scrollback still covers history across reopens.
+
+---
+
 ## 4.1.0 — "Helm" continued
 
 The live-testing round: smarter handoffs, a grid cockpit, and a face.

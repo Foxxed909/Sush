@@ -13,7 +13,6 @@ import SeduciaOrb from './components/SeduciaOrb'
 import Hush from './components/Hush'
 import MissionControl from './components/MissionControl'
 import AliasNudge from './components/AliasNudge'
-import PlansModal from './components/PlansModal'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsHelp from './components/ShortcutsHelp'
 import HandoffModal from './components/HandoffModal'
@@ -25,11 +24,10 @@ import UserManager from './components/UserManager'
 import ProfileViewer from './components/ProfileViewer'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
-import { themes, defaultTheme } from './themes'
-import { agentById, MAX_SESSIONS } from './lib/agents'
+import { themes, getTheme } from './themes'
+import { agentById, MAX_SESSIONS, LOGIN_COMMANDS } from './lib/agents'
 import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
-import { loadPlan, savePlan } from './lib/plan'
 import { useAgentActivity } from './hooks/useAgentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { recordCommand } from './lib/commandFrequency'
@@ -231,8 +229,6 @@ export default function App() {
   const [showProfiles, setShowProfiles] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showLauncher, setShowLauncher] = useState(false)
-  const [showPlans, setShowPlans] = useState(false)
-  const [planId, setPlanId] = useState(loadPlan)
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('sush-right-open') === '1')
   const [seduciaOpen, setSeduciaOpen] = useState(false)
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
@@ -359,11 +355,6 @@ export default function App() {
     mruRef.current = mruRef.current.filter(id => live.has(id))
   }, [tabs])
 
-  // Apply the corner-style design token to the whole UI.
-  useEffect(() => {
-    document.body.dataset.corners = settings.cornerStyle ?? 'rounded'
-  }, [settings.cornerStyle])
-
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
     if (compactTabs.length === tabs.length) return
@@ -436,7 +427,11 @@ export default function App() {
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
   // Mission Control: live per-session state inferred from the PTY stream.
-  const { states: agentStates, summary: agentSummary } = useAgentActivity(tabs)
+  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false })
+  // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
+  // the latest classification without re-subscribing.
+  const agentStatesRef = useRef(agentStates)
+  useEffect(() => { agentStatesRef.current = agentStates }, [agentStates])
 
   // Never strand the user on a black screen: terminal view with zero
   // sessions renders nothing (and split mode doubles the nothing), so fall
@@ -479,37 +474,49 @@ export default function App() {
     return () => clearTimeout(smartDismissRef.current)
   }, [smartResult])
 
-  const themeId = settings.themeId ?? activeProfile?.themeId ?? 'pink'
-  const theme = themes[themeId] ?? defaultTheme
+  const theme = getTheme(settings.themeId ?? activeProfile?.themeId)
+  const themeId = theme.id
   const accent = theme.ui.accent
   const fontSize = settings.fontSize ?? 14
   const fontFamily = settings.fontFamily ?? "'Cascadia Code'"
   const cursorStyle = settings.cursorStyle ?? 'block'
 
+  const zoomTimerRef = useRef(null)
   useEffect(() => {
+    const flash = (size) => {
+      setZoomIndicator(size)
+      clearTimeout(zoomTimerRef.current)
+      zoomTimerRef.current = setTimeout(() => setZoomIndicator(null), 1200)
+    }
     const handler = (e) => {
       if (!e.ctrlKey) return
       if (e.key === '=' || e.key === '+') {
         e.preventDefault()
         const next = Math.min((settings.fontSize ?? 14) + 1, 28)
         saveSettings({ ...settings, fontSize: next })
-        setZoomIndicator(next); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+        flash(next)
       }
       if (e.key === '-') {
         e.preventDefault()
         const next = Math.max((settings.fontSize ?? 14) - 1, 8)
         saveSettings({ ...settings, fontSize: next })
-        setZoomIndicator(next); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+        flash(next)
       }
       if (e.key === '0') {
         e.preventDefault()
         saveSettings({ ...settings, fontSize: 14 })
-        setZoomIndicator(14); clearTimeout(window.__zoomTimer); window.__zoomTimer = setTimeout(() => setZoomIndicator(null), 1200)
+        flash(14)
       }
     }
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    return () => { window.removeEventListener('keydown', handler); clearTimeout(zoomTimerRef.current) }
   }, [settings])
+
+  // Window opacity is an OS-level window property (main calls setOpacity), not
+  // a CSS opacity on the root — the latter faded the terminal text itself.
+  useEffect(() => {
+    window.sush.setOpacity?.((settings.opacity ?? 100) / 100)
+  }, [settings.opacity])
 
   const openRight = useCallback((tab) => {
     setRightTab(tab)
@@ -826,31 +833,44 @@ export default function App() {
     // input). Flattened to one line — TUIs treat Enter as submit.
     const brief = String(prompt ?? '').trim().replace(/\s*\n+\s*/g, ' ')
     if (brief) {
+      // Type the brief when each agent's TUI actually settles (the activity
+      // classifier reports waiting/idle after boot) instead of the old blind
+      // 4.5s timer — slow machines missed the window, fast ones sat around.
+      // Hard fallback at 12s so a brief is never silently dropped.
       spawned.forEach((tab, i) => {
-        setTimeout(() => {
+        const startedAt = Date.now()
+        const timer = setInterval(() => {
           const live = tabsRef.current.find(t => t.id === tab.id)
-          if (live && live.status !== 'exited') {
-            window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
+          if (!live || live.status === 'exited') { clearInterval(timer); return }
+          const elapsed = Date.now() - startedAt
+          const state = agentStatesRef.current[tab.id]
+          const settled = elapsed >= 2500 + i * 300 && (state === 'waiting' || state === 'idle')
+          if (settled || elapsed >= 12000) {
+            clearInterval(timer)
+            if (live.status === 'running') window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
           }
-        }, 4500 + i * 400)
+        }, 500)
       })
     }
     setShowLauncher(false)
     // Seducia stays open so you can keep orchestrating after a launch.
   }, [openTab, profiles])
 
-  // Settings "Add account" hands off here: open a session running the CLI so
-  // its own login flow (browser OAuth) starts in the freshly-activated slot.
+  // Settings "Add account" / "Sign in" hands off here: open a session running
+  // the CLI's own login so its browser OAuth (Google where supported) starts.
+  // For slot CLIs (claude/codex) the freshly-activated slot captures it; for
+  // per-profile CLIs (gemini/opencode) it signs into the profile's one login.
   useEffect(() => {
     const handler = (e) => {
       const provider = e.detail?.provider
-      if (provider !== 'claude' && provider !== 'codex') return
+      const spec = LOGIN_COMMANDS[provider]
+      if (!spec) return
       setShowSettings(false)
       openTab(profiles[0], {
-        command: provider,
+        command: spec.command,
         agentId: provider,
         tag: `sess-${nextSessionTag++}`,
-        label: `${provider === 'claude' ? 'Claude' : 'Codex'} sign-in`
+        label: spec.label
       })
     }
     window.addEventListener('sush:open-login-session', handler)
@@ -1048,6 +1068,39 @@ export default function App() {
     closeTabRef.current = closeTab
   }, [closeTab])
 
+  // Limit-hit recovery for INTERACTIVE agent sessions (the case the Seducia
+  // cascade can't reach): switch this CLI to the account that's rested longest
+  // and relaunch the session in resume mode, so the conversation continues on
+  // the fresh account (claude --continue, codex resume --last). Explicit, one
+  // click from Mission Control — never automatic, so a live session is never
+  // yanked out from under you.
+  const switchAndResume = useCallback(async (tabId) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    const provider = tab?.agentId
+    if (!tab || (provider !== 'claude' && provider !== 'codex')) return
+    try {
+      const list = await window.sush.accountsList?.()
+      const st = list?.providers?.[provider]
+      if (!st || (st.slots?.length || 0) < 2) return
+      const alt = st.slots
+        .filter(s => s.id !== st.active)
+        .sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
+      if (!alt) return
+      const sw = await window.sush.accountsSwitch({ provider, slotId: alt.id })
+      if (!sw?.ok) return
+      const agent = agentById(provider)
+      const { cwd, label } = tab
+      closeTab(tabId)
+      openTab(profiles[0], {
+        cwd,
+        agentId: provider,
+        command: agent?.resumeCommand ?? agent?.command,
+        label,
+        tag: `sess-${nextSessionTag++}`
+      })
+    } catch {}
+  }, [closeTab, openTab, profiles])
+
   const handleSessionState = useCallback((tabId, state) => {
     setTabs(prev => prev.map(tab => {
       if (tab.id !== tabId) return tab
@@ -1191,12 +1244,6 @@ export default function App() {
     setHandoffSource(null)
   }, [openTab, profiles, launchSessions])
 
-  const cycleCorners = useCallback(() => {
-    const order = ['rounded', 'sharp', 'pill']
-    const cur = settings.cornerStyle ?? 'rounded'
-    saveSettings({ ...settings, cornerStyle: order[(order.indexOf(cur) + 1) % order.length] })
-  }, [settings])
-
   const applySmartAction = useCallback((action, result) => {
     if (!action) return
     if (action.name === 'open-home') {
@@ -1236,10 +1283,8 @@ export default function App() {
     } else if (action.name === 'handoff') {
       setSmartResult(null)
       if (activeIdRef.current) setHandoffSource(activeIdRef.current)
-    } else if (action.name === 'corners') {
-      cycleCorners()
     }
-  }, [findOrOpenCwd, queuePtyCommand, recentSessions, duplicateTab, cycleCorners])
+  }, [findOrOpenCwd, queuePtyCommand, recentSessions, duplicateTab])
 
   const runSmartInput = useCallback(async (input) => {
     const command = input.trim()
@@ -1266,7 +1311,6 @@ export default function App() {
     if (action === 'new-session') setShowLauncher(true)
     else if (action === 'open-seducia') { setSeduciaOpen(true) }
     else if (action === 'settings') setShowSettings(true)
-    else if (action === 'plans') setShowPlans(true)
     else if (action === 'toggle-panel') setRightOpen(prev => !prev)
     else if (action === 'zen') setZenMode(prev => !prev)
     else if (action === 'mission') setShowMission(true)
@@ -1274,7 +1318,6 @@ export default function App() {
     else if (action === 'home') { setHomeView('dashboard'); setView('home') }
     else if (action === 'handoff') { if (activeIdRef.current) setHandoffSource(activeIdRef.current) }
     else if (action === 'rename') { if (activeIdRef.current) { setView('terminal'); setRenamingId(activeIdRef.current) } }
-    else if (action === 'corners') cycleCorners()
     else if (action === 'sushrc') setShowSushrc(true)
     else if (action === 'export-output') exportSessionOutput()
     else if (action === 'lock') identity.lock()
@@ -1304,7 +1347,7 @@ export default function App() {
       const s = recentSessions.find(r => r.cwd === cwd)
       if (s) openRecentSession(s)
     }
-  }, [cycleCorners, settings, recentSessions, openRecentSession, identity, exportSessionOutput])
+  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
@@ -1312,7 +1355,6 @@ export default function App() {
       { id: 'act-mission', label: 'Mission Control', description: 'Live board of every agent session (Ctrl+Shift+M)', icon: 'activity', action: 'mission' },
       { id: 'act-handoff', label: 'Hand Off Session', description: 'Pass this session\'s context to another', icon: 'send', action: 'handoff' },
       { id: 'act-rename', label: 'Rename Session', description: 'Rename the active session (F2)', icon: 'edit', action: 'rename' },
-      { id: 'act-corners', label: 'Cycle Corner Style', description: 'Sharp → Rounded → Pill', icon: 'layout', action: 'corners' },
       { id: 'act-sushrc', label: 'Edit .sushrc Profile', description: 'Your shell-agnostic Sush profile', icon: 'fileText', action: 'sushrc' },
       { id: 'act-export', label: 'Export Session Output', description: 'Save this session\'s recent output as .txt', icon: 'fileText', action: 'export-output' },
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
@@ -1421,8 +1463,7 @@ export default function App() {
         // into the same background stack so terminal text stays readable.
         background: settings.bgImage
           ? `linear-gradient(rgba(2,3,5,${(settings.bgDim ?? 62) / 100}), rgba(2,3,5,${(settings.bgDim ?? 62) / 100})), url(${JSON.stringify(settings.bgImage)}) center / cover no-repeat fixed, ${theme.xterm.background}`
-          : theme.xterm.background,
-        opacity: (settings.opacity ?? 100) / 100
+          : theme.xterm.background
       }}
     >
       {!zenMode && (
@@ -1526,7 +1567,7 @@ export default function App() {
                   {tabs.filter(tab => tab.id === activeId).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                    const t = getTheme(settings.themeId ?? prof?.themeId)
                     return (
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'left'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
@@ -1563,7 +1604,7 @@ export default function App() {
                   {tabs.filter(tab => tab.id === (splitTabId || tabs.find(t => t.id !== activeId)?.id)).map(tab => {
                     const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                     const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                    const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                    const t = getTheme(settings.themeId ?? prof?.themeId)
                     return (
                       <Terminal key={tab.id} tabId={tab.id} theme={t} profile={prof} active={focusedPane === 'right'} splitVisible
                         initialCwd={tab.cwd} fontSize={fontSize} fontFamily={fontFamily} cursorStyle={cursorStyle}
@@ -1601,7 +1642,7 @@ export default function App() {
                       const booted = bootedIds.has(tab.id)
                       const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                       const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
-                      const t = themes[settings.themeId ?? prof?.themeId] ?? defaultTheme
+                      const t = getTheme(settings.themeId ?? prof?.themeId)
                       const focused = tab.id === activeId
                       return (
                         <div
@@ -1761,7 +1802,6 @@ export default function App() {
               onClose={() => setRightOpen(false)}
               onNewTab={(options) => openTab(profiles[0], options)}
               settings={settings}
-              planId={planId}
               commandHistory={commandHistory}
               ghNotifCount={ghNotifCount}
               onManageUsers={() => setShowUserManager(true)}
@@ -1801,7 +1841,6 @@ export default function App() {
           onFocus={focusAgent}
           onOpenLauncher={() => setShowLauncher(true)}
           settings={settings}
-          planId={planId}
           working={agentSummary?.working || 0}
         />
       )}
@@ -1851,17 +1890,7 @@ export default function App() {
           onChange={saveSettings}
           onClose={() => setShowSettings(false)}
           accent={accent}
-          onUpgrade={() => { setShowSettings(false); setShowPlans(true) }}
           onEditSushrc={() => { setShowSettings(false); setShowSushrc(true) }}
-        />
-      )}
-
-      {showPlans && (
-        <PlansModal
-          accent={accent}
-          currentPlan={planId}
-          onSelect={(id) => { setPlanId(id); savePlan(id) }}
-          onClose={() => setShowPlans(false)}
         />
       )}
 
@@ -1897,11 +1926,13 @@ export default function App() {
           accent={accent}
           tabs={tabs}
           states={agentStates}
+          limits={agentLimits}
           summary={agentSummary}
           onFocus={(id) => { setActiveId(id); setView('terminal'); setShowMission(false) }}
           onClose={closeTab}
           onCloseGroup={closeGroup}
           onPrompt={promptSession}
+          onSwitchResume={switchAndResume}
           onDismiss={() => setShowMission(false)}
         />
       )}

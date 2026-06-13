@@ -63,20 +63,16 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
-  const [aiSuggestion, setAiSuggestion] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
   const [gitBranch, setGitBranch] = useState(null)
   const [historySearch, setHistorySearch] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const blurTimer = useRef(null)
-  const aiTimer = useRef(null)
 
   const { suggestions, complete, hasToken } = usePathSuggestions(value)
 
-  // Bug fix: clear AI timer on unmount to prevent setState on destroyed component
-  useEffect(() => () => { clearTimeout(aiTimer.current); clearTimeout(blurTimer.current) }, [])
+  useEffect(() => () => { clearTimeout(blurTimer.current) }, [])
 
   useEffect(() => { setActiveIdx(0) }, [value])
   useEffect(() => {
@@ -112,36 +108,6 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const fetchAiSuggestion = useCallback(async (input) => {
-    const hasKey = !!(settings.anthropicKey || settings.openaiKey)
-    if (!hasKey || !input.trim() || input.length < 3) { setAiSuggestion(''); return }
-    setAiLoading(true)
-    try {
-      const prompt = `Complete this shell command or path in 1 line. Reply with ONLY the completion (no explanation):\n${input}`
-      let text = null
-      if (settings.anthropicKey) {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'x-api-key': settings.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
-        })
-        const d = await res.json()
-        text = d.content?.[0]?.text?.trim()
-      } else if (settings.openaiKey) {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${settings.openaiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 60, messages: [{ role: 'user', content: prompt }] })
-        })
-        const d = await res.json()
-        text = d.choices?.[0]?.message?.content?.trim()
-      }
-      if (text && text.startsWith(input)) setAiSuggestion(text)
-      else if (text) setAiSuggestion(input + text)
-    } catch {}
-    finally { setAiLoading(false) }
-  }, [settings.anthropicKey, settings.openaiKey])
-
   const submit = async (e) => {
     if (e) e.preventDefault()
     let input = value.trim()
@@ -151,7 +117,6 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     setHistory(prev => [input, ...prev.filter(i => i !== input)].slice(0, 25))
     setHistoryIndex(-1)
     setShowSuggestions(false)
-    setAiSuggestion('')
     setValue('')
     await onRun(input)
   }
@@ -162,9 +127,6 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     setValue(v)
     setHistoryIndex(-1)
     setShowSuggestions(true)
-    setAiSuggestion('')
-    clearTimeout(aiTimer.current)
-    aiTimer.current = setTimeout(() => fetchAiSuggestion(v), 700)
   }
 
   const handleKeyDown = (e) => {
@@ -195,7 +157,6 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     if (vis && e.key === 'Tab') { e.preventDefault(); setValue(complete(suggestions[activeIdx])); return }
     if (vis && e.key === 'Escape') { e.preventDefault(); setShowSuggestions(false); return }
     // Accept AI suggestion with Tab when path dropdown not visible
-    if (!vis && e.key === 'Tab' && aiSuggestion) { e.preventDefault(); setValue(aiSuggestion); setAiSuggestion(''); return }
 
     // History navigation when no suggestions visible.
     if (!vis && e.key === 'ArrowUp') {
@@ -259,22 +220,13 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               onFocus={openSuggestions}
-              onBlur={() => { closeSuggestions(); setTimeout(() => setAiSuggestion(''), 200) }}
+              onBlur={closeSuggestions}
               placeholder="Smart command, path, or shell..."
               spellCheck={false}
               style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
             />
-            {/* AI ghost suggestion */}
-            {aiSuggestion && !visibleSuggestions && (
-              <span style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#3f4852', pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '100%', zIndex: 0 }}>
-                {aiSuggestion}
-              </span>
-            )}
           </div>
-          {aiSuggestion && !visibleSuggestions && (
-            <span style={{ fontSize: 9.5, color: '#3f4852', flexShrink: 0, userSelect: 'none' }}>Tab</span>
-          )}
-          {!value && !aiSuggestion && (
+          {!value && (
             <span className="flex items-center" style={{ gap: 3, color: '#3f4852', fontSize: 10, fontWeight: 700, flexShrink: 0, userSelect: 'none' }}>
               <kbd style={kbdStyle}>Ctrl</kbd><kbd style={kbdStyle}>L</kbd>
             </span>
@@ -322,6 +274,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           className="sush-btn"
           style={{ gap: 6, height: 34, padding: '0 14px', border: 'none', borderRadius: 'var(--r-btn)', background: busy ? rgba(accent, 0.14) : accent, color: busy ? rgba(accent, 0.7) : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: busy ? 'default' : 'pointer', boxShadow: busy ? 'none' : `0 4px 16px ${rgba(accent, 0.34)}`, flexShrink: 0, display: 'flex', alignItems: 'center' }}
         >
+          {busy && <span className="sush-spinner" style={{ width: 11, height: 11, marginRight: 6, color: accent }} />}
           {busy ? 'Running' : 'Run'}
           {!busy && <Icon name="enter" size={13} strokeWidth={2.2} color="#0a0a0a" style={{ marginLeft: 4 }} />}
         </button>

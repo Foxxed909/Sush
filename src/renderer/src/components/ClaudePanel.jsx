@@ -18,8 +18,14 @@ function loadSessions() {
 function saveSession(cwd, sessionId) {
   if (!cwd || !sessionId) return
   try {
-    const map = loadSessions()
+    let map = loadSessions()
+    // Re-inserting keeps insertion order ≈ recency, so the cap below evicts
+    // the oldest directories. Without it this map grew one entry per project
+    // forever and eventually tripped the localStorage quota.
+    delete map[cwd]
     map[cwd] = sessionId
+    const keys = Object.keys(map)
+    if (keys.length > 40) map = Object.fromEntries(keys.slice(-40).map(k => [k, map[k]]))
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(map))
   } catch {}
 }
@@ -89,7 +95,9 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
 
   const push = useCallback((entry) => {
     const id = idRef.current++
-    setEntries(prev => [...prev, { id, ...entry }])
+    // Long sessions accumulate hundreds of markdown blocks + tool previews;
+    // keep the visible transcript bounded so the panel can't eat RAM.
+    setEntries(prev => [...prev.slice(-300), { id, ...entry }])
     return id
   }, [])
 

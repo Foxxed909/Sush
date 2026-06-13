@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import PathField from './PathField'
 import { rgba, accentVars } from '../lib/ui'
-import { AGENTS, MAX_SESSIONS } from '../lib/agents'
+import { allAgents, MAX_SESSIONS } from '../lib/agents'
 import { useCliAvailability } from '../hooks/useCliAvailability'
 
 function pathLabel(cwd) {
@@ -12,6 +12,8 @@ function pathLabel(cwd) {
 }
 
 export default function NewSessionModal({ accent, activeCwd, recentSessions = [], onLaunch, onClose }) {
+  // Snapshot built-ins + the user's custom agents once per open.
+  const [AGENT_LIST] = useState(() => allAgents())
   const [cwd, setCwd] = useState(activeCwd || '')
   const [cwdValid, setCwdValid] = useState(null)
   const [counts, setCounts] = useState({ shell: 1 })
@@ -55,7 +57,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   }
 
   const oneEach = () => setCounts(Object.fromEntries(
-    AGENTS.filter(a => avail[a.id] !== false).slice(0, MAX_SESSIONS).map(a => [a.id, 1])
+    AGENT_LIST.filter(a => avail[a.id] !== false).slice(0, MAX_SESSIONS).map(a => [a.id, 1])
   ))
   const clearAll = () => setCounts({})
 
@@ -66,7 +68,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
 
   const launch = () => {
     if (!canLaunch) return
-    const agents = AGENTS
+    const agents = AGENT_LIST
       .filter(a => (counts[a.id] || 0) > 0)
       .map(a => ({ ...a, count: counts[a.id] }))
     onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined })
@@ -83,12 +85,12 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center"
+      className="fixed inset-0 flex items-center justify-center sush-backdrop"
       style={{ ...accentVars(accent), zIndex: 400, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(3px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="sush-fade-up sush-scroll flex flex-col"
+        className="sush-pop sush-scroll flex flex-col"
         style={{
           width: 'min(680px, 94vw)',
           maxHeight: '88vh',
@@ -192,7 +194,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 11 }}>
-            {AGENTS.map(agent => {
+            {AGENT_LIST.map(agent => {
               const count = counts[agent.id] || 0
               const on = count > 0
               const locked = avail[agent.id] === false

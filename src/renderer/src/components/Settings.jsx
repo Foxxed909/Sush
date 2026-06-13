@@ -1,19 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { themes } from '../themes'
 import Icon from './Icons'
-import { getPlan, loadPlan } from '../lib/plan'
 import { rgba } from '../lib/ui'
-import { fetchElevenVoices } from '../lib/voice'
+import { loadCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../lib/agents'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
 const TTS_RATES = [0.75, 1.0, 1.1, 1.25, 1.5, 1.75]
-const ELEVEN_MODELS = [
-  { id: 'eleven_flash_v2_5', label: 'Flash v2.5 (fastest)' },
-  { id: 'eleven_turbo_v2_5', label: 'Turbo v2.5 (balanced)' },
-  { id: 'eleven_multilingual_v2', label: 'Multilingual v2 (richest)' }
-]
-const CORNERS = [{ id: 'sharp', label: 'Sharp' }, { id: 'rounded', label: 'Rounded' }, { id: 'pill', label: 'Pill' }]
 
 function Label({ children }) {
   return <div style={{ color: '#76808a', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 7 }}>{children}</div>
@@ -31,64 +24,19 @@ function Section({ title, accent, children }) {
 // Nav entries -> the Section titles they scroll to. Adding a settings page =
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
-  { label: 'Plan', sec: 'Plan', icon: 'spark' },
-  { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
   { label: 'Accounts', sec: 'Accounts', icon: 'users' },
-  { label: 'Voice', sec: 'Voice / Jarvis', icon: 'mic' },
+  { label: 'Agents', sec: 'Agents', icon: 'rocket' },
+  { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
+  { label: 'Voice', sec: 'Voice', icon: 'mic' },
   { label: 'Terminal', sec: 'Terminal', icon: 'terminal' },
   { label: 'Appearance', sec: 'Appearance', icon: 'palette' },
-  { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText' },
   { label: 'Theme', sec: 'Theme', icon: 'layout' },
+  { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText' },
   { label: 'Window', sec: 'Window', icon: 'layers' }
 ]
 
 function Row({ children }) {
   return <div style={{ marginBottom: 16 }}>{children}</div>
-}
-
-function ApiKeyField({ label, value, onChange, accent, placeholder }) {
-  const [show, setShow] = useState(false)
-  return (
-    <Row>
-      <Label>{label}</Label>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#0f1318', border: `1px solid ${value ? rgba(accent, 0.4) : '#20272e'}`, borderRadius: 8, padding: '0 10px', height: 36, gap: 8 }}>
-          <Icon name="key" size={13} color={value ? accent : '#5a646d'} />
-          <input
-            type={show ? 'text' : 'password'}
-            value={value ?? ''}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder || 'sk-...'}
-            spellCheck={false}
-            autoComplete="new-password"
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#f1f4f6', fontSize: 12.5 }}
-          />
-        </div>
-        <button
-          onClick={() => setShow(s => !s)}
-          title={show ? 'Hide' : 'Show'}
-          style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: '#76808a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Icon name={show ? 'eyeOff' : 'eye'} size={14} />
-        </button>
-        {value && (
-          <button
-            onClick={() => onChange('')}
-            title="Clear"
-            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,83,112,0.3)', background: 'rgba(255,83,112,0.07)', color: '#ff5370', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Icon name="x" size={13} />
-          </button>
-        )}
-      </div>
-      {value && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, fontSize: 10.5, color: '#7ee787' }}>
-          <Icon name="check" size={11} color="#7ee787" strokeWidth={2.6} />
-          Key saved
-        </div>
-      )}
-    </Row>
-  )
 }
 
 // Custom wallpaper: picked image -> downscaled JPEG data URL in settings
@@ -162,19 +110,22 @@ function WallpaperRow({ accent, settings, set }) {
   )
 }
 
-// CLI account slots: several Claude/Codex logins per identity, switchable
-// when a session limit bites. Adding a slot makes it active — the next
-// session you open for that CLI is where you log the new account in.
-function CliAccountsBlock({ accent }) {
+// The account switcher. One row per signed-in account, per CLI: "Account 1"
+// is the identity's own login, extra accounts get their own isolated config
+// dir. Adding one opens a session running that CLI so its normal browser
+// sign-in (Google and friends) takes over — Sush never sees the credentials,
+// it only points the CLI at the right slot. The OAuth plumbing that used to
+// live here (GitHub/Google client status) is an app concern, not a user one,
+// so it no longer has UI.
+function AccountsSection({ accent, settings, set }) {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [limits, setLimits] = useState(null)
   const [checking, setChecking] = useState(false)
 
-  const refresh = () => window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
   useEffect(() => {
-    refresh()
+    window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
     window.sush.claudeLimitsGet?.().then(r => { if (r?.limits) setLimits(r.limits) }).catch(() => {})
   }, [])
 
@@ -198,17 +149,48 @@ function CliAccountsBlock({ accent }) {
     setBusy(false)
   }
 
-  if (!data) return null
-  const providers = [['claude', 'Claude Code'], ['codex', 'Codex']]
+  const providers = [
+    ['claude', 'Claude', 'Claude Pro / Max subscription'],
+    ['codex', 'Codex', 'ChatGPT subscription']
+  ]
+  const slotName = (slot, i) => slot.id === 'default' && slot.label === 'Default' ? 'Account 1' : (slot.label || `Account ${i + 1}`)
+  const limitAgo = (slot) => {
+    if (!slot.lastLimitAt) return null
+    const h = (Date.now() - slot.lastLimitAt) / 3600000
+    if (h > 12) return null
+    return h < 1 ? 'limit hit <1h ago' : `limit hit ${Math.round(h)}h ago`
+  }
+  const [editing, setEditing] = useState(null)  // { provider, slotId, value }
+  const commitRename = () => {
+    const e = editing
+    setEditing(null)
+    if (!e || !e.value.trim()) return
+    call(() => window.sush.accountsRename?.({ provider: e.provider, slotId: e.slotId, label: e.value.trim() }))
+  }
+
   return (
-    <Row>
-      <Label>CLI accounts</Label>
-      {providers.map(([p, label]) => {
+    <Section title="Accounts" accent={accent}>
+      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 14 }}>
+        Each account is a separate CLI login. Add a second one and Sush can hop
+        over when the first hits its session limit. Sign-in happens in the
+        CLI's own browser flow (Google sign-in supported) — Sush never sees
+        your credentials.
+      </div>
+      {!data && (
+        <div className="flex items-center" style={{ gap: 8, color: '#5a646d', fontSize: 11.5, fontWeight: 700, padding: '6px 0 14px' }}>
+          <span className="sush-spinner" style={{ width: 13, height: 13 }} />
+          Loading accounts…
+        </div>
+      )}
+      {data && providers.map(([p, label, sub]) => {
         const st = data[p] || { active: 'default', slots: [] }
         return (
-          <div key={p} style={{ marginBottom: 10 }}>
-            <div className="flex items-center" style={{ gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 800, color: '#c6cdd4' }}>{label}</span>
+          <div key={p} style={{ marginBottom: 14, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
+            <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#e6ebef' }}>{label}</div>
+                <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub}</div>
+              </div>
               <button
                 onClick={() => call(async () => {
                   const r = await window.sush.accountsAdd({ provider: p })
@@ -219,33 +201,83 @@ function CliAccountsBlock({ accent }) {
                   return r
                 })}
                 disabled={busy}
-                style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '2px 10px', cursor: 'pointer' }}
+                className="sush-mini-btn"
+                style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 999, padding: '4px 12px', cursor: 'pointer', opacity: busy ? 0.5 : 1 }}
               >
                 + Add account
               </button>
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {st.slots.map(slot => {
-                const on = st.active === slot.id
-                return (
-                  <span key={slot.id} className="flex items-center" style={{ gap: 6, borderRadius: 8, padding: '5px 9px', fontSize: 11.5, fontWeight: 700, background: on ? rgba(accent, 0.12) : '#0f1318', border: `1px solid ${on ? rgba(accent, 0.45) : '#20272e'}`, color: on ? accent : '#8a939c' }}>
-                    <button onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))} disabled={busy || on} style={{ background: 'none', border: 'none', color: 'inherit', fontWeight: 700, fontSize: 11.5, cursor: on ? 'default' : 'pointer', padding: 0 }}>
-                      {slot.label}{on ? ' ✓' : ''}
+            {st.slots.map((slot, i) => {
+              const on = st.active === slot.id
+              return (
+                <div key={slot.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: on ? '#5fd3a8' : 'rgba(255,255,255,0.16)', boxShadow: on ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
+                  {editing && editing.provider === p && editing.slotId === slot.id ? (
+                    <input
+                      autoFocus
+                      value={editing.value}
+                      onChange={e2 => setEditing({ ...editing, value: e2.target.value })}
+                      onBlur={commitRename}
+                      onKeyDown={e2 => { if (e2.key === 'Enter') commitRename(); if (e2.key === 'Escape') setEditing(null) }}
+                      style={{ flex: 1, background: '#0f1318', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 6, color: '#e6ebef', fontSize: 12, fontWeight: 700, padding: '2px 7px', outline: 'none' }}
+                    />
+                  ) : (
+                    <span
+                      title="Double-click to rename"
+                      onDoubleClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
+                      style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? '#e6ebef' : '#8a939c', cursor: 'text' }}
+                    >
+                      {slotName(slot, i)}
+                      {limitAgo(slot) && <span style={{ marginLeft: 8, fontSize: 9.5, fontWeight: 800, color: '#ffb74d' }}>{limitAgo(slot)}</span>}
+                    </span>
+                  )}
+                  {on ? (
+                    <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, color: '#5fd3a8' }}>ACTIVE</span>
+                  ) : (
+                    <button
+                      onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))}
+                      disabled={busy}
+                      style={{ fontSize: 10.5, fontWeight: 800, color: '#aab3bb', background: 'transparent', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
+                    >
+                      Switch
                     </button>
-                    {slot.id !== 'default' && (
-                      <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account slot" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>
-                        ×
-                      </button>
-                    )}
-                  </span>
-                )
-              })}
-            </div>
+                  )}
+                  {slot.id !== 'default' && (
+                    <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>
+                      ×
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )
       })}
+
+      {/* CLIs that keep their login outside a relocatable, CLI-specific config
+          dir (Gemini → ~/.gemini, OpenCode → ~/.local/share/opencode) can't be
+          cleanly multi-accounted without leaking env into every session, so
+          they're one login per profile. You can still connect them here. */}
+      <div style={{ marginBottom: 14, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
+        <div style={{ padding: '9px 13px 4px', fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, color: '#69737d', textTransform: 'uppercase' }}>One login per profile</div>
+        {[['gemini', 'Gemini', 'Google account'], ['opencode', 'OpenCode', 'any provider']].map(([p, label, sub]) => (
+          <div key={p} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#c6cdd4' }}>{label}</div>
+              <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub} — separate per profile</div>
+            </div>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('sush:open-login-session', { detail: { provider: p } }))}
+              style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 999, padding: '4px 12px', cursor: 'pointer' }}
+            >
+              Sign in
+            </button>
+          </div>
+        ))}
+      </div>
+
       {/* Claude limit previewer — passive capture from panel runs + an active probe */}
-      <div className="flex items-center" style={{ gap: 10, marginTop: 4, marginBottom: 8, padding: '8px 11px', borderRadius: 9, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="flex items-center" style={{ gap: 10, marginBottom: 12, padding: '9px 13px', borderRadius: 'var(--r-lg)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
         <Icon name="activity" size={13} color={limits?.status === 'allowed' ? '#5fd3a8' : limits ? '#ffb74d' : '#5a646d'} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 11.5, fontWeight: 800, color: '#c6cdd4' }}>
@@ -264,76 +296,101 @@ function CliAccountsBlock({ accent }) {
         <button
           onClick={checkLimits}
           disabled={checking}
-          style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '3px 11px', cursor: 'pointer', opacity: checking ? 0.5 : 1 }}
+          className="flex items-center"
+          style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '3px 11px', cursor: 'pointer', opacity: checking ? 0.6 : 1 }}
         >
-          {checking ? 'Checking...' : 'Check now'}
+          {checking && <span className="sush-spinner" style={{ width: 10, height: 10 }} />}
+          {checking ? 'Checking…' : 'Check now'}
         </button>
       </div>
-      {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700 }}>{err}</div>}
-      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 2, lineHeight: 1.5 }}>
-        Adding an account opens a sign-in session for it automatically — complete the login there and you're done. Switching changes which login every new session (and Seducia) uses. Gemini has no config redirect, so it stays one account per identity.
-      </div>
-    </Row>
-  )
-}
 
-// Sign-in providers ship with built-in app registrations — no user-facing
-// config. Power users can still override via userData/sush-oauth.json; this
-// section just reports what's live.
-function AccountsSection({ accent }) {
-  const [cfg, setCfg] = useState(null)
-
-  useEffect(() => {
-    window.sush.oauthConfigGet?.().then(setCfg).catch(() => {})
-  }, [])
-
-  if (!cfg) return null
-  const rows = [
-    {
-      icon: 'github',
-      label: 'GitHub sign-in',
-      ready: cfg.github?.configured !== false,
-      note: cfg.github?.usingBuiltIn === false ? 'Custom OAuth App (sush-oauth.json)' : 'Built-in Sush app - works out of the box'
-    },
-    {
-      icon: 'google',
-      label: 'Google sign-in',
-      ready: !!cfg.google?.configured,
-      note: cfg.google?.configured
-        ? (cfg.google?.usingBuiltIn === false ? 'Custom OAuth client (sush-oauth.json)' : 'Built-in Sush app - works out of the box')
-        : 'Not configured'
-    }
-  ]
-  return (
-    <Section title="Accounts" accent={accent}>
-      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 12 }}>
-        "Sign in with..." on the lock screen ships ready to use. Link or unlink accounts per user from the profile viewer or Manage Users.
-      </div>
-      {rows.map(r => (
-        <div key={r.label} className="flex items-center" style={{ gap: 10, padding: '7px 0' }}>
-          <Icon name={r.icon} size={14} color="#aab3bb" />
-          <span style={{ fontSize: 12.5, color: '#e6ebef', fontWeight: 700, flex: 1 }}>{r.label}</span>
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.6, borderRadius: 999, padding: '2px 9px', color: r.ready ? '#5fd3a8' : '#8a939c', background: r.ready ? 'rgba(95,211,168,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${r.ready ? 'rgba(95,211,168,0.3)' : 'rgba(255,255,255,0.1)'}` }}>
-            {r.ready ? 'READY' : 'SOON'}
-          </span>
-          <span style={{ fontSize: 10.5, color: '#5a646d', minWidth: 0, maxWidth: 220, textAlign: 'right' }}>{r.note}</span>
+      <Row>
+        <Label>When an account hits its limit</Label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['never', 'Never switch'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
+            const current = settings.cliLimitPolicy || 'ask'
+            const on = current === val
+            return (
+              <button
+                key={val}
+                onClick={() => set('cliLimitPolicy', val)}
+                style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+              >
+                {lbl}
+              </button>
+            )
+          })}
         </div>
-      ))}
-      {cfg.safeStorage === false && (
-        <div style={{ fontSize: 10.5, color: '#ffb74d', marginTop: 8, lineHeight: 1.5 }}>
-          OS encryption unavailable: GitHub sign-in tokens will not be stored. The gh CLI login still works.
+        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+          With a second account added: keep failing, tell you a switch is available, or hop accounts and retry automatically.
         </div>
-      )}
+      </Row>
+      {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 4 }}>{err}</div>}
     </Section>
   )
 }
 
-export default function Settings({ settings, onChange, onClose, accent, onUpgrade, onEditSushrc }) {
+
+// Custom agents: any CLI the user wants as a first-class launcher tile —
+// the old way was hardcoding machine-specific paths into lib/agents.js.
+// Stored per user (localStorage); the launcher, Seducia and the availability
+// probe pick them up through allAgents().
+function AgentsSection({ accent }) {
+  const [custom, setCustom] = useState(() => loadCustomAgents())
+  const [form, setForm] = useState({ label: '', command: '', resumeCommand: '' })
+  const [err, setErr] = useState('')
+
+  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
+
+  const add = () => {
+    const r = addCustomAgent(form)
+    if (!r.ok) { setErr(r.error); return }
+    setErr('')
+    setForm({ label: '', command: '', resumeCommand: '' })
+    setCustom(loadCustomAgents())
+  }
+
+  return (
+    <Section title="Agents" accent={accent}>
+      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 12 }}>
+        {BUILTIN_AGENTS.length - 1} agent CLIs ship built in (Claude Code, Codex, Gemini, …).
+        Add your own below — it appears in the launcher, Seducia can spawn it, and a
+        resume command (if the CLI has one) lets restored sessions pick up where they left off.
+      </div>
+      {custom.map(a => (
+        <div key={a.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '7px 11px', borderRadius: 'var(--r-md)', border: '1px solid rgba(255,255,255,0.07)', marginBottom: 6 }}>
+          <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: 7, background: rgba(a.color, 0.14), border: `1px solid ${rgba(a.color, 0.4)}`, color: a.color, fontSize: 10, fontWeight: 900, flexShrink: 0 }}>{a.mono}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#e6ebef' }}>{a.label}</div>
+            <div className="sush-mono" style={{ fontSize: 10, color: '#5a646d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.command}{a.resumeCommand ? `  ·  resume: ${a.resumeCommand}` : ''}</div>
+          </div>
+          <button onClick={() => { removeCustomAgent(a.id); setCustom(loadCustomAgents()) }} title="Remove agent" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button>
+        </div>
+      ))}
+      <div style={{ borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', padding: 12, marginTop: custom.length ? 8 : 0 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <input placeholder="Name (e.g. Aider)" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} style={{ ...inputStyle, flex: '0 0 160px' }} />
+          <input className="sush-mono" placeholder="Command (e.g. aider)" value={form.command} onChange={e => setForm({ ...form, command: e.target.value })} style={inputStyle} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input className="sush-mono" placeholder="Resume command (optional, e.g. aider --restore)" value={form.resumeCommand} onChange={e => setForm({ ...form, resumeCommand: e.target.value })} style={inputStyle} />
+          <button
+            onClick={add}
+            disabled={!form.label.trim() || !form.command.trim()}
+            style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: form.label.trim() && form.command.trim() ? accent : '#5a646d', background: rgba(accent, form.label.trim() && form.command.trim() ? 0.1 : 0.03), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '6px 14px', cursor: 'pointer' }}
+          >
+            + Add agent
+          </button>
+        </div>
+        {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 8 }}>{err}</div>}
+      </div>
+    </Section>
+  )
+}
+
+export default function Settings({ settings, onChange, onClose, accent, onEditSushrc }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
-  const plan = getPlan(loadPlan())
   const [voices, setVoices] = useState([])
-  const [elevenVoices, setElevenVoices] = useState([])
-  const [loadingVoices, setLoadingVoices] = useState(false)
 
   useEffect(() => {
     const load = () => setVoices(window.speechSynthesis?.getVoices() ?? [])
@@ -341,16 +398,6 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
     window.speechSynthesis?.addEventListener('voiceschanged', load)
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
   }, [])
-
-  const loadElevenVoices = async (key) => {
-    if (!key) { setElevenVoices([]); return }
-    setLoadingVoices(true)
-    const list = await fetchElevenVoices(key)
-    setElevenVoices(list)
-    setLoadingVoices(false)
-  }
-  // Pull the voice list once if a key is already saved.
-  useEffect(() => { if (settings.elevenLabsKey) loadElevenVoices(settings.elevenLabsKey) }, [])
 
   // Standalone settings page: left nav scrolls the content pane to the
   // matching section.
@@ -368,7 +415,7 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
   }, [onClose])
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: '#08090c' }}>
+    <div className="sush-page-in" style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: '#08090c' }}>
       {/* Page header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 26px', borderBottom: '1px solid #171c22', flexShrink: 0 }}>
         <div className="flex items-center" style={{ gap: 11 }}>
@@ -404,44 +451,19 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
         {/* Content */}
         <div ref={bodyRef} className="sush-scroll" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '22px 30px' }}>
           <div style={{ maxWidth: 640 }}>
-          {/* Plan */}
-          <Section title="Plan" accent={accent}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: rgba(plan.color, 0.08), border: `1px solid ${rgba(plan.color, 0.25)}` }}>
-              <div className="flex items-center" style={{ gap: 9 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: plan.color, boxShadow: `0 0 8px ${plan.color}` }} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#f1f4f6' }}>{plan.name}</div>
-                  <div style={{ fontSize: 10.5, color: '#76808a' }}>{plan.price === 0 ? 'Free forever' : `$${plan.price}/mo`}</div>
-                </div>
-              </div>
-              <button
-                onClick={onUpgrade}
-                style={{ fontSize: 11, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 8, padding: '5px 11px', cursor: 'pointer' }}
-              >
-                {plan.id === 'king' ? 'Manage' : 'Upgrade'}
-              </button>
-            </div>
-          </Section>
-
           {/* AI */}
           <Section title="AI -- Seducia" accent={accent}>
-            {!plan.features.seduciaAI && (
-              <div style={{ fontSize: 11.5, color: '#76808a', background: 'rgba(255,183,77,0.06)', border: '1px solid rgba(255,183,77,0.18)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>
-                AI mode requires <strong style={{ color: '#ffb74d' }}>Quiet</strong> plan or higher.{' '}
-                <span onClick={onUpgrade} style={{ color: accent, cursor: 'pointer', fontWeight: 700 }}>Upgrade →</span>
-              </div>
-            )}
             <Row>
-              <Label>Provider</Label>
+              <Label>CLI engine</Label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {[['key', 'API key'], ['cli', 'Claude CLI']].map(([val, lbl]) => {
-                  const current = settings.seduciaProvider === 'cli' ? 'cli' : 'key'
+                {[['auto', 'Auto'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']].map(([val, lbl]) => {
+                  const current = settings.seduciaCliEngine || 'auto'
                   const on = current === val
                   return (
                     <button
                       key={val}
-                      onClick={() => set('seduciaProvider', val)}
-                      style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                      onClick={() => set('seduciaCliEngine', val)}
+                      style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
                     >
                       {lbl}
                     </button>
@@ -449,94 +471,33 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 })}
               </div>
             </Row>
-            {settings.seduciaProvider === 'cli' ? (
-              <>
-                <Row>
-                  <Label>CLI engine</Label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[['auto', 'Auto'], ['claude', 'Claude'], ['codex', 'Codex'], ['gemini', 'Gemini']].map(([val, lbl]) => {
-                      const current = settings.seduciaCliEngine || 'auto'
-                      const on = current === val
-                      return (
-                        <button
-                          key={val}
-                          onClick={() => set('seduciaCliEngine', val)}
-                          style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
-                        >
-                          {lbl}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </Row>
-                <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
-                  Seducia drives your logged-in agent CLIs — no API key, no extra billing. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing (handy for Claude session limits). Replies arrive as a single message.
-                </div>
-                <Row>
-                  <Label>On session limit</Label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[['never', 'Never switch'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
-                      const current = settings.cliLimitPolicy || 'ask'
-                      const on = current === val
-                      return (
-                        <button
-                          key={val}
-                          onClick={() => set('cliLimitPolicy', val)}
-                          style={{ flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
-                        >
-                          {lbl}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-                    What happens when a CLI hits its limit and you have another account for it below: keep failing, tell you a switch is available, or hop accounts automatically and retry.
-                  </div>
-                </Row>
-                <CliAccountsBlock accent={accent} />
-              </>
-            ) : (
-              <>
-                <ApiKeyField
-                  label="Anthropic API key"
-                  value={settings.anthropicKey ?? ''}
-                  onChange={v => set('anthropicKey', v)}
-                  accent={accent}
-                  placeholder="sk-ant-..."
-                />
-                <ApiKeyField
-                  label="OpenAI API key"
-                  value={settings.openaiKey ?? ''}
-                  onChange={v => set('openaiKey', v)}
-                  accent={accent}
-                  placeholder="sk-..."
-                />
-              </>
-            )}
+            <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
+              Seducia drives your logged-in agent CLIs — no API key, no extra billing, it just rides your existing subscription. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing. Manage logins and limit behaviour under <strong style={{ color: accent }}>Accounts</strong>.
+            </div>
           </Section>
 
-          {/* Accounts (Google / GitHub sign-in) */}
-          <AccountsSection accent={accent} />
+          {/* Accounts — the Claude/Codex account switcher */}
+          <AccountsSection accent={accent} settings={settings} set={set} />
+
+          {/* Agents — built-ins + the user's custom CLIs */}
+          <AgentsSection accent={accent} />
 
           {/* Voice */}
-          <Section title="Voice / Jarvis" accent={accent}>
-            {!plan.features.voiceMode && (
-              <div style={{ fontSize: 11.5, color: '#76808a', background: 'rgba(255,183,77,0.06)', border: '1px solid rgba(255,183,77,0.18)', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>
-                Voice mode requires <strong style={{ color: '#ffb74d' }}>Quiet</strong> plan or higher.
-              </div>
-            )}
+          <Section title="Voice" accent={accent}>
             <Row>
               <Label>Text-to-speech (Seducia speaks back)</Label>
               <button
                 onClick={() => set('ttsEnabled', !settings.ttsEnabled)}
-                disabled={!plan.features.voiceMode}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : '#76808a', cursor: plan.features.voiceMode ? 'pointer' : 'default', fontSize: 12.5, fontWeight: 700, opacity: plan.features.voiceMode ? 1 : 0.5 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
               >
                 <Icon name="volume2" size={14} strokeWidth={2} />
                 {settings.ttsEnabled ? 'TTS enabled' : 'TTS disabled'}
               </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                Uses your system voice. Off by default — Seducia replies in text either way.
+              </div>
             </Row>
-            {settings.ttsEnabled && plan.features.voiceMode && (
+            {settings.ttsEnabled && (
               <>
                 <Row>
                   <Label>Speech rate</Label>
@@ -550,64 +511,13 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 </Row>
                 {voices.length > 0 && (
                   <Row>
-                    <Label>System voice (fallback)</Label>
+                    <Label>System voice</Label>
                     <select value={settings.ttsVoice ?? ''} onChange={e => set('ttsVoice', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid #20272e`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
                       <option value="">System default</option>
                       {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
                     </select>
                   </Row>
                 )}
-
-                {/* ElevenLabs -- the real Jarvis voice */}
-                <div style={{ marginTop: 4, marginBottom: 14, paddingTop: 14, borderTop: '1px solid #1a1f25' }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#cdd5dc', marginBottom: 4 }}>ElevenLabs voice</div>
-                  <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.5, marginBottom: 12 }}>
-                    Give Seducia a real, low-latency voice. Add a key, load voices, and pick one. Falls back to the system voice above if unset.
-                  </div>
-                  <ApiKeyField
-                    label="ElevenLabs API key"
-                    value={settings.elevenLabsKey ?? ''}
-                    onChange={v => { set('elevenLabsKey', v) }}
-                    accent={accent}
-                    placeholder="sk_..."
-                  />
-                  <Row>
-                    <button
-                      onClick={() => loadElevenVoices(settings.elevenLabsKey)}
-                      disabled={!settings.elevenLabsKey || loadingVoices}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, background: settings.elevenLabsKey ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.elevenLabsKey ? rgba(accent, 0.4) : '#20272e'}`, color: settings.elevenLabsKey ? accent : '#5a646d', cursor: settings.elevenLabsKey && !loadingVoices ? 'pointer' : 'default', fontSize: 12, fontWeight: 700 }}
-                    >
-                      <Icon name={loadingVoices ? 'sparkles' : 'volume2'} size={13} strokeWidth={2} className={loadingVoices ? 'sush-spin' : undefined} />
-                      {loadingVoices ? 'Loading voices...' : elevenVoices.length ? `Reload voices (${elevenVoices.length})` : 'Load voices'}
-                    </button>
-                  </Row>
-                  {elevenVoices.length > 0 && (
-                    <Row>
-                      <Label>ElevenLabs voice</Label>
-                      <select value={settings.elevenLabsVoice ?? ''} onChange={e => set('elevenLabsVoice', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid ${settings.elevenLabsVoice ? rgba(accent, 0.4) : '#20272e'}`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
-                        <option value="">Select a voice...</option>
-                        {elevenVoices.map(v => <option key={v.id} value={v.id}>{v.name}{v.category ? ` (${v.category})` : ''}</option>)}
-                      </select>
-                    </Row>
-                  )}
-                  <Row>
-                    <Label>Model</Label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {ELEVEN_MODELS.map(m => {
-                        const on = (settings.elevenLabsModel ?? 'eleven_flash_v2_5') === m.id
-                        return (
-                          <button key={m.id} onClick={() => set('elevenLabsModel', m.id)} title={m.label}
-                            style={{ flex: 1, padding: '6px 4px', borderRadius: 6, fontSize: 10.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#05070b' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}`, lineHeight: 1.2 }}>
-                            {m.label.split(' (')[0]}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </Row>
-                  <div style={{ fontSize: 10.5, color: '#5a646d', lineHeight: 1.5 }}>
-                    Tip: enable the wake word from the Seducia orb (the radio icon), then just say <strong style={{ color: '#aab3bb' }}>"Seducia"</strong> followed by a command. She'll stop talking the moment you speak.
-                  </div>
-                </div>
               </>
             )}
           </Section>
@@ -653,25 +563,6 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
               <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
                 Drops the frosted-glass blur and ambient glow animations. Big GPU
                 saver on laptops or when running a busy agent swarm.
-              </div>
-            </Row>
-            <Row>
-              <Label>Corners</Label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {CORNERS.map(c => {
-                  const on = (settings.cornerStyle ?? 'rounded') === c.id
-                  const demo = c.id === 'sharp' ? 2 : c.id === 'pill' ? 999 : 9
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => set('cornerStyle', c.id)}
-                      style={{ flex: 1, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: on ? rgba(accent, 0.1) : '#0f1318', color: on ? accent : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}`, borderRadius: 9 }}
-                    >
-                      <span style={{ width: 26, height: 16, background: on ? rgba(accent, 0.3) : '#2a333c', borderRadius: Math.min(demo, 8), border: `1px solid ${on ? accent : '#3a444e'}` }} />
-                      {c.label}
-                    </button>
-                  )
-                })}
               </div>
             </Row>
             <Row>
@@ -749,7 +640,7 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
           {/* Window */}
           <Section title="Window" accent={accent}>
             <Row>
-              <Label>Background opacity</Label>
+              <Label>Window opacity</Label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input type="range" min={70} max={100} value={settings.opacity ?? 100} onChange={e => set('opacity', Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
                 <span style={{ color: '#e1e6ea', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.opacity ?? 100}%</span>
@@ -787,7 +678,20 @@ export default function Settings({ settings, onChange, onClose, accent, onUpgrad
                 )}
               </div>
               <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-                Hush types what you say into the focused terminal and presses Enter (switch to review mode to check before sending). Pure dictation, separate from Seducia. Note: only one voice listener can hold the mic - turn off Seducia's wake word to use Hush.
+                Hush types what you say into the focused terminal and presses Enter (switch to review mode to check before sending). Pure dictation, separate from Seducia.
+              </div>
+            </Row>
+            <Row>
+              <Label>Agent notifications</Label>
+              <button
+                onClick={() => set('agentNotifications', settings.agentNotifications === false)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.agentNotifications !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.agentNotifications !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.agentNotifications !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="activity" size={14} strokeWidth={2} />
+                {settings.agentNotifications !== false ? 'Notify when an agent needs you / finishes' : 'Agent notifications off'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                A desktop notification when a session needs input, errors, or finishes while Sush is in the background. Never fires while the window is focused.
               </div>
             </Row>
             <Row>

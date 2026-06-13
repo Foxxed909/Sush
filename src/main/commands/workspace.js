@@ -289,12 +289,3 @@ export const handoff = {
     return { ...ok('Preparing handoff'), action: { name: 'handoff' } }
   }
 }
-
-export const corners = {
-  name: 'corners',
-  description: 'Cycle the UI corner style (sharp / rounded / pill)',
-  usage: 'corners',
-  async run() {
-    return { ...ok('Cycling corner style'), action: { name: 'corners' } }
-  }
-}

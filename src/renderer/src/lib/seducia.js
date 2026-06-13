@@ -1,6 +1,6 @@
 // Pure Seducia helpers — intent parsing, agent resolution, session summaries.
 // Extracted so the orb, the docked panel, and the voice loop share one brain.
-import { AGENTS, agentById } from './agents'
+import { allAgents, agentById } from './agents'
 
 export function pathLabel(cwd) {
   if (!cwd) return 'this directory'
@@ -9,22 +9,11 @@ export function pathLabel(cwd) {
 }
 
 export const SYNONYMS = {
-  shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
+    shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
   claude: ['claude'],
   codex: ['codex'],
   gemini: ['gemini'],
-  opencode: ['opencode', 'open code'],
-  hermes: ['hermes'],
-  aipex: ['aipex', 'apx'],
-  trident: ['trident'],
-  bedrock: ['bedrock'],
-  quill: ['quill'],
-  razor: ['razor'],
-  serenity: ['serenity'],
-  sydney: ['sydney'],
-  ocp: ['ocp', 'open cli platform'],
-  erosion: ['erosion'],
-  evm: ['evm', 'environment monitor']
+  opencode: ['opencode', 'open code']
 }
 
 export function agentIdFromToken(token) {
@@ -135,12 +124,12 @@ export function parseIntent(input, activeCwd, dirs = []) {
   }
 
   const agents = []
-  for (const agent of AGENTS) {
+  for (const agent of allAgents()) {
     const names = SYNONYMS[agent.id] || [agent.id]
     let count = 0
     for (const name of names) {
-      const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|x)?\\s*${name}\\b`, 'i'))
-      const after = raw.match(new RegExp(`\\b${name}\\s*(?:x|x)\\s*(\\d+)`, 'i'))
+      const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|×)?\\s*${name}\\b`, 'i'))
+      const after = raw.match(new RegExp(`\\b${name}\\s*(?:x|×)\\s*(\\d+)`, 'i'))
       if (before) count = Math.max(count, parseInt(before[1], 10) || 0)
       else if (after) count = Math.max(count, parseInt(after[1], 10) || 0)
       else if (new RegExp(`\\b${name}\\b`, 'i').test(raw)) count = Math.max(count, 1)

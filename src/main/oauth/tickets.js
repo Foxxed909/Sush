@@ -9,8 +9,14 @@ const TICKET_TTL = 5 * 60 * 1000
 const tickets = new Map()
 
 export function createTicket(payload) {
+  // Sweep expired tickets here — abandoned sign-ins otherwise pile up for the
+  // app's whole lifetime (each holds a profile and possibly a token string).
+  const now = Date.now()
+  for (const [tid, t] of tickets) {
+    if (now > t.expiresAt) tickets.delete(tid)
+  }
   const id = randomBytes(12).toString('hex')
-  tickets.set(id, { ...payload, expiresAt: Date.now() + TICKET_TTL })
+  tickets.set(id, { ...payload, expiresAt: now + TICKET_TTL })
   return id
 }
 

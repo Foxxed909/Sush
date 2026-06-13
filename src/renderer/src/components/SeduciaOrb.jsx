@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
 import { useSeducia } from '../hooks/useSeducia'
-import { can } from '../lib/plan'
 
 const QUICK = [
   { label: 'Status', send: 'status' },
@@ -12,7 +11,6 @@ const QUICK = [
 
 const STATE_LABEL = {
   idle: 'Idle',
-  wake: 'Listening for "Seducia"',
   listening: 'Listening...',
   thinking: 'Thinking...',
   speaking: 'Speaking'
@@ -34,10 +32,10 @@ export default function SeduciaOrb({
   tabs = [], recentSessions = [], activeCwd,
   scope = { kind: 'main' }, controls = {},
   onLaunch, onRun, onPrompt, onFocus, onOpenLauncher,
-  settings = {}, planId = 'free', working = 0
+  settings = {}, working = 0
 }) {
-  const brain = useSeducia({ tabs, activeCwd, recentSessions, settings, planId, scope, controls, onLaunch, onRun, onPrompt, onFocus, onOpenLauncher })
-  const { log, streaming, handle, stop, voiceState, partial, wakeEnabled, toggleWake, listen, aiEnabled, hasAI, voiceMode, micSupported, voiceError } = brain
+  const brain = useSeducia({ tabs, activeCwd, recentSessions, settings, scope, controls, onLaunch, onRun, onPrompt, onFocus, onOpenLauncher })
+  const { log, streaming, handle, stop, voiceState, partial, listen, aiEnabled, hasAI, micSupported, voiceError } = brain
 
   const [value, setValue] = useState('')
   const scrollRef = useRef(null)
@@ -103,7 +101,7 @@ export default function SeduciaOrb({
   const submit = (text) => { const v = (text ?? value).trim(); if (!v) return; setValue(''); handle(v) }
 
   const speaking = voiceState === 'speaking'
-  const listeningNow = voiceState === 'listening' || voiceState === 'wake'
+  const listeningNow = voiceState === 'listening'
   const orbState = voiceState === 'idle' ? 'seducia-idle' : (listeningNow ? 'seducia-listening' : 'seducia-idle')
 
   // ---- Collapsed orb (glossy pseudo-3D sphere) ----
@@ -123,7 +121,7 @@ export default function SeduciaOrb({
         color: '#05070b', flexShrink: 0
       }}
     >
-      {(voiceState === 'listening' || voiceState === 'wake') && (
+      {voiceState === 'listening' && (
         <>
           <span className="seducia-ring" />
           <span className="seducia-ring r2" />
@@ -214,15 +212,6 @@ export default function SeduciaOrb({
               </div>
             </div>
             <div className="flex items-center" style={{ gap: 6 }}>
-              {voiceMode && micSupported && (
-                <button
-                  onClick={toggleWake}
-                  title={wakeEnabled ? 'Wake word ON -- say "Seducia"' : 'Enable always-on wake word'}
-                  style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${wakeEnabled ? rgba(accent, 0.5) : 'rgba(255,255,255,0.08)'}`, background: wakeEnabled ? rgba(accent, 0.14) : 'rgba(255,255,255,0.03)', color: wakeEnabled ? accent : '#6b757e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Icon name="radio" size={14} strokeWidth={2} />
-                </button>
-              )}
               <button onClick={() => onOpenChange(false)} title="Minimize to orb" style={{ width: 30, height: 30, borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="minus" size={15} />
               </button>
@@ -233,7 +222,7 @@ export default function SeduciaOrb({
           </div>
 
           {/* Notices */}
-          {!hasAI && can(planId, 'seduciaAI') && (
+          {!hasAI && (
             <div style={{ margin: '10px 12px 0', padding: '8px 12px', borderRadius: 10, background: rgba(accent, 0.07), border: `1px solid ${rgba(accent, 0.18)}`, fontSize: 11, color: '#aab3bb' }}>
               Tip: set <strong style={{ color: accent }}>Settings -&gt; AI</strong> to <strong style={{ color: accent }}>Claude CLI</strong> for AI replies without a key.
             </div>
@@ -285,7 +274,7 @@ export default function SeduciaOrb({
                 disabled={streaming} spellCheck={false}
                 style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
               />
-              {voiceMode && micSupported && (
+              {micSupported && (
                 <button onClick={listen} title={voiceState === 'listening' ? 'Stop' : 'Push to talk'}
                   className="flex items-center justify-center"
                   style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${voiceState === 'listening' ? 'transparent' : rgba(accent, 0.3)}`, background: voiceState === 'listening' ? '#ff5370' : 'rgba(255,255,255,0.04)', color: voiceState === 'listening' ? '#05070b' : accent, cursor: 'pointer', flexShrink: 0 }}>
