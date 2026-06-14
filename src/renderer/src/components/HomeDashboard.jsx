@@ -227,33 +227,35 @@ export default function HomeDashboard({
                 onClick={item.run}
                 className="sush-tile flex items-center"
                 style={{
-                  gap: 13,
+                  gap: 14,
                   textAlign: 'left',
-                  border: '1px solid var(--border-1)',
-                  borderRadius: 13,
-                  background: 'linear-gradient(180deg, #12161b, #0d1115)',
+                  border: '1px solid var(--border-2)',
+                  borderRadius: 14,
+                  background: 'linear-gradient(180deg, rgba(22,28,36,0.72), rgba(13,17,22,0.66))',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), var(--shadow-card)',
                   color: 'var(--text-2)',
-                  padding: '15px 16px',
+                  padding: '16px 17px',
                   cursor: 'pointer'
                 }}
               >
                 <span
                   className="sush-tile-icon flex items-center justify-center"
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
                     flexShrink: 0,
-                    background: rgba(accent, 0.12),
-                    border: `1px solid ${rgba(accent, 0.28)}`,
+                    background: `linear-gradient(145deg, ${rgba(accent, 0.24)}, ${rgba(accent, 0.06)})`,
+                    border: `1px solid ${rgba(accent, 0.3)}`,
+                    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 12px ${rgba(accent, 0.16)}`,
                     color: accent
                   }}
                 >
                   <Icon name={item.icon} size={19} strokeWidth={2.1} />
                 </span>
                 <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: 14, fontWeight: 800 }}>{item.label}</span>
-                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{item.sub}</span>
+                  <span style={{ display: 'block', fontSize: 14, fontWeight: 800, color: 'var(--text-1)', letterSpacing: -0.1 }}>{item.label}</span>
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>{item.sub}</span>
                 </span>
                 <Icon name="arrowRight" size={15} color="var(--text-5)" className="sush-tile-arrow" />
               </button>
@@ -330,10 +332,11 @@ export default function HomeDashboard({
                     width: '100%',
                     textAlign: 'left',
                     border: '1px solid var(--border-1)',
-                    borderRadius: 11,
-                    background: 'var(--surface-2)',
+                    borderRadius: 12,
+                    background: 'linear-gradient(180deg, rgba(22,28,36,0.5), rgba(13,17,22,0.42))',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
                     color: 'var(--text-2)',
-                    padding: '11px 13px',
+                    padding: '12px 14px',
                     cursor: 'pointer'
                   }}
                 >
@@ -379,10 +382,11 @@ export default function HomeDashboard({
                     width: '100%',
                     textAlign: 'left',
                     border: '1px solid var(--border-1)',
-                    borderRadius: 11,
-                    background: 'var(--surface-2)',
+                    borderRadius: 12,
+                    background: 'linear-gradient(180deg, rgba(22,28,36,0.5), rgba(13,17,22,0.42))',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
                     color: 'var(--text-2)',
-                    padding: '11px 13px',
+                    padding: '12px 14px',
                     cursor: 'pointer'
                   }}
                 >
