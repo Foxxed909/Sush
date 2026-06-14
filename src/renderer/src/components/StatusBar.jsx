@@ -6,7 +6,7 @@ import { usePolling } from '../hooks/usePolling'
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
 // live cpu/mem. Reuses the existing gitStatus + getSystemStats IPC. Polls on a
 // gentle 4s cadence; git is re-read whenever the active cwd changes too.
-export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, gridMode, agentSummary, onOpenMission }) {
+export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, gridMode, agentSummary, onOpenMission, battery, saverActive, saverAuto }) {
   const cwd = activeTab?.cwd || null
   const shell = activeTab?.shellLabel || activeTab?.shell || null
   const [git, setGit] = useState(null)
@@ -184,6 +184,24 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
           {memPct == null ? '—' : `${memPct}%`}
         </span>
       </span>
+
+      {/* power saver chip */}
+      {saverActive && (
+        <span style={{ ...segR, color: '#5fd3a8', fontWeight: 800, letterSpacing: 0.3 }} title={saverAuto ? 'Power saver on automatically — battery low. Ctrl+Shift+E to override.' : 'Power saver on — animations & effects trimmed. Ctrl+Shift+E to toggle.'}>
+          <Icon name="leaf" size={12} color="#5fd3a8" />
+          SAVER
+        </span>
+      )}
+
+      {/* battery */}
+      {battery?.hasBattery && (
+        <span style={segR} title={battery.charging ? `Battery ${battery.percent}% — charging` : `Battery ${battery.percent}%`}>
+          <Icon name="battery" size={13} color={battery.charging ? '#5fd3a8' : battery.percent <= 15 ? '#ff5370' : battery.percent <= 30 ? '#ffcb6b' : '#8a939c'} />
+          <span style={{ color: battery.charging ? '#c6cdd4' : battery.percent <= 15 ? '#ff5370' : battery.percent <= 30 ? '#ffcb6b' : '#c6cdd4', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {battery.percent}%{battery.charging ? '⁺' : ''}
+          </span>
+        </span>
+      )}
 
       {/* clock */}
       <span style={{ ...segR, paddingRight: 12, color: '#c6cdd4', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title={clock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}>

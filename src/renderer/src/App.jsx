@@ -30,6 +30,7 @@ import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
 import { useAgentActivity } from './hooks/useAgentActivity'
 import { useEntitlements } from './hooks/useEntitlements'
+import { useBattery } from './hooks/useBattery'
 import { STATES } from './lib/agentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { recordCommand } from './lib/commandFrequency'
@@ -236,6 +237,13 @@ export default function App() {
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
   const [settings, setSettings] = useState(loadSettings)
   const entitlements = useEntitlements()
+  // Auto power-saver: when running on battery below the threshold, conserve even
+  // if the user never flipped the manual toggle. Charging or above threshold,
+  // we respect only the manual setting. On by default — this user has no grid.
+  const battery = useBattery({ saver: !!settings.powerSaver })
+  const AUTO_SAVER_AT = 20
+  const autoSaverActive = settings.autoPowerSaver !== false && battery.hasBattery && !battery.charging && battery.percent <= AUTO_SAVER_AT
+  const effectiveSaver = !!settings.powerSaver || autoSaverActive
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartResult, setSmartResult] = useState(null)
@@ -420,7 +428,7 @@ export default function App() {
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
   // Mission Control: live per-session state inferred from the PTY stream.
-  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false, powerSaver: !!settings.powerSaver })
+  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false, powerSaver: effectiveSaver })
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
   const agentStatesRef = useRef(agentStates)
@@ -554,6 +562,12 @@ export default function App() {
       if (ctrl && e.shiftKey && key === 'm') { e.preventDefault(); setShowMission(prev => !prev) }
       // Ctrl+Shift+S → Hush dictation toggle
       if (ctrl && e.shiftKey && key === 's') { e.preventDefault(); window.dispatchEvent(new CustomEvent('sush:hush-toggle')) }
+      // Ctrl+Shift+E → power saver (energy) toggle. Persist inline (setSettings
+      // alone is lost on restart — same pattern as the lite-mode toggle below).
+      if (ctrl && e.shiftKey && key === 'e') {
+        e.preventDefault()
+        setSettings(prev => { const next = { ...prev, powerSaver: !prev.powerSaver }; try { localStorage.setItem('sush-settings', JSON.stringify(next)) } catch {} ; return next })
+      }
       // Ctrl+Shift+G → grid layout (all sessions tiled)
       if (ctrl && e.shiftKey && key === 'g') {
         e.preventDefault()
@@ -1426,7 +1440,7 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || settings.powerSaver) ? ' sush-lite' : ''}${settings.powerSaver ? ' sush-saver' : ''}`}
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || effectiveSaver) ? ' sush-lite' : ''}${effectiveSaver ? ' sush-saver' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
@@ -1724,6 +1738,9 @@ export default function App() {
           gridMode={gridMode}
           agentSummary={agentSummary}
           onOpenMission={() => setShowMission(true)}
+          battery={battery}
+          saverActive={effectiveSaver}
+          saverAuto={autoSaverActive}
         />
       )}
 

@@ -43,6 +43,7 @@ const SECTIONS = [
       { keys: ['Ctrl', 'Shift', 'B'], label: 'Toggle broadcast mode' },
       { keys: ['Ctrl', 'Shift', 'M'], label: 'Mission Control' },
       { keys: ['Ctrl', 'Shift', 'S'], label: 'Hush voice dictation' },
+      { keys: ['Ctrl', 'Shift', 'E'], label: 'Toggle power saver' },
       { keys: ['F2'], label: 'Rename active session' },
       { keys: ['Double-click'], label: 'Rename session in rail' },
     ]

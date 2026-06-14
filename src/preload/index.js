@@ -65,6 +65,13 @@ contextBridge.exposeInMainWorld('sush', {
     ipcRenderer.on('sush:license-changed', listener)
     return () => ipcRenderer.removeListener('sush:license-changed', listener)
   },
+  // Battery / power source (auto power-saver)
+  batteryStatus: () => ipcRenderer.invoke('sush:battery-status'),
+  onPowerChanged: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('sush:power-changed', listener)
+    return () => ipcRenderer.removeListener('sush:power-changed', listener)
+  },
   getScrollback: (payload) => ipcRenderer.invoke('sush:get-scrollback', payload),
   sushrcRead: () => ipcRenderer.invoke('sush:sushrc-read'),
   sushrcWrite: (payload) => ipcRenderer.invoke('sush:sushrc-write', payload),

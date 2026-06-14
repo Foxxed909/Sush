@@ -1168,7 +1168,21 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
                 The lightest setting: includes Reduce-effects, freezes every ambient
                 animation, drops glows/shadows, and slows background polling. Turn it
-                on when the battery’s low or the laptop’s warm.
+                on when the battery’s low or the laptop’s warm. <strong style={{ color: accent }}>Ctrl+Shift+E</strong> toggles it anywhere.
+              </div>
+            </Row>
+            <Row>
+              <Label>Auto power saver on low battery</Label>
+              <button
+                onClick={() => set('autoPowerSaver', settings.autoPowerSaver === false)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.autoPowerSaver !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.autoPowerSaver !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.autoPowerSaver !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="leaf" size={14} strokeWidth={2} />
+                {settings.autoPowerSaver !== false ? 'On — saver kicks in under 20% on battery' : 'Off — only the manual toggle'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+                When you’re unplugged and the battery drops below 20%, Sush flips
+                into power saver on its own, then steps back out once you charge.
               </div>
             </Row>
             <Row>

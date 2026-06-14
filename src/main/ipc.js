@@ -1,4 +1,4 @@
-﻿import { ipcMain, app, clipboard, Tray, Menu, nativeImage } from 'electron'
+﻿import { ipcMain, app, clipboard, Tray, Menu, nativeImage, powerMonitor } from 'electron'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, watch as fsWatch } from 'fs'
 import { join } from 'path'
@@ -1136,6 +1136,32 @@ export function registerIpcHandlers(win) {
     broadcastLicense()
     return { ...r, ...licensePublic() }
   })
+
+  // ── Battery / power source (auto power-saver) ──────────────────────────────
+  // One si.battery() read on demand (the renderer polls slowly). powerMonitor
+  // events nudge the renderer to re-poll the moment the charger goes in/out, so
+  // auto power-saver flips without waiting for the next poll tick.
+  ipcMain.handle('sush:battery-status', async () => {
+    try {
+      const b = await si.battery()
+      return {
+        ok: true,
+        hasBattery: !!b.hasBattery,
+        percent: Math.max(0, Math.min(100, Math.round(b.percent ?? 100))),
+        charging: !!b.isCharging || !!b.acConnected
+      }
+    } catch {
+      return { ok: false, hasBattery: false, percent: 100, charging: true }
+    }
+  })
+  try {
+    const safeOnBattery = () => { try { return powerMonitor.isOnBatteryPower() } catch { return false } }
+    const pushPower = () => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:power-changed', { onBattery: safeOnBattery() }) }
+    powerMonitor.removeAllListeners('on-battery')
+    powerMonitor.removeAllListeners('on-ac')
+    powerMonitor.on('on-battery', pushPower)
+    powerMonitor.on('on-ac', pushPower)
+  } catch {}
 
   // ── Usage snapshot (the Usage settings panel) ─────────────────────────────
   // Cheap, spawn-free aggregate the Usage panel polls on a timer: per-CLI
