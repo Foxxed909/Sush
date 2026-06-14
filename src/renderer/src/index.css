@@ -255,6 +255,24 @@ pre, code, kbd, .sush-mono,
   .seducia-idle, .seducia-listening, .sush-orb, .seducia-ring { animation: none !important; }
 }
 
+/* ---- Power saver ----
+   Implies lite (the App applies sush-lite too) and goes further: kills EVERY
+   always-on ambient loop the lite mode misses, and drops glows/shadows — the
+   big diffuse box-shadows force the GPU to re-composite large regions every
+   repaint. One-shot entrance animations are left alone (they cost nothing once
+   they've finished). For battery on a weak machine, not for looks. */
+.sush-saver .sush-pulse-dot,
+.sush-saver .sush-blink,
+.sush-saver .sush-sleep-breathe,
+.sush-saver .seducia-speaking,
+.sush-saver .sush-lock-blob,
+.sush-saver .sush-orb-glow { animation: none !important; }
+.sush-saver * { box-shadow: none !important; }
+.sush-saver [data-glass], .sush-saver .sush-omni {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 @keyframes sush-spin { to { transform: rotate(360deg); } }
 .sush-spin { animation: sush-spin 0.9s linear infinite; transform-origin: center; }
 

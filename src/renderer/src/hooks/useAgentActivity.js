@@ -11,9 +11,10 @@ import { classify, summarize, detectLimit } from '../lib/agentActivity'
 
 const TAIL_CHARS = 700     // how much trailing output we keep per session
 const TICK_MS = 700        // how often we reclassify
+const TICK_MS_SAVER = 2200 // ...slowed right down in power-saver mode
 const NOTIFY_COOLDOWN_MS = 30000   // don't re-notify the same session this often
 
-export function useAgentActivity(tabs, { notify = false } = {}) {
+export function useAgentActivity(tabs, { notify = false, powerSaver = false } = {}) {
   const recordsRef = useRef(new Map())   // tabId -> { tail, lastDataAt, exited, exitCode, startedAt }
   const [states, setStates] = useState({})   // tabId -> stateId
   const [limits, setLimits] = useState({})   // tabId -> true when a limit-hit is detected
@@ -113,10 +114,10 @@ export function useAgentActivity(tabs, { notify = false } = {}) {
         const changed = keys.length !== Object.keys(prevL).length || keys.some(k => !prevL[k])
         return changed ? nextLimits : prevL
       })
-    }, TICK_MS)
+    }, powerSaver ? TICK_MS_SAVER : TICK_MS)
 
     return () => { offData?.(); offExit?.(); clearInterval(timer) }
-  }, [])
+  }, [powerSaver])
 
   return { states, limits, summary: summarize(states) }
 }

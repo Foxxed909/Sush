@@ -418,7 +418,7 @@ export default function App() {
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
   // Mission Control: live per-session state inferred from the PTY stream.
-  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false })
+  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false, powerSaver: !!settings.powerSaver })
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
   const agentStatesRef = useRef(agentStates)
@@ -1424,7 +1424,7 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${settings.lite ? ' sush-lite' : ''}`}
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || settings.powerSaver) ? ' sush-lite' : ''}${settings.powerSaver ? ' sush-saver' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),

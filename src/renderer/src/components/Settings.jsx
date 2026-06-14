@@ -160,6 +160,12 @@ function SlotUsage({ usage, accent }) {
           {usage.sessionPct != null && <MiniBar label="Session" pct={usage.sessionPct} accent={accent} />}
           {usage.weekPct != null && <MiniBar label="Week" pct={usage.weekPct} accent={accent} />}
         </>
+      ) : usage.kind === 'health' ? (
+        <div style={{ fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: usage.signedIn ? '#5fd3a8' : '#ff7a8a', flexShrink: 0 }} />
+          <span style={{ color: usage.signedIn ? '#aab3bb' : '#ff9aa8' }}>{usage.status}</span>
+          {usage.note && <span style={{ color: '#5a646d', fontWeight: 600 }}>· {usage.note}</span>}
+        </div>
       ) : (
         <div style={{ fontSize: 10, color: '#69737d', fontWeight: 700 }}>
           {usage.status === 'allowed' ? 'Within limits' : `Status: ${(usage.status || 'unknown').replace(/_/g, ' ')}`}
@@ -309,11 +315,11 @@ function AccountsSection({ accent }) {
                         Switch
                       </button>
                     )}
-                    {p === 'claude' && !isEditing && (
+                    {(p === 'claude' || p === 'codex') && !isEditing && (
                       <button
                         onClick={() => readUsage(p, slot.id)}
                         disabled={usageBusy[uKey]}
-                        title="Refresh usage"
+                        title={p === 'claude' ? 'Refresh usage' : 'Check sign-in'}
                         className="flex items-center justify-center"
                         style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
                         onMouseEnter={e => { e.currentTarget.style.color = accent }}
@@ -341,7 +347,7 @@ function AccountsSection({ accent }) {
                       </button>
                     )}
                   </div>
-                  {p === 'claude' && slot.usage && <SlotUsage usage={slot.usage} accent={accent} />}
+                  {(p === 'claude' || p === 'codex') && slot.usage && <SlotUsage usage={slot.usage} accent={accent} />}
                 </div>
               )
             })}
@@ -1009,17 +1015,33 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {/* Appearance */}
           <Section title="Appearance" accent={accent}>
             <Row>
+              <Label>Power saver (max battery)</Label>
+              <button
+                onClick={() => set('powerSaver', !settings.powerSaver)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.powerSaver ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.powerSaver ? rgba(accent, 0.4) : '#20272e'}`, color: settings.powerSaver ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="activity" size={14} strokeWidth={2} />
+                {settings.powerSaver ? 'Power saver ON — lightest on CPU/GPU/battery' : 'Power saver off'}
+              </button>
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+                The lightest setting: includes Reduce-effects, freezes every ambient
+                animation, drops glows/shadows, and slows background polling. Turn it
+                on when the battery’s low or the laptop’s warm.
+              </div>
+            </Row>
+            <Row>
               <Label>Reduce effects (performance)</Label>
               <button
                 onClick={() => set('lite', !settings.lite)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.lite ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.lite ? rgba(accent, 0.4) : '#20272e'}`, color: settings.lite ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                disabled={settings.powerSaver}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: (settings.lite || settings.powerSaver) ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${(settings.lite || settings.powerSaver) ? rgba(accent, 0.4) : '#20272e'}`, color: (settings.lite || settings.powerSaver) ? accent : '#76808a', cursor: settings.powerSaver ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%', opacity: settings.powerSaver ? 0.7 : 1 }}
               >
                 <Icon name="activity" size={14} strokeWidth={2} />
-                {settings.lite ? 'Lite mode on — glass blur off' : 'Full glass effects'}
+                {(settings.lite || settings.powerSaver) ? 'Lite mode on — glass blur off' : 'Full glass effects'}
               </button>
               <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
                 Drops the frosted-glass blur and ambient glow animations. Big GPU
-                saver on laptops or when running a busy agent swarm.
+                saver on laptops or when running a busy agent swarm.{settings.powerSaver ? ' (Included in Power saver.)' : ''}
               </div>
             </Row>
             <Row>

@@ -187,14 +187,32 @@ async function runCliEngineWithAccounts(engine, opts, policy = 'ask') {
   return alt ? { ...first, canSwitch: { provider: engine, slotId: alt.id, label: alt.label } } : first
 }
 
-// Read one account's live usage by probing the CLI with that slot's env layered
-// on top of the active identity env (so only this provider's config dir moves).
-// Claude only for now — it's the CLI whose stream-json carries a rate-limit
-// snapshot; codex/gemini have no equivalent we can read cheaply.
+// Read one account's "usage" by probing the CLI with that slot's env layered on
+// top of the active identity env (so only this provider's config dir moves).
+//   • Claude: a real rate-limit snapshot from its stream-json `rate_limit_event`.
+//   • Codex: the CLI exposes NO usage/rate-limit command (verified via --help),
+//     so we read the cheapest honest signal — whether this slot is signed in
+//     (its auth.json exists). No spawn at all, which is the right call on battery.
 async function readAccountUsage(userId, provider, slotId) {
-  if (provider !== 'claude') return { ok: false, error: 'Live usage is only available for Claude right now.' }
-  const overlay = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
-  return probeClaudeUsage(overlay)
+  if (provider === 'claude') {
+    const overlay = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
+    return probeClaudeUsage(overlay)
+  }
+  if (provider === 'codex') {
+    const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
+    const home = env.CODEX_HOME || join(homedir(), '.codex')
+    const signedIn = existsSync(join(home, 'auth.json'))
+    return {
+      ok: true,
+      usage: {
+        kind: 'health',
+        status: signedIn ? 'signed in' : 'not signed in',
+        note: 'Codex doesn’t report usage limits',
+        signedIn
+      }
+    }
+  }
+  return { ok: false, error: 'Usage isn’t available for this CLI.' }
 }
 
 function getDefaultShell(shellId = 'powershell') {
