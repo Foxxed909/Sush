@@ -31,14 +31,19 @@ function useLiveClock() {
   return now
 }
 
+// Section heading. Deliberately NOT the tiny-uppercase-tracked eyebrow that sat
+// above every section before (impeccable flags that repeated kicker as an AI
+// tell) — a confident sentence-case heading with a small accent icon chip reads
+// as designed, and as one consistent voice down the page.
 function SectionLabel({ icon, children, accent }) {
   return (
-    <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
-      {icon && <Icon name={icon} size={13} color={accent} strokeWidth={2.4} />}
-      <span style={{ color: 'var(--text-3)', fontSize: 11, fontWeight: 800, letterSpacing: 1.4, textTransform: 'uppercase' }}>
-        {children}
-      </span>
-      <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${rgba(accent, 0.22)}, transparent)` }} />
+    <div className="flex items-center" style={{ gap: 10, marginBottom: 16 }}>
+      {icon && (
+        <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: 7, background: `linear-gradient(145deg, ${rgba(accent, 0.2)}, ${rgba(accent, 0.05)})`, border: `1px solid ${rgba(accent, 0.22)}`, color: accent, flexShrink: 0 }}>
+          <Icon name={icon} size={12.5} strokeWidth={2.4} />
+        </span>
+      )}
+      <span style={{ color: 'var(--text-1)', fontSize: 'var(--fs-lg)', fontWeight: 800, letterSpacing: -0.1 }}>{children}</span>
     </div>
   )
 }
@@ -97,29 +102,29 @@ export default function HomeDashboard({
             <div
               className="flex items-center justify-center"
               style={{
-                width: 54,
-                height: 54,
-                borderRadius: 14,
+                width: 60,
+                height: 60,
+                borderRadius: 16,
                 flexShrink: 0,
-                background: `linear-gradient(150deg, ${rgba(accent, 0.28)}, ${rgba(accent, 0.05)})`,
-                border: `1px solid ${rgba(accent, 0.45)}`,
-                boxShadow: `0 10px 30px ${rgba(accent, 0.22)}, inset 0 1px 0 ${rgba('#ffffff', 0.08)}`,
+                background: `linear-gradient(150deg, ${rgba(accent, 0.32)}, ${rgba(accent, 0.06)})`,
+                border: `1px solid ${rgba(accent, 0.5)}`,
+                boxShadow: `0 12px 36px ${rgba(accent, 0.28)}, inset 0 1px 0 rgba(255,255,255,0.12)`,
                 color: accent
               }}
             >
-              <Icon name="terminal" size={26} strokeWidth={2.4} />
+              <Icon name="terminal" size={28} strokeWidth={2.4} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 34,
-                  lineHeight: 1.05,
+                  fontSize: 40,
+                  lineHeight: 1.02,
                   color: 'var(--text-1)',
-                  letterSpacing: -0.5
+                  letterSpacing: -1.2
                 }}
               >
-                {greet.hi}{userName ? `, ${userName}` : ''} <span style={{ color: accent, textShadow: `0 0 32px ${rgba(accent, 0.45)}` }}>·</span> Sush
+                {greet.hi}{userName ? <>, <span style={{ color: accent, textShadow: `0 0 36px ${rgba(accent, 0.5)}` }}>{userName}</span></> : ''}
               </div>
               <div className="flex items-center" style={{ gap: 10, marginTop: 6 }}>
                 <span style={{ fontSize: 13.5, color: 'var(--text-3)', fontWeight: 600 }}>{greet.sub}</span>
