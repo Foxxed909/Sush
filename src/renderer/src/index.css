@@ -258,6 +258,37 @@ pre, code, kbd, .sush-mono,
 }
 .sush-splash-out { animation: sush-splash-out 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards; pointer-events: none; }
 
+/* ── Splash: "shush → build" two-beat ────────────────────────────────────────
+   Beat 1: a finger rises to pink lips (Sush = shush) with a soft breath glow.
+   Beat 2: two terminal cursors — pink (you) + violet (Seducia) — converge and
+   type the SUSH wordmark. All transform/opacity (GPU-cheap). Reduced-motion
+   skips straight to the static wordmark (handled in JS). */
+@keyframes sush-finger-rise {
+  from { opacity: 0; transform: translateY(46px) rotate(-17deg); }
+  to   { opacity: 1; transform: translateY(0) rotate(-7deg); }
+}
+@keyframes sush-shh-glow {
+  0%   { opacity: 0; transform: scale(0.7); }
+  45%  { opacity: 0.85; }
+  100% { opacity: 0.4; transform: scale(1.18); }
+}
+@keyframes sush-beat-out {
+  to { opacity: 0; transform: scale(0.84); filter: blur(3px); }
+}
+@keyframes sush-cursor-in-left {
+  from { opacity: 0; transform: translateX(-78px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes sush-cursor-in-right {
+  from { opacity: 0; transform: translateX(78px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes sush-type-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.8); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes sush-cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
 /* ---- Glassmorphism UI ----
    Frosted panels: a stronger blur + saturation lift makes the terminal read
    through the chrome as a soft wash of colour. A 1px top highlight gives every
