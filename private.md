@@ -14,6 +14,53 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 4.6.0 — "Ember" implementation notes
+
+### Tier gating + offline unlock codes (no paywall)
+- **Secret + algorithm** live in `src/main/license-secret.mjs` (pure, `.mjs`).
+  Both the app (`license.js`) and the offline minter (`tools/mint-code.mjs`)
+  import it, so the signing can't drift. The secret SHIPS in the app and is
+  extractable — this is deliberate gentle gating, not DRM. A leaked secret is not
+  a breach; there's no server and nothing to pay for.
+- **Code format:** `SUSH-<TIER>-<NONCE8>-<SIG10>` (plain) or
+  `SUSH-<TIER>-<YYYYMMDD>-<NONCE8>-<SIG10>` (dated/trial). SIG = first 10 base32
+  chars of HMAC-SHA256(SECRET, `tier:nonce` or `tier:date:nonce`). `license.js`
+  re-verifies a stored dated code on every read, so an expired trial silently
+  reverts to Free.
+- **`TIER_FEATURES`** (license.js) is the single source of truth:
+  free/plus/pro → `{ slots, gridCap, customAgents, cloudTts, themes }`. `themes`
+  is reserved/unenforced for now (no base/premium flag on themes yet) — it's
+  intentionally NOT shown in the Plan table so the UI doesn't claim what it
+  doesn't enforce.
+- **Enforcement points:** account-slot cap in the `accounts-add` IPC handler
+  (above the hard `MAX_SLOTS`); cloud TTS in `tts-config-set` + `tts-synthesize`
+  handlers (a lapsed tier falls back to system voice); grid cap via
+  `entitlements.limit('gridCap')` in App.jsx; custom agents + cloud voice show
+  lock hints in Settings.
+- **Renderer mirror:** `useEntitlements` loads `license-get` once and re-syncs on
+  the `license-changed` broadcast. Main owns truth; the hook only gates UI.
+- **Live updates:** `license.js` has `setLicenseChangeSender` — `redeemCode` /
+  `clearLicense` emit one `license-changed` broadcast whether triggered by IPC or
+  the `unlock` shell command. Mint codes with `node tools/mint-code.mjs plus|pro`.
+
+### Battery-aware auto power-saver
+- Main: `sush:battery-status` (one `si.battery()` read on demand) +
+  `powerMonitor` `on-battery`/`on-ac` → `sush:power-changed` push so the renderer
+  re-polls the instant the charger moves. `removeAllListeners` first → idempotent
+  if `registerIpcHandlers` ever runs twice.
+- `useBattery` polls slowly (90s, 180s in saver) — it must not drain the thing it
+  watches — and re-reads on the power-changed event + on tab re-focus.
+- `App.jsx`: `effectiveSaver = settings.powerSaver || (autoPowerSaver !== false &&
+  hasBattery && !charging && percent <= 20)`. It (not the raw setting) now drives
+  the `sush-lite`/`sush-saver` classes and the `useAgentActivity` tick. Manual
+  toggle persists; auto is derived (never written to settings). Ctrl+Shift+E
+  toggles the manual flag (persisted inline like the lite toggle).
+
+### Preferences backup
+- Renderer-only: a Blob download for export, a hidden file input for import.
+  Payload `{ app:'sush', kind:'preferences', version:1, settings, customAgents }`.
+  No secrets — TTS key is in main, account logins are in per-identity dirs.
+
 ## 4.5.0 — "Pulse" implementation notes
 
 ### Per-CLI limit policy (moved off global settings)

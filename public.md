@@ -6,6 +6,37 @@ built-in command layer.
 
 ---
 
+## 4.6.0 — "Ember"
+
+Tiers you unlock with a code (no paywall, no account), and a terminal that looks
+after your battery on its own.
+
+### Added — Plans & unlock codes
+- **Settings → Plan.** A new page shows your current tier (Free / Plus / Pro), a
+  side-by-side of what each unlocks, and a box to redeem an unlock code. No
+  payment and no sign-up — a code just flips a tier, fully offline.
+- **Tiers gate gently.** Free gives 1 account per CLI and a 4-up grid; Plus and
+  Pro raise the account limit, the grid cap, custom agents and cloud voices.
+  Locked features show an "unlock under Plan" hint rather than vanishing.
+- **`unlock <code>` / `plan` commands.** Redeem a code straight from the terminal,
+  or print your current tier and what it includes. Redeeming updates the UI live.
+
+### Added — Battery & power
+- **Auto power saver.** Unplug and drop below 20%, and Sush slips into power saver
+  on its own — freezing ambient animations, dropping glows, slowing background
+  polling — then steps back out when you charge. On by default. (Settings →
+  Appearance to turn it off.)
+- **Battery + saver chips** in the status bar: live battery % (amber/red as it
+  falls, a mark when charging) and a SAVER chip when conservation is active.
+- **Ctrl+Shift+E** toggles power saver from anywhere.
+
+### Added — Preferences backup
+- **Export / Import** under Settings → Sush Profile writes your settings and
+  custom agents to a JSON file you can stash or move to another machine. No API
+  keys or account logins are ever included.
+
+---
+
 ## 4.5.0 — "Pulse"
 
 Account health you can see, a real voice for Seducia, and a Settings page that

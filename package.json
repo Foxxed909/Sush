@@ -1,7 +1,7 @@
 {
   "name": "sush",
-  "version": "4.5.0",
-  "codename": "pulse",
+  "version": "4.6.0",
+  "codename": "ember",
   "description": "Sush - the terminal your agents live in",
   "main": "out/main/index.js",
   "scripts": {

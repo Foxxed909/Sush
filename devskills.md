@@ -171,6 +171,22 @@
   (cached `where` sweep + folder stats for local tools), render missing ones
   as locked tiles instead of letting the launch fail later.
 
+- **Offline unlock codes (gating, not DRM):** sign a tier+nonce with HMAC-SHA256
+  and a client-side secret; verify locally so it works with no server and no
+  payment. The secret SHIPS in the app (extractable) — accept it; the goal is
+  gentle gating, not copy protection. Keep secret + algorithm in ONE shared
+  module both the app and the offline minter import, so they can't drift. Dated
+  variant folds `YYYYMMDD` into the signed message and is re-checked on every read
+  so trials self-expire. Enforce each feature where it lives (main for the things
+  main owns, renderer for UI), mirror the tier to the renderer over a
+  `license-changed` broadcast, and never advertise a gate you don't enforce.
+- **Auto power-saver without a tight timer:** read battery on demand and lean on
+  Electron `powerMonitor` (`on-battery`/`on-ac`) to push the renderer the instant
+  the charger moves — poll only as a slow safety net (a watcher that drains the
+  battery defeats itself). Derive the effective saver state
+  (`manual || (auto && onBattery && low)`); drive the CSS classes and activity
+  tick off the derived value, persist only the manual toggle.
+
 ## Conventions
 - Imperative commit messages; concise.
 - ASCII only in renderer strings (curly quotes were stripped project-wide).
