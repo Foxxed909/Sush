@@ -152,3 +152,72 @@ to the renderer via `license-get` so gating is consistent.
   `Settings.jsx` (SlotUsage/MiniBar).
 - Saver: `index.css` (`.sush-saver`), `App.jsx:1427`, `useAgentActivity.js` (TICK), `usePolling.js`.
 - Build `npm run build` (clean=exit 0). Remote Foxxed909/Sush. Collaborator T-REXED (write, pending).
+
+---
+
+## Appendix — ready-to-paste license core (verify + mint)
+
+`src/main/license.js` (core; wire IPC + gating around it):
+```js
+import { app } from 'electron'
+import { join } from 'path'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { createHmac } from 'crypto'
+
+// CLIENT-SIDE secret: ships in the app, so it's extractable. This is gentle
+// gating, not DRM — anyone who digs it out can mint codes. That's fine here.
+const SECRET = 'CHANGE_ME_32+_RANDOM_BYTES_BASE64'   // <- generate once, keep stable
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'       // Crockford-ish, no I/L/O/U
+
+export const TIER_FEATURES = {
+  free: { slots: 1, gridCap: 4,  customAgents: false, cloudTts: false, themes: 'base' },
+  plus: { slots: 3, gridCap: 9,  customAgents: true,  cloudTts: true,  themes: 'all'  },
+  pro:  { slots: 6, gridCap: 16, customAgents: true,  cloudTts: true,  themes: 'all'  }
+}
+const RANK = { free: 0, plus: 1, pro: 2 }
+const file = () => join(app.getPath('userData'), 'sush-license.json')
+
+function sig(tier, nonce) {
+  const h = createHmac('sha256', SECRET).update(`${tier}:${nonce}`).digest()
+  let out = ''
+  for (let i = 0; i < 10; i++) out += B32[h[i] % 32]
+  return out
+}
+export function verifyCode(raw) {
+  const m = String(raw || '').trim().toUpperCase().match(/^SUSH-(PLUS|PRO)-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
+  if (!m) return { ok: false, error: 'That code doesn’t look right.' }
+  const [, t, nonce, s] = m
+  const tier = t.toLowerCase()
+  if (s !== sig(tier, nonce)) return { ok: false, error: 'Invalid code.' }
+  return { ok: true, tier }
+}
+export function getLicense() {
+  try { if (existsSync(file())) { const d = JSON.parse(readFileSync(file(), 'utf8')); if (RANK[d.tier] != null) return d } } catch {}
+  return { tier: 'free' }
+}
+export function redeemCode(raw) {
+  const v = verifyCode(raw)
+  if (!v.ok) return v
+  const data = { tier: v.tier, code: String(raw).trim().toUpperCase(), redeemedAt: Date.now() }
+  try { writeFileSync(file(), JSON.stringify(data, null, 2), 'utf8') } catch (e) { return { ok: false, error: e.message } }
+  return { ok: true, tier: v.tier, features: TIER_FEATURES[v.tier] }
+}
+export function featuresOf(tier = getLicense().tier) { return TIER_FEATURES[tier] || TIER_FEATURES.free }
+export function can(feature) { return !!featuresOf()[feature] }
+```
+
+`tools/mint-code.mjs` (keep SECRET/B32 identical — better: import from a shared module):
+```js
+import { createHmac, randomBytes } from 'crypto'
+const SECRET = 'CHANGE_ME_32+_RANDOM_BYTES_BASE64'
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+const tier = (process.argv[2] || '').toLowerCase()
+const count = Number(process.argv[3]) || 1
+if (!['plus', 'pro'].includes(tier)) { console.error('usage: node tools/mint-code.mjs plus|pro [count]'); process.exit(1) }
+const r32 = (n) => { const b = randomBytes(n); let o = ''; for (let i = 0; i < n; i++) o += B32[b[i] % 32]; return o }
+const sig = (t, nonce) => { const h = createHmac('sha256', SECRET).update(`${t}:${nonce}`).digest(); let o = ''; for (let i = 0; i < 10; i++) o += B32[h[i] % 32]; return o }
+for (let i = 0; i < count; i++) { const nonce = r32(8); console.log(`SUSH-${tier.toUpperCase()}-${nonce}-${sig(tier, nonce)}`) }
+```
+Then: IPC `license-get`/`license-redeem`/`license-clear` + preload; `useEntitlements`;
+gate the §4 points; Settings → Plan section. First step on next session.
+
