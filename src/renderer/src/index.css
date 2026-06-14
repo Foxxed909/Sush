@@ -39,6 +39,39 @@
   --r-xl: 15px;
   --r-pill: 999px;
   --r-btn: 9px;
+
+  /* ---- Text colour ramp (one cool-grey scale) ----
+     The chrome used to scatter a dozen near-identical greys (#76808a, #8a939c,
+     #aab3bb, #c6cdd4, #e1e6ea…). These five are the whole vocabulary now:
+     1 = primary, 2 = secondary, 3 = label/muted, 4 = hint, 5 = faint/divider. */
+  --text-1: #eef2f5;
+  --text-2: #c6ced6;
+  --text-3: #8b949e;
+  --text-4: #5b656e;
+  --text-5: #39424b;
+
+  /* ---- Surface & border ramp ---- */
+  --surface-0: #090b0e;  /* app background */
+  --surface-1: #0d1116;  /* panels, headers */
+  --surface-2: #0f1419;  /* inputs, raised rows */
+  --border-1: #181d24;   /* hairline divider */
+  --border-2: #222a31;   /* control border */
+
+  /* ---- Type scale ----
+     Five sizes, not fifteen. xs labels, sm chrome text, md body/controls,
+     lg section titles, xl page titles. */
+  --fs-xs: 10.5px;
+  --fs-sm: 11.5px;
+  --fs-md: 12.5px;
+  --fs-lg: 13.5px;
+  --fs-xl: 16px;
+
+  /* ---- Spacing step (4px grid) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 22px;
 }
 
 body {
