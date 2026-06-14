@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { themes } from '../themes'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
-import { loadCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../lib/agents'
+import { loadCustomAgents, saveCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../lib/agents'
 import { useEntitlements } from '../hooks/useEntitlements'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
@@ -964,6 +964,59 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
   )
 }
 
+// Preferences backup: writes settings + custom agents to a JSON file the user
+// can stash or move to another machine. Deliberately excludes secrets — the TTS
+// key lives in main, account logins live in per-identity dirs, neither is here.
+function BackupRow({ accent, settings, onChange }) {
+  const fileRef = useRef(null)
+  const [msg, setMsg] = useState('')
+
+  const btn = (primary) => ({ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, background: primary ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${primary ? rgba(accent, 0.35) : '#20272e'}`, color: primary ? accent : '#aab3bb', cursor: 'pointer', fontSize: 12, fontWeight: 700 })
+
+  const doExport = () => {
+    try {
+      const data = { app: 'sush', kind: 'preferences', version: 1, exportedAt: new Date().toISOString(), settings: settings || {}, customAgents: loadCustomAgents() }
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+      const a = document.createElement('a')
+      a.href = url; a.download = 'sush-preferences.json'; a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setMsg('Exported sush-preferences.json')
+    } catch { setMsg('Export failed.') }
+  }
+
+  const onPick = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result || '{}'))
+        if (data.app !== 'sush' || !data.settings) { setMsg('That isn’t a Sush backup file.'); return }
+        if (Array.isArray(data.customAgents)) saveCustomAgents(data.customAgents)
+        onChange({ ...settings, ...data.settings })
+        setMsg('Restored. A few changes apply on next launch.')
+      } catch { setMsg('Could not read that file.') }
+    }
+    reader.readAsText(file)
+  }
+
+  return (
+    <Row>
+      <Label>Preferences backup</Label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={doExport} style={btn(true)}><Icon name="download" size={13} strokeWidth={2} /> Export</button>
+        <button onClick={() => fileRef.current?.click()} style={btn(false)}><Icon name="upload" size={13} strokeWidth={2} /> Import</button>
+        <input ref={fileRef} type="file" accept="application/json,.json" onChange={onPick} style={{ display: 'none' }} />
+      </div>
+      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.45 }}>
+        Saves your settings and custom agents to a file. No API keys or account logins are included.
+      </div>
+      {msg && <div style={{ fontSize: 11, fontWeight: 700, color: accent, marginTop: 6 }}>{msg}</div>}
+    </Row>
+  )
+}
+
 export default function Settings({ settings, onChange, onClose, accent, onEditSushrc }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const ent = useEntitlements()
@@ -1255,6 +1308,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                 <Icon name="arrowRight" size={13} color="#5a646d" style={{ marginLeft: 'auto' }} />
               </button>
             </Row>
+            <BackupRow accent={accent} settings={settings} onChange={onChange} />
           </Section>
 
           {/* Theme */}
