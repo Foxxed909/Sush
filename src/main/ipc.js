@@ -28,6 +28,7 @@ import {
   getClaudeLimits, checkClaudeLimits, probeClaudeUsage
 } from './claudePanel'
 import { getTtsConfigPublic, setTtsConfig, synthesizeTts } from './tts'
+import { licensePublic, redeemCode, clearLicense, featuresOf, can } from './license'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
@@ -1070,7 +1071,16 @@ export function registerIpcHandlers(win) {
     return fn(user, payload)
   }
   ipcMain.handle('sush:accounts-list', requireUser((user) => listAccounts(user.id)))
-  ipcMain.handle('sush:accounts-add', requireUser((user, { provider, label }) => addAccount(user.id, provider, label)))
+  ipcMain.handle('sush:accounts-add', requireUser((user, { provider, label }) => {
+    // Tier gate: a plan caps how many account slots one CLI can hold. The
+    // hard ceiling (MAX_SLOTS in accounts.js) still applies above this.
+    const cap = featuresOf().slots
+    const current = listAccounts(user.id).providers?.[provider]?.slots?.length || 0
+    if (current >= cap) {
+      return { ok: false, error: `Your plan allows ${cap} account${cap === 1 ? '' : 's'} per CLI. Redeem a code in Settings ▸ Plan to add more.`, locked: true }
+    }
+    return addAccount(user.id, provider, label)
+  }))
   ipcMain.handle('sush:accounts-switch', requireUser((user, { provider, slotId }) => switchAccount(user.id, provider, slotId)))
   ipcMain.handle('sush:accounts-remove', requireUser((user, { provider, slotId }) => removeAccount(user.id, provider, slotId)))
   ipcMain.handle('sush:accounts-rename', requireUser((user, { provider, slotId, label }) => renameAccount(user.id, provider, slotId, label)))
@@ -1097,8 +1107,35 @@ export function registerIpcHandlers(win) {
   // The user's own OpenAI/ElevenLabs key lives here and never reaches the
   // renderer; the renderer sends text, main returns audio bytes to play.
   ipcMain.handle('sush:tts-config-get', () => getTtsConfigPublic())
-  ipcMain.handle('sush:tts-config-set', (event, payload) => setTtsConfig(payload ?? {}))
-  ipcMain.handle('sush:tts-synthesize', (event, payload) => synthesizeTts(payload ?? {}))
+  ipcMain.handle('sush:tts-config-set', (event, payload = {}) => {
+    // Cloud voices are a paid tier; the system (SAPI) voice is always free.
+    if (payload.provider && payload.provider !== 'system' && !can('cloudTts')) {
+      return { ok: false, error: 'Cloud voices are a Plus feature. Redeem a code in Settings ▸ Plan.', locked: true, ...getTtsConfigPublic() }
+    }
+    return setTtsConfig(payload)
+  })
+  ipcMain.handle('sush:tts-synthesize', (event, payload = {}) => {
+    // If the tier lapsed (e.g. a trial code expired) fall back to system voice
+    // rather than keep calling the paid API on a config that's no longer unlocked.
+    if (!can('cloudTts')) return { ok: false, fallback: true }
+    return synthesizeTts(payload)
+  })
+
+  // ── License / tiers (offline unlock codes) ────────────────────────────────
+  const broadcastLicense = () => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:license-changed', licensePublic())
+  }
+  ipcMain.handle('sush:license-get', () => licensePublic())
+  ipcMain.handle('sush:license-redeem', (event, { code } = {}) => {
+    const r = redeemCode(code)
+    if (r.ok) broadcastLicense()
+    return r.ok ? { ...r, ...licensePublic() } : r
+  })
+  ipcMain.handle('sush:license-clear', () => {
+    const r = clearLicense()
+    broadcastLicense()
+    return { ...r, ...licensePublic() }
+  })
 
   // ── Usage snapshot (the Usage settings panel) ─────────────────────────────
   // Cheap, spawn-free aggregate the Usage panel polls on a timer: per-CLI

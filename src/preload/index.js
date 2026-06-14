@@ -56,6 +56,15 @@ contextBridge.exposeInMainWorld('sush', {
     ipcRenderer.on('sush:claude-panel-event', listener)
     return () => ipcRenderer.removeListener('sush:claude-panel-event', listener)
   },
+  // License / tiers (offline unlock codes)
+  licenseGet: () => ipcRenderer.invoke('sush:license-get'),
+  licenseRedeem: (payload) => ipcRenderer.invoke('sush:license-redeem', payload),
+  licenseClear: () => ipcRenderer.invoke('sush:license-clear'),
+  onLicenseChanged: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('sush:license-changed', listener)
+    return () => ipcRenderer.removeListener('sush:license-changed', listener)
+  },
   getScrollback: (payload) => ipcRenderer.invoke('sush:get-scrollback', payload),
   sushrcRead: () => ipcRenderer.invoke('sush:sushrc-read'),
   sushrcWrite: (payload) => ipcRenderer.invoke('sush:sushrc-write', payload),
