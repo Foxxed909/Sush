@@ -263,12 +263,12 @@ pre, code, kbd, .sush-mono,
    through the chrome as a soft wash of colour. A 1px top highlight gives every
    glass surface a faint lit edge (the "premium" tell). */
 .sush-glass-ui [data-glass] {
-  background: var(--glass-surface, rgba(10, 14, 20, 0.52)) !important;
+  background: var(--glass-surface, rgba(14, 15, 17, 0.6)) !important;
   backdrop-filter: blur(14px) saturate(170%);
   -webkit-backdrop-filter: blur(14px) saturate(170%);
 }
 .sush-glass-ui .sush-omni {
-  background: var(--glass-omni, rgba(6, 9, 13, 0.6)) !important;
+  background: var(--glass-omni, rgba(8, 9, 10, 0.66)) !important;
   backdrop-filter: blur(9px) saturate(150%);
   -webkit-backdrop-filter: blur(9px) saturate(150%);
 }
@@ -508,8 +508,8 @@ pre, code, kbd, .sush-mono,
 .sush-lock-card { animation: sush-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 .sush-lock-panel {
-  background: rgba(13, 16, 21, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(15, 16, 17, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: var(--r-xl);
   padding: 24px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);

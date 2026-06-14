@@ -44,7 +44,7 @@ function ThemeSwitcher({ accent, themeId, onThemeChange }) {
             gap: 9,
             padding: '9px 11px',
             borderRadius: 'var(--r-lg)',
-            background: 'rgba(10,12,16,0.92)',
+            background: 'rgba(15,16,17,0.94)',
             border: `1px solid ${rgba(accent, 0.22)}`,
             boxShadow: '0 14px 38px rgba(0,0,0,0.6)'
           }}
@@ -142,7 +142,7 @@ function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfil
             right: 0,
             zIndex: 400,
             minWidth: 218,
-            background: 'rgba(10,12,16,0.94)',
+            background: 'rgba(15,16,17,0.94)',
             border: `1px solid ${rgba(color, 0.25)}`,
             borderRadius: 'var(--r-lg)',
             boxShadow: '0 16px 44px rgba(0,0,0,0.6)',
@@ -195,7 +195,7 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
       data-glass
       className="flex items-center justify-between shrink-0"
       style={{
-        background: 'rgba(12,14,17,0.55)',
+        background: 'rgba(10,11,13,0.6)',
         height: 40,
         padding: '0 14px',
         WebkitAppRegion: 'drag',

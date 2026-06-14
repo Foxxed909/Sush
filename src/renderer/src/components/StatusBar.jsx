@@ -65,7 +65,7 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         alignItems: 'center',
         height: 26,
         flexShrink: 0,
-        background: 'rgba(8,10,14,0.5)',
+        background: 'rgba(8,9,10,0.55)',
         borderTop: '1px solid var(--border-1)',
         fontSize: 'var(--fs-sm)',
         color: dim,
