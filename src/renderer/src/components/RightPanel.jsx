@@ -429,7 +429,7 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
       />
       {(diff !== null || diffLoading) && (
         <div style={{ borderBottom: '1px solid #1b2127', background: '#070909', maxHeight: 150, overflowY: 'auto' }} className="sush-scroll">
-          <pre style={{ margin: 0, padding: '8px 10px', fontSize: 10.5, lineHeight: 1.6, color: '#9aa3ab', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+          <pre style={{ margin: 0, padding: '8px 10px', fontSize: 10.5, lineHeight: 1.6, color: 'var(--text-3)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
             {diffLoading ? 'Loading staged diff...' : diff}
           </pre>
         </div>
@@ -461,7 +461,7 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
               return (
                 <div key={`u-${f.path}`} className="flex items-center" style={{ gap: 6, padding: '4px 6px', marginBottom: 2 }}>
                   <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
-                  <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#9aa3ab', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}>{f.path}</button>
+                  <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}>{f.path}</button>
                   <button onClick={() => toggleStage(f)} title="Stage" style={{ fontSize: 10, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0, fontWeight: 800 }}>+</button>
                 </div>
               )
@@ -569,7 +569,7 @@ function TreeNode({ parent, entry, depth, accent, onOpenFile }) {
         onClick={() => (entry.dir ? setOpen(o => !o) : onOpenFile(full))}
         title={entry.name}
         className="flex items-center sush-tree-row"
-        style={{ gap: 6, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', color: entry.dir ? 'var(--text-2)' : '#9aa3ab', padding: '4px 6px', paddingLeft: 8 + depth * 14, borderRadius: 6, cursor: 'pointer' }}
+        style={{ gap: 6, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', color: entry.dir ? 'var(--text-2)' : 'var(--text-3)', padding: '4px 6px', paddingLeft: 8 + depth * 14, borderRadius: 6, cursor: 'pointer' }}
       >
         {entry.dir
           ? <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} color="var(--text-3)" strokeWidth={2.4} />
@@ -801,7 +801,7 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
               <button
                 onClick={() => onRun(cmd)}
                 title={`Run: ${cmd}`}
-                style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#9aa3ab', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}
+                style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}
               >
                 {cmd}
               </button>
@@ -861,7 +861,7 @@ function BarStat({ label, value, max, unit, accent, small = false }) {
   const color = pct > 80 ? '#ff5370' : pct > 60 ? '#ffcb6b' : accent
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: small ? 10 : 11, color: '#9aa3ab' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: small ? 10 : 11, color: 'var(--text-3)' }}>
         <span>{label}</span>
         {unit && <span style={{ color, fontWeight: 700 }}>{pct.toFixed(small ? 0 : 1)}{unit}</span>}
       </div>
@@ -958,7 +958,7 @@ function StatsTab({ accent }) {
               />
             )}
             {gpu.temperatureGpu != null && (
-              <div style={{ fontSize: 10.5, color: gpu.temperatureGpu > 80 ? '#ff5370' : '#9aa3ab' }}>
+              <div style={{ fontSize: 10.5, color: gpu.temperatureGpu > 80 ? '#ff5370' : 'var(--text-3)' }}>
                 Temp: <span style={{ fontWeight: 700 }}>{gpu.temperatureGpu}°C</span>
               </div>
             )}
@@ -1464,7 +1464,7 @@ function DockerTab({ accent, onRun }) {
               {ports && <div style={{ padding: '0 9px 5px', fontSize: 9.5, color: 'var(--text-4)', fontFamily: 'monospace' }}>{ports}</div>}
               {status && <div style={{ padding: '0 9px 5px', fontSize: 9, color: 'var(--text-5)' }}>{status}</div>}
               {hasLogs && (
-                <pre style={{ margin: 0, padding: '8px 10px', background: '#070909', borderTop: '1px solid #141a1f', fontSize: 10, lineHeight: 1.65, color: '#9aa3ab', maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                <pre style={{ margin: 0, padding: '8px 10px', background: '#070909', borderTop: '1px solid #141a1f', fontSize: 10, lineHeight: 1.65, color: 'var(--text-3)', maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                   {logs[id]}
                 </pre>
               )}
@@ -2103,7 +2103,7 @@ function HashTab({ accent }) {
                 <Icon name="copy" size={9} /> Copy
               </button>
             </div>
-            <div style={{ fontSize: 10.5, color: '#9aa3ab', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.5 }}>{hashes[a] || '…'}</div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.5 }}>{hashes[a] || '…'}</div>
           </div>
         ))}
       </div>
@@ -2182,7 +2182,7 @@ function GenerateTab({ accent }) {
             <button onClick={() => copyToClipboard(lorem)} title="Copy" style={{ position: 'absolute', top: 4, right: 4, display: 'flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 5, border: '1px solid #20272e', background: '#0f1318', color: accent, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>
               <Icon name="copy" size={9} /> Copy
             </button>
-            <pre style={{ margin: 0, padding: '8px 9px', paddingTop: 26, background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 7, fontSize: 11, lineHeight: 1.6, color: '#9aa3ab', whiteSpace: 'pre-wrap' }}>{lorem}</pre>
+            <pre style={{ margin: 0, padding: '8px 9px', paddingTop: 26, background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 7, fontSize: 11, lineHeight: 1.6, color: 'var(--text-3)', whiteSpace: 'pre-wrap' }}>{lorem}</pre>
           </div>
         </StatCard>
       </div>

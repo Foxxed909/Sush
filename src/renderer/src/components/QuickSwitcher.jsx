@@ -39,7 +39,7 @@ export default function QuickSwitcher({ accent, tabs, order, index }) {
               >
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: exited ? '#ff5370' : '#42d392', flexShrink: 0 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 800, color: on ? 'var(--text-1)' : '#cbd3da', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 800, color: on ? 'var(--text-1)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
                   <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.cwd || tab.profileLabel || tab.shell}</span>
                 </span>
                 {i === 0 && <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-4)', background: '#141a20', border: '1px solid #1d242b', borderRadius: 'var(--r-xs)', padding: '1px 6px', flexShrink: 0 }}>current</span>}

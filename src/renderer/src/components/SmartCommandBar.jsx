@@ -358,7 +358,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
                 key={i}
                 type="button"
                 onMouseDown={() => { setValue(cmd); setHistorySearch(false); setHistoryQuery(''); inputRef.current?.focus() }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: value === cmd ? rgba(accent, 0.12) : 'transparent', color: '#b0b9c2', padding: '6px 9px', cursor: 'pointer', fontSize: 12.5 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: value === cmd ? rgba(accent, 0.12) : 'transparent', color: 'var(--text-2)', padding: '6px 9px', cursor: 'pointer', fontSize: 12.5 }}
               >
                 <Icon name="clock" size={12} color="var(--text-5)" strokeWidth={2} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{cmd}</span>
@@ -403,7 +403,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
                 type="button"
                 onMouseDown={() => { setValue(complete(entry)); setShowSuggestions(entry.dir); inputRef.current?.focus() }}
                 onMouseEnter={() => setActiveIdx(i)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: on ? rgba(accent, 0.12) : 'transparent', color: on ? 'var(--text-1)' : '#b0b9c2', padding: '6px 9px', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: on ? rgba(accent, 0.12) : 'transparent', color: on ? 'var(--text-1)' : 'var(--text-2)', padding: '6px 9px', cursor: 'pointer' }}
               >
                 <Icon name={entry.dir ? 'folder' : 'file'} size={13} color={entry.dir ? accent : 'var(--text-5)'} strokeWidth={2} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}>{entry.name}</span>

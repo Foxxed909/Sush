@@ -259,7 +259,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
           className="flex items-center justify-between"
           style={{ padding: '15px 22px', borderTop: '1px solid #171c22', position: 'sticky', bottom: 0, background: '#0c0f12' }}
         >
-          <div className="flex items-center" style={{ gap: 8, color: '#9aa3ab', fontSize: 12.5 }}>
+          <div className="flex items-center" style={{ gap: 8, color: 'var(--text-3)', fontSize: 12.5 }}>
             <span
               className="flex items-center justify-center"
               style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 7, background: rgba(accent, 0.16), color: accent, fontWeight: 900, fontSize: 13 }}

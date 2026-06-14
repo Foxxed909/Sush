@@ -77,7 +77,7 @@ function WorkspaceLabel({ id, label, onRenameGroup }) {
   }
   return (
     <span
-      style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: '#d6dde2' }}
+      style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: 'var(--text-2)' }}
       onDoubleClick={e => { e.stopPropagation(); setEditing(true) }}
       title="Double-click to rename workspace"
     >

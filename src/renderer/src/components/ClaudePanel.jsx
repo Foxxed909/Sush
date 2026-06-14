@@ -62,7 +62,7 @@ function ToolStep({ step, accent }) {
         {!step.done && !step.error && <span className="sush-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: color, '--pulse': rgba(color, 0.6), flexShrink: 0 }} />}
       </button>
       {open && step.preview && (
-        <pre style={{ margin: 0, padding: '8px 12px', borderTop: `1px solid ${rgba(color, 0.15)}`, fontSize: 10.5, lineHeight: 1.5, color: '#9aa3ab', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflow: 'auto', fontFamily: 'monospace' }}>
+        <pre style={{ margin: 0, padding: '8px 12px', borderTop: `1px solid ${rgba(color, 0.15)}`, fontSize: 10.5, lineHeight: 1.5, color: 'var(--text-3)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 160, overflow: 'auto', fontFamily: 'monospace' }}>
           {step.preview}
         </pre>
       )}

@@ -137,7 +137,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
             {loading ? (
               <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Gathering context…</div>
             ) : (
-              <div className="flex items-center" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#cbd3da' }}>
+              <div className="flex items-center" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-2)' }}>
                 <span style={{ fontWeight: 800, color: 'var(--text-1)' }}>{source?.label}</span>
                 {source?.cwd && <span className="flex items-center" style={{ gap: 5 }}><Icon name="folder" size={12} color="var(--text-3)" />{shortPath(source.cwd)}</span>}
                 {card?.branch && <span className="flex items-center" style={{ gap: 5 }}><Icon name="gitBranch" size={12} color={accent} />{card.branch}{card.dirty ? ` ·${card.dirty}` : ''}</span>}
@@ -232,7 +232,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
         <div className="flex items-center justify-end" style={{ padding: '12px 18px', borderTop: `1px solid ${rgba(accent, 0.1)}`, gap: 10 }}>
           <button
             onClick={onClose}
-            style={{ fontSize: 12, fontWeight: 700, color: '#9aa3ab', background: '#11151a', border: '1px solid #20272e', borderRadius: 'var(--r-sm)', padding: '8px 14px', cursor: 'pointer' }}
+            style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', background: '#11151a', border: '1px solid #20272e', borderRadius: 'var(--r-sm)', padding: '8px 14px', cursor: 'pointer' }}
           >
             Cancel
           </button>

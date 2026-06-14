@@ -99,7 +99,7 @@ export default function ShortcutsHelp({ accent, onClose }) {
               <div className="flex flex-col" style={{ gap: 6 }}>
                 {section.rows.map((row, i) => (
                   <div key={i} className="flex items-center justify-between" style={{ gap: 8 }}>
-                    <span style={{ fontSize: 12, color: '#9aa3ab' }}>{row.label}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{row.label}</span>
                     <span className="flex items-center" style={{ gap: 3, flexShrink: 0 }}>
                       {row.isCmd ? (
                         <code style={{ fontSize: 10.5, color: rgba(accent, 0.85), background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.2)}`, borderRadius: 5, padding: '2px 7px', fontFamily: 'monospace' }}>

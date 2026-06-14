@@ -37,15 +37,15 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, onFocus, onClose
       {/* Agent monogram */}
       <span style={{
         width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 900, color: agent?.color || '#8b9bb0',
-        background: rgba(agent?.color || '#8b9bb0', 0.12), border: `1px solid ${rgba(agent?.color || '#8b9bb0', 0.3)}`
+        fontSize: 11, fontWeight: 900, color: agent?.color || 'var(--text-3)',
+        background: rgba(agent?.color || 'var(--text-3)', 0.12), border: `1px solid ${rgba(agent?.color || 'var(--text-3)', 0.3)}`
       }}>
         {agent?.mono || '>_'}
       </span>
 
       {/* Label + cwd */}
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#e6ecf2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {tab.label}
         </span>
         <span style={{ display: 'block', fontSize: 11, color: '#6b7787', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -79,7 +79,7 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, onFocus, onClose
             y ↵
           </button>
           <button className="sush-mc-btn" title="Send Enter" onClick={() => onPrompt(tab.id, '\r')}
-            style={{ fontSize: 11, fontWeight: 800, color: '#9aa6b8', background: rgba('#9aa6b8', 0.1), border: `1px solid ${rgba('#9aa6b8', 0.25)}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>
+            style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: rgba('var(--text-3)', 0.1), border: `1px solid ${rgba('var(--text-3)', 0.25)}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>
             ↵
           </button>
         </span>
@@ -87,7 +87,7 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, onFocus, onClose
 
       {/* Focus + close */}
       <button className="sush-mc-btn" title="Focus session" onClick={() => onFocus(tab.id)}
-        style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#9aa6b8', background: 'transparent', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 7, cursor: 'pointer' }}>
+        style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--text-3)', background: 'transparent', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 7, cursor: 'pointer' }}>
         <Icon name="eye" size={14} strokeWidth={2} />
       </button>
       <button className="sush-mc-btn" title="Close session" onClick={() => onClose(tab.id)}

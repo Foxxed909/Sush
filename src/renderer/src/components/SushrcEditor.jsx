@@ -102,7 +102,7 @@ export default function SushrcEditor({ accent, onClose }) {
             <button
               onClick={() => setContent(TEMPLATE)}
               className="sush-btn"
-              style={{ fontSize: 11.5, fontWeight: 700, color: '#9aa3ab', background: '#11151a', border: '1px solid #20272e', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer' }}
+              style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', background: '#11151a', border: '1px solid #20272e', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer' }}
             >
               Reset to template
             </button>
