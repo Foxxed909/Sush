@@ -1081,12 +1081,15 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
   return (
     <div className="sush-page-in" style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: 'var(--surface-0)' }}>
       {/* Page header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 26px', borderBottom: '1px solid var(--border-1)', flexShrink: 0 }}>
-        <div className="flex items-center" style={{ gap: 11 }}>
-          <span className="flex items-center justify-center" style={{ width: 32, height: 32, borderRadius: 9, background: rgba(accent, 0.12), border: `1px solid ${rgba(accent, 0.3)}`, color: accent }}>
-            <Icon name="settings" size={16} strokeWidth={2} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 26px', borderBottom: '1px solid var(--border-1)', flexShrink: 0 }}>
+        <div className="flex items-center" style={{ gap: 13 }}>
+          <span className="flex items-center justify-center" style={{ width: 38, height: 38, borderRadius: 11, background: `linear-gradient(150deg, ${rgba(accent, 0.3)}, ${rgba(accent, 0.06)})`, border: `1px solid ${rgba(accent, 0.4)}`, boxShadow: `0 8px 22px ${rgba(accent, 0.2)}, inset 0 1px 0 rgba(255,255,255,0.1)`, color: accent }}>
+            <Icon name="settings" size={18} strokeWidth={2} />
           </span>
-          <span style={{ color: 'var(--text-1)', fontWeight: 900, fontSize: 16, letterSpacing: 0.2 }}>Settings</span>
+          <div>
+            <div style={{ color: 'var(--text-1)', fontWeight: 900, fontSize: 19, letterSpacing: -0.4, lineHeight: 1.1 }}>Settings</div>
+            <div style={{ color: 'var(--text-3)', fontSize: 'var(--fs-xs)', fontWeight: 600, marginTop: 1 }}>Tune Sush to your machine and taste</div>
+          </div>
         </div>
         <button onClick={onClose} title="Back (Esc)" className="flex items-center" style={{ gap: 7, height: 32, padding: '0 13px', borderRadius: 9, border: '1px solid var(--border-2)', background: 'var(--surface-1)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
           <Icon name="x" size={13} /> Close
