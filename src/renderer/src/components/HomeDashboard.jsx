@@ -35,7 +35,7 @@ function SectionLabel({ icon, children, accent }) {
   return (
     <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
       {icon && <Icon name={icon} size={13} color={accent} strokeWidth={2.4} />}
-      <span style={{ color: '#8a939c', fontSize: 11, fontWeight: 800, letterSpacing: 1.4, textTransform: 'uppercase' }}>
+      <span style={{ color: 'var(--text-3)', fontSize: 11, fontWeight: 800, letterSpacing: 1.4, textTransform: 'uppercase' }}>
         {children}
       </span>
       <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${rgba(accent, 0.22)}, transparent)` }} />
@@ -86,7 +86,7 @@ export default function HomeDashboard({
         // With no wallpaper, the parent paints theme.xterm.background — same
         // dark as before. The accent glows still stack on top either way.
         background: `radial-gradient(1100px 460px at 12% -8%, ${rgba(accent, 0.12)}, transparent 70%), radial-gradient(900px 500px at 100% 0%, ${rgba(accent, 0.06)}, transparent 60%), transparent`,
-        color: '#e8edf1',
+        color: 'var(--text-1)',
         padding: '32px clamp(18px, 4vw, 48px) 44px'
       }}
     >
@@ -115,14 +115,14 @@ export default function HomeDashboard({
                   fontWeight: 900,
                   fontSize: 34,
                   lineHeight: 1.05,
-                  color: '#f3f6f8',
+                  color: 'var(--text-1)',
                   letterSpacing: -0.5
                 }}
               >
                 {greet.hi}{userName ? `, ${userName}` : ''} <span style={{ color: accent, textShadow: `0 0 32px ${rgba(accent, 0.45)}` }}>·</span> Sush
               </div>
               <div className="flex items-center" style={{ gap: 10, marginTop: 6 }}>
-                <span style={{ fontSize: 13.5, color: '#8a939c', fontWeight: 600 }}>{greet.sub}</span>
+                <span style={{ fontSize: 13.5, color: 'var(--text-3)', fontWeight: 600 }}>{greet.sub}</span>
                 <span style={{ fontSize: 12, color: rgba(accent, 0.6), fontWeight: 800, background: rgba(accent, 0.08), borderRadius: 6, padding: '2px 8px', border: `1px solid ${rgba(accent, 0.15)}` }}>{clockStr}</span>
               </div>
               <div className="flex items-center" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
@@ -131,9 +131,9 @@ export default function HomeDashboard({
                   style={{
                     gap: 6,
                     fontSize: 11.5,
-                    color: '#aab3bb',
-                    background: '#11151a',
-                    border: '1px solid #20272e',
+                    color: 'var(--text-2)',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border-2)',
                     borderRadius: 999,
                     padding: '4px 11px',
                     maxWidth: 380,
@@ -151,9 +151,9 @@ export default function HomeDashboard({
                   style={{
                     gap: 6,
                     fontSize: 11.5,
-                    color: '#aab3bb',
-                    background: '#11151a',
-                    border: '1px solid #20272e',
+                    color: 'var(--text-2)',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border-2)',
                     borderRadius: 999,
                     padding: '4px 11px'
                   }}
@@ -229,10 +229,10 @@ export default function HomeDashboard({
                 style={{
                   gap: 13,
                   textAlign: 'left',
-                  border: '1px solid #1d242b',
+                  border: '1px solid var(--border-1)',
                   borderRadius: 13,
                   background: 'linear-gradient(180deg, #12161b, #0d1115)',
-                  color: '#e6ebef',
+                  color: 'var(--text-2)',
                   padding: '15px 16px',
                   cursor: 'pointer'
                 }}
@@ -253,9 +253,9 @@ export default function HomeDashboard({
                 </span>
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ display: 'block', fontSize: 14, fontWeight: 800 }}>{item.label}</span>
-                  <span style={{ display: 'block', fontSize: 11, color: '#76808a', marginTop: 2 }}>{item.sub}</span>
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{item.sub}</span>
                 </span>
-                <Icon name="arrowRight" size={15} color="#3f4852" className="sush-tile-arrow" />
+                <Icon name="arrowRight" size={15} color="var(--text-5)" className="sush-tile-arrow" />
               </button>
             ))}
           </div>
@@ -283,7 +283,7 @@ export default function HomeDashboard({
                   <button
                     onClick={() => onRun(`work "${item.cwd}"`)}
                     className="flex items-center"
-                    style={{ gap: 8, background: 'none', border: 'none', color: '#e6ebef', cursor: 'pointer', fontSize: 12.5, fontWeight: 800, minWidth: 0, padding: 0 }}
+                    style={{ gap: 8, background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 800, minWidth: 0, padding: 0 }}
                   >
                     <Icon name="star" size={13} color={accent} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
@@ -292,9 +292,9 @@ export default function HomeDashboard({
                     onClick={() => onTogglePin?.(item)}
                     title="Unpin"
                     className="flex items-center justify-center"
-                    style={{ width: 20, height: 20, borderRadius: 6, background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ width: 20, height: 20, borderRadius: 6, background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', flexShrink: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#ff8aa0' }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-4)' }}
                   >
                     <Icon name="x" size={12} strokeWidth={2.2} />
                   </button>
@@ -329,10 +329,10 @@ export default function HomeDashboard({
                     gap: 12,
                     width: '100%',
                     textAlign: 'left',
-                    border: '1px solid #1b2127',
+                    border: '1px solid var(--border-1)',
                     borderRadius: 11,
-                    background: '#0f1318',
-                    color: '#d8dee4',
+                    background: 'var(--surface-2)',
+                    color: 'var(--text-2)',
                     padding: '11px 13px',
                     cursor: 'pointer'
                   }}
@@ -342,7 +342,7 @@ export default function HomeDashboard({
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.label}
                     </span>
-                    <span style={{ display: 'block', fontSize: 10.5, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
+                    <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
                       {item.path}
                     </span>
                   </span>
@@ -352,12 +352,12 @@ export default function HomeDashboard({
                       title={pinnedProjects.some(p => p.cwd === item.path) ? 'Unpin from Home' : 'Pin to Home'}
                       onClick={(e) => { e.stopPropagation(); onTogglePin({ cwd: item.path, label: item.label }) }}
                       className="flex items-center justify-center"
-                      style={{ width: 22, height: 22, borderRadius: 6, color: pinnedProjects.some(p => p.cwd === item.path) ? accent : '#3f4852', flexShrink: 0 }}
+                      style={{ width: 22, height: 22, borderRadius: 6, color: pinnedProjects.some(p => p.cwd === item.path) ? accent : 'var(--text-5)', flexShrink: 0 }}
                     >
                       <Icon name="star" size={13} strokeWidth={2} />
                     </span>
                   )}
-                  <Icon name="arrowRight" size={14} color="#3f4852" className="sush-row-arrow" />
+                  <Icon name="arrowRight" size={14} color="var(--text-5)" className="sush-row-arrow" />
                 </button>
               )) : (
                 <EmptyState icon="folder" accent={accent}>No directories yet</EmptyState>
@@ -378,10 +378,10 @@ export default function HomeDashboard({
                     gap: 12,
                     width: '100%',
                     textAlign: 'left',
-                    border: '1px solid #1b2127',
+                    border: '1px solid var(--border-1)',
                     borderRadius: 11,
-                    background: '#0f1318',
-                    color: '#d8dee4',
+                    background: 'var(--surface-2)',
+                    color: 'var(--text-2)',
                     padding: '11px 13px',
                     cursor: 'pointer'
                   }}
@@ -390,9 +390,9 @@ export default function HomeDashboard({
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span className="flex items-center justify-between" style={{ gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-                      <span style={{ fontSize: 10.5, color: '#69737d', fontWeight: 700, flexShrink: 0 }}>{formatTime(item.updatedAt)}</span>
+                      <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 700, flexShrink: 0 }}>{formatTime(item.updatedAt)}</span>
                     </span>
-                    <span style={{ display: 'block', fontSize: 10.5, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
+                    <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
                       {item.cwd}
                     </span>
                   </span>
@@ -413,10 +413,10 @@ export default function HomeDashboard({
               style={{
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
-                background: '#080a0c',
+                background: 'var(--surface-0)',
                 border: `1px solid ${smartResult.type === 'error' ? 'rgba(255,83,112,0.4)' : rgba(accent, 0.22)}`,
                 borderRadius: 11,
-                color: smartResult.type === 'error' ? '#ff9aaa' : '#d4dbe1',
+                color: smartResult.type === 'error' ? '#ff9aaa' : 'var(--text-2)',
                 padding: 14,
                 maxHeight: 280,
                 overflow: 'auto',
@@ -455,7 +455,7 @@ function NpmScriptsSection({ accent, cwd, onRun }) {
           <button
             key={name}
             onClick={() => onRun(`npm run ${name}`)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', border: `1px solid ${rgba(accent, 0.25)}`, borderRadius: 8, background: '#0f1318', color: '#cdd5dc', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 13px', border: `1px solid ${rgba(accent, 0.25)}`, borderRadius: 8, background: 'var(--surface-2)', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
           >
             <Icon name="arrowRight" size={12} color={accent} />
             {name}
@@ -472,15 +472,15 @@ function EmptyState({ icon, accent, children }) {
       className="flex items-center"
       style={{
         gap: 10,
-        color: '#69737d',
+        color: 'var(--text-3)',
         fontSize: 12.5,
-        border: '1px dashed #232b32',
+        border: '1px dashed var(--border-1)',
         borderRadius: 11,
         background: rgba(accent, 0.03),
         padding: '16px 14px'
       }}
     >
-      <Icon name={icon} size={16} color="#4a5560" />
+      <Icon name={icon} size={16} color="var(--text-5)" />
       {children}
     </div>
   )
