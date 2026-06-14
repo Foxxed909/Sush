@@ -205,8 +205,14 @@ export default function LockScreen({
     setBusy(false)
   }
 
-  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // Clock split into parts so the colon can carry the one sharp accent (and a
+  // CSS-only pulse — no per-second timer, so it costs nothing on battery).
+  const h24 = now.getHours()
+  const hh = String(((h24 + 11) % 12) + 1).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  const ampm = h24 < 12 ? 'AM' : 'PM'
   const dateStr = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
+  const greet = h24 < 5 ? 'Still up' : h24 < 12 ? 'Good morning' : h24 < 18 ? 'Good afternoon' : 'Good evening'
   const blobs = useMemo(() => {
     const palette = users.length ? users.map(u => u.color || '#ff6b9d') : [form.color]
     return [
@@ -268,11 +274,18 @@ export default function LockScreen({
         ))}
       </div>
 
-      <div className="sush-lock-card" style={{ WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 440px)' }}>
-        {/* Clock header — shared by every mode */}
-        <div style={{ textAlign: 'center', marginBottom: 26 }}>
-          <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: -1.5, color: 'var(--text-1)', lineHeight: 1, textShadow: '0 6px 40px rgba(0,0,0,0.5)' }}>{timeStr}</div>
-          <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-3)' }}>{dateStr}</div>
+      <div className="sush-lock-card" style={{ position: 'relative', zIndex: 1, WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 440px)' }}>
+        {/* Clock header — shared by every mode. The clock is the hero moment:
+            heavy figures, a thin AM/PM, the colon in accent with a CSS pulse. */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase', color: rgba(accent, 0.85), marginBottom: 10 }}>{greet}</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 0, lineHeight: 0.9 }}>
+            <span style={{ fontSize: 78, fontWeight: 800, letterSpacing: -3, color: 'var(--text-1)', fontVariantNumeric: 'tabular-nums', textShadow: '0 8px 48px rgba(0,0,0,0.55)' }}>{hh}</span>
+            <span className="sush-lock-colon" style={{ fontSize: 70, fontWeight: 300, color: accent, padding: '0 4px', textShadow: `0 0 28px ${rgba(accent, 0.6)}` }}>:</span>
+            <span style={{ fontSize: 78, fontWeight: 800, letterSpacing: -3, color: 'var(--text-1)', fontVariantNumeric: 'tabular-nums', textShadow: '0 8px 48px rgba(0,0,0,0.55)' }}>{mm}</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-3)', marginLeft: 10, letterSpacing: 0.5 }}>{ampm}</span>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: 'var(--text-3)' }}>{dateStr}</div>
         </div>
 
         {/* One glass card holds whichever mode is active */}
@@ -488,8 +501,8 @@ export default function LockScreen({
                 {needsPin ? `Enter ${selected?.name}'s PIN` : 'Who’s using Sush?'}
               </div>
 
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginBottom: needsPin ? 18 : 4 }}>
-                {visibleUsers.map(user => {
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginBottom: needsPin ? 20 : 4 }}>
+                {visibleUsers.map((user, i) => {
                   const isSel = selected?.id === user.id
                   return (
                     <button
@@ -497,11 +510,11 @@ export default function LockScreen({
                       onClick={() => choose(user)}
                       className="sush-lock-user"
                       data-selected={isSel}
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center', width: 92, padding: 0 }}
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center', width: 96, padding: 0, animationDelay: `${i * 70}ms` }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
-                        <div style={{ borderRadius: '30%', padding: 3, background: isSel ? `linear-gradient(150deg, ${rgba(user.color || accent, 0.9)}, transparent)` : 'transparent', transition: 'background .2s ease' }}>
-                          <Avatar user={user} size={62} dim={!isSel} ring={false} />
+                        <div style={{ borderRadius: '30%', padding: 3, transform: isSel ? 'scale(1.06)' : 'scale(1)', background: isSel ? `linear-gradient(150deg, ${rgba(user.color || accent, 0.95)}, ${rgba(user.color || accent, 0.15)})` : 'transparent', boxShadow: isSel ? `0 10px 30px ${rgba(user.color || accent, 0.4)}` : 'none', transition: 'background .2s ease, box-shadow .2s ease, transform .2s ease' }}>
+                          <Avatar user={user} size={68} dim={!isSel} ring={false} />
                         </div>
                         {user.hasPin && (
                           <span className="flex items-center justify-center" style={{ position: 'absolute', right: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: 'var(--surface-1)', border: '1px solid rgba(255,255,255,0.18)', color: 'var(--text-2)' }}>
