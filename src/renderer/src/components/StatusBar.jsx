@@ -50,12 +50,12 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
     : null
   const dirty = git?.files?.length ?? 0
 
-  const divider = rgba(accent, 0.1)
+  const divider = 'var(--border-1)'
   const seg = { display: 'flex', alignItems: 'center', gap: 5, padding: '0 10px', height: '100%', borderRight: `1px solid ${divider}` }
   const segR = { ...seg, borderRight: 'none', borderLeft: `1px solid ${divider}` }
-  const dim = '#7a838b'
+  const dim = 'var(--text-3)'
 
-  const usageColor = (v) => v == null ? dim : v >= 85 ? '#ff5370' : v >= 60 ? '#ffcb6b' : '#8a939c'
+  const usageColor = (v) => v == null ? dim : v >= 85 ? '#ff5370' : v >= 60 ? '#ffcb6b' : 'var(--text-3)'
 
   return (
     <div
@@ -66,8 +66,8 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         height: 26,
         flexShrink: 0,
         background: 'rgba(8,10,14,0.5)',
-        borderTop: `1px solid ${rgba(accent, 0.12)}`,
-        fontSize: 11,
+        borderTop: '1px solid var(--border-1)',
+        fontSize: 'var(--fs-sm)',
         color: dim,
         userSelect: 'none',
         overflow: 'hidden'
@@ -108,8 +108,8 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       {/* git */}
       {git && (
         <span style={seg}>
-          <Icon name="gitBranch" size={12} color={dirty ? '#ffcb6b' : '#8a939c'} />
-          <span style={{ color: '#c6cdd4', fontWeight: 700 }}>{git.branch}</span>
+          <Icon name="gitBranch" size={12} color={dirty ? '#ffcb6b' : 'var(--text-3)'} />
+          <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{git.branch}</span>
           {dirty > 0 && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#ffcb6b' }} />
@@ -129,8 +129,8 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       {/* shell */}
       {shell && view !== 'home' && (
         <span style={segR}>
-          <Icon name="terminal" size={12} color="#8a939c" />
-          <span style={{ color: '#c6cdd4' }}>{shell}</span>
+          <Icon name="terminal" size={12} color="var(--text-3)" />
+          <span style={{ color: 'var(--text-2)' }}>{shell}</span>
         </span>
       )}
 
@@ -160,18 +160,18 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       <span style={segR}>
         {workspaceCount > 0 && (
           <>
-            <span style={{ color: '#c6cdd4', fontWeight: 700 }}>{workspaceCount}</span>
+            <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{workspaceCount}</span>
             <span>ws</span>
             <span style={{ color: '#3a434c' }}>·</span>
           </>
         )}
-        <span style={{ color: '#c6cdd4', fontWeight: 700 }}>{sessionCount}</span>
+        <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{sessionCount}</span>
         <span>session{sessionCount === 1 ? '' : 's'}</span>
       </span>
 
       {/* cpu */}
       <span style={segR} title="CPU load">
-        <Icon name="cpu" size={12} color="#8a939c" />
+        <Icon name="cpu" size={12} color="var(--text-3)" />
         <span style={{ color: usageColor(cpu), fontWeight: 700, minWidth: 30, textAlign: 'right' }}>
           {cpu == null ? '—' : `${cpu}%`}
         </span>
@@ -179,7 +179,7 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
 
       {/* mem */}
       <span style={segR} title="Memory used">
-        <Icon name="activity" size={12} color="#8a939c" />
+        <Icon name="activity" size={12} color="var(--text-3)" />
         <span style={{ color: usageColor(memPct), fontWeight: 700, minWidth: 30, textAlign: 'right' }}>
           {memPct == null ? '—' : `${memPct}%`}
         </span>
@@ -196,15 +196,15 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       {/* battery */}
       {battery?.hasBattery && (
         <span style={segR} title={battery.charging ? `Battery ${battery.percent}% — charging` : `Battery ${battery.percent}%`}>
-          <Icon name="battery" size={13} color={battery.charging ? '#5fd3a8' : battery.percent <= 15 ? '#ff5370' : battery.percent <= 30 ? '#ffcb6b' : '#8a939c'} />
-          <span style={{ color: battery.charging ? '#c6cdd4' : battery.percent <= 15 ? '#ff5370' : battery.percent <= 30 ? '#ffcb6b' : '#c6cdd4', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          <Icon name="battery" size={13} color={battery.charging ? '#5fd3a8' : battery.percent <= 15 ? '#ff5370' : battery.percent <= 30 ? '#ffcb6b' : 'var(--text-3)'} />
+          <span style={{ color: battery.charging ? 'var(--text-2)' : battery.percent <= 15 ? '#ff5370' : battery.percent <= 30 ? '#ffcb6b' : 'var(--text-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
             {battery.percent}%{battery.charging ? '⁺' : ''}
           </span>
         </span>
       )}
 
       {/* clock */}
-      <span style={{ ...segR, paddingRight: 12, color: '#c6cdd4', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title={clock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}>
+      <span style={{ ...segR, paddingRight: 12, color: 'var(--text-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title={clock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}>
         {clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
     </div>

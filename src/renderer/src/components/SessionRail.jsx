@@ -20,9 +20,9 @@ function RailButton({ icon, label, active, accent, onClick }) {
         width: 36,
         height: 36,
         borderRadius: 'var(--r-md)',
-        border: `1px solid ${active ? accent : rgba(accent, 0.18)}`,
-        background: active ? rgba(accent, 0.16) : rgba(accent, 0.05),
-        color: active ? accent : '#c2cad1',
+        border: `1px solid ${active ? accent : 'var(--border-2)'}`,
+        background: active ? 'var(--accent-a16)' : 'var(--surface-2)',
+        color: active ? accent : 'var(--text-2)',
         cursor: 'pointer'
       }}
     >
@@ -173,10 +173,10 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
           alignItems: 'center',
           textAlign: 'left',
           borderRadius: 'var(--r-lg)',
-          border: `1px solid ${active ? rgba(accent, 0.55) : over ? rgba(accent, 0.4) : pinned ? rgba(accent, 0.22) : rgba(accent, 0.1)}`,
-          background: active ? rgba(accent, 0.12) : over ? rgba(accent, 0.07) : 'rgba(255,255,255,0.018)',
-          color: active ? '#f4f6f8' : '#aab2ba',
-          padding: '10px 11px',
+          border: `1px solid ${active ? rgba(accent, 0.55) : over ? rgba(accent, 0.4) : pinned ? 'var(--accent-a22)' : 'var(--border-1)'}`,
+          background: active ? rgba(accent, 0.12) : over ? rgba(accent, 0.07) : 'rgba(255,255,255,0.022)',
+          color: active ? 'var(--text-1)' : 'var(--text-2)',
+          padding: '10px 12px',
           boxShadow: active ? `0 4px 16px ${rgba(accent, 0.14)}` : 'none',
           marginLeft: indented ? 12 : 0,
           cursor: 'pointer',
@@ -196,7 +196,7 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
         />
         <span style={{ minWidth: 0 }}>
           <SessionLabel tab={tab} onRename={onRename} editRequested={editRequested} onEditDone={onEditDone} />
-          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, color: activity === 'waiting' ? '#ffcb6b' : activity === 'error' ? '#ff8aa0' : '#69737d', marginTop: 3 }}>
+          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-xs)', color: activity === 'waiting' ? '#ffcb6b' : activity === 'error' ? '#ff8aa0' : 'var(--text-3)', marginTop: 3 }}>
             {exited ? 'exited' : activity === 'waiting' ? 'needs you' : activity === 'error' ? 'error surfaced' : shortPath(tab.cwd) || tab.shellLabel || tab.shell}
           </span>
         </span>
@@ -209,7 +209,7 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
             onClose(tab.id)
           }}
           className="sush-session-close flex items-center justify-center"
-          style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: pinned ? '#5a646d' : '#69737d', cursor: 'pointer' }}
+          style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: pinned ? 'var(--text-4)' : 'var(--text-3)', cursor: 'pointer' }}
         >
           <Icon name={pinned ? 'lock' : 'x'} size={13} strokeWidth={2.2} />
         </button>
@@ -389,10 +389,10 @@ export default function SessionRail({
       <div className="flex-1 min-h-0 overflow-y-auto sush-scroll" style={{ padding: 12 }}>
         <div
           className="flex items-center"
-          style={{ gap: 8, color: '#6b747d', fontSize: 10.5, margin: '0 0 10px 2px', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}
+          style={{ gap: 8, color: 'var(--text-3)', fontSize: 'var(--fs-xs)', margin: '0 0 10px 2px', fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase' }}
         >
           Workspaces
-          <span style={{ color: '#4b545d' }}>{q ? `${sortedTabs.length}/${tabs.length}` : tabs.length}</span>
+          <span style={{ color: 'var(--text-5)' }}>{q ? `${sortedTabs.length}/${tabs.length}` : tabs.length}</span>
           <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${rgba(accent, 0.18)}, transparent)` }} />
           {tabs.some(t => t.status === 'exited') && (
             <button
@@ -411,18 +411,18 @@ export default function SessionRail({
         {tabs.length > 3 && (
           <div
             className="flex items-center"
-            style={{ gap: 7, marginBottom: 10, background: 'rgba(0,0,0,0.22)', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 'var(--r-sm)', padding: '0 9px', height: 30 }}
+            style={{ gap: 7, marginBottom: 10, background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 'var(--r-sm)', padding: '0 9px', height: 30 }}
           >
-            <Icon name="search" size={12} color="#5a646d" strokeWidth={2} />
+            <Icon name="search" size={12} color="var(--text-4)" strokeWidth={2} />
             <input
               value={filter}
               onChange={e => setFilter(e.target.value)}
               placeholder="Filter sessions…"
               spellCheck={false}
-              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: '#d4dbe1', fontSize: 11.5, fontFamily: 'inherit' }}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-2)', fontSize: 'var(--fs-sm)', fontFamily: 'inherit' }}
             />
             {filter && (
-              <button onClick={() => setFilter('')} title="Clear" style={{ background: 'none', border: 'none', color: '#69737d', cursor: 'pointer', display: 'flex', padding: 0 }}>
+              <button onClick={() => setFilter('')} title="Clear" style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', padding: 0 }}>
                 <Icon name="x" size={12} strokeWidth={2.2} />
               </button>
             )}
@@ -466,7 +466,7 @@ export default function SessionRail({
             return (
               <div
                 key={block.id}
-                style={{ border: `1px solid ${hasActive ? rgba(accent, 0.4) : rgba(accent, 0.1)}`, borderRadius: 'var(--r-lg)', background: hasActive ? rgba(accent, 0.06) : 'rgba(255,255,255,0.018)', padding: 7 }}
+                style={{ border: `1px solid ${hasActive ? rgba(accent, 0.4) : 'var(--border-1)'}`, borderRadius: 'var(--r-lg)', background: hasActive ? rgba(accent, 0.06) : 'rgba(255,255,255,0.018)', padding: 7 }}
               >
                 <div
                   className="flex items-center"
@@ -474,7 +474,7 @@ export default function SessionRail({
                   onClick={() => toggleGroup(block.id)}
                   title={block.label}
                 >
-                  <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={13} color="#7b858d" strokeWidth={2.4} />
+                  <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={13} color="var(--text-3)" strokeWidth={2.4} />
                   <Icon name="users" size={13} color={accent} strokeWidth={2} />
                   <WorkspaceLabel id={block.id} label={block.label} onRenameGroup={onRenameGroup} />
                   <span style={{ fontSize: 9.5, fontWeight: 800, color: accent, background: rgba(accent, 0.14), borderRadius: 999, padding: '1px 7px' }}>
@@ -485,7 +485,7 @@ export default function SessionRail({
                     title="Add a session to this workspace"
                     onClick={(e) => { e.stopPropagation(); onAddToGroup?.(block) }}
                     className="flex items-center justify-center"
-                    style={{ width: 20, height: 20, borderRadius: 6, border: 'none', background: 'transparent', color: '#69737d', cursor: 'pointer' }}
+                    style={{ width: 20, height: 20, borderRadius: 6, border: 'none', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = accent }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = '#69737d' }}
                   >
@@ -496,7 +496,7 @@ export default function SessionRail({
                     title="Close workspace"
                     onClick={(e) => { e.stopPropagation(); onCloseGroup?.(block.id) }}
                     className="flex items-center justify-center"
-                    style={{ width: 20, height: 20, borderRadius: 6, border: 'none', background: 'transparent', color: '#69737d', cursor: 'pointer' }}
+                    style={{ width: 20, height: 20, borderRadius: 6, border: 'none', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = '#ff5370' }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = '#69737d' }}
                   >

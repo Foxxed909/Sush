@@ -25,9 +25,9 @@ function ThemeSwitcher({ accent, themeId, onThemeChange }) {
         onClick={() => setOpen(o => !o)}
         title="Theme"
         className="flex items-center justify-center"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: open ? accent : '#69727a', padding: 4, borderRadius: 6, transition: 'color .15s' }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: open ? accent : 'var(--text-3)', padding: 4, borderRadius: 6, transition: 'color .15s' }}
         onMouseEnter={e => { e.currentTarget.style.color = accent }}
-        onMouseLeave={e => { if (!open) e.currentTarget.style.color = '#69727a' }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.color = 'var(--text-3)' }}
       >
         <Icon name="palette" size={15} />
       </button>
@@ -127,7 +127,7 @@ function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfil
         }}
       >
         <ChipAvatar user={user} color={color} size={20} fontSize={10.5} radius="32%" />
-        <span style={{ color: '#d4dbe1', fontSize: 11, fontWeight: 800, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ color: 'var(--text-2)', fontSize: 11, fontWeight: 800, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {user.name}
         </span>
       </button>
@@ -157,8 +157,8 @@ function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfil
           >
             <ChipAvatar user={user} color={color} size={28} fontSize={13} radius="30%" />
             <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', color: '#f1f4f6', fontWeight: 800, fontSize: 12.5 }}>{user.name}</span>
-              <span style={{ display: 'block', color: '#69737d', fontSize: 10, marginTop: 1 }}>
+              <span style={{ display: 'block', color: 'var(--text-1)', fontWeight: 800, fontSize: 12.5 }}>{user.name}</span>
+              <span style={{ display: 'block', color: 'var(--text-3)', fontSize: 10, marginTop: 1 }}>
                 {user.isolation === 'full' ? 'full home isolation' : 'CLI logins isolated'}
               </span>
             </span>
@@ -168,13 +168,13 @@ function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfil
               key={item.label}
               onClick={() => { setOpen(false); item.run?.() }}
               className="flex items-center"
-              style={{ gap: 9, width: '100%', padding: '7px 10px', border: 'none', background: 'transparent', color: item.danger ? '#ff8aa0' : '#d4dbe1', cursor: 'pointer', fontSize: 12, fontWeight: 700, borderRadius: 8, textAlign: 'left' }}
+              style={{ gap: 9, width: '100%', padding: '7px 10px', border: 'none', background: 'transparent', color: item.danger ? '#ff8aa0' : 'var(--text-2)', cursor: 'pointer', fontSize: 12, fontWeight: 700, borderRadius: 8, textAlign: 'left' }}
               onMouseEnter={e => { e.currentTarget.style.background = rgba(item.danger ? '#ff5370' : color, 0.1) }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
             >
-              <Icon name={item.icon} size={13} color={item.danger ? '#ff8aa0' : '#8a939c'} strokeWidth={2.1} />
+              <Icon name={item.icon} size={13} color={item.danger ? '#ff8aa0' : 'var(--text-3)'} strokeWidth={2.1} />
               <span style={{ flex: 1 }}>{item.label}</span>
-              {item.hint && <span style={{ fontSize: 9, color: '#5a646d', fontWeight: 600 }}>{item.hint}</span>}
+              {item.hint && <span style={{ fontSize: 9, color: 'var(--text-4)', fontWeight: 600 }}>{item.hint}</span>}
             </button>
           ))}
         </div>
@@ -213,7 +213,7 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
             boxShadow: `0 0 12px ${rgba(accent, 0.45)}, inset 0 1px 0 rgba(255,255,255,0.35)`
           }}
         />
-        <span style={{ color: '#f1f4f6', fontWeight: 800, fontSize: 12.5, letterSpacing: 2.5, fontFeatureSettings: "'ss01', 'kern'" }}>SUSH</span>
+        <span style={{ color: 'var(--text-1)', fontWeight: 800, fontSize: 12.5, letterSpacing: 2.5, fontFeatureSettings: "'ss01', 'kern'" }}>SUSH</span>
         {sessionCount > 0 && (
           <span
             title={`${sessionCount} active session${sessionCount !== 1 ? 's' : ''}`}
@@ -234,9 +234,9 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
             onClick={onSignOut}
             title="Sign out (closes your sessions)"
             className="flex items-center justify-center"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#69727a', padding: 4, borderRadius: 6, transition: 'color .15s' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 6, transition: 'color .15s' }}
             onMouseEnter={e => { e.currentTarget.style.color = '#ff8aa0' }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#69727a' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)' }}
           >
             <Icon name="logout" size={14} />
           </button>
@@ -248,9 +248,9 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
           onClick={onSettings}
           title="Settings"
           className="flex items-center justify-center"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#69727a', padding: 4, borderRadius: 6, transition: 'color .15s' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 4, borderRadius: 6, transition: 'color .15s' }}
           onMouseEnter={e => { e.currentTarget.style.color = accent }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#69727a' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)' }}
         >
           <Icon name="settings" size={15} />
         </button>
