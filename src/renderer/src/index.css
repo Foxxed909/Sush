@@ -513,15 +513,15 @@ pre, code, kbd, .sush-mono,
   width: 100%;
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e8edf1;
+  color: var(--text-1);
   border-radius: 10px;
   padding: 10px 13px;
-  font-size: 13.5px;
+  font-size: var(--fs-lg);
   font-family: inherit;
   outline: none;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
-.sush-lock-input::placeholder { color: #5a646d; }
+.sush-lock-input::placeholder { color: var(--text-4); }
 .sush-lock-input:focus {
   border-color: var(--accent-a55);
   box-shadow: 0 0 0 3px var(--accent-a10);

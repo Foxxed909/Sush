@@ -293,7 +293,7 @@ export default function LockScreen({
                   style={{ display: 'inline-block', cursor: 'pointer', position: 'relative' }}
                 >
                   <Avatar user={{ name: form.name || '?', color: form.color, avatar: form.name.trim() ? undefined : '+', avatarUrl: form.avatarUrl }} size={72} />
-                  <span className="flex items-center justify-center" style={{ position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: '50%', background: form.color, border: '2px solid #0a0c0f', color: '#0a0a0c' }}>
+                  <span className="flex items-center justify-center" style={{ position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: '50%', background: form.color, border: '2px solid var(--surface-0)', color: '#0a0a0c' }}>
                     <Icon name={form.avatarUrl ? 'edit' : 'plus'} size={12} strokeWidth={2.5} />
                   </span>
                 </div>
@@ -504,12 +504,12 @@ export default function LockScreen({
                           <Avatar user={user} size={62} dim={!isSel} ring={false} />
                         </div>
                         {user.hasPin && (
-                          <span className="flex items-center justify-center" style={{ position: 'absolute', right: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: 'var(--text-2)' }}>
+                          <span className="flex items-center justify-center" style={{ position: 'absolute', right: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: 'var(--surface-1)', border: '1px solid rgba(255,255,255,0.18)', color: 'var(--text-2)' }}>
                             <Icon name="lock" size={9} strokeWidth={2.4} />
                           </span>
                         )}
                         {(user.providers?.github || user.providers?.google) && (
-                          <span className="flex items-center justify-center" style={{ position: 'absolute', left: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: 'var(--text-2)' }}>
+                          <span className="flex items-center justify-center" style={{ position: 'absolute', left: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: 'var(--surface-1)', border: '1px solid rgba(255,255,255,0.18)', color: 'var(--text-2)' }}>
                             <Icon name={user.providers?.github ? 'github' : 'google'} size={9} strokeWidth={2.2} />
                           </span>
                         )}

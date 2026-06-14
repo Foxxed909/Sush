@@ -196,7 +196,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           height: 54,
           padding: '0 14px',
           background: 'transparent',
-          borderBottom: `1px solid ${rgba(accent, 0.1)}`
+          borderBottom: '1px solid var(--border-1)'
         }}
       >
         {/* Home */}
@@ -280,7 +280,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
         </button>
 
         {/* Divider before the view toggles */}
-        <span style={{ width: 1, height: 20, background: rgba(accent, 0.12), margin: '0 2px', flexShrink: 0 }} />
+        <span style={{ width: 1, height: 20, background: 'var(--border-2)', margin: '0 2px', flexShrink: 0 }} />
 
         {/* Broadcast toggle */}
         {onToggleBroadcast && (
@@ -289,7 +289,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
             title={broadcastMode ? 'Broadcast ON -- input goes to all tabs (Ctrl+Shift+B)' : 'Broadcast mode off (Ctrl+Shift+B)'}
             onClick={onToggleBroadcast}
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : rgba(accent, 0.14)}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : rgba(accent, 0.04), color: broadcastMode ? '#ff5370' : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
+            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : 'var(--border-2)'}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : 'var(--surface-2)', color: broadcastMode ? '#ff5370' : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
           >
             <Icon name="radio" size={14} />
           </button>
@@ -306,7 +306,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
             title={gridMode ? 'Sidebar layout (Ctrl+Shift+G)' : 'Grid layout - tile all sessions (Ctrl+Shift+G)'}
             onClick={onToggleGrid}
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${gridMode ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: gridMode ? rgba(accent, 0.1) : rgba(accent, 0.04), color: gridMode ? accent : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
+            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${gridMode ? rgba(accent, 0.45) : 'var(--border-2)'}`, background: gridMode ? rgba(accent, 0.1) : 'var(--surface-2)', color: gridMode ? accent : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
           >
             <Icon name="grid" size={14} />
           </button>
@@ -318,7 +318,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           title={rightOpen ? 'Hide panel (Ctrl+B)' : 'Show panel (Ctrl+B)'}
           onClick={onTogglePanel}
           className="sush-icon-btn flex items-center justify-center"
-          style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${rightOpen ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: rightOpen ? rgba(accent, 0.1) : rgba(accent, 0.04), color: rightOpen ? accent : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
+          style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${rightOpen ? rgba(accent, 0.45) : 'var(--border-2)'}`, background: rightOpen ? rgba(accent, 0.1) : 'var(--surface-2)', color: rightOpen ? accent : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
         >
           <Icon name="panel" size={15} />
         </button>
@@ -346,7 +346,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
             padding: '5px 5px 6px'
           }}
         >
-          <div style={{ padding: '4px 9px 6px', borderBottom: '1px solid #1b2127', marginBottom: 4 }}>
+          <div style={{ padding: '4px 9px 6px', borderBottom: '1px solid var(--border-1)', marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: 'var(--text-4)', fontWeight: 700 }}>HISTORY SEARCH  </span>
             <span style={{ fontSize: 10, color: accent, fontWeight: 700 }}>{historyQuery || '(type to filter)'}</span>
           </div>
@@ -417,4 +417,4 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
   )
 }
 
-const kbdStyle = { background: '#171c22', border: '1px solid #262d35', borderRadius: 4, padding: '1px 4px', fontSize: 9.5, fontFamily: 'inherit', lineHeight: 1.4 }
+const kbdStyle = { background: 'var(--border-1)', border: '1px solid var(--border-2)', borderRadius: 4, padding: '1px 4px', fontSize: 9.5, fontFamily: 'inherit', lineHeight: 1.4 }
