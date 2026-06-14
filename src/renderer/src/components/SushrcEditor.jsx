@@ -75,11 +75,11 @@ export default function SushrcEditor({ accent, onClose }) {
           <div className="flex items-center" style={{ gap: 10, minWidth: 0 }}>
             <Icon name="fileText" size={17} color={accent} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 900, color: '#f1f4f6' }}>.sushrc Profile</div>
-              <div title={path} style={{ fontSize: 10.5, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 420, fontFamily: 'monospace' }}>{path}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 900, color: 'var(--text-1)' }}>.sushrc Profile</div>
+              <div title={path} style={{ fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 420, fontFamily: 'monospace' }}>{path}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -91,7 +91,7 @@ export default function SushrcEditor({ accent, onClose }) {
           spellCheck={false}
           disabled={loading}
           style={{
-            flex: 1, minHeight: 320, resize: 'none', background: '#07090b', color: '#d4dbe1',
+            flex: 1, minHeight: 320, resize: 'none', background: '#07090b', color: 'var(--text-2)',
             border: 'none', outline: 'none', padding: '14px 18px', fontSize: 12.5, lineHeight: 1.6,
             fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace"
           }}

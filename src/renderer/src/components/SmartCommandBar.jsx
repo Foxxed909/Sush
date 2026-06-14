@@ -212,7 +212,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
 
         {/* Input */}
         <div className="sush-omni flex items-center" style={{ flex: 1, minWidth: 0, gap: 9, position: 'relative' }}>
-          <Icon name="command" size={14} color={busy ? accent : '#5a646d'} className={busy ? 'sush-spin' : undefined} />
+          <Icon name="command" size={14} color={busy ? accent : 'var(--text-4)'} className={busy ? 'sush-spin' : undefined} />
           <div style={{ flex: 1, minWidth: 0, position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
             <input
               ref={inputRef}
@@ -223,11 +223,11 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
               onBlur={closeSuggestions}
               placeholder="Smart command, path, or shell..."
               spellCheck={false}
-              style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
+              style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13 }}
             />
           </div>
           {!value && (
-            <span className="flex items-center" style={{ gap: 3, color: '#3f4852', fontSize: 10, fontWeight: 700, flexShrink: 0, userSelect: 'none' }}>
+            <span className="flex items-center" style={{ gap: 3, color: 'var(--text-5)', fontSize: 10, fontWeight: 700, flexShrink: 0, userSelect: 'none' }}>
               <kbd style={kbdStyle}>Ctrl</kbd><kbd style={kbdStyle}>L</kbd>
             </span>
           )}
@@ -237,7 +237,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
         <span
           title={activeTab?.cwd || activeTab?.profileLabel || ''}
           className="flex items-center"
-          style={{ gap: 6, color: '#c6cdd4', fontSize: 11, fontWeight: 700, background: rgba(accent, 0.07), border: `1px solid ${rgba(accent, 0.18)}`, borderRadius: 'var(--r-pill)', padding: '5px 11px', flexShrink: 0, maxWidth: 160 }}
+          style={{ gap: 6, color: 'var(--text-2)', fontSize: 11, fontWeight: 700, background: rgba(accent, 0.07), border: `1px solid ${rgba(accent, 0.18)}`, borderRadius: 'var(--r-pill)', padding: '5px 11px', flexShrink: 0, maxWidth: 160 }}
         >
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${rgba(accent, 0.8)}`, flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeTab?.label || 'Shell'}</span>
@@ -289,7 +289,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
             title={broadcastMode ? 'Broadcast ON -- input goes to all tabs (Ctrl+Shift+B)' : 'Broadcast mode off (Ctrl+Shift+B)'}
             onClick={onToggleBroadcast}
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : rgba(accent, 0.14)}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : rgba(accent, 0.04), color: broadcastMode ? '#ff5370' : '#8a939c', cursor: 'pointer', flexShrink: 0 }}
+            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : rgba(accent, 0.14)}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : rgba(accent, 0.04), color: broadcastMode ? '#ff5370' : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
           >
             <Icon name="radio" size={14} />
           </button>
@@ -306,7 +306,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
             title={gridMode ? 'Sidebar layout (Ctrl+Shift+G)' : 'Grid layout - tile all sessions (Ctrl+Shift+G)'}
             onClick={onToggleGrid}
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${gridMode ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: gridMode ? rgba(accent, 0.1) : rgba(accent, 0.04), color: gridMode ? accent : '#8a939c', cursor: 'pointer', flexShrink: 0 }}
+            style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${gridMode ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: gridMode ? rgba(accent, 0.1) : rgba(accent, 0.04), color: gridMode ? accent : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
           >
             <Icon name="grid" size={14} />
           </button>
@@ -318,7 +318,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           title={rightOpen ? 'Hide panel (Ctrl+B)' : 'Show panel (Ctrl+B)'}
           onClick={onTogglePanel}
           className="sush-icon-btn flex items-center justify-center"
-          style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${rightOpen ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: rightOpen ? rgba(accent, 0.1) : rgba(accent, 0.04), color: rightOpen ? accent : '#8a939c', cursor: 'pointer', flexShrink: 0 }}
+          style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${rightOpen ? rgba(accent, 0.45) : rgba(accent, 0.14)}`, background: rightOpen ? rgba(accent, 0.1) : rgba(accent, 0.04), color: rightOpen ? accent : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
         >
           <Icon name="panel" size={15} />
         </button>
@@ -347,7 +347,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           }}
         >
           <div style={{ padding: '4px 9px 6px', borderBottom: '1px solid #1b2127', marginBottom: 4 }}>
-            <span style={{ fontSize: 10, color: '#5a646d', fontWeight: 700 }}>HISTORY SEARCH  </span>
+            <span style={{ fontSize: 10, color: 'var(--text-4)', fontWeight: 700 }}>HISTORY SEARCH  </span>
             <span style={{ fontSize: 10, color: accent, fontWeight: 700 }}>{historyQuery || '(type to filter)'}</span>
           </div>
           {history
@@ -360,13 +360,13 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
                 onMouseDown={() => { setValue(cmd); setHistorySearch(false); setHistoryQuery(''); inputRef.current?.focus() }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: value === cmd ? rgba(accent, 0.12) : 'transparent', color: '#b0b9c2', padding: '6px 9px', cursor: 'pointer', fontSize: 12.5 }}
               >
-                <Icon name="clock" size={12} color="#3f4852" strokeWidth={2} />
+                <Icon name="clock" size={12} color="var(--text-5)" strokeWidth={2} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{cmd}</span>
               </button>
             ))
           }
           {history.filter(h => !historyQuery || h.toLowerCase().includes(historyQuery.toLowerCase())).length === 0 && (
-            <div style={{ padding: '8px 12px', color: '#3f4852', fontSize: 12 }}>No matching history</div>
+            <div style={{ padding: '8px 12px', color: 'var(--text-5)', fontSize: 12 }}>No matching history</div>
           )}
         </div>
       )}
@@ -403,11 +403,11 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
                 type="button"
                 onMouseDown={() => { setValue(complete(entry)); setShowSuggestions(entry.dir); inputRef.current?.focus() }}
                 onMouseEnter={() => setActiveIdx(i)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: on ? rgba(accent, 0.12) : 'transparent', color: on ? '#f1f4f6' : '#b0b9c2', padding: '6px 9px', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: '1px solid transparent', borderRadius: 8, background: on ? rgba(accent, 0.12) : 'transparent', color: on ? 'var(--text-1)' : '#b0b9c2', padding: '6px 9px', cursor: 'pointer' }}
               >
-                <Icon name={entry.dir ? 'folder' : 'file'} size={13} color={entry.dir ? accent : '#4a5560'} strokeWidth={2} />
+                <Icon name={entry.dir ? 'folder' : 'file'} size={13} color={entry.dir ? accent : 'var(--text-5)'} strokeWidth={2} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}>{entry.name}</span>
-                {entry.dir && <Icon name="chevronRight" size={11} color="#3f4852" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                {entry.dir && <Icon name="chevronRight" size={11} color="var(--text-5)" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
               </button>
             )
           })}

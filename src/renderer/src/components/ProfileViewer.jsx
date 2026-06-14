@@ -91,7 +91,7 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
           textAlign: 'center'
         }}
       >
-        <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', color: '#7a838b', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+        <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 14, background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
 
         {/* Avatar (click to change) */}
         <button
@@ -119,7 +119,7 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
             />
           )}
           {(hover || busy) && (
-            <span className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, background: 'rgba(5,7,10,0.55)', color: '#f1f4f6' }}>
+            <span className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, background: 'rgba(5,7,10,0.55)', color: 'var(--text-1)' }}>
               <Icon name="edit" size={20} strokeWidth={2.2} />
             </span>
           )}
@@ -131,14 +131,14 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
             {busy ? 'saving...' : 'change photo'}
           </button>
           {user.avatarUrl && (
-            <button onClick={removePhoto} style={{ background: 'none', border: 'none', color: '#7a838b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={removePhoto} style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
               remove
             </button>
           )}
         </div>
 
-        <div style={{ marginTop: 10, fontSize: 19, fontWeight: 900, color: '#f1f4f6' }}>{user.name}</div>
-        <div style={{ marginTop: 4, fontSize: 11, color: '#69737d' }}>
+        <div style={{ marginTop: 10, fontSize: 19, fontWeight: 900, color: 'var(--text-1)' }}>{user.name}</div>
+        <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>
           {user.isolation === 'full' ? 'Full home isolation' : 'CLI isolation'}
           {user.hasPin ? ' - PIN set' : ''}
           {memberSince ? ` - since ${memberSince}` : ''}
@@ -146,26 +146,26 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
 
         {/* Linked accounts */}
         <div style={{ margin: '16px 0 4px', textAlign: 'left' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, marginBottom: 8 }}>CONNECTED ACCOUNTS</div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 8 }}>CONNECTED ACCOUNTS</div>
           {!github && !google && (
-            <div style={{ fontSize: 11.5, color: '#5a646d' }}>
+            <div style={{ fontSize: 11.5, color: 'var(--text-4)' }}>
               None linked - connect Google or GitHub in <button onClick={onManageUsers} style={{ background: 'none', border: 'none', color: color, fontWeight: 800, cursor: 'pointer', fontSize: 11.5, padding: 0 }}>Manage Users</button>.
             </div>
           )}
           {github && (
             <div className="flex items-center" style={{ gap: 8, padding: '5px 0' }}>
-              <Icon name="github" size={13} color="#aab3bb" />
-              <span style={{ fontSize: 12, color: '#c6cdd4', flex: 1 }}>@{github.login}</span>
-              <button onClick={() => unlink('github')} title="Unlink GitHub from this account" style={{ background: 'none', border: 'none', color: '#69737d', fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              <Icon name="github" size={13} color="var(--text-2)" />
+              <span style={{ fontSize: 12, color: 'var(--text-2)', flex: 1 }}>@{github.login}</span>
+              <button onClick={() => unlink('github')} title="Unlink GitHub from this account" style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
                 unlink
               </button>
             </div>
           )}
           {google && (
             <div className="flex items-center" style={{ gap: 8, padding: '5px 0' }}>
-              <Icon name="google" size={13} color="#aab3bb" />
-              <span style={{ fontSize: 12, color: '#c6cdd4', flex: 1 }}>{google.email || google.name}</span>
-              <button onClick={() => unlink('google')} title="Unlink Google from this account" style={{ background: 'none', border: 'none', color: '#69737d', fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              <Icon name="google" size={13} color="var(--text-2)" />
+              <span style={{ fontSize: 12, color: 'var(--text-2)', flex: 1 }}>{google.email || google.name}</span>
+              <button onClick={() => unlink('google')} title="Unlink Google from this account" style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 10.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
                 unlink
               </button>
             </div>
@@ -177,7 +177,7 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
           <button
             onClick={() => { onClose(); onLock?.() }}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `1px solid ${rgba(color, 0.4)}`, background: rgba(color, 0.1), color: '#f1f4f6', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+            style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: `1px solid ${rgba(color, 0.4)}`, background: rgba(color, 0.1), color: 'var(--text-1)', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
           >
             <Icon name="lock" size={12} style={{ verticalAlign: -2, marginRight: 6 }} />Lock
           </button>
@@ -193,7 +193,7 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
         {!confirmDelete ? (
           <button
             onClick={() => setConfirmDelete(true)}
-            style={{ marginTop: 12, background: 'none', border: 'none', color: '#5a646d', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
+            style={{ marginTop: 12, background: 'none', border: 'none', color: 'var(--text-4)', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}
           >
             Delete this account...
           </button>
@@ -211,7 +211,7 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: '#aab3bb', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: 'var(--text-2)', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
               >
                 Keep it
               </button>

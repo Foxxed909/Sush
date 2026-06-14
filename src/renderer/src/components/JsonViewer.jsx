@@ -13,12 +13,12 @@ function JsonNode({ value, depth, accent }) {
   }
 
   if (Array.isArray(value)) {
-    if (!value.length) return <span style={{ color: '#69737d' }}>[]</span>
+    if (!value.length) return <span style={{ color: 'var(--text-3)' }}>[]</span>
     return (
       <>
         <span
           onClick={() => setOpen(o => !o)}
-          style={{ cursor: 'pointer', color: '#69737d', userSelect: 'none' }}
+          style={{ cursor: 'pointer', color: 'var(--text-3)', userSelect: 'none' }}
         >
           {open ? '[' : `[ ... ${value.length} item${value.length !== 1 ? 's' : ''} ]`}
         </span>
@@ -26,15 +26,15 @@ function JsonNode({ value, depth, accent }) {
           <>
             {value.slice(0, 200).map((item, i) => (
               <div key={i} style={{ paddingLeft: 16 }}>
-                <span style={{ color: '#3f4852', fontSize: 10 }}>{i} </span>
+                <span style={{ color: 'var(--text-5)', fontSize: 10 }}>{i} </span>
                 <JsonNode value={item} depth={depth + 1} accent={accent} />
-                {i < value.length - 1 && <span style={{ color: '#3f4852' }}>,</span>}
+                {i < value.length - 1 && <span style={{ color: 'var(--text-5)' }}>,</span>}
               </div>
             ))}
             {value.length > 200 && (
-              <div style={{ paddingLeft: 16, color: '#3f4852', fontSize: 10.5 }}>... {value.length - 200} more items</div>
+              <div style={{ paddingLeft: 16, color: 'var(--text-5)', fontSize: 10.5 }}>... {value.length - 200} more items</div>
             )}
-            <span style={{ color: '#69737d' }}>]</span>
+            <span style={{ color: 'var(--text-3)' }}>]</span>
           </>
         )}
       </>
@@ -43,12 +43,12 @@ function JsonNode({ value, depth, accent }) {
 
   if (typeof value === 'object') {
     const keys = Object.keys(value)
-    if (!keys.length) return <span style={{ color: '#69737d' }}>{'{}'}</span>
+    if (!keys.length) return <span style={{ color: 'var(--text-3)' }}>{'{}'}</span>
     return (
       <>
         <span
           onClick={() => setOpen(o => !o)}
-          style={{ cursor: 'pointer', color: '#69737d', userSelect: 'none' }}
+          style={{ cursor: 'pointer', color: 'var(--text-3)', userSelect: 'none' }}
         >
           {open ? '{' : `{ ... ${keys.length} key${keys.length !== 1 ? 's' : ''} }`}
         </span>
@@ -57,19 +57,19 @@ function JsonNode({ value, depth, accent }) {
             {keys.map((key, i) => (
               <div key={key} style={{ paddingLeft: 16 }}>
                 <span style={{ color: accent }}>"{key}"</span>
-                <span style={{ color: '#69737d' }}>: </span>
+                <span style={{ color: 'var(--text-3)' }}>: </span>
                 <JsonNode value={value[key]} depth={depth + 1} accent={accent} />
-                {i < keys.length - 1 && <span style={{ color: '#3f4852' }}>,</span>}
+                {i < keys.length - 1 && <span style={{ color: 'var(--text-5)' }}>,</span>}
               </div>
             ))}
-            <span style={{ color: '#69737d' }}>{'}'}</span>
+            <span style={{ color: 'var(--text-3)' }}>{'}'}</span>
           </>
         )}
       </>
     )
   }
 
-  return <span style={{ color: '#d4dbe1' }}>{String(value)}</span>
+  return <span style={{ color: 'var(--text-2)' }}>{String(value)}</span>
 }
 
 export default function JsonViewer({ content, accent }) {
@@ -77,7 +77,7 @@ export default function JsonViewer({ content, accent }) {
   try { parsed = JSON.parse(content.trim()) } catch { return null }
 
   return (
-    <div style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 1.7, color: '#d4dbe1', padding: 12 }}>
+    <div style={{ fontFamily: 'monospace', fontSize: 12, lineHeight: 1.7, color: 'var(--text-2)', padding: 12 }}>
       <JsonNode value={parsed} depth={0} accent={accent} />
     </div>
   )

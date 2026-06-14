@@ -85,9 +85,9 @@ export default function ShortcutsHelp({ accent, onClose }) {
         <div className="flex items-center justify-between" style={{ padding: '16px 20px', borderBottom: `1px solid ${rgba(accent, 0.12)}` }}>
           <div className="flex items-center" style={{ gap: 10 }}>
             <Icon name="command" size={18} color={accent} />
-            <span style={{ fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>Keyboard Shortcuts</span>
+            <span style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-1)' }}>Keyboard Shortcuts</span>
           </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -107,8 +107,8 @@ export default function ShortcutsHelp({ accent, onClose }) {
                         </code>
                       ) : row.keys.map((k, ki) => (
                         <React.Fragment key={k}>
-                          {ki > 0 && <span style={{ color: '#3f4852', fontSize: 10 }}>+</span>}
-                          <kbd style={{ fontSize: 10.5, color: '#d4dbe1', background: '#141a20', border: '1px solid #2a333c', borderRadius: 5, padding: '2px 7px', fontFamily: 'inherit', fontWeight: 700 }}>{k}</kbd>
+                          {ki > 0 && <span style={{ color: 'var(--text-5)', fontSize: 10 }}>+</span>}
+                          <kbd style={{ fontSize: 10.5, color: 'var(--text-2)', background: '#141a20', border: '1px solid #2a333c', borderRadius: 5, padding: '2px 7px', fontFamily: 'inherit', fontWeight: 700 }}>{k}</kbd>
                         </React.Fragment>
                       ))}
                     </span>

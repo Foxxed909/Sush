@@ -149,7 +149,7 @@ export default function SeduciaOrb({
       style={{ gap: 8, padding: '7px 13px', borderRadius: 999, background: 'rgba(8,10,14,0.88)', border: `1px solid ${rgba(accent, 0.35)}`, boxShadow: '0 8px 24px rgba(0,0,0,0.45)' }}
     >
       <span className="sush-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: pillColor, '--pulse': rgba(pillColor, 0.6), flexShrink: 0 }} />
-      <span style={{ fontSize: 11, fontWeight: 800, color: '#e6ebef', whiteSpace: 'nowrap' }}>{pillLabel}</span>
+      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{pillLabel}</span>
       {working > 0 && busyVoice && (
         <span style={{ fontSize: 8.5, fontWeight: 900, color: '#0a0a0c', background: '#5fd3a8', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.6, whiteSpace: 'nowrap' }}>
           AGENT WORKING
@@ -197,25 +197,25 @@ export default function SeduciaOrb({
               </span>
               <div>
                 <div className="flex items-center" style={{ gap: 6 }}>
-                  <span style={{ fontSize: 14.5, fontWeight: 900, color: '#f1f4f6', letterSpacing: 0.2 }}>Seducia</span>
+                  <span style={{ fontSize: 14.5, fontWeight: 900, color: 'var(--text-1)', letterSpacing: 0.2 }}>Seducia</span>
                   {aiEnabled && hasAI && <span style={{ fontSize: 8.5, fontWeight: 800, color: accent, background: rgba(accent, 0.16), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 99, padding: '1px 6px', letterSpacing: 0.5 }}>AI</span>}
                   <span
                     title={scope.kind === 'project' ? `Project scope - actions stay inside "${scope.label}"` : 'Main scope - whole-app control'}
-                    style={{ fontSize: 8.5, fontWeight: 800, color: scope.kind === 'project' ? '#5fd3a8' : '#8a939c', background: scope.kind === 'project' ? 'rgba(95,211,168,0.12)' : 'rgba(255,255,255,0.06)', border: `1px solid ${scope.kind === 'project' ? 'rgba(95,211,168,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: 99, padding: '1px 7px', letterSpacing: 0.5, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    style={{ fontSize: 8.5, fontWeight: 800, color: scope.kind === 'project' ? '#5fd3a8' : 'var(--text-3)', background: scope.kind === 'project' ? 'rgba(95,211,168,0.12)' : 'rgba(255,255,255,0.06)', border: `1px solid ${scope.kind === 'project' ? 'rgba(95,211,168,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: 99, padding: '1px 7px', letterSpacing: 0.5, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   >
                     {scope.kind === 'project' ? scope.label : 'MAIN'}
                   </span>
                 </div>
-                <div style={{ fontSize: 10.5, color: voiceState === 'idle' ? '#76808a' : accent, marginTop: 1, fontWeight: voiceState === 'idle' ? 400 : 700 }}>
+                <div style={{ fontSize: 10.5, color: voiceState === 'idle' ? 'var(--text-3)' : accent, marginTop: 1, fontWeight: voiceState === 'idle' ? 400 : 700 }}>
                   {STATE_LABEL[voiceState] || 'Idle'}
                 </div>
               </div>
             </div>
             <div className="flex items-center" style={{ gap: 6 }}>
-              <button onClick={() => onOpenChange(false)} title="Minimize to orb" style={{ width: 30, height: 30, borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={() => onOpenChange(false)} title="Minimize to orb" style={{ width: 30, height: 30, borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="minus" size={15} />
               </button>
-              <button onClick={() => onOpenChange(false)} title="Close (Esc)" style={{ width: 30, height: 30, borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={() => onOpenChange(false)} title="Close (Esc)" style={{ width: 30, height: 30, borderRadius: 9, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="x" size={15} />
               </button>
             </div>
@@ -223,7 +223,7 @@ export default function SeduciaOrb({
 
           {/* Notices */}
           {!hasAI && (
-            <div style={{ margin: '10px 12px 0', padding: '8px 12px', borderRadius: 10, background: rgba(accent, 0.07), border: `1px solid ${rgba(accent, 0.18)}`, fontSize: 11, color: '#aab3bb' }}>
+            <div style={{ margin: '10px 12px 0', padding: '8px 12px', borderRadius: 10, background: rgba(accent, 0.07), border: `1px solid ${rgba(accent, 0.18)}`, fontSize: 11, color: 'var(--text-2)' }}>
               Tip: set <strong style={{ color: accent }}>Settings -&gt; AI</strong> to <strong style={{ color: accent }}>Claude CLI</strong> for AI replies without a key.
             </div>
           )}
@@ -240,7 +240,7 @@ export default function SeduciaOrb({
                     <Icon name="sparkles" size={12} strokeWidth={2} />
                   </span>
                 )}
-                <div style={{ maxWidth: '84%', fontSize: 12.5, lineHeight: 1.55, padding: '8px 12px', borderRadius: 13, border: entry.role === 'you' ? `1px solid ${rgba(accent, 0.35)}` : '1px solid rgba(255,255,255,0.06)', background: entry.role === 'you' ? rgba(accent, 0.13) : 'rgba(255,255,255,0.035)', color: entry.role === 'you' ? '#f1f4f6' : '#cdd5dc', borderTopRightRadius: entry.role === 'you' ? 4 : 13, borderTopLeftRadius: entry.role === 'you' ? 13 : 4, whiteSpace: 'pre-wrap' }}>
+                <div style={{ maxWidth: '84%', fontSize: 12.5, lineHeight: 1.55, padding: '8px 12px', borderRadius: 13, border: entry.role === 'you' ? `1px solid ${rgba(accent, 0.35)}` : '1px solid rgba(255,255,255,0.06)', background: entry.role === 'you' ? rgba(accent, 0.13) : 'rgba(255,255,255,0.035)', color: entry.role === 'you' ? 'var(--text-1)' : 'var(--text-2)', borderTopRightRadius: entry.role === 'you' ? 4 : 13, borderTopLeftRadius: entry.role === 'you' ? 13 : 4, whiteSpace: 'pre-wrap' }}>
                   {entry.text}
                   {entry.streaming && <span style={{ display: 'inline-block', width: 7, height: 12, background: accent, borderRadius: 2, marginLeft: 3, verticalAlign: 'middle', animation: 'sush-blink 0.8s step-start infinite' }} />}
                 </div>
@@ -257,7 +257,7 @@ export default function SeduciaOrb({
           <div className="flex" style={{ gap: 6, flexWrap: 'wrap', padding: '0 14px 10px' }}>
             {QUICK.map(q => (
               <button key={q.label} onClick={() => submit(q.send)} disabled={streaming}
-                style={{ fontSize: 11, fontWeight: 700, color: '#aab3bb', background: 'rgba(255,255,255,0.03)', border: `1px solid ${rgba(accent, 0.2)}`, borderRadius: 999, padding: '4px 11px', cursor: streaming ? 'default' : 'pointer', opacity: streaming ? 0.5 : 1 }}>
+                style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-2)', background: 'rgba(255,255,255,0.03)', border: `1px solid ${rgba(accent, 0.2)}`, borderRadius: 999, padding: '4px 11px', cursor: streaming ? 'default' : 'pointer', opacity: streaming ? 0.5 : 1 }}>
                 {q.label}
               </button>
             ))}
@@ -266,13 +266,13 @@ export default function SeduciaOrb({
           {/* Composer */}
           <div style={{ padding: '0 14px 14px' }}>
             <div className="sush-omni flex items-center" style={{ height: 46, gap: 8, borderRadius: 13 }}>
-              <Icon name="sparkles" size={15} color={streaming ? accent : '#5a646d'} className={streaming ? 'sush-spin' : undefined} />
+              <Icon name="sparkles" size={15} color={streaming ? accent : 'var(--text-4)'} className={streaming ? 'sush-spin' : undefined} />
               <input
                 ref={inputRef} value={value} onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
                 placeholder={voiceState === 'listening' ? 'Listening...' : streaming ? 'Seducia is thinking...' : 'Ask, launch, or command...'}
                 disabled={streaming} spellCheck={false}
-                style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
+                style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13 }}
               />
               {micSupported && (
                 <button onClick={listen} title={voiceState === 'listening' ? 'Stop' : 'Push to talk'}
@@ -286,7 +286,7 @@ export default function SeduciaOrb({
                   <Icon name="stop" size={13} />
                 </button>
               ) : (
-                <button onClick={() => submit()} disabled={!value.trim()} style={{ width: 32, height: 32, borderRadius: 9, border: 'none', background: value.trim() ? accent : 'rgba(255,255,255,0.05)', color: value.trim() ? '#05070b' : '#5a646d', cursor: value.trim() ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button onClick={() => submit()} disabled={!value.trim()} style={{ width: 32, height: 32, borderRadius: 9, border: 'none', background: value.trim() ? accent : 'rgba(255,255,255,0.05)', color: value.trim() ? '#05070b' : 'var(--text-4)', cursor: value.trim() ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="send" size={15} strokeWidth={2} />
                 </button>
               )}

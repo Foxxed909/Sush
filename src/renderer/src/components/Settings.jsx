@@ -10,7 +10,7 @@ const CURSORS = ['block', 'bar', 'underline']
 const TTS_RATES = [0.75, 1.0, 1.1, 1.25, 1.5, 1.75]
 
 function Label({ children }) {
-  return <div style={{ color: '#76808a', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 7 }}>{children}</div>
+  return <div style={{ color: 'var(--text-3)', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 7 }}>{children}</div>
 }
 
 function Section({ title, accent, children }) {
@@ -23,7 +23,7 @@ function Section({ title, accent, children }) {
             <Icon name={nav.icon} size={13} strokeWidth={2} />
           </span>
         )}
-        <span style={{ color: '#e9eef2', fontSize: 13.5, fontWeight: 800, letterSpacing: 0.2 }}>{nav?.label || title}</span>
+        <span style={{ color: 'var(--text-1)', fontSize: 13.5, fontWeight: 800, letterSpacing: 0.2 }}>{nav?.label || title}</span>
       </div>
       {children}
     </div>
@@ -92,7 +92,7 @@ function WallpaperRow({ accent, settings, set }) {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button
           onClick={() => fileRef.current?.click()}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
         >
           <Icon name="palette" size={14} color={accent} strokeWidth={2} />
           {settings.bgImage ? 'Change image' : 'Choose image'}
@@ -100,7 +100,7 @@ function WallpaperRow({ accent, settings, set }) {
         {settings.bgImage && (
           <>
             <img src={settings.bgImage} alt="" style={{ width: 56, height: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #20272e' }} />
-            <button onClick={() => set('bgImage', '')} style={{ background: 'none', border: 'none', color: '#7a838b', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={() => set('bgImage', '')} style={{ background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
               remove
             </button>
           </>
@@ -109,22 +109,22 @@ function WallpaperRow({ accent, settings, set }) {
       <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display: 'none' }} />
       {settings.bgImage && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
-          <span style={{ fontSize: 11, color: '#76808a', fontWeight: 700 }}>Dim</span>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>Dim</span>
           <input type="range" min={20} max={92} value={settings.bgDim ?? 62} onChange={e => set('bgDim', Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
-          <span style={{ color: '#e1e6ea', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.bgDim ?? 62}%</span>
+          <span style={{ color: 'var(--text-2)', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.bgDim ?? 62}%</span>
         </div>
       )}
       {settings.bgImage && (
         <button
           onClick={() => set('terminalWallpaper', settings.terminalWallpaper !== true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, marginTop: 10, background: settings.terminalWallpaper === true ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.terminalWallpaper === true ? rgba(accent, 0.4) : '#20272e'}`, color: settings.terminalWallpaper === true ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, marginTop: 10, background: settings.terminalWallpaper === true ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.terminalWallpaper === true ? rgba(accent, 0.4) : '#20272e'}`, color: settings.terminalWallpaper === true ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
         >
           <Icon name="terminal" size={14} strokeWidth={2} />
           {settings.terminalWallpaper === true ? 'Wallpaper shows through terminals' : 'Terminals stay solid (wallpaper hidden)'}
         </button>
       )}
       {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 6 }}>{err}</div>}
-      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.5 }}>
         Shows through the glass chrome and the home screen (glass themes show the most). Stored per user.
         Turn on “shows through terminals” to let it sit behind your terminal text too — the Dim slider keeps text readable.
       </div>
@@ -139,11 +139,11 @@ function MiniBar({ label, pct, accent }) {
   const col = p >= 90 ? '#ff7a8a' : p >= 70 ? '#ffb74d' : accent
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 9, fontWeight: 800, color: '#69737d', width: 48, flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
+      <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-3)', width: 48, flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
       <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
         <div style={{ width: `${p}%`, height: '100%', borderRadius: 3, background: col, transition: 'width 0.4s ease' }} />
       </div>
-      <span style={{ fontSize: 9.5, fontWeight: 800, color: p >= 90 ? '#ff7a8a' : '#aab3bb', width: 30, textAlign: 'right' }}>{p}%</span>
+      <span style={{ fontSize: 9.5, fontWeight: 800, color: p >= 90 ? '#ff7a8a' : 'var(--text-2)', width: 30, textAlign: 'right' }}>{p}%</span>
     </div>
   )
 }
@@ -165,11 +165,11 @@ function SlotUsage({ usage, accent }) {
       ) : usage.kind === 'health' ? (
         <div style={{ fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: usage.signedIn ? '#5fd3a8' : '#ff7a8a', flexShrink: 0 }} />
-          <span style={{ color: usage.signedIn ? '#aab3bb' : '#ff9aa8' }}>{usage.status}</span>
-          {usage.note && <span style={{ color: '#5a646d', fontWeight: 600 }}>· {usage.note}</span>}
+          <span style={{ color: usage.signedIn ? 'var(--text-2)' : '#ff9aa8' }}>{usage.status}</span>
+          {usage.note && <span style={{ color: 'var(--text-4)', fontWeight: 600 }}>· {usage.note}</span>}
         </div>
       ) : (
-        <div style={{ fontSize: 10, color: '#69737d', fontWeight: 700 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 700 }}>
           {usage.status === 'allowed' ? 'Within limits' : `Status: ${(usage.status || 'unknown').replace(/_/g, ' ')}`}
           {resetTxt ? ` · resets ${resetTxt}` : ''}
         </div>
@@ -242,14 +242,14 @@ function AccountsSection({ accent }) {
 
   return (
     <Section title="Accounts" accent={accent}>
-      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 14 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 14 }}>
         Each account is a separate CLI login. Add a second one and Sush can hop
         over when the first hits its session limit. Sign-in happens in the
         CLI's own browser flow (Google sign-in supported) — Sush never sees
         your credentials.
       </div>
       {!data && (
-        <div className="flex items-center" style={{ gap: 8, color: '#5a646d', fontSize: 11.5, fontWeight: 700, padding: '6px 0 14px' }}>
+        <div className="flex items-center" style={{ gap: 8, color: 'var(--text-4)', fontSize: 11.5, fontWeight: 700, padding: '6px 0 14px' }}>
           <span className="sush-spinner" style={{ width: 13, height: 13 }} />
           Loading accounts…
         </div>
@@ -260,8 +260,8 @@ function AccountsSection({ accent }) {
           <div key={p} style={{ marginBottom: 14, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
             <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: '#e6ebef' }}>{label}</div>
-                <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>{label}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 1 }}>{sub}</div>
               </div>
               <button
                 onClick={() => call(async () => {
@@ -294,13 +294,13 @@ function AccountsSection({ accent }) {
                         onChange={e2 => setEditing({ ...editing, value: e2.target.value })}
                         onBlur={commitRename}
                         onKeyDown={e2 => { if (e2.key === 'Enter') commitRename(); if (e2.key === 'Escape') setEditing(null) }}
-                        style={{ flex: 1, background: '#0f1318', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 6, color: '#e6ebef', fontSize: 12, fontWeight: 700, padding: '2px 7px', outline: 'none' }}
+                        style={{ flex: 1, background: '#0f1318', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 6, color: 'var(--text-2)', fontSize: 12, fontWeight: 700, padding: '2px 7px', outline: 'none' }}
                       />
                     ) : (
                       <span
                         title="Double-click to rename"
                         onDoubleClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
-                        style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? '#e6ebef' : '#8a939c', cursor: 'text' }}
+                        style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? 'var(--text-2)' : 'var(--text-3)', cursor: 'text' }}
                       >
                         {slotName(slot, i)}
                         {limitAgo(slot) && <span style={{ marginLeft: 8, fontSize: 9.5, fontWeight: 800, color: '#ffb74d' }}>{limitAgo(slot)}</span>}
@@ -312,7 +312,7 @@ function AccountsSection({ accent }) {
                       <button
                         onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))}
                         disabled={busy}
-                        style={{ fontSize: 10.5, fontWeight: 800, color: '#aab3bb', background: 'transparent', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
+                        style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--text-2)', background: 'transparent', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
                       >
                         Switch
                       </button>
@@ -323,9 +323,9 @@ function AccountsSection({ accent }) {
                         disabled={usageBusy[uKey]}
                         title={p === 'claude' ? 'Refresh usage' : 'Check sign-in'}
                         className="flex items-center justify-center"
-                        style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
                         onMouseEnter={e => { e.currentTarget.style.color = accent }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-4)' }}
                       >
                         {usageBusy[uKey] ? <span className="sush-spinner" style={{ width: 11, height: 11 }} /> : <Icon name="refresh" size={12} strokeWidth={2.2} />}
                       </button>
@@ -336,15 +336,15 @@ function AccountsSection({ accent }) {
                         disabled={busy}
                         title="Rename this account"
                         className="flex items-center justify-center"
-                        style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
                         onMouseEnter={e => { e.currentTarget.style.color = accent }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-4)' }}
                       >
                         <Icon name="edit" size={12} strokeWidth={2.2} />
                       </button>
                     )}
                     {slot.id !== 'default' && (
-                      <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>
+                      <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>
                         ×
                       </button>
                     )}
@@ -355,7 +355,7 @@ function AccountsSection({ accent }) {
             })}
             {st.slots.length >= 2 && (
               <div style={{ padding: '4px 13px 11px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: '#69737d', textTransform: 'uppercase', margin: '8px 0 6px' }}>When this CLI hits its limit</div>
+                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: 'var(--text-3)', textTransform: 'uppercase', margin: '8px 0 6px' }}>When this CLI hits its limit</div>
                 <div style={{ display: 'flex', gap: 5 }}>
                   {[['never', 'Never'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
                     const on2 = (st.limitPolicy || 'ask') === val
@@ -364,7 +364,7 @@ function AccountsSection({ accent }) {
                         key={val}
                         onClick={() => setPolicy(p, val)}
                         disabled={busy}
-                        style={{ flex: 1, padding: '6px 0', borderRadius: 'var(--r-sm)', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: on2 ? accent : '#0f1318', color: on2 ? '#0a0a0a' : '#8a939c', border: `1px solid ${on2 ? accent : '#20272e'}` }}
+                        style={{ flex: 1, padding: '6px 0', borderRadius: 'var(--r-sm)', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: on2 ? accent : '#0f1318', color: on2 ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${on2 ? accent : '#20272e'}` }}
                       >
                         {lbl}
                       </button>
@@ -382,12 +382,12 @@ function AccountsSection({ accent }) {
           cleanly multi-accounted without leaking env into every session, so
           they're one login per profile. You can still connect them here. */}
       <div style={{ marginBottom: 14, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
-        <div style={{ padding: '9px 13px 4px', fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, color: '#69737d', textTransform: 'uppercase' }}>One login per profile</div>
+        <div style={{ padding: '9px 13px 4px', fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, color: 'var(--text-3)', textTransform: 'uppercase' }}>One login per profile</div>
         {[['gemini', 'Gemini', 'Google account'], ['opencode', 'OpenCode', 'any provider']].map(([p, label, sub]) => (
           <div key={p} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#c6cdd4' }}>{label}</div>
-              <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub} — separate per profile</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)' }}>{label}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 1 }}>{sub} — separate per profile</div>
             </div>
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('sush:open-login-session', { detail: { provider: p } }))}
@@ -464,16 +464,16 @@ function UsageSection({ accent, settings, set }) {
         <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: installed ? '#5fd3a8' : 'rgba(255,255,255,0.18)', boxShadow: installed ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: '#e6ebef' }}>{label}</div>
-            <div style={{ fontSize: 10, color: '#5a646d', marginTop: 1 }}>{sub}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>{label}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 1 }}>{sub}</div>
           </div>
-          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: installed ? '#5fd3a8' : '#69737d' }}>
+          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: installed ? '#5fd3a8' : 'var(--text-3)' }}>
             {installed ? 'INSTALLED' : 'NOT FOUND'}
           </span>
         </div>
-        <div style={{ padding: '9px 13px', fontSize: 11.5, color: '#aab3bb', lineHeight: 1.7 }}>
+        <div style={{ padding: '9px 13px', fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.7 }}>
           {!installed
-            ? <span style={{ color: '#69737d' }}>This CLI isn’t on your PATH, so there’s nothing to report.</span>
+            ? <span style={{ color: 'var(--text-3)' }}>This CLI isn’t on your PATH, so there’s nothing to report.</span>
             : children}
         </div>
       </div>
@@ -481,11 +481,11 @@ function UsageSection({ accent, settings, set }) {
   }
 
   const AccountLine = ({ account }) => {
-    if (!account) return <div style={{ color: '#69737d' }}>Signed-in account: <span style={{ color: '#c6cdd4' }}>default</span></div>
+    if (!account) return <div style={{ color: 'var(--text-3)' }}>Signed-in account: <span style={{ color: 'var(--text-2)' }}>default</span></div>
     const limited = ago(account.lastLimitAt)
     return (
       <>
-        <div>Active account: <span style={{ color: '#e6ebef', fontWeight: 700 }}>{account.label}</span>{account.count > 1 ? <span style={{ color: '#5a646d' }}> · {account.count} on file</span> : null}</div>
+        <div>Active account: <span style={{ color: 'var(--text-2)', fontWeight: 700 }}>{account.label}</span>{account.count > 1 ? <span style={{ color: 'var(--text-4)' }}> · {account.count} on file</span> : null}</div>
         <div>Last limit hit: {limited ? <span style={{ color: '#ffb74d', fontWeight: 700 }}>{limited}</span> : <span style={{ color: '#5fd3a8' }}>none recorded</span>}</div>
       </>
     )
@@ -493,7 +493,7 @@ function UsageSection({ accent, settings, set }) {
 
   return (
     <Section title="Usage" accent={accent}>
-      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 14 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 14 }}>
         Live account &amp; limit status for every agent CLI. The auto-refresh below reads a
         cheap snapshot (no CLI is launched) — install state, your active account, and when
         each account last got rate-limited. Use <strong style={{ color: accent }}>Check Claude live</strong> to
@@ -502,14 +502,14 @@ function UsageSection({ accent, settings, set }) {
 
       {/* Controls */}
       <div className="flex items-center" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, color: '#76808a', fontWeight: 700 }}>Auto-refresh</span>
+        <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>Auto-refresh</span>
         {USAGE_INTERVALS.map(([val, lbl]) => {
           const on = interval === val
           return (
             <button
               key={val}
               onClick={() => set('usageRefresh', val)}
-              style={{ padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+              style={{ padding: '5px 12px', borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${on ? accent : '#20272e'}` }}
             >
               {lbl}
             </button>
@@ -532,24 +532,24 @@ function UsageSection({ accent, settings, set }) {
         <div>
           Limit window:{' '}
           {!claudeLimit
-            ? <span style={{ color: '#69737d' }}>unknown — run a Claude panel session or click “Check Claude live”.</span>
+            ? <span style={{ color: 'var(--text-3)' }}>unknown — run a Claude panel session or click “Check Claude live”.</span>
             : claudeLimit.status === 'allowed'
               ? <span style={{ color: '#5fd3a8', fontWeight: 700 }}>OK</span>
               : <span style={{ color: '#ffb74d', fontWeight: 700 }}>{String(claudeLimit.status).replace(/_/g, ' ')}</span>}
-          {claudeLimit?.resetsAt && <span style={{ color: '#8a939c' }}> · resets {clock(claudeLimit.resetsAt)}</span>}
+          {claudeLimit?.resetsAt && <span style={{ color: 'var(--text-3)' }}> · resets {clock(claudeLimit.resetsAt)}</span>}
         </div>
       </Card>
 
       <Card name="codex" label="Codex" sub="ChatGPT subscription" data={snap?.codex}>
         <AccountLine account={snap?.codex?.account} />
-        <div style={{ color: '#5a646d' }}>Codex has no live usage probe — Sush tracks limits as its sessions hit them.</div>
+        <div style={{ color: 'var(--text-4)' }}>Codex has no live usage probe — Sush tracks limits as its sessions hit them.</div>
       </Card>
 
       <Card name="gemini" label="Gemini" sub="Google account" data={snap?.gemini}>
-        <div style={{ color: '#5a646d' }}>One login per profile. No live usage probe; limits surface in-session.</div>
+        <div style={{ color: 'var(--text-4)' }}>One login per profile. No live usage probe; limits surface in-session.</div>
       </Card>
 
-      <div style={{ fontSize: 10, color: '#4b545d', marginTop: 4 }}>
+      <div style={{ fontSize: 10, color: 'var(--text-5)', marginTop: 4 }}>
         {lastAt ? `Snapshot updated ${clock(lastAt)}${interval ? ` · auto every ${interval < 60 ? interval + 's' : interval / 60 + ' min'}` : ' · auto-refresh off'}` : 'Loading…'}
       </div>
     </Section>
@@ -562,7 +562,7 @@ function UsageSection({ accent, settings, set }) {
 // Stored per user (localStorage); the launcher, Seducia and the availability
 // probe pick them up through allAgents().
 const TIER_META = {
-  free: { label: 'Free', color: '#8a939c', blurb: 'The essentials, no code needed.' },
+  free: { label: 'Free', color: 'var(--text-3)', blurb: 'The essentials, no code needed.' },
   plus: { label: 'Plus', color: '#5ab0ff', blurb: 'Multi-account work + cloud voice.' },
   pro:  { label: 'Pro',  color: '#c08bff', blurb: 'Everything, max grid.' }
 }
@@ -597,7 +597,7 @@ function PlanSection({ accent, ent }) {
   }
   const revert = async () => { await ent.clear(); setMsg({ ok: true, text: 'Reverted to Free.' }); setCode('') }
 
-  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '8px 11px', fontSize: 12.5, outline: 'none', letterSpacing: 0.5, fontFamily: 'var(--font-mono, monospace)' }
+  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: 'var(--text-2)', borderRadius: 8, padding: '8px 11px', fontSize: 12.5, outline: 'none', letterSpacing: 0.5, fontFamily: 'var(--font-mono, monospace)' }
 
   return (
     <Section title="Plan" accent={accent}>
@@ -607,13 +607,13 @@ function PlanSection({ accent, ent }) {
           <Icon name="star" size={16} strokeWidth={2} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 900, color: '#eef2f5' }}>
-            {meta.label} plan {ent.expiry && <span style={{ color: '#76808a', fontWeight: 700, fontSize: 11 }}>· trial</span>}
+          <div style={{ fontSize: 13.5, fontWeight: 900, color: 'var(--text-1)' }}>
+            {meta.label} plan {ent.expiry && <span style={{ color: 'var(--text-3)', fontWeight: 700, fontSize: 11 }}>· trial</span>}
           </div>
-          <div style={{ fontSize: 11, color: '#8a939c', marginTop: 1 }}>{meta.blurb}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{meta.blurb}</div>
         </div>
         {tier !== 'free' && (
-          <button onClick={revert} title="Remove code, back to Free" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#8a939c', background: '#11151a', border: '1px solid #20272e', borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
+          <button onClick={revert} title="Remove code, back to Free" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--text-3)', background: '#11151a', border: '1px solid #20272e', borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
             Revert to Free
           </button>
         )}
@@ -623,18 +623,18 @@ function PlanSection({ accent, ent }) {
       {tiers && (
         <div style={{ borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', marginBottom: 16 }}>
           <div className="flex" style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ flex: '1.4 1 0', padding: '9px 12px', fontSize: 10, fontWeight: 800, color: '#5a646d', textTransform: 'uppercase', letterSpacing: 0.8 }}>Feature</div>
+            <div style={{ flex: '1.4 1 0', padding: '9px 12px', fontSize: 10, fontWeight: 800, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Feature</div>
             {PLAN_ORDER.map(t => (
-              <div key={t} style={{ flex: 1, padding: '9px 8px', textAlign: 'center', fontSize: 11, fontWeight: 900, color: t === tier ? (TIER_META[t]?.color) : '#76808a' }}>
+              <div key={t} style={{ flex: 1, padding: '9px 8px', textAlign: 'center', fontSize: 11, fontWeight: 900, color: t === tier ? (TIER_META[t]?.color) : 'var(--text-3)' }}>
                 {TIER_META[t]?.label}{t === tier ? ' ●' : ''}
               </div>
             ))}
           </div>
           {PLAN_ROWS.map(([name, fn], i) => (
             <div key={name} className="flex" style={{ borderBottom: i < PLAN_ROWS.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-              <div style={{ flex: '1.4 1 0', padding: '8px 12px', fontSize: 11.5, color: '#aab3bb' }}>{name}</div>
+              <div style={{ flex: '1.4 1 0', padding: '8px 12px', fontSize: 11.5, color: 'var(--text-2)' }}>{name}</div>
               {PLAN_ORDER.map(t => (
-                <div key={t} style={{ flex: 1, padding: '8px', textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: t === tier ? '#e6ebef' : '#76808a' }}>
+                <div key={t} style={{ flex: 1, padding: '8px', textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: t === tier ? 'var(--text-2)' : 'var(--text-3)' }}>
                   {tiers[t] ? fn(tiers[t]) : '—'}
                 </div>
               ))}
@@ -657,7 +657,7 @@ function PlanSection({ accent, ent }) {
         <button
           onClick={redeem}
           disabled={!code.trim() || busy}
-          style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: code.trim() && !busy ? '#0a0a0a' : '#5a646d', background: code.trim() && !busy ? accent : 'rgba(255,255,255,0.05)', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 999, padding: '0 18px', cursor: code.trim() && !busy ? 'pointer' : 'default' }}
+          style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: code.trim() && !busy ? '#0a0a0a' : 'var(--text-4)', background: code.trim() && !busy ? accent : 'rgba(255,255,255,0.05)', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 999, padding: '0 18px', cursor: code.trim() && !busy ? 'pointer' : 'default' }}
         >
           {busy ? '…' : 'Redeem'}
         </button>
@@ -665,7 +665,7 @@ function PlanSection({ accent, ent }) {
       {msg && (
         <div style={{ marginTop: 9, fontSize: 11.5, fontWeight: 700, color: msg.ok ? '#7fd6a0' : '#ff8aa0' }}>{msg.text}</div>
       )}
-      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 10, lineHeight: 1.55 }}>
+      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.55 }}>
         No payment, no account — a code just unlocks a tier offline. Don't have one? Ask the dev.
       </div>
     </Section>
@@ -677,7 +677,7 @@ function AgentsSection({ accent, ent }) {
   const [form, setForm] = useState({ label: '', command: '', resumeCommand: '' })
   const [err, setErr] = useState('')
 
-  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
+  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: 'var(--text-2)', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
   const locked = !ent.can('customAgents')
 
   const add = () => {
@@ -691,7 +691,7 @@ function AgentsSection({ accent, ent }) {
 
   return (
     <Section title="Agents" accent={accent}>
-      <div style={{ fontSize: 11, color: '#76808a', lineHeight: 1.6, marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 12 }}>
         {BUILTIN_AGENTS.length - 1} agent CLIs ship built in (Claude Code, Codex, Gemini, …).
         Add your own below — it appears in the launcher, Seducia can spawn it, and a
         resume command (if the CLI has one) lets restored sessions pick up where they left off.
@@ -700,10 +700,10 @@ function AgentsSection({ accent, ent }) {
         <div key={a.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '7px 11px', borderRadius: 'var(--r-md)', border: '1px solid rgba(255,255,255,0.07)', marginBottom: 6 }}>
           <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: 7, background: rgba(a.color, 0.14), border: `1px solid ${rgba(a.color, 0.4)}`, color: a.color, fontSize: 10, fontWeight: 900, flexShrink: 0 }}>{a.mono}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#e6ebef' }}>{a.label}</div>
-            <div className="sush-mono" style={{ fontSize: 10, color: '#5a646d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.command}{a.resumeCommand ? `  ·  resume: ${a.resumeCommand}` : ''}</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)' }}>{a.label}</div>
+            <div className="sush-mono" style={{ fontSize: 10, color: 'var(--text-4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.command}{a.resumeCommand ? `  ·  resume: ${a.resumeCommand}` : ''}</div>
           </div>
-          <button onClick={() => { removeCustomAgent(a.id); setCustom(loadCustomAgents()) }} title="Remove agent" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button>
+          <button onClick={() => { removeCustomAgent(a.id); setCustom(loadCustomAgents()) }} title="Remove agent" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button>
         </div>
       ))}
       {locked ? (
@@ -711,7 +711,7 @@ function AgentsSection({ accent, ent }) {
           <span className="flex items-center justify-center" style={{ width: 30, height: 30, borderRadius: 8, background: rgba(accent, 0.12), color: accent, flexShrink: 0 }}>
             <Icon name="lock" size={14} strokeWidth={2} />
           </span>
-          <div style={{ fontSize: 11.5, color: '#aab3bb', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.5 }}>
             Custom agents are a <strong style={{ color: accent }}>Plus</strong> feature.
             Redeem a code under <strong style={{ color: accent }}>Plan</strong> to add your own CLIs.
           </div>
@@ -727,7 +727,7 @@ function AgentsSection({ accent, ent }) {
             <button
               onClick={add}
               disabled={!form.label.trim() || !form.command.trim()}
-              style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: form.label.trim() && form.command.trim() ? accent : '#5a646d', background: rgba(accent, form.label.trim() && form.command.trim() ? 0.1 : 0.03), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '6px 14px', cursor: 'pointer' }}
+              style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: form.label.trim() && form.command.trim() ? accent : 'var(--text-4)', background: rgba(accent, form.label.trim() && form.command.trim() ? 0.1 : 0.03), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '6px 14px', cursor: 'pointer' }}
             >
               + Add agent
             </button>
@@ -772,7 +772,7 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
   }, [])
 
   const provider = tts?.provider || 'system'
-  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
+  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: 'var(--text-2)', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
 
   const saveCfg = async (patch) => {
     setBusy(true); setErr('')
@@ -818,12 +818,12 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
         <Label>Text-to-speech (Seducia speaks back)</Label>
         <button
           onClick={() => set('ttsEnabled', !settings.ttsEnabled)}
-          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
         >
           <Icon name="volume2" size={14} strokeWidth={2} />
           {settings.ttsEnabled ? 'TTS enabled' : 'TTS disabled'}
         </button>
-        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
           Off by default — Seducia replies in text either way.
         </div>
       </Row>
@@ -844,7 +844,7 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
                     disabled={busy || optLocked}
                     title={optLocked ? 'Cloud voices are a Plus feature — redeem a code under Plan' : ''}
                     className="flex items-center justify-center"
-                    style={{ gap: 5, flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: optLocked ? 'default' : 'pointer', opacity: optLocked ? 0.6 : 1, background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                    style={{ gap: 5, flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: optLocked ? 'default' : 'pointer', opacity: optLocked ? 0.6 : 1, background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${on ? accent : '#20272e'}` }}
                   >
                     {optLocked && <Icon name="lock" size={11} strokeWidth={2.2} />}
                     {lbl}
@@ -853,11 +853,11 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
               })}
             </div>
             {cloudLocked && (
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.5 }}>
                 The system voice is free. Cloud neural voices (OpenAI / ElevenLabs) unlock with <strong style={{ color: accent }}>Plus</strong> — see <strong style={{ color: accent }}>Plan</strong>.
               </div>
             )}
-            <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
               {provider === 'system'
                 ? 'Your built-in OS voices (robotic, but free and offline).'
                 : 'A real neural voice via your own API key — the key stays on this machine and never leaves the main process.'}
@@ -868,7 +868,7 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
             <Label>Speech rate</Label>
             <div style={{ display: 'flex', gap: 6 }}>
               {TTS_RATES.map(r => (
-                <button key={r} onClick={() => set('ttsRate', r)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: (settings.ttsRate ?? 1.1) === r ? accent : '#0f1318', color: (settings.ttsRate ?? 1.1) === r ? '#0a0a0a' : '#8a939c', border: `1px solid ${(settings.ttsRate ?? 1.1) === r ? accent : '#20272e'}` }}>
+                <button key={r} onClick={() => set('ttsRate', r)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: (settings.ttsRate ?? 1.1) === r ? accent : '#0f1318', color: (settings.ttsRate ?? 1.1) === r ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${(settings.ttsRate ?? 1.1) === r ? accent : '#20272e'}` }}>
                   {r}×
                 </button>
               ))}
@@ -900,7 +900,7 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
                   />
                   <button onClick={saveKey} disabled={busy || !keyInput.trim()} style={{ fontSize: 11.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 8, padding: '0 14px', cursor: keyInput.trim() ? 'pointer' : 'default', opacity: keyInput.trim() ? 1 : 0.5 }}>Save</button>
                   {tts?.hasKey && (
-                    <button onClick={() => saveCfg({ apiKey: '' })} disabled={busy} title="Forget key" style={{ fontSize: 11.5, fontWeight: 700, color: '#7a838b', background: 'transparent', border: '1px solid #20272e', borderRadius: 8, padding: '0 12px', cursor: 'pointer' }}>Clear</button>
+                    <button onClick={() => saveCfg({ apiKey: '' })} disabled={busy} title="Forget key" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', background: 'transparent', border: '1px solid #20272e', borderRadius: 8, padding: '0 12px', cursor: 'pointer' }}>Clear</button>
                   )}
                 </div>
                 {tts && !tts.safeStorage && (
@@ -908,7 +908,7 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
                     Your OS keychain isn’t available, so the key is stored unencrypted on this machine.
                   </div>
                 )}
-                <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
                   {provider === 'openai'
                     ? 'Get a key at platform.openai.com. Billed per character to your OpenAI account.'
                     : 'Get a key at elevenlabs.io. Billed per character to your ElevenLabs account.'}
@@ -951,7 +951,7 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
               onClick={testVoice}
               disabled={testing}
               className="flex items-center justify-center"
-              style={{ gap: 8, width: '100%', padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+              style={{ gap: 8, width: '100%', padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
             >
               {testing ? <span className="sush-spinner" style={{ width: 12, height: 12 }} /> : <Icon name="volume2" size={14} color={accent} strokeWidth={2} />}
               {testing ? 'Speaking…' : 'Test voice'}
@@ -971,7 +971,7 @@ function BackupRow({ accent, settings, onChange }) {
   const fileRef = useRef(null)
   const [msg, setMsg] = useState('')
 
-  const btn = (primary) => ({ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, background: primary ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${primary ? rgba(accent, 0.35) : '#20272e'}`, color: primary ? accent : '#aab3bb', cursor: 'pointer', fontSize: 12, fontWeight: 700 })
+  const btn = (primary) => ({ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '8px 12px', borderRadius: 8, background: primary ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${primary ? rgba(accent, 0.35) : '#20272e'}`, color: primary ? accent : 'var(--text-2)', cursor: 'pointer', fontSize: 12, fontWeight: 700 })
 
   const doExport = () => {
     try {
@@ -1009,7 +1009,7 @@ function BackupRow({ accent, settings, onChange }) {
         <button onClick={() => fileRef.current?.click()} style={btn(false)}><Icon name="upload" size={13} strokeWidth={2} /> Import</button>
         <input ref={fileRef} type="file" accept="application/json,.json" onChange={onPick} style={{ display: 'none' }} />
       </div>
-      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.45 }}>
+      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.45 }}>
         Saves your settings and custom agents to a file. No API keys or account logins are included.
       </div>
       {msg && <div style={{ fontSize: 11, fontWeight: 700, color: accent, marginTop: 6 }}>{msg}</div>}
@@ -1086,9 +1086,9 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           <span className="flex items-center justify-center" style={{ width: 32, height: 32, borderRadius: 9, background: rgba(accent, 0.12), border: `1px solid ${rgba(accent, 0.3)}`, color: accent }}>
             <Icon name="settings" size={16} strokeWidth={2} />
           </span>
-          <span style={{ color: '#f1f4f6', fontWeight: 900, fontSize: 16, letterSpacing: 0.2 }}>Settings</span>
+          <span style={{ color: 'var(--text-1)', fontWeight: 900, fontSize: 16, letterSpacing: 0.2 }}>Settings</span>
         </div>
-        <button onClick={onClose} title="Back (Esc)" className="flex items-center" style={{ gap: 7, height: 32, padding: '0 13px', borderRadius: 9, border: '1px solid #20272e', background: '#11151a', color: '#aab3bb', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+        <button onClick={onClose} title="Back (Esc)" className="flex items-center" style={{ gap: 7, height: 32, padding: '0 13px', borderRadius: 9, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
           <Icon name="x" size={13} /> Close
         </button>
       </div>
@@ -1097,14 +1097,14 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
         {/* Section nav — searchable, grouped, with a scroll-spy highlight */}
         <nav style={{ width: 204, flexShrink: 0, borderRight: '1px solid #171c22', padding: '13px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }} className="sush-scroll">
           <div style={{ position: 'relative', marginBottom: 8 }}>
-            <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#5a646d', display: 'flex', pointerEvents: 'none' }}>
+            <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-4)', display: 'flex', pointerEvents: 'none' }}>
               <Icon name="search" size={13} strokeWidth={2} />
             </span>
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search settings"
-              style={{ width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 9, padding: '7px 9px 7px 28px', fontSize: 12, outline: 'none' }}
+              style={{ width: '100%', background: '#0f1318', border: '1px solid #20272e', color: 'var(--text-2)', borderRadius: 9, padding: '7px 9px 7px 28px', fontSize: 12, outline: 'none' }}
               onFocus={e => { e.target.style.borderColor = rgba(accent, 0.5) }}
               onBlur={e => { e.target.style.borderColor = '#20272e' }}
             />
@@ -1122,9 +1122,9 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                       key={item.sec}
                       onClick={() => goTo(item.sec)}
                       className="flex items-center"
-                      style={{ gap: 9, width: '100%', padding: '8px 11px', marginBottom: 1, borderRadius: 9, border: 'none', borderLeft: `2px solid ${on ? accent : 'transparent'}`, textAlign: 'left', background: on ? rgba(accent, 0.12) : 'transparent', color: on ? accent : '#8a939c', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, transition: 'background 0.12s' }}
+                      style={{ gap: 9, width: '100%', padding: '8px 11px', marginBottom: 1, borderRadius: 9, border: 'none', borderLeft: `2px solid ${on ? accent : 'transparent'}`, textAlign: 'left', background: on ? rgba(accent, 0.12) : 'transparent', color: on ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, transition: 'background 0.12s' }}
                     >
-                      <Icon name={item.icon} size={14} strokeWidth={2} color={on ? accent : '#5a646d'} />
+                      <Icon name={item.icon} size={14} strokeWidth={2} color={on ? accent : 'var(--text-4)'} />
                       {item.label}
                     </button>
                   )
@@ -1133,7 +1133,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
             )
           })}
           {q && !visibleSecs.length && (
-            <div style={{ fontSize: 11, color: '#5a646d', fontWeight: 600, padding: '8px 11px', lineHeight: 1.5 }}>No settings match “{query}”.</div>
+            <div style={{ fontSize: 11, color: 'var(--text-4)', fontWeight: 600, padding: '8px 11px', lineHeight: 1.5 }}>No settings match “{query}”.</div>
           )}
         </nav>
 
@@ -1152,7 +1152,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                     <button
                       key={val}
                       onClick={() => set('seduciaCliEngine', val)}
-                      style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                      style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${on ? accent : '#20272e'}` }}
                     >
                       {lbl}
                     </button>
@@ -1160,7 +1160,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                 })}
               </div>
             </Row>
-            <div style={{ fontSize: 11.5, color: '#76808a', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
               Seducia drives your logged-in agent CLIs — no API key, no extra billing, it just rides your existing subscription. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing. Manage logins and limit behaviour under <strong style={{ color: accent }}>Accounts</strong>.
             </div>
           </Section>
@@ -1186,12 +1186,12 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Font size</Label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input type="range" min={8} max={28} value={settings.fontSize ?? 14} onChange={e => set('fontSize', Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
-                <span style={{ color: '#e1e6ea', fontSize: 12, width: 24, textAlign: 'right', fontWeight: 700 }}>{settings.fontSize ?? 14}</span>
+                <span style={{ color: 'var(--text-2)', fontSize: 12, width: 24, textAlign: 'right', fontWeight: 700 }}>{settings.fontSize ?? 14}</span>
               </div>
             </Row>
             <Row>
               <Label>Font family</Label>
-              <select value={settings.fontFamily ?? FONTS[0]} onChange={e => set('fontFamily', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid #20272e`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
+              <select value={settings.fontFamily ?? FONTS[0]} onChange={e => set('fontFamily', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid #20272e`, color: 'var(--text-2)', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
                 {FONTS.map(f => <option key={f} value={f}>{f.replace(/'/g, '')}</option>)}
               </select>
             </Row>
@@ -1199,7 +1199,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Cursor style</Label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {CURSORS.map(c => (
-                  <button key={c} onClick={() => set('cursorStyle', c)} style={{ flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, background: (settings.cursorStyle ?? 'block') === c ? accent : '#0f1318', color: (settings.cursorStyle ?? 'block') === c ? '#000' : '#8a939c', border: `1px solid ${(settings.cursorStyle ?? 'block') === c ? accent : '#20272e'}` }}>
+                  <button key={c} onClick={() => set('cursorStyle', c)} style={{ flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontWeight: 700, background: (settings.cursorStyle ?? 'block') === c ? accent : '#0f1318', color: (settings.cursorStyle ?? 'block') === c ? '#000' : 'var(--text-3)', border: `1px solid ${(settings.cursorStyle ?? 'block') === c ? accent : '#20272e'}` }}>
                     {c}
                   </button>
                 ))}
@@ -1213,12 +1213,12 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Power saver (max battery)</Label>
               <button
                 onClick={() => set('powerSaver', !settings.powerSaver)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.powerSaver ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.powerSaver ? rgba(accent, 0.4) : '#20272e'}`, color: settings.powerSaver ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.powerSaver ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.powerSaver ? rgba(accent, 0.4) : '#20272e'}`, color: settings.powerSaver ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
               >
                 <Icon name="activity" size={14} strokeWidth={2} />
                 {settings.powerSaver ? 'Power saver ON — lightest on CPU/GPU/battery' : 'Power saver off'}
               </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
                 The lightest setting: includes Reduce-effects, freezes every ambient
                 animation, drops glows/shadows, and slows background polling. Turn it
                 on when the battery’s low or the laptop’s warm. <strong style={{ color: accent }}>Ctrl+Shift+E</strong> toggles it anywhere.
@@ -1228,12 +1228,12 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Auto power saver on low battery</Label>
               <button
                 onClick={() => set('autoPowerSaver', settings.autoPowerSaver === false)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.autoPowerSaver !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.autoPowerSaver !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.autoPowerSaver !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.autoPowerSaver !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.autoPowerSaver !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.autoPowerSaver !== false ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
               >
                 <Icon name="leaf" size={14} strokeWidth={2} />
                 {settings.autoPowerSaver !== false ? 'On — saver kicks in under 20% on battery' : 'Off — only the manual toggle'}
               </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
                 When you’re unplugged and the battery drops below 20%, Sush flips
                 into power saver on its own, then steps back out once you charge.
               </div>
@@ -1243,12 +1243,12 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <button
                 onClick={() => set('lite', !settings.lite)}
                 disabled={settings.powerSaver}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: (settings.lite || settings.powerSaver) ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${(settings.lite || settings.powerSaver) ? rgba(accent, 0.4) : '#20272e'}`, color: (settings.lite || settings.powerSaver) ? accent : '#76808a', cursor: settings.powerSaver ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%', opacity: settings.powerSaver ? 0.7 : 1 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: (settings.lite || settings.powerSaver) ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${(settings.lite || settings.powerSaver) ? rgba(accent, 0.4) : '#20272e'}`, color: (settings.lite || settings.powerSaver) ? accent : 'var(--text-3)', cursor: settings.powerSaver ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%', opacity: settings.powerSaver ? 0.7 : 1 }}
               >
                 <Icon name="activity" size={14} strokeWidth={2} />
                 {(settings.lite || settings.powerSaver) ? 'Lite mode on — glass blur off' : 'Full glass effects'}
               </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
                 Drops the frosted-glass blur and ambient glow animations. Big GPU
                 saver on laptops or when running a busy agent swarm.{settings.powerSaver ? ' (Included in Power saver.)' : ''}
               </div>
@@ -1257,7 +1257,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Restore session history</Label>
               <button
                 onClick={() => set('persistScrollback', settings.persistScrollback === false)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.persistScrollback !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.persistScrollback !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.persistScrollback !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.persistScrollback !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.persistScrollback !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.persistScrollback !== false ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
               >
                 <Icon name="clock" size={14} strokeWidth={2} />
                 {settings.persistScrollback !== false ? 'Replaying recent output on reopen' : 'History restore off'}
@@ -1267,12 +1267,12 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Resume agent sessions on launch</Label>
               <button
                 onClick={() => set('resumeAgents', settings.resumeAgents === false)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.resumeAgents !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.resumeAgents !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.resumeAgents !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.resumeAgents !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.resumeAgents !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.resumeAgents !== false ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
               >
                 <Icon name="terminal" size={14} strokeWidth={2} />
                 {settings.resumeAgents !== false ? 'Re-launching agents (claude --continue, …)' : 'Restored tabs open a bare shell'}
               </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
                 When on, a restored Claude/Codex tab re-runs its CLI in resume mode so the
                 previous conversation continues. Applies on next launch.
               </div>
@@ -1286,12 +1286,12 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Suggest aliases from habits</Label>
               <button
                 onClick={() => set('autoAlias', settings.autoAlias === false)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.autoAlias !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.autoAlias !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.autoAlias !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.autoAlias !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.autoAlias !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.autoAlias !== false ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
               >
                 <Icon name="sparkles" size={14} strokeWidth={2} />
                 {settings.autoAlias !== false ? 'Offering aliases for repeated commands' : 'Alias suggestions off'}
               </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
                 Run a command ~15× and Sush offers to save it as a short alias in
                 your .sushrc. Nothing is written until you accept.
               </div>
@@ -1301,11 +1301,11 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <button
                 onClick={() => onEditSushrc?.()}
                 className="sush-btn"
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderRadius: 9, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderRadius: 9, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
               >
                 <Icon name="fileText" size={14} color={accent} strokeWidth={2} />
                 Edit .sushrc profile
-                <Icon name="arrowRight" size={13} color="#5a646d" style={{ marginLeft: 'auto' }} />
+                <Icon name="arrowRight" size={13} color="var(--text-4)" style={{ marginLeft: 'auto' }} />
               </button>
             </Row>
             <BackupRow accent={accent} settings={settings} onChange={onChange} />
@@ -1316,7 +1316,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
             <Row>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {Object.values(themes).map(t => (
-                  <button key={t.id} onClick={() => set('themeId', t.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, cursor: 'pointer', background: (settings.themeId ?? 'pink') === t.id ? rgba(t.ui.accent, 0.1) : '#0f1318', border: `1px solid ${(settings.themeId ?? 'pink') === t.id ? t.ui.accent : '#20272e'}`, color: '#e1e6ea', fontSize: 13, textAlign: 'left' }}>
+                  <button key={t.id} onClick={() => set('themeId', t.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, cursor: 'pointer', background: (settings.themeId ?? 'pink') === t.id ? rgba(t.ui.accent, 0.1) : '#0f1318', border: `1px solid ${(settings.themeId ?? 'pink') === t.id ? t.ui.accent : '#20272e'}`, color: 'var(--text-2)', fontSize: 13, textAlign: 'left' }}>
                     <div style={{ width: 14, height: 14, borderRadius: '50%', background: t.ui.accent, flexShrink: 0, boxShadow: `0 0 6px ${t.ui.accent}` }} />
                     {t.label}
                     {(settings.themeId ?? 'pink') === t.id && <Icon name="check" size={13} color={t.ui.accent} style={{ marginLeft: 'auto' }} />}
@@ -1332,18 +1332,18 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Window opacity</Label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input type="range" min={70} max={100} value={settings.opacity ?? 100} onChange={e => set('opacity', Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
-                <span style={{ color: '#e1e6ea', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.opacity ?? 100}%</span>
+                <span style={{ color: 'var(--text-2)', fontSize: 12, width: 36, textAlign: 'right', fontWeight: 700 }}>{settings.opacity ?? 100}%</span>
               </div>
             </Row>
             <Row>
               <Label>Minimize to tray</Label>
               <button
                 onClick={() => set('minimizeToTray', !settings.minimizeToTray)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.minimizeToTray ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.minimizeToTray ? rgba(accent, 0.4) : '#20272e'}`, color: settings.minimizeToTray ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.minimizeToTray ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.minimizeToTray ? rgba(accent, 0.4) : '#20272e'}`, color: settings.minimizeToTray ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
               >
                 {settings.minimizeToTray ? 'On - minimize hides Sush into the tray' : 'Off - minimize goes to the taskbar'}
               </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
                 When on, the minimize dot tucks Sush into the system tray. Click the tray icon to bring it back.
               </div>
             </Row>
@@ -1352,7 +1352,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   onClick={() => set('hushEnabled', settings.hushEnabled === false ? true : false)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.hushEnabled !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.hushEnabled !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.hushEnabled !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.hushEnabled !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.hushEnabled !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.hushEnabled !== false ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
                 >
                   {settings.hushEnabled !== false ? 'On - mic button + Ctrl+Shift+S' : 'Off'}
                 </button>
@@ -1360,13 +1360,13 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                   <button
                     onClick={() => set('hushAutoSend', settings.hushAutoSend === false ? true : false)}
                     title="Whether dictation presses Enter for you"
-                    style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: '1px solid #20272e', color: '#aab3bb', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+                    style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: '1px solid #20272e', color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
                   >
                     {settings.hushAutoSend !== false ? 'Sends automatically' : 'Review before send'}
                   </button>
                 )}
               </div>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
                 Hush types what you say into the focused terminal and presses Enter (switch to review mode to check before sending). Pure dictation, separate from Seducia.
               </div>
             </Row>
@@ -1374,12 +1374,12 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <Label>Agent notifications</Label>
               <button
                 onClick={() => set('agentNotifications', settings.agentNotifications === false)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.agentNotifications !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.agentNotifications !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.agentNotifications !== false ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.agentNotifications !== false ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.agentNotifications !== false ? rgba(accent, 0.4) : '#20272e'}`, color: settings.agentNotifications !== false ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
               >
                 <Icon name="activity" size={14} strokeWidth={2} />
                 {settings.agentNotifications !== false ? 'Notify when an agent needs you / finishes' : 'Agent notifications off'}
               </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
                 A desktop notification when a session needs input, errors, or finishes while Sush is in the background. Never fires while the window is focused.
               </div>
             </Row>
@@ -1393,14 +1393,14 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                     <button
                       key={mins}
                       onClick={() => set('idleSleepMinutes', mins)}
-                      style={{ padding: '7px 13px', borderRadius: 8, border: `1px solid ${on ? rgba(accent, 0.5) : '#20272e'}`, background: on ? rgba(accent, 0.12) : '#0f1318', color: on ? accent : '#76808a', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                      style={{ padding: '7px 13px', borderRadius: 8, border: `1px solid ${on ? rgba(accent, 0.5) : '#20272e'}`, background: on ? rgba(accent, 0.12) : '#0f1318', color: on ? accent : 'var(--text-3)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
                     >
                       {mins === 0 ? 'Off' : `${mins} min`}
                     </button>
                   )
                 })}
               </div>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
                 No input for this long and Sush dims, freezes animations, and stops every poll - terminals and agents keep running. Any key or click wakes it.
               </div>
             </Row>

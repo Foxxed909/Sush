@@ -55,8 +55,8 @@ function ToolStep({ step, accent }) {
         style={{ gap: 8, width: '100%', padding: '6px 10px', background: 'transparent', border: 'none', cursor: step.preview ? 'pointer' : 'default', textAlign: 'left' }}
       >
         <Icon name={step.error ? 'x' : step.done ? 'check' : icon} size={12} color={color} strokeWidth={2.2} />
-        <span style={{ fontSize: 11, fontWeight: 800, color: '#c6cdd4', flexShrink: 0 }}>{step.name}</span>
-        <span style={{ fontSize: 11, color: '#76808a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontFamily: 'monospace' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-2)', flexShrink: 0 }}>{step.name}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontFamily: 'monospace' }}>
           {step.detail}
         </span>
         {!step.done && !step.error && <span className="sush-pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: color, '--pulse': rgba(color, 0.6), flexShrink: 0 }} />}
@@ -194,11 +194,11 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
         <div className="flex items-center" style={{ gap: 9, minWidth: 0 }}>
           <span className="flex items-center justify-center" style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(217,119,87,0.14)', border: '1px solid rgba(217,119,87,0.4)', color: '#d97757', fontWeight: 900, fontSize: 13, flexShrink: 0 }}>C</span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 900, color: '#f1f4f6' }}>Claude Code</div>
-            <div style={{ fontSize: 10, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cwd}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--text-1)' }}>Claude Code</div>
+            <div style={{ fontSize: 10, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cwd}>
               {dirLabel}{meta?.model ? ` · ${meta.model}` : ''}{sessionId ? ' · resumable' : ''}
               {limits?.resetsAt && (
-                <span style={{ color: limits.status === 'allowed' ? '#69737d' : '#ffb74d' }}>
+                <span style={{ color: limits.status === 'allowed' ? 'var(--text-3)' : '#ffb74d' }}>
                   {' '}· limit resets {new Date(limits.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
@@ -208,7 +208,7 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
         <button
           onClick={newConversation}
           title="New conversation (forgets the resume session for this directory)"
-          style={{ fontSize: 10.5, fontWeight: 800, color: '#8a939c', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', flexShrink: 0 }}
+          style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--text-3)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', flexShrink: 0 }}
         >
           New chat
         </button>
@@ -218,8 +218,8 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto sush-scroll" style={{ padding: '10px 14px' }}>
         {!entries.length && (
           <div style={{ padding: '26px 8px', textAlign: 'center' }}>
-            <div style={{ fontSize: 12.5, color: '#8a939c', lineHeight: 1.6 }}>
-              Prompt Claude Code on <strong style={{ color: '#c6cdd4' }}>{dirLabel}</strong> and watch the work happen — file edits, commands, and the answer, live. Conversations resume per directory.
+            <div style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.6 }}>
+              Prompt Claude Code on <strong style={{ color: 'var(--text-2)' }}>{dirLabel}</strong> and watch the work happen — file edits, commands, and the answer, live. Conversations resume per directory.
             </div>
           </div>
         )}
@@ -228,7 +228,7 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
           if (e.role === 'you') {
             return (
               <div key={e.id} className="flex justify-end" style={{ margin: '8px 0' }}>
-                <div style={{ maxWidth: '88%', fontSize: 12.5, lineHeight: 1.5, padding: '7px 11px', borderRadius: 11, borderTopRightRadius: 4, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.12), color: '#f1f4f6', whiteSpace: 'pre-wrap' }}>
+                <div style={{ maxWidth: '88%', fontSize: 12.5, lineHeight: 1.5, padding: '7px 11px', borderRadius: 11, borderTopRightRadius: 4, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.12), color: 'var(--text-1)', whiteSpace: 'pre-wrap' }}>
                   {e.text}
                 </div>
               </div>
@@ -241,7 +241,7 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
           )
         })}
         {running && (
-          <div className="flex items-center" style={{ gap: 7, margin: '8px 0', color: '#76808a', fontSize: 11, fontWeight: 700 }}>
+          <div className="flex items-center" style={{ gap: 7, margin: '8px 0', color: 'var(--text-3)', fontSize: 11, fontWeight: 700 }}>
             <Icon name="sparkles" size={12} color={accent} className="sush-spin" />
             working...
           </div>
@@ -266,7 +266,7 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
             disabled={running}
             spellCheck={false}
             rows={Math.min(4, Math.max(1, value.split('\n').length))}
-            style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12.5, resize: 'none', lineHeight: 1.5, fontFamily: 'inherit' }}
+            style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 12.5, resize: 'none', lineHeight: 1.5, fontFamily: 'inherit' }}
           />
           {running ? (
             <button onClick={stop} title="Stop" style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,83,112,0.4)', background: 'rgba(255,83,112,0.1)', color: '#ff5370', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -276,7 +276,7 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
             <button
               onClick={() => submit()}
               disabled={!value.trim()}
-              style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: value.trim() ? accent : 'rgba(255,255,255,0.05)', color: value.trim() ? '#0a0a0c' : '#5a646d', cursor: value.trim() ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: value.trim() ? accent : 'rgba(255,255,255,0.05)', color: value.trim() ? '#0a0a0c' : 'var(--text-4)', cursor: value.trim() ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Icon name="send" size={14} strokeWidth={2} />
             </button>

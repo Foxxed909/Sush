@@ -20,7 +20,7 @@ function ago(iso) {
 function SectionTitle({ children, right }) {
   return (
     <div className="flex items-center" style={{ padding: '12px 12px 6px', gap: 8 }}>
-      <span style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, flex: 1 }}>{children}</span>
+      <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 1, flex: 1 }}>{children}</span>
       {right}
     </div>
   )
@@ -37,10 +37,10 @@ function ExternalRow({ accent, title, meta, onOpen, unread }) {
       }}
     >
       <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', fontSize: 12, fontWeight: unread ? 800 : 600, color: unread ? '#e6ebef' : '#aab3bb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ display: 'block', fontSize: 12, fontWeight: unread ? 800 : 600, color: unread ? 'var(--text-2)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {title}
         </span>
-        <span style={{ display: 'block', fontSize: 10, color: '#5a646d', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ display: 'block', fontSize: 10, color: 'var(--text-4)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {meta}
         </span>
       </span>
@@ -119,7 +119,7 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
     width: '100%',
     background: '#0f1318',
     border: '1px solid #20272e',
-    color: '#f1f4f6',
+    color: 'var(--text-1)',
     borderRadius: 8,
     padding: '7px 10px',
     fontSize: 12,
@@ -134,22 +134,22 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
         <span className="flex items-center justify-center" style={{ width: 44, height: 44, borderRadius: 12, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.25)}`, color: accent }}>
           <Icon name="github" size={20} />
         </span>
-        <div style={{ color: '#aab3bb', fontSize: 13, fontWeight: 700 }}>GitHub is not connected</div>
-        <div style={{ color: '#69737d', fontSize: 11.5, maxWidth: 250, lineHeight: 1.6 }}>
-          Run <code style={{ color: '#8a939c' }}>gh auth login</code> in a session, or connect this identity in Manage Users.
+        <div style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 700 }}>GitHub is not connected</div>
+        <div style={{ color: 'var(--text-3)', fontSize: 11.5, maxWidth: 250, lineHeight: 1.6 }}>
+          Run <code style={{ color: 'var(--text-3)' }}>gh auth login</code> in a session, or connect this identity in Manage Users.
           {!status.configured?.github && ' In-app sign-in needs a client id in Settings > Accounts.'}
         </div>
         {onConnect && (
           <button
             onClick={onConnect}
-            style={{ padding: '8px 16px', borderRadius: 9, border: `1px solid ${rgba(accent, 0.5)}`, background: rgba(accent, 0.12), color: '#f1f4f6', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+            style={{ padding: '8px 16px', borderRadius: 9, border: `1px solid ${rgba(accent, 0.5)}`, background: rgba(accent, 0.12), color: 'var(--text-1)', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
           >
             Open Manage Users
           </button>
         )}
         <button
           onClick={loadStatus}
-          style={{ padding: '6px 14px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#8a939c', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
+          style={{ padding: '6px 14px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'var(--text-3)', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
         >
           Re-check
         </button>
@@ -163,10 +163,10 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
       <div className="flex items-center" style={{ gap: 9, padding: '10px 12px', borderBottom: '1px solid #141a1f' }}>
         <Icon name="github" size={14} color={accent} strokeWidth={2} />
         <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: '#e6ebef' }}>
+          <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>
             {status ? `@${status.login || 'connected'}` : 'GitHub'}
           </span>
-          <span style={{ display: 'block', fontSize: 10.5, color: '#69737d' }}>
+          <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)' }}>
             {status ? (status.source === 'gh-cli' ? 'via gh CLI login' : 'via Sush sign-in') : 'checking connection...'}
           </span>
         </span>
@@ -174,7 +174,7 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
           onClick={() => { loadStatus(); loadRepos(query); loadWork(); loadInbox() }}
           title="Refresh"
           className="sush-icon-btn flex items-center justify-center"
-          style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer' }}
+          style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer' }}
         >
           <Icon name="refresh" size={13} />
         </button>
@@ -191,16 +191,16 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
           style={field}
         />
       </div>
-      {repos === null && <div style={{ padding: '8px 12px', fontSize: 11, color: '#5a646d' }}>loading...</div>}
+      {repos === null && <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-4)' }}>loading...</div>}
       {reposError && <div style={{ padding: '8px 12px', fontSize: 11, color: '#ff8aa0' }}>{reposError}</div>}
       {(repos || []).slice(0, 12).map(r => (
         <div key={r.fullName} className="flex items-center" style={{ gap: 7, padding: '5px 12px' }}>
           <span style={{ minWidth: 0, flex: 1 }}>
             <span className="flex items-center" style={{ gap: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#c6cdd4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.fullName}</span>
-              {r.private && <Icon name="lock" size={9} color="#8a939c" />}
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.fullName}</span>
+              {r.private && <Icon name="lock" size={9} color="var(--text-3)" />}
             </span>
-            <span style={{ display: 'block', fontSize: 10, color: '#5a646d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ display: 'block', fontSize: 10, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {[r.language, r.stars ? `*${r.stars}` : '', ago(r.updatedAt)].filter(Boolean).join(' - ')}
             </span>
           </span>
@@ -216,7 +216,7 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
             onClick={() => openUrl(r.htmlUrl)}
             title="Open on GitHub"
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 24, height: 24, borderRadius: 7, border: '1px solid #20272e', background: 'transparent', color: '#8a939c', cursor: 'pointer' }}
+            style={{ width: 24, height: 24, borderRadius: 7, border: '1px solid #20272e', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}
           >
             <Icon name="globe" size={11} />
           </button>
@@ -226,14 +226,14 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
       {/* My work */}
       <SectionTitle
         right={
-          <button onClick={loadWork} style={{ background: 'none', border: 'none', color: '#5a646d', fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
+          <button onClick={loadWork} style={{ background: 'none', border: 'none', color: 'var(--text-4)', fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
             refresh
           </button>
         }
       >
         MY WORK
       </SectionTitle>
-      {!work && <div style={{ padding: '2px 12px 8px', fontSize: 11, color: '#5a646d' }}>loading...</div>}
+      {!work && <div style={{ padding: '2px 12px 8px', fontSize: 11, color: 'var(--text-4)' }}>loading...</div>}
       {work && (
         <>
           {[
@@ -242,11 +242,11 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
             ['Assigned issues', work.issues]
           ].map(([label, items]) => (
             <div key={label} style={{ marginBottom: 4 }}>
-              <div style={{ padding: '2px 12px', fontSize: 10.5, color: '#8a939c', fontWeight: 700 }}>
+              <div style={{ padding: '2px 12px', fontSize: 10.5, color: 'var(--text-3)', fontWeight: 700 }}>
                 {label} {items.length > 0 && <span style={{ color: accent }}>({items.length})</span>}
               </div>
               {items.length === 0
-                ? <div style={{ padding: '0 12px 4px', fontSize: 10.5, color: '#4a5560' }}>none</div>
+                ? <div style={{ padding: '0 12px 4px', fontSize: 10.5, color: 'var(--text-5)' }}>none</div>
                 : items.slice(0, 6).map(it => (
                   <ExternalRow
                     key={`${it.repo}#${it.number}`}
@@ -263,9 +263,9 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
 
       {/* Inbox */}
       <SectionTitle>INBOX{inbox?.unreadCount ? ` (${inbox.unreadCount})` : ''}</SectionTitle>
-      {!inbox && <div style={{ padding: '2px 12px 12px', fontSize: 11, color: '#5a646d' }}>loading...</div>}
+      {!inbox && <div style={{ padding: '2px 12px 12px', fontSize: 11, color: 'var(--text-4)' }}>loading...</div>}
       {inbox && inbox.notifications.length === 0 && (
-        <div style={{ padding: '2px 12px 12px', fontSize: 11, color: '#4a5560' }}>inbox zero</div>
+        <div style={{ padding: '2px 12px 12px', fontSize: 11, color: 'var(--text-5)' }}>inbox zero</div>
       )}
       {(inbox?.notifications || []).slice(0, 15).map(n => (
         <div key={n.id} className="flex items-center" style={{ gap: 4, paddingRight: 8 }}>

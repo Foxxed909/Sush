@@ -160,11 +160,11 @@ function LaunchCard({ accent, launch, status, onGo, onCancel }) {
   return (
     <div style={{ maxWidth: '84%', borderRadius: 12, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.07), padding: '10px 12px' }}>
       <div style={{ fontSize: 10, fontWeight: 900, color: accent, letterSpacing: 1.2, marginBottom: 6 }}>LAUNCH PLAN</div>
-      <div style={{ fontSize: 12.5, color: '#e6ebef', fontWeight: 700, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12.5, color: 'var(--text-2)', fontWeight: 700, lineHeight: 1.5 }}>
         {summarize(launch.agents)} in {pathLabel(launch.cwd)}
       </div>
       {brief && (
-        <div style={{ fontSize: 11, color: '#8a939c', marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
           brief: "{brief.slice(0, 160)}{brief.length > 160 ? '...' : ''}"
         </div>
       )}
@@ -178,14 +178,14 @@ function LaunchCard({ accent, launch, status, onGo, onCancel }) {
           </button>
           <button
             onClick={onCancel}
-            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: '#aab3bb', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
+            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: 'var(--text-2)', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
           >
             Cancel
           </button>
-          <span style={{ fontSize: 10, color: '#5a646d', fontWeight: 700 }}>auto in {left}s</span>
+          <span style={{ fontSize: 10, color: 'var(--text-4)', fontWeight: 700 }}>auto in {left}s</span>
         </div>
       ) : (
-        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: status === 'launched' ? '#5fd3a8' : '#8a939c' }}>
+        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: status === 'launched' ? '#5fd3a8' : 'var(--text-3)' }}>
           {status === 'launched' ? `Launched ${total} session${total === 1 ? '' : 's'}.` : 'Cancelled.'}
         </div>
       )}
@@ -434,12 +434,12 @@ export default function Seducia({
           </span>
           <div>
             <div className="flex items-center" style={{ gap: 6 }}>
-              <span style={{ fontSize: docked ? 13 : 14.5, fontWeight: 900, color: '#f1f4f6' }}>Seducia</span>
+              <span style={{ fontSize: docked ? 13 : 14.5, fontWeight: 900, color: 'var(--text-1)' }}>Seducia</span>
               {aiEnabled && hasAIKey && (
                 <span style={{ fontSize: 9, fontWeight: 800, color: accent, background: rgba(accent, 0.15), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 99, padding: '1px 6px', letterSpacing: 0.5 }}>AI</span>
               )}
             </div>
-            <div style={{ fontSize: 10.5, color: '#76808a', marginTop: 1 }}>
+            <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>
               {scope?.kind === 'project' ? `${scope.label} · ` : ''}{scopedTabs.length} session{scopedTabs.length === 1 ? '' : 's'}{scope?.kind !== 'project' && groups ? ` · ${groups} workspace${groups === 1 ? '' : 's'}` : ''}
             </div>
           </div>
@@ -456,7 +456,7 @@ export default function Seducia({
                 borderRadius: 8,
                 border: `1px solid ${handsFree ? rgba(accent, 0.5) : '#20272e'}`,
                 background: handsFree ? rgba(accent, 0.12) : '#11151a',
-                color: handsFree ? accent : '#5a646d',
+                color: handsFree ? accent : 'var(--text-4)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -470,7 +470,7 @@ export default function Seducia({
             <button
               onClick={onClose}
               title="Close (Esc)"
-              style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Icon name="x" size={14} />
             </button>
@@ -480,7 +480,7 @@ export default function Seducia({
 
       {/* No AI key notice */}
       {!hasAIKey && (
-        <div style={{ margin: '8px 10px 0', padding: '8px 12px', borderRadius: 8, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.2)}`, fontSize: 11, color: '#aab3bb' }}>
+        <div style={{ margin: '8px 10px 0', padding: '8px 12px', borderRadius: 8, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.2)}`, fontSize: 11, color: 'var(--text-2)' }}>
           Add an API key in <strong style={{ color: accent }}>Settings → AI</strong> to enable AI responses.
         </div>
       )}
@@ -512,7 +512,7 @@ export default function Seducia({
                   borderRadius: 12,
                   border: `1px solid ${entry.role === 'you' ? rgba(accent, 0.4) : '#1b2127'}`,
                   background: entry.role === 'you' ? rgba(accent, 0.12) : '#0f1318',
-                  color: entry.role === 'you' ? '#f1f4f6' : '#cdd5dc',
+                  color: entry.role === 'you' ? 'var(--text-1)' : 'var(--text-2)',
                   borderTopRightRadius: entry.role === 'you' ? 4 : 12,
                   borderTopLeftRadius: entry.role === 'you' ? 12 : 4,
                   whiteSpace: 'pre-wrap'
@@ -521,7 +521,7 @@ export default function Seducia({
                 {entry.text}
                 {entry.streaming && <span style={{ display: 'inline-block', width: 8, height: 12, background: accent, borderRadius: 2, marginLeft: 3, verticalAlign: 'middle', animation: 'sush-blink 0.8s step-start infinite' }} />}
                 {entry.engine && !entry.streaming && (
-                  <span style={{ display: 'block', marginTop: 5, fontSize: 9.5, fontWeight: 800, color: '#76808a', letterSpacing: 0.5 }}>
+                  <span style={{ display: 'block', marginTop: 5, fontSize: 9.5, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 0.5 }}>
                     via {entry.engine} CLI
                   </span>
                 )}
@@ -538,7 +538,7 @@ export default function Seducia({
             key={q.label}
             onClick={() => handle(q.send)}
             disabled={streaming}
-            style={{ fontSize: 11, fontWeight: 800, color: '#aab3bb', background: '#11151a', border: `1px solid ${rgba(accent, 0.22)}`, borderRadius: 999, padding: '4px 10px', cursor: streaming ? 'default' : 'pointer', opacity: streaming ? 0.5 : 1 }}
+            style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-2)', background: '#11151a', border: `1px solid ${rgba(accent, 0.22)}`, borderRadius: 999, padding: '4px 10px', cursor: streaming ? 'default' : 'pointer', opacity: streaming ? 0.5 : 1 }}
           >
             {q.label}
           </button>
@@ -548,7 +548,7 @@ export default function Seducia({
       {/* Composer */}
       <div style={{ padding: '0 12px 12px' }}>
         <div className="sush-omni flex items-center" style={{ height: 44, gap: 8 }}>
-          <Icon name="sparkles" size={15} color={streaming ? accent : '#5a646d'} className={streaming ? 'sush-spin' : undefined} />
+          <Icon name="sparkles" size={15} color={streaming ? accent : 'var(--text-4)'} className={streaming ? 'sush-spin' : undefined} />
           <input
             ref={inputRef}
             value={value}
@@ -559,7 +559,7 @@ export default function Seducia({
             placeholder={listening ? 'Listening...' : streaming ? 'Seducia is thinking...' : 'Launch, prompt, or ask anything...'}
             disabled={streaming}
             spellCheck={false}
-            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
+            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13 }}
           />
           {voiceEnabled && SpeechRecognition && (
             <button
@@ -592,7 +592,7 @@ export default function Seducia({
             <button
               onClick={() => handle(value)}
               disabled={!value.trim()}
-              style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: value.trim() ? accent : '#1c2126', color: value.trim() ? '#0a0a0a' : '#5a646d', cursor: value.trim() ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: value.trim() ? accent : '#1c2126', color: value.trim() ? '#0a0a0a' : 'var(--text-4)', cursor: value.trim() ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Icon name="send" size={14} strokeWidth={2} />
             </button>

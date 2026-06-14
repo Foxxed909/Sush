@@ -118,19 +118,19 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                 spellCheck={false}
                 title="Name this workspace (optional)"
                 style={{
-                  fontSize: 16, fontWeight: 900, color: '#f1f4f6', background: 'transparent',
+                  fontSize: 16, fontWeight: 900, color: 'var(--text-1)', background: 'transparent',
                   border: 'none', borderBottom: `1px dashed ${sessionName ? rgba(accent, 0.5) : 'rgba(255,255,255,0.12)'}`,
                   outline: 'none', padding: '0 0 2px', width: 240, fontFamily: 'inherit'
                 }}
               />
-              <div style={{ fontSize: 11.5, color: '#76808a', marginTop: 4 }}>Pick a directory, then launch the crew - sessions live inside this workspace</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>Pick a directory, then launch the crew - sessions live inside this workspace</div>
             </div>
           </div>
           <button
             onClick={onClose}
             title="Close"
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer' }}
+            style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer' }}
           >
             <Icon name="x" size={15} />
           </button>
@@ -164,7 +164,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                       gap: 6,
                       fontSize: 11.5,
                       fontWeight: 700,
-                      color: selected ? accent : '#aab3bb',
+                      color: selected ? accent : 'var(--text-2)',
                       background: selected ? rgba(accent, 0.14) : '#11151a',
                       border: `1px solid ${selected ? rgba(accent, 0.45) : '#20272e'}`,
                       borderRadius: 999,
@@ -173,7 +173,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                       maxWidth: 220
                     }}
                   >
-                    <Icon name="folder" size={12} color={selected ? accent : '#69737d'} />
+                    <Icon name="folder" size={12} color={selected ? accent : 'var(--text-3)'} />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chip.label}</span>
                   </button>
                 )
@@ -224,27 +224,27 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                       flexShrink: 0,
                       fontSize: agent.mono.length > 1 ? 12 : 15,
                       fontWeight: 900,
-                      color: locked ? '#5a646d' : agent.color,
-                      background: rgba(locked ? '#5a646d' : agent.color, 0.14),
-                      border: `1px solid ${rgba(locked ? '#5a646d' : agent.color, 0.4)}`
+                      color: locked ? 'var(--text-4)' : agent.color,
+                      background: rgba(locked ? 'var(--text-4)' : agent.color, 0.14),
+                      border: `1px solid ${rgba(locked ? 'var(--text-4)' : agent.color, 0.4)}`
                     }}
                   >
                     {locked ? <Icon name="lock" size={15} strokeWidth={2.2} /> : agent.mono}
                   </span>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: '#e6ebef' }}>{agent.label}</span>
-                    <span style={{ display: 'block', fontSize: 11, color: '#76808a', marginTop: 2, fontFamily: 'inherit' }}>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: 'var(--text-2)' }}>{agent.label}</span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 2, fontFamily: 'inherit' }}>
                       {locked ? 'Not installed' : agent.command ? `$ ${agent.command}` : agent.desc}
                     </span>
                   </span>
                   {locked ? (
-                    <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.8, color: '#7a838b', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '3px 8px' }}>
+                    <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.8, color: 'var(--text-3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '3px 8px' }}>
                       LOCKED
                     </span>
                   ) : (
                     <div className="flex items-center" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>
                       <StepBtn icon="minus" disabled={count === 0} accent={accent} onClick={() => setCount(agent.id, count - 1)} />
-                      <span style={{ width: 22, textAlign: 'center', fontSize: 14, fontWeight: 800, color: on ? accent : '#5a646d' }}>{count}</span>
+                      <span style={{ width: 22, textAlign: 'center', fontSize: 14, fontWeight: 800, color: on ? accent : 'var(--text-4)' }}>{count}</span>
                       <StepBtn icon="plus" disabled={remaining <= 0} accent={accent} onClick={() => setCount(agent.id, count + 1)} />
                     </div>
                   )}
@@ -267,13 +267,13 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               {total}
             </span>
             session{total === 1 ? '' : 's'} will open
-            {remaining <= 4 && <span style={{ color: '#69737d', fontSize: 11 }}>· max {MAX_SESSIONS}</span>}
+            {remaining <= 4 && <span style={{ color: 'var(--text-3)', fontSize: 11 }}>· max {MAX_SESSIONS}</span>}
           </div>
           <div className="flex items-center" style={{ gap: 10 }}>
             <button
               onClick={onClose}
               className="sush-btn"
-              style={{ height: 38, padding: '0 16px', border: '1px solid #262d35', borderRadius: 10, background: '#161b21', color: '#aab3bb', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}
+              style={{ height: 38, padding: '0 16px', border: '1px solid #262d35', borderRadius: 10, background: '#161b21', color: 'var(--text-2)', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}
             >
               Cancel
             </button>
@@ -288,14 +288,14 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                 border: 'none',
                 borderRadius: 10,
                 background: canLaunch ? accent : '#1c2126',
-                color: canLaunch ? '#0a0a0a' : '#5a646d',
+                color: canLaunch ? '#0a0a0a' : 'var(--text-4)',
                 fontWeight: 800,
                 fontSize: 12.5,
                 cursor: canLaunch ? 'pointer' : 'default',
                 boxShadow: canLaunch ? `0 8px 22px ${rgba(accent, 0.35)}` : 'none'
               }}
             >
-              <Icon name="rocket" size={15} strokeWidth={2.1} color={canLaunch ? '#0a0a0a' : '#5a646d'} />
+              <Icon name="rocket" size={15} strokeWidth={2.1} color={canLaunch ? '#0a0a0a' : 'var(--text-4)'} />
               Launch
             </button>
           </div>
@@ -309,7 +309,7 @@ function SectionLabel({ icon, children, accent, flush }) {
   return (
     <div className="flex items-center" style={{ gap: 8, marginBottom: flush ? 0 : 12 }}>
       {icon && <Icon name={icon} size={13} color={accent} strokeWidth={2.4} />}
-      <span style={{ color: '#8a939c', fontSize: 11, fontWeight: 800, letterSpacing: 1.4, textTransform: 'uppercase' }}>{children}</span>
+      <span style={{ color: 'var(--text-3)', fontSize: 11, fontWeight: 800, letterSpacing: 1.4, textTransform: 'uppercase' }}>{children}</span>
     </div>
   )
 }
@@ -326,7 +326,7 @@ function StepBtn({ icon, onClick, disabled, accent }) {
         borderRadius: 7,
         border: `1px solid ${disabled ? '#1b2127' : rgba(accent, 0.35)}`,
         background: disabled ? '#0d1115' : '#141a20',
-        color: disabled ? '#3a434c' : '#cdd5dc',
+        color: disabled ? '#3a434c' : 'var(--text-2)',
         cursor: disabled ? 'default' : 'pointer',
         transition: 'background .12s, border-color .12s'
       }}
@@ -339,7 +339,7 @@ function StepBtn({ icon, onClick, disabled, accent }) {
 const miniBtn = (accent) => ({
   fontSize: 11,
   fontWeight: 800,
-  color: '#aab3bb',
+  color: 'var(--text-2)',
   background: '#11151a',
   border: `1px solid ${rgba(accent, 0.2)}`,
   borderRadius: 8,

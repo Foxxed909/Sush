@@ -59,7 +59,7 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
     gap: 8,
     background: 'rgba(255,255,255,0.04)',
     border: '1px solid rgba(255,255,255,0.12)',
-    color: '#c6cdd4',
+    color: 'var(--text-2)',
     borderRadius: 10,
     padding: compact ? '7px 10px' : '9px 14px',
     fontSize: compact ? 11.5 : 12.5,
@@ -71,9 +71,9 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
   if (busy === 'github' && device) {
     return (
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 11, color: '#8a939c', marginBottom: 8 }}>Enter this code on GitHub:</div>
+        <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 8 }}>Enter this code on GitHub:</div>
         <div style={{
-          fontSize: 24, fontWeight: 900, letterSpacing: 5, color: '#f1f4f6',
+          fontSize: 24, fontWeight: 900, letterSpacing: 5, color: 'var(--text-1)',
           fontFamily: 'ui-monospace, monospace', marginBottom: 10, userSelect: 'text'
         }}>
           {device.userCode}
@@ -83,14 +83,14 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
             onClick={() => window.sush.openExternal({ url: device.verificationUri })}
             style={{
               ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer',
-              background: rgba(accent, 0.14), border: `1px solid ${rgba(accent, 0.5)}`, color: '#f1f4f6'
+              background: rgba(accent, 0.14), border: `1px solid ${rgba(accent, 0.5)}`, color: 'var(--text-1)'
             }}
           >
             <Icon name="github" size={13} /> Open github.com
           </button>
           <button onClick={cancel} style={{ ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer' }}>Cancel</button>
         </div>
-        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 8 }}>Waiting for you to approve in the browser...</div>
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 8 }}>Waiting for you to approve in the browser...</div>
       </div>
     )
   }
@@ -98,7 +98,7 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
   if (busy === 'google') {
     return (
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: '#aab3bb', fontWeight: 700, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 700, marginBottom: 8 }}>
           Check your browser to finish signing in with Google
         </div>
         <button onClick={cancel} style={{ ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer' }}>Cancel</button>
@@ -121,7 +121,7 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
         )}
       </div>
       {busy === 'github' && !device && (
-        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 8, textAlign: 'center' }}>Contacting GitHub...</div>
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 8, textAlign: 'center' }}>Contacting GitHub...</div>
       )}
       {error && (
         <div style={{ color: '#ff8aa0', fontSize: 11.5, fontWeight: 700, marginTop: 8, textAlign: 'center' }}>{error}</div>

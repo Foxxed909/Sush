@@ -123,9 +123,9 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
         <div className="flex items-center justify-between" style={{ padding: '14px 18px', borderBottom: `1px solid ${rgba(accent, 0.12)}` }}>
           <div className="flex items-center" style={{ gap: 10 }}>
             <Icon name="send" size={16} color={accent} strokeWidth={2} />
-            <span style={{ fontSize: 14.5, fontWeight: 900, color: '#f1f4f6' }}>Hand off session</span>
+            <span style={{ fontSize: 14.5, fontWeight: 900, color: 'var(--text-1)' }}>Hand off session</span>
           </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -133,29 +133,29 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
         <div style={{ padding: '16px 18px', overflowY: 'auto' }} className="sush-scroll">
           {/* Source summary */}
           <div style={{ background: '#0b0e11', border: '1px solid #1a2026', borderRadius: 'var(--r-lg)', padding: '12px 14px', marginBottom: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>From</div>
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>From</div>
             {loading ? (
-              <div style={{ fontSize: 12.5, color: '#69737d' }}>Gathering context…</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Gathering context…</div>
             ) : (
               <div className="flex items-center" style={{ gap: 14, flexWrap: 'wrap', fontSize: 12, color: '#cbd3da' }}>
-                <span style={{ fontWeight: 800, color: '#f1f4f6' }}>{source?.label}</span>
-                {source?.cwd && <span className="flex items-center" style={{ gap: 5 }}><Icon name="folder" size={12} color="#69737d" />{shortPath(source.cwd)}</span>}
+                <span style={{ fontWeight: 800, color: 'var(--text-1)' }}>{source?.label}</span>
+                {source?.cwd && <span className="flex items-center" style={{ gap: 5 }}><Icon name="folder" size={12} color="var(--text-3)" />{shortPath(source.cwd)}</span>}
                 {card?.branch && <span className="flex items-center" style={{ gap: 5 }}><Icon name="gitBranch" size={12} color={accent} />{card.branch}{card.dirty ? ` ·${card.dirty}` : ''}</span>}
-                {!!card?.recent?.length && <span style={{ color: '#69737d' }}>{card.recent.length} recent cmds</span>}
+                {!!card?.recent?.length && <span style={{ color: 'var(--text-3)' }}>{card.recent.length} recent cmds</span>}
               </div>
             )}
           </div>
 
           {/* Target picker */}
-          <div style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Drop into</div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Drop into</div>
           <div className="flex flex-col" style={{ gap: 6, marginBottom: 16 }}>
             <div
               onClick={() => setTargetId(null)}
               style={{ padding: '9px 12px', borderRadius: 'var(--r-md)', cursor: 'pointer',
-                background: targetId === null ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${targetId === null ? rgba(accent, 0.45) : '#20272e'}`, color: '#d4dbe1' }}
+                background: targetId === null ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${targetId === null ? rgba(accent, 0.45) : '#20272e'}`, color: 'var(--text-2)' }}
             >
               <div className="flex items-center" style={{ gap: 10 }}>
-                <Icon name="plus" size={14} color={targetId === null ? accent : '#76808a'} strokeWidth={2.2} />
+                <Icon name="plus" size={14} color={targetId === null ? accent : 'var(--text-3)'} strokeWidth={2.2} />
                 <span style={{ fontSize: 12.5, fontWeight: 700 }}>New session{source?.cwd ? ` in ${shortPath(source.cwd)}` : ''}</span>
               </div>
               {targetId === null && (
@@ -170,7 +170,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
                         onClick={(e) => { e.stopPropagation(); setAgentId(id) }}
                         className="flex items-center"
                         style={{ gap: 6, fontSize: 11, fontWeight: 800, padding: '4px 11px', borderRadius: 999, cursor: 'pointer',
-                          background: on ? rgba(a.color, 0.16) : 'transparent', color: on ? a.color : '#76808a',
+                          background: on ? rgba(a.color, 0.16) : 'transparent', color: on ? a.color : 'var(--text-3)',
                           border: `1px solid ${on ? rgba(a.color, 0.5) : '#20272e'}` }}
                       >
                         <span style={{ fontWeight: 900 }}>{a.mono}</span>
@@ -186,12 +186,12 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
                 key={t.id}
                 onClick={() => setTargetId(t.id)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r-md)', cursor: 'pointer', textAlign: 'left',
-                  background: targetId === t.id ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${targetId === t.id ? rgba(accent, 0.45) : '#20272e'}`, color: '#d4dbe1' }}
+                  background: targetId === t.id ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${targetId === t.id ? rgba(accent, 0.45) : '#20272e'}`, color: 'var(--text-2)' }}
               >
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#42d392', flexShrink: 0 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
-                  <span style={{ display: 'block', fontSize: 10.5, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.cwd || t.profileLabel || t.shell}</span>
+                  <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.cwd || t.profileLabel || t.shell}</span>
                 </span>
               </button>
             ))}
@@ -199,7 +199,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
 
           {/* Inject text */}
           <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, textTransform: 'uppercase' }}>The brief</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 1, textTransform: 'uppercase' }}>The brief</span>
             <button
               onClick={summarize}
               disabled={summarizing || loading}
@@ -220,9 +220,9 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
             spellCheck={false}
             rows={3}
             placeholder="One-line context pasted at the target's prompt…"
-            style={{ width: '100%', resize: 'vertical', background: '#07090b', color: '#d4dbe1', border: '1px solid #1c232a', borderRadius: 'var(--r-md)', padding: '10px 12px', fontSize: 12, lineHeight: 1.5, outline: 'none', fontFamily: 'inherit' }}
+            style={{ width: '100%', resize: 'vertical', background: '#07090b', color: 'var(--text-2)', border: '1px solid #1c232a', borderRadius: 'var(--r-md)', padding: '10px 12px', fontSize: 12, lineHeight: 1.5, outline: 'none', fontFamily: 'inherit' }}
           />
-          <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.5 }}>
             {targetId === null && agentId !== 'shell'
               ? 'A new agent session boots, then the brief is typed in and submitted automatically. The full context card lands on your clipboard for a richer paste.'
               : 'Pasted as a single line at the target prompt - press Enter there to submit. The full multi-line card is copied to your clipboard.'}

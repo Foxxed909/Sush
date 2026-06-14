@@ -128,7 +128,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
           width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
           border: `1px solid ${listening ? 'transparent' : rgba(accent, 0.3)}`,
           background: listening ? '#ff5370' : flash ? '#5fd3a8' : errored ? '#ffb74d' : 'rgba(10,13,17,0.85)',
-          color: listening || flash || errored ? '#05070b' : '#8a939c',
+          color: listening || flash || errored ? '#05070b' : 'var(--text-3)',
           boxShadow: listening ? '0 8px 24px rgba(255,83,112,0.4)' : '0 6px 18px rgba(0,0,0,0.4)'
         }}
       >
@@ -143,7 +143,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
           <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1, color: flash ? '#5fd3a8' : errored ? '#ffb74d' : accent, marginBottom: 2 }}>
             {flash ? (autoSend ? 'SENT TO TERMINAL' : 'TYPED - PRESS ENTER TO SEND') : errored ? 'HUSH' : 'HUSH - LISTENING'}
           </div>
-          <div style={{ fontSize: 12, color: '#e6ebef', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {errored ? errMsg : partial || 'Speak now...'}
           </div>
         </div>

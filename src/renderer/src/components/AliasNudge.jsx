@@ -41,7 +41,7 @@ export default function AliasNudge({ suggestion, accent, onAccept, onDismiss, on
       {saved ? (
         <div className="flex items-center" style={{ gap: 9, padding: '2px 0' }}>
           <Icon name="check" size={15} color="#7ee787" strokeWidth={2.6} />
-          <span style={{ color: '#cdd5dc', fontSize: 12.5, fontWeight: 700 }}>
+          <span style={{ color: 'var(--text-2)', fontSize: 12.5, fontWeight: 700 }}>
             Aliased — type <code style={{ color: accent, fontWeight: 800 }}>{alias.trim()}</code> anywhere now.
           </span>
         </div>
@@ -50,11 +50,11 @@ export default function AliasNudge({ suggestion, accent, onAccept, onDismiss, on
           {/* Header */}
           <div className="flex items-center" style={{ gap: 8, marginBottom: 9 }}>
             <Icon name="sparkles" size={14} color={accent} strokeWidth={2} />
-            <span style={{ color: '#e6ebef', fontSize: 12, fontWeight: 800, letterSpacing: 0.2 }}>Make an alias?</span>
+            <span style={{ color: 'var(--text-2)', fontSize: 12, fontWeight: 800, letterSpacing: 0.2 }}>Make an alias?</span>
             <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.12), border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 99, padding: '1px 7px' }}>
               {count}× run
             </span>
-            <button onClick={onClose} title="Hide for now" style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={onClose} title="Hide for now" style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="x" size={13} />
             </button>
           </div>
@@ -67,7 +67,7 @@ export default function AliasNudge({ suggestion, accent, onAccept, onDismiss, on
           {/* Alias name + actions */}
           <div className="flex items-center" style={{ gap: 7 }}>
             <div className="flex items-center" style={{ flex: 1, background: '#0f1318', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 8, padding: '0 9px', height: 32, gap: 7 }}>
-              <span style={{ color: '#5a646d', fontSize: 12, fontWeight: 700 }}>as</span>
+              <span style={{ color: 'var(--text-4)', fontSize: 12, fontWeight: 700 }}>as</span>
               <input
                 value={alias}
                 onChange={e => setAlias(e.target.value.replace(/\s+/g, ''))}
@@ -89,7 +89,7 @@ export default function AliasNudge({ suggestion, accent, onAccept, onDismiss, on
 
           <button
             onClick={() => onDismiss?.(command)}
-            style={{ marginTop: 8, background: 'transparent', border: 'none', color: '#5a646d', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+            style={{ marginTop: 8, background: 'transparent', border: 'none', color: 'var(--text-4)', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
           >
             Never suggest this one
           </button>

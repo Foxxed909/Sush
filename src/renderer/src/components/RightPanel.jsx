@@ -63,7 +63,7 @@ const STATUS_META = {
   '??': { c: '#89ddff', t: 'U' }
 }
 function statusMeta(code) {
-  return STATUS_META[code] || STATUS_META[code?.[0]] || { c: '#8a939c', t: code || '?' }
+  return STATUS_META[code] || STATUS_META[code?.[0]] || { c: 'var(--text-3)', t: code || '?' }
 }
 
 export default function RightPanel({
@@ -238,7 +238,7 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0 }) {
                   borderRadius: 8,
                   border: `1px solid ${active ? rgba(accent, 0.45) : 'transparent'}`,
                   background: active ? rgba(accent, 0.12) : 'transparent',
-                  color: active ? accent : '#8a939c',
+                  color: active ? accent : 'var(--text-3)',
                   fontSize: 12,
                   fontWeight: 800,
                   cursor: 'pointer',
@@ -263,7 +263,7 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0 }) {
         onClick={toggleCompact}
         title={compact ? 'Show tab labels' : 'Compact (icons only)'}
         className="sush-icon-btn flex items-center justify-center"
-        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${compact ? rgba(accent, 0.4) : rgba(accent, 0.14)}`, background: compact ? rgba(accent, 0.1) : rgba(accent, 0.04), color: compact ? accent : '#8a939c', cursor: 'pointer' }}
+        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${compact ? rgba(accent, 0.4) : rgba(accent, 0.14)}`, background: compact ? rgba(accent, 0.1) : rgba(accent, 0.04), color: compact ? accent : 'var(--text-3)', cursor: 'pointer' }}
       >
         <Icon name="layout" size={15} />
       </button>
@@ -271,7 +271,7 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0 }) {
         onClick={onClose}
         title="Collapse panel"
         className="sush-icon-btn flex items-center justify-center"
-        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${rgba(accent, 0.14)}`, background: rgba(accent, 0.04), color: '#8a939c', cursor: 'pointer' }}
+        style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${rgba(accent, 0.14)}`, background: rgba(accent, 0.04), color: 'var(--text-3)', cursor: 'pointer' }}
       >
         <Icon name="panel" size={15} />
       </button>
@@ -285,8 +285,8 @@ function PanelEmpty({ icon, accent, children, hint }) {
       <span className="flex items-center justify-center" style={{ width: 44, height: 44, borderRadius: 12, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.25)}`, color: accent }}>
         <Icon name={icon} size={20} />
       </span>
-      <div style={{ color: '#aab3bb', fontSize: 13, fontWeight: 700 }}>{children}</div>
-      {hint && <div style={{ color: '#69737d', fontSize: 11.5, maxWidth: 240 }}>{hint}</div>}
+      <div style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 700 }}>{children}</div>
+      {hint && <div style={{ color: 'var(--text-3)', fontSize: 11.5, maxWidth: 240 }}>{hint}</div>}
     </div>
   )
 }
@@ -296,12 +296,12 @@ function TabHeader({ accent, icon, title, sub, onRefresh, right }) {
     <div className="flex items-center" style={{ gap: 9, padding: '10px 12px', borderBottom: '1px solid #141a1f' }}>
       <Icon name={icon} size={14} color={accent} strokeWidth={2} />
       <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: '#e6ebef', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-        {sub && <span style={{ display: 'block', fontSize: 10.5, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span>}
+        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        {sub && <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span>}
       </span>
       {right}
       {onRefresh && (
-        <button onClick={onRefresh} title="Refresh" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer' }}>
+        <button onClick={onRefresh} title="Refresh" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer' }}>
           <Icon name="refresh" size={13} />
         </button>
       )}
@@ -421,7 +421,7 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
             onClick={toggleDiff}
             title="Staged diff summary"
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${diff !== null ? rgba(accent, 0.4) : '#20272e'}`, background: diff !== null ? rgba(accent, 0.1) : '#11151a', color: diff !== null ? accent : '#8a939c', cursor: 'pointer' }}
+            style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${diff !== null ? rgba(accent, 0.4) : '#20272e'}`, background: diff !== null ? rgba(accent, 0.1) : '#11151a', color: diff !== null ? accent : 'var(--text-3)', cursor: 'pointer' }}
           >
             <Icon name="fileText" size={13} />
           </button>
@@ -443,8 +443,8 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
               return (
                 <div key={`s-${f.path}`} className="flex items-center" style={{ gap: 6, borderRadius: 8, background: 'rgba(195,232,141,0.06)', padding: '4px 6px', marginBottom: 2 }}>
                   <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
-                  <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#cdd5dc', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0, fontWeight: 700 }}>{f.path}</button>
-                  <button onClick={() => toggleStage(f)} title="Unstage" style={{ fontSize: 10, color: '#5a646d', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>−</button>
+                  <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0, fontWeight: 700 }}>{f.path}</button>
+                  <button onClick={() => toggleStage(f)} title="Unstage" style={{ fontSize: 10, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>−</button>
                 </div>
               )
             })}
@@ -486,13 +486,13 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && commit()}
               placeholder="Commit message..."
               spellCheck={false}
-              style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#f1f4f6', fontSize: 11.5, outline: 'none' }}
+              style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: 'var(--text-1)', fontSize: 11.5, outline: 'none' }}
             />
             <button
               onClick={suggestMessage}
               disabled={suggesting}
               title="AI suggest"
-              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: suggesting ? '#3f4852' : accent, cursor: suggesting ? 'default' : 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}
+              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: suggesting ? 'var(--text-5)' : accent, cursor: suggesting ? 'default' : 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}
             >
               {suggesting ? '...' : '✦'}
             </button>
@@ -500,7 +500,7 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
           <button
             onClick={commit}
             disabled={!commitMsg.trim() || committing}
-            style={{ padding: '6px 0', borderRadius: 7, border: 'none', background: (commitMsg.trim() && !committing) ? accent : '#1c2126', color: (commitMsg.trim() && !committing) ? '#0a0a0a' : '#3f4852', fontSize: 12, fontWeight: 800, cursor: (commitMsg.trim() && !committing) ? 'pointer' : 'default' }}
+            style={{ padding: '6px 0', borderRadius: 7, border: 'none', background: (commitMsg.trim() && !committing) ? accent : '#1c2126', color: (commitMsg.trim() && !committing) ? '#0a0a0a' : 'var(--text-5)', fontSize: 12, fontWeight: 800, cursor: (commitMsg.trim() && !committing) ? 'pointer' : 'default' }}
           >
             {committing ? 'Committing...' : 'Commit'}
           </button>
@@ -519,16 +519,16 @@ function FilesTab({ accent, cwd, onOpenFile }) {
       <TabHeader accent={accent} icon="folder" title={fileName(cwd)} sub={cwd} />
       <div style={{ padding: '8px 10px 0' }}>
         <div className="sush-omni flex items-center" style={{ height: 30, gap: 7 }}>
-          <Icon name="search" size={12} color="#5a646d" />
+          <Icon name="search" size={12} color="var(--text-4)" />
           <input
             value={filter}
             onChange={e => setFilter(e.target.value)}
             placeholder="Filter files..."
             spellCheck={false}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 11.5 }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 11.5 }}
           />
           {filter && (
-            <button onClick={() => setFilter('')} title="Clear" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: 0, display: 'flex' }}>
+            <button onClick={() => setFilter('')} title="Clear" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: 0, display: 'flex' }}>
               <Icon name="x" size={12} />
             </button>
           )}
@@ -549,12 +549,12 @@ function TreeLevel({ path, depth, accent, onOpenFile, filter }) {
     return () => { alive = false }
   }, [path])
 
-  if (entries === null) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5 }}>...</div>
+  if (entries === null) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: 'var(--text-3)', fontSize: 11.5 }}>...</div>
   // The filter only narrows the top level so you can still drill into subfolders.
   const shown = (depth === 0 && filter)
     ? entries.filter(e => e.name.toLowerCase().includes(filter.toLowerCase()))
     : entries
-  if (!shown.length) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: '#69737d', fontSize: 11.5 }}>{(depth === 0 && filter) ? 'no matches' : 'empty'}</div>
+  if (!shown.length) return <div style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 10 + depth * 14, color: 'var(--text-3)', fontSize: 11.5 }}>{(depth === 0 && filter) ? 'no matches' : 'empty'}</div>
   return shown.map(entry => (
     <TreeNode key={entry.name} parent={path} entry={entry} depth={depth} accent={accent} onOpenFile={onOpenFile} />
   ))
@@ -569,12 +569,12 @@ function TreeNode({ parent, entry, depth, accent, onOpenFile }) {
         onClick={() => (entry.dir ? setOpen(o => !o) : onOpenFile(full))}
         title={entry.name}
         className="flex items-center sush-tree-row"
-        style={{ gap: 6, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', color: entry.dir ? '#cdd5dc' : '#9aa3ab', padding: '4px 6px', paddingLeft: 8 + depth * 14, borderRadius: 6, cursor: 'pointer' }}
+        style={{ gap: 6, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', color: entry.dir ? 'var(--text-2)' : '#9aa3ab', padding: '4px 6px', paddingLeft: 8 + depth * 14, borderRadius: 6, cursor: 'pointer' }}
       >
         {entry.dir
-          ? <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} color="#69737d" strokeWidth={2.4} />
+          ? <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} color="var(--text-3)" strokeWidth={2.4} />
           : <span style={{ width: 12, flexShrink: 0 }} />}
-        <Icon name={entry.dir ? 'folder' : 'file'} size={13} color={entry.dir ? accent : '#69737d'} strokeWidth={2} />
+        <Icon name={entry.dir ? 'folder' : 'file'} size={13} color={entry.dir ? accent : 'var(--text-3)'} strokeWidth={2} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.name}</span>
       </button>
       {entry.dir && open && <TreeLevel path={full} depth={depth + 1} accent={accent} onOpenFile={onOpenFile} />}
@@ -636,13 +636,13 @@ function MemoryTab({ accent, cwd }) {
           title={selected.name}
           sub=".sushmemory"
           right={
-            <button onClick={() => setSelected(null)} title="Back" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: '#8a939c', cursor: 'pointer' }}>
+            <button onClick={() => setSelected(null)} title="Back" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer' }}>
               <Icon name="chevronRight" size={13} style={{ transform: 'rotate(180deg)' }} />
             </button>
           }
         />
         <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 14 }}>
-          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12.5, lineHeight: 1.65, color: '#d4dbe1', fontFamily: 'inherit' }}>
+          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12.5, lineHeight: 1.65, color: 'var(--text-2)', fontFamily: 'inherit' }}>
             {renderWithLinks(selected.content, accent, (name) => {
               const exists = (notes || []).some(n => n.name.toLowerCase() === name.toLowerCase())
               exists ? openNote(name) : createNote(name)
@@ -677,7 +677,7 @@ function MemoryTab({ accent, cwd }) {
               onKeyDown={(e) => { if (e.key === 'Enter') createNote(newName); if (e.key === 'Escape') { setCreating(false); setNewName('') } }}
               placeholder="note name..."
               spellCheck={false}
-              style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12.5 }}
+              style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 12.5 }}
             />
           </div>
         )}
@@ -688,16 +688,16 @@ function MemoryTab({ accent, cwd }) {
             key={note.name}
             onClick={() => openNote(note.name)}
             className="sush-row flex items-center"
-            style={{ gap: 10, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 10, background: '#0f1318', color: '#d8dee4', padding: '9px 11px', marginBottom: 8, cursor: 'pointer' }}
+            style={{ gap: 10, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 10, background: '#0f1318', color: 'var(--text-2)', padding: '9px 11px', marginBottom: 8, cursor: 'pointer' }}
           >
             <Icon name="book" size={15} color={accent} />
             <span style={{ minWidth: 0, flex: 1 }}>
               <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.title}</span>
-              <span style={{ display: 'block', fontSize: 10.5, color: '#69737d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+              <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
                 {note.links?.length ? `${note.links.length} link${note.links.length === 1 ? '' : 's'} → ${note.links.slice(0, 3).join(', ')}` : (note.excerpt || 'empty note')}
               </span>
             </span>
-            <Icon name="network" size={13} color={note.links?.length ? accent : '#3f4852'} />
+            <Icon name="network" size={13} color={note.links?.length ? accent : 'var(--text-5)'} />
           </button>
         )) : (
           <PanelEmpty icon="book" accent={accent} hint="A local-first knowledge graph for this directory. Notes are markdown in .sushmemory, linked with [[wikilinks]].">No notes yet</PanelEmpty>
@@ -736,12 +736,12 @@ function ScriptsTab({ accent, cwd, onRun }) {
             key={name}
             onClick={() => onRun(`npm run ${name}`)}
             className="sush-row flex items-center"
-            style={{ gap: 10, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318', color: '#d8dee4', padding: '8px 11px', marginBottom: 7, cursor: 'pointer' }}
+            style={{ gap: 10, width: '100%', textAlign: 'left', border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318', color: 'var(--text-2)', padding: '8px 11px', marginBottom: 7, cursor: 'pointer' }}
           >
             <Icon name="arrowRight" size={13} color={accent} />
             <span style={{ minWidth: 0, flex: 1 }}>
               <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: accent }}>{name}</span>
-              <span style={{ display: 'block', fontSize: 10.5, color: '#5a646d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace', marginTop: 2 }}>{scripts[name]}</span>
+              <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace', marginTop: 2 }}>{scripts[name]}</span>
             </span>
           </button>
         ))}
@@ -781,13 +781,13 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
       <TabHeader accent={accent} icon="clock" title="History" sub={`${history.length} commands`} />
       <div style={{ padding: '8px 10px 0' }}>
         <div className="sush-omni flex items-center" style={{ height: 34, gap: 8 }}>
-          <Icon name="search" size={13} color="#5a646d" />
+          <Icon name="search" size={13} color="var(--text-4)" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter history..."
             spellCheck={false}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12 }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 12 }}
           />
         </div>
       </div>
@@ -797,7 +797,7 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
         ) : displayed.map((cmd, i) => (
           <div key={i} style={{ marginBottom: 5 }}>
             <div className="flex items-center" style={{ gap: 6, border: '1px solid #1b2127', borderRadius: 8, background: '#0f1318', padding: '5px 6px 5px 10px' }}>
-              <Icon name="chevronRight" size={11} color="#3f4852" />
+              <Icon name="chevronRight" size={11} color="var(--text-5)" />
               <button
                 onClick={() => onRun(cmd)}
                 title={`Run: ${cmd}`}
@@ -808,20 +808,20 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
               <button
                 onClick={() => copyToClipboard(cmd)}
                 title="Copy command"
-                style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <Icon name="copy" size={11} />
               </button>
               <button
                 onClick={() => explain(cmd)}
                 title="Explain this command"
-                style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: `1px solid ${explanations[cmd] ? rgba(accent, 0.4) : '#20272e'}`, background: explanations[cmd] ? rgba(accent, 0.1) : 'transparent', color: explanations[cmd] ? accent : '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}
+                style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: `1px solid ${explanations[cmd] ? rgba(accent, 0.4) : '#20272e'}`, background: explanations[cmd] ? rgba(accent, 0.1) : 'transparent', color: explanations[cmd] ? accent : 'var(--text-5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}
               >
                 {explaining.has(cmd) ? '...' : '?'}
               </button>
             </div>
             {explanations[cmd] && (
-              <div style={{ padding: '6px 10px 6px 12px', fontSize: 11.5, color: '#8a939c', lineHeight: 1.55, borderLeft: `2px solid ${rgba(accent, 0.35)}`, marginLeft: 4, marginTop: 3 }}>
+              <div style={{ padding: '6px 10px 6px 12px', fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.55, borderLeft: `2px solid ${rgba(accent, 0.35)}`, marginLeft: 4, marginTop: 3 }}>
                 {explanations[cmd]}
               </div>
             )}
@@ -969,7 +969,7 @@ function StatsTab({ accent }) {
           <StatCard title="Network" accent={accent}>
             {stats.network.map(n => (
               <div key={n.iface} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Icon name="wifi" size={12} color="#5a646d" />
+                <Icon name="wifi" size={12} color="var(--text-4)" />
                 <span style={{ fontSize: 11, color: accent, fontWeight: 700, flexShrink: 0 }}>{n.iface}</span>
                 <span style={{ flex: 1 }} />
                 <span style={{ fontSize: 10.5, color: '#c3e88d' }}>↓ {fmtSpeed(n.rx_sec)}</span>
@@ -979,9 +979,9 @@ function StatsTab({ accent }) {
             {stats.wifi?.filter(w => w.ssid).map((w, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 4, borderTop: '1px solid #1b2127' }}>
                 <Icon name="wifi" size={12} color={accent} />
-                <span style={{ fontSize: 11, color: '#d4dbe1', fontWeight: 700 }}>{w.ssid}</span>
-                {w.quality != null && <span style={{ fontSize: 10, color: '#69737d', marginLeft: 'auto' }}>{w.quality}%</span>}
-                {w.txRate != null && <span style={{ fontSize: 10, color: '#69737d' }}>{w.txRate} Mbps</span>}
+                <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 700 }}>{w.ssid}</span>
+                {w.quality != null && <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 'auto' }}>{w.quality}%</span>}
+                {w.txRate != null && <span style={{ fontSize: 10, color: 'var(--text-3)' }}>{w.txRate} Mbps</span>}
               </div>
             ))}
           </StatCard>
@@ -992,9 +992,9 @@ function StatsTab({ accent }) {
             {Object.entries(stats.sessions).map(([tabId, s]) => (
               <div key={tabId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', borderBottom: '1px solid #141a1f' }}>
                 <Icon name="terminal" size={11} color={accent} />
-                <span style={{ fontSize: 10.5, color: '#d4dbe1', fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
-                <span style={{ fontSize: 10, color: s.cpu > 20 ? '#ffcb6b' : '#69737d', flexShrink: 0 }}>CPU {s.cpu.toFixed(1)}%</span>
-                <span style={{ fontSize: 10, color: '#69737d', flexShrink: 0, marginLeft: 4 }}>{fmtBytes(s.memRss)}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-2)', fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+                <span style={{ fontSize: 10, color: s.cpu > 20 ? '#ffcb6b' : 'var(--text-3)', flexShrink: 0 }}>CPU {s.cpu.toFixed(1)}%</span>
+                <span style={{ fontSize: 10, color: 'var(--text-3)', flexShrink: 0, marginLeft: 4 }}>{fmtBytes(s.memRss)}</span>
               </div>
             ))}
           </StatCard>
@@ -1046,7 +1046,7 @@ function categorizePort(port, processName) {
 const CAT = {
   app:     { label: 'App',     color: '#c3e88d', bg: 'rgba(195,232,141,0.1)', border: 'rgba(195,232,141,0.22)' },
   service: { label: 'Service', color: '#82aaff', bg: 'rgba(130,170,255,0.1)', border: 'rgba(130,170,255,0.22)' },
-  system:  { label: 'System',  color: '#69737d', bg: 'rgba(105,115,125,0.1)', border: 'rgba(105,115,125,0.22)' }
+  system:  { label: 'System',  color: 'var(--text-3)', bg: 'rgba(105,115,125,0.1)', border: 'rgba(105,115,125,0.22)' }
 }
 
 const FILTER_OPTS = ['all', 'app', 'service', 'system']
@@ -1121,7 +1121,7 @@ function PortsTab({ accent, onRun }) {
                 borderRadius: 7,
                 border: `1px solid ${active ? (catInfo?.border ?? rgba(accent, 0.45)) : '#20272e'}`,
                 background: active ? (catInfo?.bg ?? rgba(accent, 0.12)) : 'transparent',
-                color: active ? (catInfo?.color ?? accent) : '#5a646d',
+                color: active ? (catInfo?.color ?? accent) : 'var(--text-4)',
                 fontSize: 11,
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -1137,16 +1137,16 @@ function PortsTab({ accent, onRun }) {
       {/* Search filter */}
       <div style={{ padding: '6px 10px 2px' }}>
         <div className="sush-omni flex items-center" style={{ height: 30, gap: 7 }}>
-          <Icon name="search" size={12} color="#5a646d" />
+          <Icon name="search" size={12} color="var(--text-4)" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter by port or process..."
             spellCheck={false}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 11.5 }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 11.5 }}
           />
           {search && (
-            <button onClick={() => setSearch('')} title="Clear" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: 0, display: 'flex' }}>
+            <button onClick={() => setSearch('')} title="Clear" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: 0, display: 'flex' }}>
               <Icon name="x" size={12} />
             </button>
           )}
@@ -1180,11 +1180,11 @@ function PortsTab({ accent, onRun }) {
 
               {/* Process info */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: p.process ? '#d4dbe1' : '#3f4852', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: p.process ? 'var(--text-2)' : 'var(--text-5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {p.process || 'unknown'}
                 </div>
                 {p.pid && (
-                  <div style={{ fontSize: 9.5, color: '#3f4852', marginTop: 1 }}>PID {p.pid} · {p.protocol}</div>
+                  <div style={{ fontSize: 9.5, color: 'var(--text-5)', marginTop: 1 }}>PID {p.pid} · {p.protocol}</div>
                 )}
               </div>
 
@@ -1290,7 +1290,7 @@ function SnippetsTab({ accent, onRun }) {
             onKeyDown={e => { if (e.key === 'Tab') { e.preventDefault(); cmdRef.current?.focus() } if (e.key === 'Escape') cancel() }}
             placeholder="Name (e.g. Start dev server)..."
             spellCheck={false}
-            style={{ padding: '6px 9px', background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 7, color: '#f1f4f6', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box' }}
+            style={{ padding: '6px 9px', background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 7, color: 'var(--text-1)', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box' }}
           />
           <input
             ref={cmdRef}
@@ -1299,10 +1299,10 @@ function SnippetsTab({ accent, onRun }) {
             onKeyDown={e => { if (e.key === 'Enter') addSnippet(); if (e.key === 'Escape') cancel() }}
             placeholder="Command (e.g. npm run dev)..."
             spellCheck={false}
-            style={{ padding: '6px 9px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#d4dbe1', fontSize: 11.5, fontFamily: 'monospace', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+            style={{ padding: '6px 9px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: 'var(--text-2)', fontSize: 11.5, fontFamily: 'monospace', outline: 'none', width: '100%', boxSizing: 'border-box' }}
           />
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            <button onClick={cancel} style={{ padding: '4px 11px', borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#69737d', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={cancel} style={{ padding: '4px 11px', borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: 'var(--text-3)', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
             <button onClick={addSnippet} disabled={!newName.trim() || !newCmd.trim()} style={{ padding: '4px 11px', borderRadius: 6, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.12), color: accent, fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: (!newName.trim() || !newCmd.trim()) ? 0.5 : 1 }}>Save</button>
           </div>
         </div>
@@ -1310,13 +1310,13 @@ function SnippetsTab({ accent, onRun }) {
 
       <div style={{ padding: '8px 10px 0' }}>
         <div className="sush-omni flex items-center" style={{ height: 34, gap: 8 }}>
-          <Icon name="search" size={13} color="#5a646d" />
+          <Icon name="search" size={13} color="var(--text-4)" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search snippets..."
             spellCheck={false}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12 }}
+            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 12 }}
           />
         </div>
       </div>
@@ -1336,13 +1336,13 @@ function SnippetsTab({ accent, onRun }) {
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 6, border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318' }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#d4dbe1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
-              <div style={{ fontSize: 10.5, color: '#5a646d', fontFamily: 'monospace', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.command}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', fontFamily: 'monospace', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.command}</div>
             </div>
             <button
               onClick={() => copyToClipboard(s.command)}
               title="Copy command"
-              style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Icon name="copy" size={12} />
             </button>
@@ -1356,7 +1356,7 @@ function SnippetsTab({ accent, onRun }) {
             <button
               onClick={() => deleteSnippet(s.id)}
               title="Delete"
-              style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: 'var(--text-5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <Icon name="trash" size={11} />
             </button>
@@ -1440,29 +1440,29 @@ function DockerTab({ accent, onRun }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 9px' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c3e88d', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#d4dbe1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                  <div style={{ fontSize: 10, color: '#5a646d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image}</div>
                 </div>
                 {hostPort && (
                   <button onClick={() => window.sush?.openExternal?.({ url: `http://localhost:${hostPort}` })} title={`Open localhost:${hostPort}`} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${rgba(accent, 0.25)}`, background: rgba(accent, 0.07), color: accent, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name="globe" size={12} />
                   </button>
                 )}
-                <button onClick={() => copyToClipboard(id)} title="Copy container ID" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button onClick={() => copyToClipboard(id)} title="Copy container ID" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="copy" size={11} />
                 </button>
-                <button onClick={() => fetchLogs(id)} title={hasLogs ? 'Hide logs' : 'View logs'} disabled={isLoadingLogs} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${hasLogs ? rgba(accent, 0.4) : '#20272e'}`, background: hasLogs ? rgba(accent, 0.1) : 'transparent', color: hasLogs ? accent : '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
+                <button onClick={() => fetchLogs(id)} title={hasLogs ? 'Hide logs' : 'View logs'} disabled={isLoadingLogs} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${hasLogs ? rgba(accent, 0.4) : '#20272e'}`, background: hasLogs ? rgba(accent, 0.1) : 'transparent', color: hasLogs ? accent : 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
                   {isLoadingLogs ? '...' : '≡'}
                 </button>
-                <button onClick={() => shell(id)} title="Open shell" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button onClick={() => shell(id)} title="Open shell" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="terminal" size={12} />
                 </button>
                 <button onClick={() => stop(id)} disabled={isStopping} title="Stop container" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid rgba(255,83,112,0.2)', background: 'rgba(255,83,112,0.06)', color: isStopping ? '#3f2020' : '#ff5370', cursor: isStopping ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="stop" size={11} />
                 </button>
               </div>
-              {ports && <div style={{ padding: '0 9px 5px', fontSize: 9.5, color: '#5a646d', fontFamily: 'monospace' }}>{ports}</div>}
-              {status && <div style={{ padding: '0 9px 5px', fontSize: 9, color: '#3f4852' }}>{status}</div>}
+              {ports && <div style={{ padding: '0 9px 5px', fontSize: 9.5, color: 'var(--text-4)', fontFamily: 'monospace' }}>{ports}</div>}
+              {status && <div style={{ padding: '0 9px 5px', fontSize: 9, color: 'var(--text-5)' }}>{status}</div>}
               {hasLogs && (
                 <pre style={{ margin: 0, padding: '8px 10px', background: '#070909', borderTop: '1px solid #141a1f', fontSize: 10, lineHeight: 1.65, color: '#9aa3ab', maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                   {logs[id]}
@@ -1600,21 +1600,21 @@ function EnvManagerTab({ accent, cwd }) {
                     spellCheck={false}
                     style={{ width: 110, padding: '4px 7px', background: '#0f1318', border: `1px solid ${rgba(accent, 0.2)}`, borderRadius: 6, color: accent, fontSize: 11, fontFamily: 'monospace', outline: 'none', fontWeight: 700 }}
                   />
-                  <span style={{ color: '#3f4852', flexShrink: 0 }}>=</span>
+                  <span style={{ color: 'var(--text-5)', flexShrink: 0 }}>=</span>
                   <input
                     value={p.value}
                     onChange={e => setPairValue(p.id, e.target.value)}
                     type={secret && !shown ? 'password' : 'text'}
                     placeholder="value"
                     spellCheck={false}
-                    style={{ flex: 1, minWidth: 0, padding: '4px 7px', background: '#070909', border: '1px solid #1b2127', borderRadius: 6, color: '#d4dbe1', fontSize: 11, fontFamily: 'monospace', outline: 'none' }}
+                    style={{ flex: 1, minWidth: 0, padding: '4px 7px', background: '#070909', border: '1px solid #1b2127', borderRadius: 6, color: 'var(--text-2)', fontSize: 11, fontFamily: 'monospace', outline: 'none' }}
                   />
                   {secret && (
-                    <button onClick={() => toggleVisible(p.id)} title={shown ? 'Hide' : 'Show'} style={{ width: 24, height: 24, borderRadius: 5, border: '1px solid #20272e', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <button onClick={() => toggleVisible(p.id)} title={shown ? 'Hide' : 'Show'} style={{ width: 24, height: 24, borderRadius: 5, border: '1px solid #20272e', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Icon name={shown ? 'eyeOff' : 'eye'} size={11} />
                     </button>
                   )}
-                  <button onClick={() => delPair(p.id)} style={{ width: 24, height: 24, borderRadius: 5, border: '1px solid #1b2127', background: 'transparent', color: '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <button onClick={() => delPair(p.id)} style={{ width: 24, height: 24, borderRadius: 5, border: '1px solid #1b2127', background: 'transparent', color: 'var(--text-5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Icon name="trash" size={10} />
                   </button>
                 </div>
@@ -1630,7 +1630,7 @@ function EnvManagerTab({ accent, cwd }) {
               <button
                 onClick={save}
                 disabled={saving}
-                style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', background: saving ? '#1c2126' : accent, color: saving ? '#3f4852' : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: saving ? 'default' : 'pointer' }}
+                style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', background: saving ? '#1c2126' : accent, color: saving ? 'var(--text-5)' : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: saving ? 'default' : 'pointer' }}
               >
                 {saving ? 'Saving...' : 'Save .env'}
               </button>
@@ -1639,7 +1639,7 @@ function EnvManagerTab({ accent, cwd }) {
                 disabled={!pairs.length}
                 title="Copy .env to clipboard"
                 className="flex items-center justify-center"
-                style={{ width: 36, flexShrink: 0, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: pairs.length ? '#8a939c' : '#2c333a', cursor: pairs.length ? 'pointer' : 'default' }}
+                style={{ width: 36, flexShrink: 0, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: pairs.length ? 'var(--text-3)' : '#2c333a', cursor: pairs.length ? 'pointer' : 'default' }}
               >
                 <Icon name="copy" size={13} />
               </button>
@@ -1730,11 +1730,11 @@ function SshTab({ accent, onNewTab, onRun }) {
               onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setCreating(false) }}
               placeholder={ph}
               spellCheck={false}
-              style={{ padding: '5px 8px', background: '#0f1318', border: `1px solid ${key === 'host' ? rgba(accent, 0.3) : '#20272e'}`, borderRadius: 7, color: '#f1f4f6', fontSize: 11, outline: 'none', fontFamily: key === 'keyPath' || key === 'host' ? 'monospace' : 'inherit' }}
+              style={{ padding: '5px 8px', background: '#0f1318', border: `1px solid ${key === 'host' ? rgba(accent, 0.3) : '#20272e'}`, borderRadius: 7, color: 'var(--text-1)', fontSize: 11, outline: 'none', fontFamily: key === 'keyPath' || key === 'host' ? 'monospace' : 'inherit' }}
             />
           ))}
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            <button onClick={() => setCreating(false)} style={{ padding: '4px 11px', borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: '#69737d', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={() => setCreating(false)} style={{ padding: '4px 11px', borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: 'var(--text-3)', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
             <button onClick={save} disabled={!form.host.trim()} style={{ padding: '4px 11px', borderRadius: 6, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.12), color: accent, fontSize: 11, fontWeight: 700, cursor: form.host.trim() ? 'pointer' : 'default', opacity: form.host.trim() ? 1 : 0.5 }}>Save</button>
           </div>
         </div>
@@ -1747,8 +1747,8 @@ function SshTab({ accent, onNewTab, onRun }) {
           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 6, border: '1px solid #1b2127', borderRadius: 9, background: '#0f1318' }}>
             <Icon name="lock" size={14} color={accent} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#d4dbe1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</div>
-              <div style={{ fontSize: 10, color: '#5a646d', fontFamily: 'monospace', marginTop: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', fontFamily: 'monospace', marginTop: 1 }}>
                 {p.user ? `${p.user}@` : ''}{p.host}{p.port !== '22' ? `:${p.port}` : ''}
               </div>
             </div>
@@ -1759,7 +1759,7 @@ function SshTab({ accent, onNewTab, onRun }) {
             >
               <Icon name="enter" size={13} />
             </button>
-            <button onClick={() => del(p.id)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: '#3f4852', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={() => del(p.id)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: 'var(--text-5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="trash" size={11} />
             </button>
           </div>
@@ -1805,7 +1805,7 @@ function MarkdownTab({ accent, cwd, initialPath }) {
           onKeyDown={e => e.key === 'Enter' && load(path)}
           placeholder={cwd ? `${cwd}/README.md` : 'Path to .md file...'}
           spellCheck={false}
-          style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: '#f1f4f6', fontSize: 11, outline: 'none', fontFamily: 'monospace' }}
+          style={{ flex: 1, padding: '5px 8px', background: '#0f1318', border: '1px solid #20272e', borderRadius: 7, color: 'var(--text-1)', fontSize: 11, outline: 'none', fontFamily: 'monospace' }}
         />
         <button
           onClick={() => load(path)}
@@ -1860,10 +1860,10 @@ function ScratchpadTab({ accent }) {
         sub="Auto-saved · local to this machine"
         right={
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => copyToClipboard(text)} title="Copy all" disabled={!text} className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: text ? '#8a939c' : '#2c333a', cursor: text ? 'pointer' : 'default' }}>
+            <button onClick={() => copyToClipboard(text)} title="Copy all" disabled={!text} className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: text ? 'var(--text-3)' : '#2c333a', cursor: text ? 'pointer' : 'default' }}>
               <Icon name="copy" size={13} />
             </button>
-            <button onClick={() => { if (text && confirm('Clear the scratchpad?')) setText('') }} title="Clear" disabled={!text} className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: text ? '#8a939c' : '#2c333a', cursor: text ? 'pointer' : 'default' }}>
+            <button onClick={() => { if (text && confirm('Clear the scratchpad?')) setText('') }} title="Clear" disabled={!text} className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #20272e', background: '#11151a', color: text ? 'var(--text-3)' : '#2c333a', cursor: text ? 'pointer' : 'default' }}>
               <Icon name="trash" size={12} />
             </button>
           </div>
@@ -1874,13 +1874,13 @@ function ScratchpadTab({ accent }) {
         onChange={e => setText(e.target.value)}
         placeholder="A quick place for notes, snippets, TODOs… Everything here is saved automatically and survives restarts."
         spellCheck={false}
-        style={{ flex: 1, padding: '12px 14px', background: '#0a0c0f', border: 'none', color: '#d4dbe1', outline: 'none', resize: 'none', fontSize: 12.5, lineHeight: 1.65, fontFamily: "'Cascadia Code', 'Fira Code', monospace" }}
+        style={{ flex: 1, padding: '12px 14px', background: '#0a0c0f', border: 'none', color: 'var(--text-2)', outline: 'none', resize: 'none', fontSize: 12.5, lineHeight: 1.65, fontFamily: "'Cascadia Code', 'Fira Code', monospace" }}
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 12px', borderTop: '1px solid #1b2127', fontSize: 10, color: '#5a646d' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 12px', borderTop: '1px solid #1b2127', fontSize: 10, color: 'var(--text-4)' }}>
         <span>{words} words</span>
         <span>{chars} chars</span>
         <span>{lines} lines</span>
-        <span style={{ marginLeft: 'auto', color: savedAt ? '#c3e88d' : '#3f4852', transition: 'color .2s ease' }}>{savedAt ? 'Saved ✓' : 'Auto-save'}</span>
+        <span style={{ marginLeft: 'auto', color: savedAt ? '#c3e88d' : 'var(--text-5)', transition: 'color .2s ease' }}>{savedAt ? 'Saved ✓' : 'Auto-save'}</span>
       </div>
     </div>
   )
@@ -1896,7 +1896,7 @@ function Segmented({ options, value, onChange, accent }) {
           <button
             key={o.value}
             onClick={() => onChange(o.value)}
-            style={{ padding: '4px 10px', borderRadius: 7, border: `1px solid ${active ? rgba(accent, 0.45) : '#20272e'}`, background: active ? rgba(accent, 0.12) : 'transparent', color: active ? accent : '#8a939c', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+            style={{ padding: '4px 10px', borderRadius: 7, border: `1px solid ${active ? rgba(accent, 0.45) : '#20272e'}`, background: active ? rgba(accent, 0.12) : 'transparent', color: active ? accent : 'var(--text-3)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
           >
             {o.label}
           </button>
@@ -1909,8 +1909,8 @@ function Segmented({ options, value, onChange, accent }) {
 function CopyRow({ label, value, accent, mono = true }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#0f1318', border: '1px solid #1b2127', borderRadius: 8 }}>
-      <span style={{ fontSize: 9.5, fontWeight: 800, color: '#5a646d', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 42, flexShrink: 0 }}>{label}</span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: '#d4dbe1', fontFamily: mono ? 'monospace' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value || '—'}</span>
+      <span style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 42, flexShrink: 0 }}>{label}</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--text-2)', fontFamily: mono ? 'monospace' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value || '—'}</span>
       <button onClick={() => copyToClipboard(value)} disabled={!value} title="Copy" style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: '1px solid #20272e', background: 'transparent', color: value ? accent : '#2c333a', cursor: value ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="copy" size={11} />
       </button>
@@ -1978,7 +1978,7 @@ function ConvertTab({ accent }) {
           placeholder={mode === 'jwt' ? 'Paste a JWT…' : 'Input text…'}
           spellCheck={false}
           rows={5}
-          style={{ padding: '8px 10px', background: '#070909', border: '1px solid #1b2127', borderRadius: 8, color: '#d4dbe1', fontSize: 11.5, outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.55 }}
+          style={{ padding: '8px 10px', background: '#070909', border: '1px solid #1b2127', borderRadius: 8, color: 'var(--text-2)', fontSize: 11.5, outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.55 }}
         />
       </div>
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
@@ -2038,7 +2038,7 @@ function ColorTab({ accent }) {
               onChange={e => setHex(e.target.value)}
               spellCheck={false}
               placeholder="#rrggbb"
-              style={{ padding: '7px 10px', background: '#070909', border: `1px solid ${valid ? '#1b2127' : 'rgba(255,83,112,0.4)'}`, borderRadius: 8, color: valid ? '#d4dbe1' : '#ff5370', fontSize: 13, outline: 'none', fontFamily: 'monospace', fontWeight: 700 }}
+              style={{ padding: '7px 10px', background: '#070909', border: `1px solid ${valid ? '#1b2127' : 'rgba(255,83,112,0.4)'}`, borderRadius: 8, color: valid ? 'var(--text-2)' : '#ff5370', fontSize: 13, outline: 'none', fontFamily: 'monospace', fontWeight: 700 }}
             />
             <input
               type="color"
@@ -2089,7 +2089,7 @@ function HashTab({ accent }) {
           placeholder="Text to hash…"
           spellCheck={false}
           rows={4}
-          style={{ width: '100%', padding: '8px 10px', background: '#070909', border: '1px solid #1b2127', borderRadius: 8, color: '#d4dbe1', fontSize: 11.5, outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.55, boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '8px 10px', background: '#070909', border: '1px solid #1b2127', borderRadius: 8, color: 'var(--text-2)', fontSize: 11.5, outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.55, boxSizing: 'border-box' }}
         />
       </div>
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2099,7 +2099,7 @@ function HashTab({ accent }) {
           <div key={a} style={{ background: '#0a0c0f', border: '1px solid #1b2127', borderRadius: 8, padding: '7px 9px' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
               <span style={{ fontSize: 9.5, fontWeight: 800, color: accent, letterSpacing: 0.5, flex: 1 }}>{a}</span>
-              <button onClick={() => copyToClipboard(hashes[a])} disabled={!hashes[a]} title="Copy" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '1px 6px', borderRadius: 5, border: '1px solid #20272e', background: 'transparent', color: hashes[a] ? '#8a939c' : '#2c333a', fontSize: 9, fontWeight: 700, cursor: hashes[a] ? 'pointer' : 'default' }}>
+              <button onClick={() => copyToClipboard(hashes[a])} disabled={!hashes[a]} title="Copy" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '1px 6px', borderRadius: 5, border: '1px solid #20272e', background: 'transparent', color: hashes[a] ? 'var(--text-3)' : '#2c333a', fontSize: 9, fontWeight: 700, cursor: hashes[a] ? 'pointer' : 'default' }}>
                 <Icon name="copy" size={9} /> Copy
               </button>
             </div>
@@ -2162,7 +2162,7 @@ function GenerateTab({ accent }) {
         <StatCard title="Random token (hex)" accent={accent}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <input type="range" min={8} max={64} value={tokenLen} onChange={e => setTokenLen(Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
-            <span style={{ fontSize: 10.5, color: '#8a939c', minWidth: 48, textAlign: 'right' }}>{tokenLen} chars</span>
+            <span style={{ fontSize: 10.5, color: 'var(--text-3)', minWidth: 48, textAlign: 'right' }}>{tokenLen} chars</span>
           </div>
           <CopyRow label="token" value={token} accent={accent} />
         </StatCard>
@@ -2176,7 +2176,7 @@ function GenerateTab({ accent }) {
         <StatCard title="Lorem ipsum" accent={accent}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <input type="range" min={1} max={6} value={loremN} onChange={e => setLoremN(Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
-            <span style={{ fontSize: 10.5, color: '#8a939c', minWidth: 64, textAlign: 'right' }}>{loremN} para{loremN > 1 ? 's' : ''}</span>
+            <span style={{ fontSize: 10.5, color: 'var(--text-3)', minWidth: 64, textAlign: 'right' }}>{loremN} para{loremN > 1 ? 's' : ''}</span>
           </div>
           <div style={{ position: 'relative' }}>
             <button onClick={() => copyToClipboard(lorem)} title="Copy" style={{ position: 'absolute', top: 4, right: 4, display: 'flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 5, border: '1px solid #20272e', background: '#0f1318', color: accent, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>
@@ -2232,8 +2232,8 @@ function CheatsTab({ accent, onRun }) {
       <TabHeader accent={accent} icon="compass" title="Cheatsheet" sub="Click to run · copy" />
       <div style={{ padding: '8px 10px 0' }}>
         <div className="sush-omni flex items-center" style={{ height: 30, gap: 7 }}>
-          <Icon name="search" size={12} color="#5a646d" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search commands…" spellCheck={false} style={{ flex: 1, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 11.5 }} />
+          <Icon name="search" size={12} color="var(--text-4)" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search commands…" spellCheck={false} style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 11.5 }} />
         </div>
       </div>
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
@@ -2245,10 +2245,10 @@ function CheatsTab({ accent, onRun }) {
             {g.items.map(it => (
               <div key={it.cmd} className="flex items-center" style={{ gap: 7, padding: '6px 8px', marginBottom: 5, border: '1px solid #1b2127', borderRadius: 8, background: '#0f1318' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: '#d4dbe1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.label}</div>
-                  <div style={{ fontSize: 10, color: '#5a646d', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.cmd}</div>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.label}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-4)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.cmd}</div>
                 </div>
-                <button onClick={() => copyToClipboard(it.cmd)} title="Copy" style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: '#5a646d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button onClick={() => copyToClipboard(it.cmd)} title="Copy" style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: '1px solid #1b2127', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="copy" size={11} />
                 </button>
                 <button onClick={() => onRun?.(it.cmd)} title="Run" style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: accent, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

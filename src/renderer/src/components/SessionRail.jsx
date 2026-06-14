@@ -71,7 +71,7 @@ function WorkspaceLabel({ id, label, onRenameGroup }) {
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(label) } }}
         onClick={e => e.stopPropagation()}
-        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 11.5, fontWeight: 800, fontFamily: 'inherit' }}
+        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 11.5, fontWeight: 800, fontFamily: 'inherit' }}
       />
     )
   }
@@ -114,7 +114,7 @@ function SessionLabel({ tab, onRename, editRequested, onEditDone }) {
         onBlur={commit}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(tab.label); onEditDone?.() } }}
         onClick={e => e.stopPropagation()}
-        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit' }}
+        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit' }}
       />
     )
   }
@@ -231,9 +231,9 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
             <button
               key={item.label}
               onClick={() => { setCtxMenu(null); item.action() }}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', border: 'none', background: 'transparent', color: item.danger ? '#ff5370' : '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, borderRadius: 7 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', border: 'none', background: 'transparent', color: item.danger ? '#ff5370' : 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, borderRadius: 7 }}
             >
-              <Icon name={item.icon} size={13} color={item.danger ? '#ff5370' : '#8a939c'} strokeWidth={2} />
+              <Icon name={item.icon} size={13} color={item.danger ? '#ff5370' : 'var(--text-3)'} strokeWidth={2} />
               {item.label}
             </button>
           ))}
@@ -399,9 +399,9 @@ export default function SessionRail({
               onClick={onClearExited}
               title="Close all exited sessions"
               className="flex items-center"
-              style={{ gap: 4, background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, padding: 0, textTransform: 'uppercase' }}
+              style={{ gap: 4, background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 9.5, fontWeight: 800, letterSpacing: 0.4, padding: 0, textTransform: 'uppercase' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#ff8aa0' }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-4)' }}
             >
               <Icon name="trash" size={11} strokeWidth={2} /> clear
             </button>
@@ -430,7 +430,7 @@ export default function SessionRail({
         )}
 
         {q && sortedTabs.length === 0 && (
-          <div style={{ fontSize: 11.5, color: '#5a646d', padding: '8px 2px' }}>No sessions match “{filter}”.</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-4)', padding: '8px 2px' }}>No sessions match “{filter}”.</div>
         )}
 
         <div className="flex flex-col" style={{ gap: 8 }}>
@@ -487,7 +487,7 @@ export default function SessionRail({
                     className="flex items-center justify-center"
                     style={{ width: 20, height: 20, borderRadius: 6, border: 'none', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = accent }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = '#69737d' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
                   >
                     <Icon name="plus" size={14} strokeWidth={2.4} />
                   </button>
@@ -498,7 +498,7 @@ export default function SessionRail({
                     className="flex items-center justify-center"
                     style={{ width: 20, height: 20, borderRadius: 6, border: 'none', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = '#ff5370' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.color = '#69737d' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-3)' }}
                   >
                     <Icon name="trash" size={13} strokeWidth={2} />
                   </button>

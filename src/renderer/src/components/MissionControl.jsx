@@ -155,7 +155,7 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
         {/* Header */}
         <div className="flex items-center" style={{ gap: 12, padding: '14px 18px', borderBottom: `1px solid ${rgba(accent, 0.12)}`, position: 'sticky', top: 0, background: rgba('#0b0e13', 0.96), backdropFilter: 'blur(8px)', zIndex: 2 }}>
           <Icon name="activity" size={17} color={accent} strokeWidth={2.2} />
-          <span style={{ fontSize: 14, fontWeight: 900, color: '#f1f4f6', letterSpacing: 0.2 }}>Mission Control</span>
+          <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--text-1)', letterSpacing: 0.2 }}>Mission Control</span>
           <span style={{ fontSize: 11, color: '#6b7787', fontWeight: 700 }}>{tabs.length} session{tabs.length === 1 ? '' : 's'}</span>
           <span className="flex items-center" style={{ gap: 8, marginLeft: 'auto' }}>
             {chips.map(c => {
@@ -177,7 +177,7 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
         {/* Groups */}
         <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {tabs.length === 0 && (
-            <div style={{ padding: '36px 16px', textAlign: 'center', color: '#5a646d', fontSize: 13 }}>
+            <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-4)', fontSize: 13 }}>
               No active sessions. Launch a swarm to see it light up here.
             </div>
           )}
@@ -186,7 +186,7 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
               <div className="flex items-center" style={{ gap: 8, padding: '0 4px 8px' }}>
                 <Icon name={group.id ? 'layers' : 'terminal'} size={13} color={rgba(accent, 0.8)} strokeWidth={2} />
                 <span style={{ fontSize: 12, fontWeight: 800, color: '#aeb8c4', textTransform: 'uppercase', letterSpacing: 0.6 }}>{group.label}</span>
-                <span style={{ fontSize: 11, color: '#5a646d', fontWeight: 700 }}>{group.tabs.length}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-4)', fontWeight: 700 }}>{group.tabs.length}</span>
                 {group.id && (
                   <button title="Close workspace" onClick={() => onCloseGroup(group.id)}
                     style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#7a8492', background: 'transparent', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>

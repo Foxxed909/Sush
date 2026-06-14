@@ -146,10 +146,10 @@ export default function PathField({
           placeholder={placeholder}
           spellCheck={false}
           autoComplete="off"
-          style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#f1f4f6', outline: 'none', fontSize: 13 }}
+          style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13 }}
         />
         {suggestions.length > 0 && (
-          <span style={{ flexShrink: 0, color: '#5a646d', fontSize: 10, fontWeight: 700, userSelect: 'none' }}>
+          <span style={{ flexShrink: 0, color: 'var(--text-4)', fontSize: 10, fontWeight: 700, userSelect: 'none' }}>
             Tab ↹
           </span>
         )}
@@ -198,12 +198,12 @@ export default function PathField({
                   border: '1px solid transparent',
                   borderRadius: 7,
                   background: on ? rgba(accent, 0.14) : 'transparent',
-                  color: on ? '#f1f4f6' : '#c2cad1',
+                  color: on ? 'var(--text-1)' : '#c2cad1',
                   padding: '7px 9px',
                   cursor: 'pointer'
                 }}
               >
-                <Icon name={entry.dir ? 'folder' : 'file'} size={14} color={entry.dir ? accent : '#69737d'} strokeWidth={2} />
+                <Icon name={entry.dir ? 'folder' : 'file'} size={14} color={entry.dir ? accent : 'var(--text-3)'} strokeWidth={2} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}>{entry.name}</span>
               </button>
             )

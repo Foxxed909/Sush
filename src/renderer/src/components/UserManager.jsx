@@ -52,7 +52,7 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
     width: '100%',
     background: 'rgba(0,0,0,0.3)',
     border: '1px solid rgba(255,255,255,0.12)',
-    color: '#e8edf1',
+    color: 'var(--text-1)',
     borderRadius: 9,
     padding: '8px 11px',
     fontSize: 13,
@@ -80,22 +80,22 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
         <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
           <div className="flex items-center" style={{ gap: 9 }}>
             <Icon name="users" size={16} color={accent} strokeWidth={2.2} />
-            <span style={{ color: '#f1f4f6', fontWeight: 900, fontSize: 15 }}>Users</span>
-            <span style={{ fontSize: 10.5, color: '#69737d', fontWeight: 700 }}>{users.length} identit{users.length === 1 ? 'y' : 'ies'}</span>
+            <span style={{ color: 'var(--text-1)', fontWeight: 900, fontSize: 15 }}>Users</span>
+            <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 700 }}>{users.length} identit{users.length === 1 ? 'y' : 'ies'}</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7a838b', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
         </div>
 
         {confirmDelete ? (
           <div style={{ padding: '6px 2px' }}>
-            <div style={{ color: '#f1f4f6', fontWeight: 800, fontSize: 14, marginBottom: 8 }}>
+            <div style={{ color: 'var(--text-1)', fontWeight: 800, fontSize: 14, marginBottom: 8 }}>
               Delete “{confirmDelete.name}”?
             </div>
-            <div style={{ color: '#8a939c', fontSize: 12.5, lineHeight: 1.6, marginBottom: 14 }}>
+            <div style={{ color: 'var(--text-3)', fontSize: 12.5, lineHeight: 1.6, marginBottom: 14 }}>
               This removes the identity from Sush.
               {confirmDelete.id === currentUser?.id && ' You are deleting the signed-in user — you will be signed out.'}
             </div>
-            <label className="flex items-center" style={{ gap: 8, color: '#c6cdd4', fontSize: 12.5, marginBottom: 16, cursor: 'pointer' }}>
+            <label className="flex items-center" style={{ gap: 8, color: 'var(--text-2)', fontSize: 12.5, marginBottom: 16, cursor: 'pointer' }}>
               <input type="checkbox" checked={wipe} onChange={e => setWipe(e.target.checked)} />
               Also wipe their data (CLI logins under their identity folder + Sush state)
             </label>
@@ -104,7 +104,7 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
               <button onClick={doDelete} style={{ padding: '8px 16px', borderRadius: 9, border: 'none', background: '#ff5370', color: '#0a0a0c', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>
                 Delete user
               </button>
-              <button onClick={() => { setConfirmDelete(null); setError('') }} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: '#c6cdd4', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
+              <button onClick={() => { setConfirmDelete(null); setError('') }} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: 'var(--text-2)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
                 Cancel
               </button>
             </div>
@@ -131,13 +131,13 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
                   </span>
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span className="flex items-center" style={{ gap: 7 }}>
-                      <span style={{ color: '#f1f4f6', fontWeight: 800, fontSize: 13.5 }}>{user.name}</span>
+                      <span style={{ color: 'var(--text-1)', fontWeight: 800, fontSize: 13.5 }}>{user.name}</span>
                       {user.id === currentUser?.id && (
                         <span style={{ fontSize: 9, fontWeight: 900, color: user.color, background: rgba(user.color, 0.12), border: `1px solid ${rgba(user.color, 0.3)}`, borderRadius: 999, padding: '1px 7px', letterSpacing: 0.5 }}>YOU</span>
                       )}
-                      {user.hasPin && <Icon name="lock" size={11} color="#8a939c" />}
+                      {user.hasPin && <Icon name="lock" size={11} color="var(--text-3)" />}
                     </span>
-                    <span style={{ display: 'block', fontSize: 10.5, color: '#69737d', marginTop: 2 }}>
+                    <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>
                       {user.isolation === 'full' ? 'Full home isolation' : 'CLI isolation (claude · codex · gh · XDG)'}
                     </span>
                   </span>
@@ -148,7 +148,7 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
                     onClick={() => { setConfirmDelete(user); setWipe(true); setError('') }}
                     disabled={users.length <= 1}
                     title={users.length <= 1 ? 'The last user cannot be deleted' : 'Delete user'}
-                    style={{ background: 'none', border: 'none', color: users.length <= 1 ? '#4a5560' : '#ff5370', cursor: users.length <= 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 800 }}
+                    style={{ background: 'none', border: 'none', color: users.length <= 1 ? 'var(--text-5)' : '#ff5370', cursor: users.length <= 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 800 }}
                   >
                     delete
                   </button>
@@ -167,13 +167,13 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
                         <button
                           key={level}
                           onClick={() => setForm(f => ({ ...f, isolation: level }))}
-                          style={{ flex: 1, padding: '7px 0', borderRadius: 9, cursor: 'pointer', fontSize: 11.5, fontWeight: 800, border: `1px solid ${form.isolation === level ? rgba(user.color, 0.55) : 'rgba(255,255,255,0.1)'}`, background: form.isolation === level ? rgba(user.color, 0.12) : 'transparent', color: form.isolation === level ? '#f1f4f6' : '#8a939c' }}
+                          style={{ flex: 1, padding: '7px 0', borderRadius: 9, cursor: 'pointer', fontSize: 11.5, fontWeight: 800, border: `1px solid ${form.isolation === level ? rgba(user.color, 0.55) : 'rgba(255,255,255,0.1)'}`, background: form.isolation === level ? rgba(user.color, 0.12) : 'transparent', color: form.isolation === level ? 'var(--text-1)' : 'var(--text-3)' }}
                         >
                           {level === 'cli' ? 'CLI isolation' : 'Full home'}
                         </button>
                       ))}
                     </div>
-                    <div style={{ fontSize: 10.5, color: '#5a646d', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-4)', lineHeight: 1.5 }}>
                       Isolation changes apply to <b>new</b> sessions only. Full home gives this user fresh dotfiles (git, ssh, npm…) — their existing CLI logins under CLI isolation carry over.
                     </div>
                     <div className="flex items-center" style={{ gap: 8 }}>
@@ -186,21 +186,21 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
                         style={{ ...field, flex: 1 }}
                       />
                       {user.hasPin && (
-                        <label className="flex items-center" style={{ gap: 6, fontSize: 11.5, color: '#c6cdd4', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <label className="flex items-center" style={{ gap: 6, fontSize: 11.5, color: 'var(--text-2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                           <input type="checkbox" checked={form.clearPin} onChange={e => setForm(f => ({ ...f, clearPin: e.target.checked, pin: '' }))} />
                           remove PIN
                         </label>
                       )}
                     </div>
                     <div style={{ paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: '#69737d', letterSpacing: 1, marginBottom: 8 }}>CONNECTED ACCOUNTS</div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 1, marginBottom: 8 }}>CONNECTED ACCOUNTS</div>
                       {['google', 'github'].map(p => {
                         const rec = user.providers?.[p]
                         if (!rec) return null
                         return (
                           <div key={p} className="flex items-center" style={{ gap: 8, marginBottom: 8 }}>
-                            <Icon name={p} size={13} color="#aab3bb" />
-                            <span style={{ flex: 1, fontSize: 12, color: '#c6cdd4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <Icon name={p} size={13} color="var(--text-2)" />
+                            <span style={{ flex: 1, fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {p === 'google' ? (rec.email || rec.name || 'Google account') : `@${rec.login}`}
                             </span>
                             <button onClick={() => unlink(user.id, p)} style={{ background: 'none', border: 'none', color: '#ff5370', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
@@ -231,8 +231,8 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
               </div>
             ))}
 
-            <div style={{ fontSize: 10.5, color: '#5a646d', lineHeight: 1.6, marginTop: 4 }}>
-              Each identity's CLI logins live in their own folder — <code style={{ color: '#8a939c' }}>identities/&lt;id&gt;/home</code> under Sush's data dir. Signing out closes all sessions so the next user never inherits a logged-in terminal.
+            <div style={{ fontSize: 10.5, color: 'var(--text-4)', lineHeight: 1.6, marginTop: 4 }}>
+              Each identity's CLI logins live in their own folder — <code style={{ color: 'var(--text-3)' }}>identities/&lt;id&gt;/home</code> under Sush's data dir. Signing out closes all sessions so the next user never inherits a logged-in terminal.
             </div>
           </div>
         )}

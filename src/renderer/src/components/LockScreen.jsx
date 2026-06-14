@@ -66,7 +66,7 @@ function PinDots({ length, max = 8, error }) {
             width: 11,
             height: 11,
             borderRadius: '50%',
-            background: i < length ? (error ? '#ff5370' : '#f1f4f6') : 'rgba(255,255,255,0.14)',
+            background: i < length ? (error ? '#ff5370' : 'var(--text-1)') : 'rgba(255,255,255,0.14)',
             border: `1px solid ${i < length ? 'transparent' : 'rgba(255,255,255,0.22)'}`,
             transition: 'background .12s ease'
           }}
@@ -88,7 +88,7 @@ function GhostButton({ children, onClick, danger, autoFocus }) {
         gap: 7,
         background: 'rgba(255,255,255,0.04)',
         border: `1px solid ${danger ? 'rgba(255,83,112,0.35)' : 'rgba(255,255,255,0.12)'}`,
-        color: danger ? '#ff8aa0' : '#c6cdd4',
+        color: danger ? '#ff8aa0' : 'var(--text-2)',
         borderRadius: 10,
         padding: '8px 16px',
         fontSize: 12.5,
@@ -261,7 +261,7 @@ export default function LockScreen({
           <button
             key={action}
             onClick={() => window.sush.windowControl(action)}
-            style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#8a939c', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
+            style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-3)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
           >
             {sym}
           </button>
@@ -271,8 +271,8 @@ export default function LockScreen({
       <div className="sush-lock-card" style={{ WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 440px)' }}>
         {/* Clock header — shared by every mode */}
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
-          <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: -1.5, color: '#f3f6f8', lineHeight: 1, textShadow: '0 6px 40px rgba(0,0,0,0.5)' }}>{timeStr}</div>
-          <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: '#8a939c' }}>{dateStr}</div>
+          <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: -1.5, color: 'var(--text-1)', lineHeight: 1, textShadow: '0 6px 40px rgba(0,0,0,0.5)' }}>{timeStr}</div>
+          <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-3)' }}>{dateStr}</div>
         </div>
 
         {/* One glass card holds whichever mode is active */}
@@ -280,7 +280,7 @@ export default function LockScreen({
           {/* Brand row */}
           <div className="flex items-center justify-center" style={{ gap: 8, marginBottom: 18 }}>
             <span style={{ width: 15, height: 15, borderRadius: 5, background: `linear-gradient(145deg, ${accent}, ${rgba(accent, 0.35)})`, boxShadow: `0 0 14px ${rgba(accent, 0.5)}` }} />
-            <span style={{ color: '#aab3bb', fontWeight: 800, fontSize: 11.5, letterSpacing: 3 }}>SUSH</span>
+            <span style={{ color: 'var(--text-2)', fontWeight: 800, fontSize: 11.5, letterSpacing: 3 }}>SUSH</span>
           </div>
 
           {mode === 'create' ? (
@@ -312,10 +312,10 @@ export default function LockScreen({
                     } catch {}
                   }}
                 />
-                <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: '#f1f4f6' }}>
+                <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: 'var(--text-1)' }}>
                   {firstRun ? 'Welcome to Sush' : 'New profile'}
                 </div>
-                <div style={{ marginTop: 4, fontSize: 12, color: '#8a939c', lineHeight: 1.5 }}>
+                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>
                   {firstRun ? 'A profile is your own sealed world — CLI logins, theme, and sessions stay yours.' : 'A separate world: its own CLI logins, theme, and sessions.'}
                 </div>
               </div>
@@ -345,7 +345,7 @@ export default function LockScreen({
               </div>
 
               {form.providerTicket ? (
-                <div style={{ fontSize: 11, color: '#8a939c', textAlign: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-3)', textAlign: 'center', marginBottom: 12 }}>
                   <Icon name={form.providerLabel === 'GitHub' ? 'github' : 'google'} size={11} style={{ verticalAlign: -1, marginRight: 5 }} />
                   Will be linked to your {form.providerLabel} account
                 </div>
@@ -377,7 +377,7 @@ export default function LockScreen({
                     type="password"
                     className="sush-lock-input"
                   />
-                  <div style={{ fontSize: 10.5, color: '#5a646d', margin: '6px 2px 12px', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-4)', margin: '6px 2px 12px', lineHeight: 1.5 }}>
                     A PIN keeps curious eyes out on a shared PC — it isn't encryption.
                   </div>
 
@@ -400,8 +400,8 @@ export default function LockScreen({
                           background: form.isolation === opt.id ? rgba(form.color, 0.12) : 'rgba(255,255,255,0.03)'
                         }}
                       >
-                        <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: form.isolation === opt.id ? '#f1f4f6' : '#aab3bb' }}>{opt.label}</span>
-                        <span style={{ display: 'block', fontSize: 10, color: '#69737d', marginTop: 2 }}>{opt.desc}</span>
+                        <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: form.isolation === opt.id ? 'var(--text-1)' : 'var(--text-2)' }}>{opt.label}</span>
+                        <span style={{ display: 'block', fontSize: 10, color: 'var(--text-3)', marginTop: 2 }}>{opt.desc}</span>
                       </button>
                     ))}
                   </div>
@@ -442,8 +442,8 @@ export default function LockScreen({
             /* ── Locked (resume the one signed-in user) ────────────────────── */
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <Avatar user={selected} size={84} />
-              <div style={{ marginTop: 14, fontSize: 19, fontWeight: 900, color: '#f1f4f6' }}>{selected?.name}</div>
-              <div className="flex items-center" style={{ gap: 6, marginTop: 4, fontSize: 11.5, color: '#8a939c', fontWeight: 600 }}>
+              <div style={{ marginTop: 14, fontSize: 19, fontWeight: 900, color: 'var(--text-1)' }}>{selected?.name}</div>
+              <div className="flex items-center" style={{ gap: 6, marginTop: 4, fontSize: 11.5, color: 'var(--text-3)', fontWeight: 600 }}>
                 <Icon name="lock" size={11} /> Locked · {selected?.isolation === 'full' ? 'full isolation' : 'CLI isolation'}
               </div>
 
@@ -484,7 +484,7 @@ export default function LockScreen({
           ) : (
             /* ── Pick (choose among profiles) ──────────────────────────────── */
             <div>
-              <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#c6cdd4', marginBottom: 16 }}>
+              <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--text-2)', marginBottom: 16 }}>
                 {needsPin ? `Enter ${selected?.name}'s PIN` : 'Who’s using Sush?'}
               </div>
 
@@ -504,17 +504,17 @@ export default function LockScreen({
                           <Avatar user={user} size={62} dim={!isSel} ring={false} />
                         </div>
                         {user.hasPin && (
-                          <span className="flex items-center justify-center" style={{ position: 'absolute', right: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: '#aab3bb' }}>
+                          <span className="flex items-center justify-center" style={{ position: 'absolute', right: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: 'var(--text-2)' }}>
                             <Icon name="lock" size={9} strokeWidth={2.4} />
                           </span>
                         )}
                         {(user.providers?.github || user.providers?.google) && (
-                          <span className="flex items-center justify-center" style={{ position: 'absolute', left: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: '#aab3bb' }}>
+                          <span className="flex items-center justify-center" style={{ position: 'absolute', left: 6, bottom: -2, width: 19, height: 19, borderRadius: '50%', background: '#10141a', border: '1px solid rgba(255,255,255,0.18)', color: 'var(--text-2)' }}>
                             <Icon name={user.providers?.github ? 'github' : 'google'} size={9} strokeWidth={2.2} />
                           </span>
                         )}
                       </div>
-                      <div style={{ marginTop: 9, fontSize: 12.5, fontWeight: 800, color: isSel ? '#f1f4f6' : '#8a939c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
+                      <div style={{ marginTop: 9, fontSize: 12.5, fontWeight: 800, color: isSel ? 'var(--text-1)' : 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
                     </button>
                   )
                 })}
@@ -546,7 +546,7 @@ export default function LockScreen({
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 12px' }}>
                     <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
-                    <span style={{ fontSize: 10, color: '#5a646d', fontWeight: 700, letterSpacing: 1 }}>OR</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-4)', fontWeight: 700, letterSpacing: 1 }}>OR</span>
                     <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
                   </div>
                   <ProviderButtons mode="signin" accent={accent} onResult={handleProviderResult} />
@@ -562,7 +562,7 @@ export default function LockScreen({
         </div>
       </div>
 
-      <div style={{ position: 'absolute', bottom: 18, fontSize: 10.5, color: '#3f4852', fontWeight: 700, letterSpacing: 1 }}>
+      <div style={{ position: 'absolute', bottom: 18, fontSize: 10.5, color: 'var(--text-5)', fontWeight: 700, letterSpacing: 1 }}>
         SUSH PROFILES · separate worlds, zero bleed
       </div>
     </div>

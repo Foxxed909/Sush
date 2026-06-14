@@ -108,13 +108,13 @@ export default function Browser({ accent }) {
         borderRadius: 8,
         border: '1px solid transparent',
         background: 'transparent',
-        color: disabled ? '#39424b' : '#aab3bb',
+        color: disabled ? '#39424b' : 'var(--text-2)',
         cursor: disabled ? 'default' : 'pointer',
         flexShrink: 0,
         transition: 'background .12s, color .12s'
       }}
       onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = rgba(accent, 0.12); e.currentTarget.style.color = accent } }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = disabled ? '#39424b' : '#aab3bb' }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = disabled ? '#39424b' : 'var(--text-2)' }}
     >
       <Icon name={icon} size={15} strokeWidth={2.2} className={spin ? 'sush-spin' : undefined} />
     </button>
@@ -130,7 +130,7 @@ export default function Browser({ accent }) {
         {navBtn('home', home, { title: 'Home' })}
 
         <div className="sush-omni flex items-center" style={{ flex: 1, minWidth: 0, height: 30, gap: 7, marginLeft: 2 }}>
-          <Icon name={secure ? 'lock' : 'globe'} size={12.5} color={secure ? '#7ee787' : '#76808a'} strokeWidth={2.2} />
+          <Icon name={secure ? 'lock' : 'globe'} size={12.5} color={secure ? '#7ee787' : 'var(--text-3)'} strokeWidth={2.2} />
           <input
             value={address}
             onChange={(e) => { setAddress(e.target.value); setEditing(true) }}
@@ -143,7 +143,7 @@ export default function Browser({ accent }) {
             placeholder="Search or enter address -- try :5173 for a dev server"
             spellCheck={false}
             autoComplete="off"
-            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: '#e6ebef', outline: 'none', fontSize: 12 }}
+            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-2)', outline: 'none', fontSize: 12 }}
           />
           {loading && <span className="sush-spin" style={{ width: 11, height: 11, borderRadius: '50%', border: `2px solid ${rgba(accent, 0.3)}`, borderTopColor: accent, flexShrink: 0 }} />}
         </div>
