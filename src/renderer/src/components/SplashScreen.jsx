@@ -18,21 +18,59 @@ const TIPS = [
 // pairs with pink without clashing, and reads clearly as the other hand.
 const COOL = '#a78bff'
 
-// Beat 1: the shush mark — pink lips with a near-white finger raised over them.
+// Beat 1: the shush mark — glossy pink lips (cupid's bow, gradient + specular
+// highlight, soft pink glow) with a tapered near-white finger raised over them.
+// All vector: crisp at any DPI, animatable, near-free on a weak GPU.
 function ShushMark({ accent }) {
   return (
-    <svg width="132" height="132" viewBox="0 0 120 120" fill="none" aria-hidden>
-      {/* lips (pink) */}
-      <g style={{ opacity: 0, animation: 'sush-reveal 0.45s var(--ease-out) backwards' }}>
-        <path d="M28 56 Q 42 43 52 51 Q 60 46 68 51 Q 78 43 92 56 Q 75 51 60 56 Q 45 51 28 56 Z" fill={accent} />
-        <path d="M28 56 Q 45 75 60 75 Q 75 75 92 56 Q 75 64 60 64 Q 45 64 28 56 Z" fill={accent} opacity="0.92" />
-        <path d="M28 56 Q 45 53 60 57 Q 75 53 92 56" stroke={rgba('#000000', 0.25)} strokeWidth="1.5" fill="none" />
+    <svg width="148" height="148" viewBox="0 0 120 120" fill="none" aria-hidden>
+      <defs>
+        <linearGradient id="sushLip" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffb3d4" />
+          <stop offset="45%" stopColor={accent} />
+          <stop offset="100%" stopColor="#c43670" />
+        </linearGradient>
+        <linearGradient id="sushFinger" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#d8a17e" />
+          <stop offset="40%" stopColor="#f3cda9" />
+          <stop offset="100%" stopColor="#c98a63" />
+        </linearGradient>
+        <filter id="sushGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="5" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+
+      {/* soft pink bloom behind the lips */}
+      <ellipse cx="60" cy="62" rx="40" ry="22" fill={accent} opacity="0.18" filter="url(#sushGlow)" />
+
+      {/* lips */}
+      <g style={{ opacity: 0, animation: 'sush-reveal 0.5s var(--ease-out) backwards' }} filter="url(#sushGlow)">
+        {/* upper lip — cupid's bow */}
+        <path d="M30 60 C 37 53 46 52 51 54 C 55 55 57 58 60 58 C 63 58 65 55 69 54 C 74 52 83 53 90 60 C 80 58 70 59 60 59 C 50 59 40 58 30 60 Z" fill="url(#sushLip)" />
+        {/* lower lip — fuller curve */}
+        <path d="M30 60 C 40 73 50 79 60 79 C 70 79 80 73 90 60 C 79 64 70 65 60 65 C 50 65 41 64 30 60 Z" fill="url(#sushLip)" />
+        {/* seam */}
+        <path d="M31 60 C 42 62 50 62 60 62 C 70 62 78 62 89 60" stroke="#7a1e44" strokeOpacity="0.55" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+        {/* specular gloss on lower lip */}
+        <ellipse cx="52" cy="70" rx="11" ry="3.4" fill="#ffffff" opacity="0.45" />
+        <ellipse cx="71" cy="69" rx="5" ry="2.2" fill="#ffffff" opacity="0.3" />
       </g>
-      {/* finger (near-white, raised — the "shh") */}
-      <g style={{ transformOrigin: '60px 52px', animation: 'sush-finger-rise 0.6s cubic-bezier(0.22,1,0.36,1) 0.15s backwards' }}>
-        <rect x="54" y="22" width="12" height="52" rx="6" fill="#f7f8f8" />
-        <rect x="54" y="22" width="12" height="52" rx="6" fill="none" stroke={rgba(accent, 0.5)} strokeWidth="1" />
-        <ellipse cx="60" cy="28" rx="3.2" ry="4.2" fill={rgba('#ffffff', 0.7)} />
+
+      {/* finger raised over the lips — tapered, warm-toned, glossed */}
+      <g style={{ transformOrigin: '60px 54px', animation: 'sush-finger-rise 0.62s cubic-bezier(0.22,1,0.36,1) 0.18s backwards' }} filter="url(#sushGlow)">
+        <path d="M52.5 82 C 52 64 52.2 42 53.4 32 C 54 24 56.4 20 60 20 C 63.6 20 66 24 66.6 32 C 67.8 42 68 64 67.5 82 C 67.5 86.5 52.5 86.5 52.5 82 Z" fill="url(#sushFinger)" stroke={rgba('#783c28', 0.35)} strokeWidth="0.7" />
+        {/* nail */}
+        <ellipse cx="60" cy="28" rx="3.6" ry="5.2" fill="#ffe9d6" opacity="0.85" />
+        {/* knuckle crease + soft length highlight */}
+        <path d="M55 49 C 58 50.5 62 50.5 65 49" stroke={rgba('#783c28', 0.2)} strokeWidth="1" fill="none" strokeLinecap="round" />
+        <path d="M56.5 24 C 56 42 56 62 56.2 78" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="2" fill="none" strokeLinecap="round" />
+      </g>
+
+      {/* breath wisps — the faint "shh" */}
+      <g stroke={accent} strokeWidth="1.4" strokeLinecap="round" fill="none" opacity="0.5" style={{ animation: 'sush-shh-glow 1s ease 0.4s both' }}>
+        <path d="M86 40 q 6 -3 11 0" />
+        <path d="M88 47 q 7 -3 13 0" />
       </g>
     </svg>
   )
