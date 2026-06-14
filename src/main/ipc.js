@@ -28,7 +28,7 @@ import {
   getClaudeLimits, checkClaudeLimits, probeClaudeUsage
 } from './claudePanel'
 import { getTtsConfigPublic, setTtsConfig, synthesizeTts } from './tts'
-import { licensePublic, redeemCode, clearLicense, featuresOf, can } from './license'
+import { licensePublic, redeemCode, clearLicense, featuresOf, can, setLicenseChangeSender } from './license'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
@@ -1122,18 +1122,18 @@ export function registerIpcHandlers(win) {
   })
 
   // ── License / tiers (offline unlock codes) ────────────────────────────────
-  const broadcastLicense = () => {
-    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:license-changed', licensePublic())
-  }
+  // One broadcast path for every license change — redeemCode/clearLicense emit
+  // through this whether they're called from IPC or the `unlock` shell command.
+  setLicenseChangeSender((pub) => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:license-changed', pub)
+  })
   ipcMain.handle('sush:license-get', () => licensePublic())
   ipcMain.handle('sush:license-redeem', (event, { code } = {}) => {
     const r = redeemCode(code)
-    if (r.ok) broadcastLicense()
     return r.ok ? { ...r, ...licensePublic() } : r
   })
   ipcMain.handle('sush:license-clear', () => {
     const r = clearLicense()
-    broadcastLicense()
     return { ...r, ...licensePublic() }
   })
 

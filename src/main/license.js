@@ -24,6 +24,12 @@ export const TIER_FEATURES = {
 const RANK = { free: 0, plus: 1, pro: 2 }
 const file = () => join(app.getPath('userData'), 'sush-license.json')
 
+// Set by main so any path that changes the license (IPC redeem OR the `unlock`
+// shell command) pushes one consistent `license-changed` broadcast to the UI.
+let _emit = null
+export function setLicenseChangeSender(fn) { _emit = typeof fn === 'function' ? fn : null }
+function emitChange() { try { _emit?.(licensePublic()) } catch {} }
+
 // Parse + verify a code without persisting anything. Accepts a plain code
 // (SUSH-TIER-NONCE-SIG) or a dated/trial code (SUSH-TIER-YYYYMMDD-NONCE-SIG)
 // that stops working after its date.
@@ -67,12 +73,14 @@ export function redeemCode(raw) {
   const data = { tier: v.tier, code: String(raw).trim().toUpperCase(), redeemedAt: Date.now() }
   if (v.expiry) data.expiry = v.expiry
   try { writeFileSync(file(), JSON.stringify(data, null, 2), 'utf8') } catch (e) { return { ok: false, error: e.message } }
+  emitChange()
   return { ok: true, tier: v.tier, features: TIER_FEATURES[v.tier] }
 }
 
 // Revert to free (dev/testing, and a user-facing "remove code").
 export function clearLicense() {
   try { if (existsSync(file())) rmSync(file()) } catch {}
+  emitChange()
   return { ok: true, tier: 'free', features: TIER_FEATURES.free }
 }
 
