@@ -40,22 +40,27 @@
   --r-pill: 999px;
   --r-btn: 9px;
 
-  /* ---- Text colour ramp (one cool-grey scale) ----
-     The chrome used to scatter a dozen near-identical greys (#76808a, #8a939c,
-     #aab3bb, #c6cdd4, #e1e6ea…). These five are the whole vocabulary now:
-     1 = primary, 2 = secondary, 3 = label/muted, 4 = hint, 5 = faint/divider. */
-  --text-1: #eef2f5;
-  --text-2: #c6ced6;
-  --text-3: #8b949e;
-  --text-4: #5b656e;
-  --text-5: #39424b;
+  /* ---- Text colour ramp (Linear's luminance ladder) ----
+     One achromatic scale, near-white that never reaches pure #fff (less eye
+     strain on a dark canvas). 1 = primary, 2 = secondary, 3 = muted,
+     4 = hint/placeholder, 5 = faint/disabled. */
+  --text-1: #f7f8f8;
+  --text-2: #d0d6e0;
+  --text-3: #8a8f98;
+  --text-4: #62666d;
+  --text-5: #3a3f47;
 
-  /* ---- Surface & border ramp ---- */
-  --surface-0: #090b0e;  /* app background */
-  --surface-1: #0d1116;  /* panels, headers */
-  --surface-2: #0f1419;  /* inputs, raised rows */
-  --border-1: #181d24;   /* hairline divider */
-  --border-2: #222a31;   /* control border */
+  /* ---- Surface & border ramp (Linear-backbone) ----
+     Darkness as the native medium: a near-black canvas with content emerging
+     through layered luminance, not colour. Borders are semi-transparent WHITE
+     ("wireframes in moonlight") — structure without visual noise. */
+  --surface-0: #08090a;  /* app background / deepest canvas */
+  --surface-1: #0f1011;  /* panels, headers, sidebars */
+  --surface-2: #16171a;  /* inputs, raised rows */
+  --surface-3: #1f2024;  /* hover, elevated cards, dropdowns */
+  --border-1: rgba(255,255,255,0.06);  /* hairline divider */
+  --border-2: rgba(255,255,255,0.10);  /* control border */
+  --border-3: rgba(255,255,255,0.14);  /* emphasis / hover border */
 
   /* ---- Type scale ----
      Five sizes, not fifteen. xs labels, sm chrome text, md body/controls,
@@ -76,8 +81,8 @@
 
 body {
   font-family: var(--font-ui);
-  background: #0d0d0d;
-  color: #f0f0f0;
+  background: var(--surface-0);
+  color: var(--text-1);
   height: 100vh;
   overflow: hidden;
   user-select: none;

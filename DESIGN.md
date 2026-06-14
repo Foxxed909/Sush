@@ -1,36 +1,43 @@
 # Design
 
-Visual system for Sush. Direction: **refined dark + glass ("glassy pro")** —
-evolve the existing DNA, don't replace it. The job is discipline: less accent
-noise, one grey ramp, one type scale, a real spacing grid, deliberate density.
-Pink stays the signature but is spent sparingly.
+Visual system for Sush. Direction: **Linear-backbone dark, Sush pink accent.**
+Adapted from the Linear design system (the gold standard for dark product UI) —
+darkness as the native medium, content emerging through layered luminance, and
+"wireframes in moonlight" semi-transparent white borders. Sush keeps its signature
+pink where Linear uses indigo. The job is discipline: one surface ramp, one text
+ladder, one accent spent sparingly, a real spacing grid.
 
 ## Theme
 
-Dark, glassy, premium. Near-black layered surfaces with translucent "glass"
-chrome (backdrop blur) over an optional wallpaper. Pink (#ff6b9d) is the single
-brand accent and signals state, not structure. Calm by default; energy only where
-something is live or needs the user.
+Dark-mode-native, not a dark theme bolted onto a light design. A near-black canvas
+(`#08090a`) where panels and rows step up through luminance, not colour. Structure
+comes from faint white borders rather than lines or boxes. Translucent "glass"
+chrome (backdrop blur) layers over an optional wallpaper. Pink (#ff6b9d) is the
+single brand accent and signals state, not structure. Calm by default; energy only
+where something is live or needs the user.
 
 ## Color
 
 Defined as CSS custom properties in `src/renderer/src/index.css` `:root`. The
 accent is theme-swappable (`--accent` + the `--accent-aNN` alpha ramp); everything
-below is the neutral system that must stay consistent across themes.
+below is the neutral system, adapted from Linear, that stays consistent across themes.
 
-### Surfaces & borders (near-black ramp)
-- `--surface-0` #090b0e — app background (under glass / wallpaper)
-- `--surface-1` #0d1116 — panels, headers, popovers
-- `--surface-2` #0f1419 — inputs, raised/hover rows
-- `--border-1` #181d24 — hairline dividers (the default separator)
-- `--border-2` #222a31 — control borders (inputs, buttons at rest)
+### Surfaces & borders (Linear luminance ladder)
+- `--surface-0` #08090a — app background / deepest canvas
+- `--surface-1` #0f1011 — panels, headers, sidebars
+- `--surface-2` #16171a — inputs, raised rows
+- `--surface-3` #1f2024 — hover, elevated cards, dropdowns
+- `--border-1` rgba(255,255,255,0.06) — hairline divider (the default separator)
+- `--border-2` rgba(255,255,255,0.10) — control borders (inputs, buttons at rest)
+- `--border-3` rgba(255,255,255,0.14) — emphasis / hover border
+- Borders are semi-transparent WHITE, never solid grey — that's the Linear tell.
 
-### Text ramp (one cool-grey scale — replaces the old ~8 ad-hoc greys)
-- `--text-1` #eef2f5 — primary (titles, active labels)
-- `--text-2` #c6ced6 — secondary (body, values)
-- `--text-3` #8b949e — muted (labels, inactive)
-- `--text-4` #5b656e — hint (captions, placeholders that still must hit 4.5:1 on dark)
-- `--text-5` #39424b — faint (disabled, decorative dividers)
+### Text ramp (Linear's luminance ladder — never pure #fff)
+- `--text-1` #f7f8f8 — primary (titles, active labels)
+- `--text-2` #d0d6e0 — secondary (body, values)
+- `--text-3` #8a8f98 — muted (labels, inactive)
+- `--text-4` #62666d — hint (captions, placeholders — still ≥4.5:1 on dark)
+- `--text-5` #3a3f47 — faint (disabled, decorative dividers)
 
 ### Accent (signature pink, spent sparingly)
 - `--accent` #ff6b9d, with `--accent-a06 … a55` alpha steps for tints, borders,
