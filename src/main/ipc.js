@@ -20,12 +20,14 @@ import {
   deleteUser, activateUser, signOut, activeUserEnv, linkProvider, unlinkProvider
 } from './users'
 import {
-  listAccounts, addAccount, switchAccount, removeAccount, renameAccount, nextAccount, peekNextAccount, markLimitHit
+  listAccounts, addAccount, switchAccount, removeAccount, renameAccount, nextAccount, peekNextAccount, markLimitHit,
+  getLimitPolicy, setLimitPolicy, setAccountUsage, slotEnv
 } from './accounts'
 import {
   setClaudePanelSender, startClaudePanelRun, stopClaudePanelRun, stopAllClaudePanelRuns,
-  getClaudeLimits, checkClaudeLimits
+  getClaudeLimits, checkClaudeLimits, probeClaudeUsage
 } from './claudePanel'
+import { getTtsConfigPublic, setTtsConfig, synthesizeTts } from './tts'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
@@ -183,6 +185,16 @@ async function runCliEngineWithAccounts(engine, opts, policy = 'ask') {
   }
   const alt = peekNextAccount(user.id, engine)
   return alt ? { ...first, canSwitch: { provider: engine, slotId: alt.id, label: alt.label } } : first
+}
+
+// Read one account's live usage by probing the CLI with that slot's env layered
+// on top of the active identity env (so only this provider's config dir moves).
+// Claude only for now — it's the CLI whose stream-json carries a rate-limit
+// snapshot; codex/gemini have no equivalent we can read cheaply.
+async function readAccountUsage(userId, provider, slotId) {
+  if (provider !== 'claude') return { ok: false, error: 'Live usage is only available for Claude right now.' }
+  const overlay = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
+  return probeClaudeUsage(overlay)
 }
 
 function getDefaultShell(shellId = 'powershell') {
@@ -1023,7 +1035,13 @@ export function registerIpcHandlers(win) {
   // ── Seducia via local agent CLIs (no API key) ─────────────────────────────
   ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd, engine, limitPolicy }) => {
     const id = ['claude', 'codex', 'gemini'].includes(engine) ? engine : 'claude'
-    const policy = ['never', 'ask', 'auto'].includes(limitPolicy) ? limitPolicy : 'ask'
+    // The renderer only sends limitPolicy for an explicit override (helpers
+    // force 'never' so they never burn a rotation). Otherwise the policy is
+    // per-CLI and lives with the account data — read it straight from there.
+    const user = getActiveUser()
+    const policy = ['never', 'ask', 'auto'].includes(limitPolicy)
+      ? limitPolicy
+      : (user ? getLimitPolicy(user.id, id) : 'ask')
     return runCliEngineWithAccounts(id, { prompt: String(prompt ?? ''), cwd }, policy)
   })
 
@@ -1038,6 +1056,15 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:accounts-switch', requireUser((user, { provider, slotId }) => switchAccount(user.id, provider, slotId)))
   ipcMain.handle('sush:accounts-remove', requireUser((user, { provider, slotId }) => removeAccount(user.id, provider, slotId)))
   ipcMain.handle('sush:accounts-rename', requireUser((user, { provider, slotId, label }) => renameAccount(user.id, provider, slotId, label)))
+  ipcMain.handle('sush:accounts-set-policy', requireUser((user, { provider, policy }) => setLimitPolicy(user.id, provider, policy)))
+  // On-demand usage scrape for one account slot. Spawns the CLI with that
+  // slot's env, reads its usage view, caches the parsed bars. Never auto-polled
+  // (one real CLI spawn per call) — only the per-account refresh button calls it.
+  ipcMain.handle('sush:accounts-usage-read', requireUser(async (user, { provider, slotId }) => {
+    const parsed = await readAccountUsage(user.id, provider, slotId)
+    if (!parsed.ok) return parsed
+    return setAccountUsage(user.id, provider, slotId, parsed.usage)
+  }))
 
   // ── Claude Code panel (stream-json driver) ────────────────────────────────
   setClaudePanelSender((payload) => {
@@ -1047,6 +1074,13 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:claude-panel-stop', (event, payload) => stopClaudePanelRun(payload ?? {}))
   ipcMain.handle('sush:claude-limits-get', () => getClaudeLimits())
   ipcMain.handle('sush:claude-limits-check', () => checkClaudeLimits())
+
+  // ── Cloud TTS (Seducia's voice) ───────────────────────────────────────────
+  // The user's own OpenAI/ElevenLabs key lives here and never reaches the
+  // renderer; the renderer sends text, main returns audio bytes to play.
+  ipcMain.handle('sush:tts-config-get', () => getTtsConfigPublic())
+  ipcMain.handle('sush:tts-config-set', (event, payload) => setTtsConfig(payload ?? {}))
+  ipcMain.handle('sush:tts-synthesize', (event, payload) => synthesizeTts(payload ?? {}))
 
   // ── Usage snapshot (the Usage settings panel) ─────────────────────────────
   // Cheap, spawn-free aggregate the Usage panel polls on a timer: per-CLI

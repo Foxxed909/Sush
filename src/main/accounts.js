@@ -68,9 +68,35 @@ export function listAccounts(userId) {
   const providers = {}
   for (const p of Object.keys(SLOT_PROVIDERS)) {
     const st = providerState(data, p)
-    providers[p] = { active: st.active, slots: st.slots.map(s => ({ id: s.id, label: s.label, lastLimitAt: s.lastLimitAt || null })) }
+    providers[p] = {
+      active: st.active,
+      limitPolicy: LIMIT_POLICIES.includes(st.limitPolicy) ? st.limitPolicy : 'ask',
+      slots: st.slots.map(s => ({ id: s.id, label: s.label, lastLimitAt: s.lastLimitAt || null, usage: s.usage || null }))
+    }
   }
   return { ok: true, providers }
+}
+
+// What happens when THIS CLI hits its session limit, set per-CLI (it used to be
+// one global toggle, but auto-hopping makes sense on a CLI with several logins
+// and none on a single-login one). Lives with the account data, so the limit
+// cascade in main reads it straight from here — no renderer round-trip.
+export const LIMIT_POLICIES = ['never', 'ask', 'auto']
+
+export function getLimitPolicy(userId, provider) {
+  if (!userId || !SLOT_PROVIDERS[provider]) return 'ask'
+  const st = load(userId).providers?.[provider]
+  return LIMIT_POLICIES.includes(st?.limitPolicy) ? st.limitPolicy : 'ask'
+}
+
+export function setLimitPolicy(userId, provider, policy) {
+  if (!userId) return { ok: false, error: 'no-user' }
+  if (!SLOT_PROVIDERS[provider]) return { ok: false, error: 'Unknown provider' }
+  if (!LIMIT_POLICIES.includes(policy)) return { ok: false, error: 'Unknown policy' }
+  const data = load(userId)
+  providerState(data, provider).limitPolicy = policy
+  if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
+  return { ok: true, ...listAccounts(userId) }
 }
 
 export function renameAccount(userId, provider, slotId, label) {
@@ -97,6 +123,20 @@ export function markLimitHit(userId, provider) {
   if (!slot) return
   slot.lastLimitAt = Date.now()
   save(userId, data)
+}
+
+// Cache a usage snapshot on a slot (session/week percentages + reset times),
+// scraped on demand from the CLI's own usage view. Stored so the UI can paint
+// the bars instantly from cache and show "updated Xm ago" without re-spawning.
+export function setAccountUsage(userId, provider, slotId, usage) {
+  if (!userId || !SLOT_PROVIDERS[provider]) return { ok: false, error: 'Unknown provider' }
+  const data = load(userId)
+  const st = providerState(data, provider)
+  const slot = st.slots.find(s => s.id === slotId)
+  if (!slot) return { ok: false, error: 'No such account' }
+  slot.usage = usage ? { ...usage, at: Date.now() } : null
+  if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
+  return { ok: true, ...listAccounts(userId) }
 }
 
 // Creates the slot and makes it active, so the very next session spawned uses
@@ -171,6 +211,16 @@ export function removeAccount(userId, provider, slotId) {
   if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
   try { rmSync(slotDir(userId, provider, slotId), { recursive: true, force: true }) } catch {}
   return { ok: true, ...listAccounts(userId) }
+}
+
+// Env overlay that points ONE provider's config dir at a SPECIFIC slot (not
+// necessarily the active one) — used to read a given account's usage without
+// switching to it. The default slot returns {} (identity env already points
+// there). Overlay this ON TOP of activeUserEnv() so just this provider moves.
+export function slotEnv(userId, provider, slotId) {
+  const spec = SLOT_PROVIDERS[provider]
+  if (!userId || !spec || !slotId || slotId === 'default') return {}
+  return { [spec.env]: slotDir(userId, provider, slotId) }
 }
 
 // Env overlay for the active slots. Spread AFTER the identity env so a

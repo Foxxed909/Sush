@@ -5,7 +5,7 @@ const LETTERS = ['S', 'U', 'S', 'H']
 const TIPS = [
   'Ctrl+R to search command history',
   'Ctrl+K to summon Seducia',
-  'Ctrl+Shift+H for split pane',
+  'Ctrl+Shift+G toggles grid layout',
   'Ctrl+P opens the command palette',
   'F2 to rename the active session',
   'Ctrl+Tab cycles sessions (MRU)',
@@ -88,7 +88,7 @@ export default function SplashScreen({ accent = '#ff6b9d', onDone }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#364048', fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
           <span>{version}</span>
           <span style={{ color: '#222a32' }}>·</span>
-          <span>Lumen</span>
+          <span>Pulse</span>
         </div>
         <div style={{ color: '#2a3540', fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tip}</div>
         {/* Indeterminate hairline — the splash reads as loading, not frozen */}

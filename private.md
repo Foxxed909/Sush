@@ -14,6 +14,64 @@ Architecture decisions, gotchas, and known issues. Not for public consumption.
   active session, layout persistence (localStorage), keyboard shortcuts, and all
   modal state. `useTerminal.js` wraps xterm; `components/` are the UI.
 
+## 4.5.0 — "Pulse" implementation notes
+
+### Per-CLI limit policy (moved off global settings)
+- The Never/Ask/Auto policy used to be one renderer setting (`settings.cliLimitPolicy`),
+  read in `ai.js getStreamer` and sent on every `seduciaCli` call. It now lives
+  per-provider in `accounts.json` (`accounts.js`: `limitPolicy` on each provider
+  state, `getLimitPolicy`/`setLimitPolicy`, surfaced in `listAccounts`).
+- The renderer no longer sends `limitPolicy` for the main Seducia stream — the
+  `sush:seducia-cli` handler resolves it per engine via `getLimitPolicy(user.id, id)`.
+  Helpers (`cliComplete`) still pass an explicit `'never'`, which the handler
+  honors as an override (the whitelist check wins before falling back to stored).
+- Migration: existing global `cliLimitPolicy` is simply ignored; per-CLI default
+  is `'ask'` (same as the old default). A user who set global Auto/Never must
+  re-set it per CLI. Acceptable, called out to the user.
+- UI: the segmented control now renders inside each provider group in
+  `AccountsSection`, only when `slots.length >= 2` (it's a no-op with one login).
+
+### Per-account usage (on-demand, never auto-polled)
+- `claude /usage` is an interactive REPL command — not scrapeable headlessly
+  without driving a pty. Instead `claudePanel.probeClaudeUsage(envOverlay)` runs
+  the same one-tiny-prompt stream-json trick as `checkClaudeLimits` but with a
+  slot-specific env overlay, and reads the `rate_limit_event`. It does NOT touch
+  the shared `lastLimits` (so probing account B can't clobber the panel's view of A).
+- `parseUsageInfo` reads status + reset window (always present) and *opportunistically*
+  picks up utilization-percentage fields under several candidate names
+  (`sessionUtilization`/`usagePercent`/`fiveHourUtilization`, etc.). If the event
+  doesn't carry percentages, `sessionPct`/`weekPct` are null and the UI shows
+  status + reset instead of bars. **Open question:** confirm the real field name
+  (if any) from a live run — the bars only light up when one matches.
+- `accounts.slotEnv(userId, provider, slotId)` returns the env overlay for a
+  SPECIFIC slot (vs `accountSlotEnv` = active slot). `ipc.readAccountUsage`
+  layers it on `activeUserEnv()`; result cached on the slot via `setAccountUsage`
+  ({...usage, at}). Claude only — codex/gemini have no cheap equivalent.
+- Refresh is a per-row button in `AccountsSection` (`accountsUsageRead`), with
+  per-slot busy state. Never on a timer (one real CLI spawn per click; weak CPU).
+
+### Cloud TTS (`src/main/tts.js`)
+- The user's own OpenAI/ElevenLabs key lives in `userData/sush-tts.json`,
+  encrypted with `safeStorage` when available, plaintext fallback otherwise (it's
+  the user's own key, not an identity credential — flagged `safeStorage:false` to
+  the UI). The key is read + used ONLY in main; `getTtsConfigPublic()` returns
+  `hasKey` (never the key). HTTP is `fetch` from main (Electron 31 global fetch).
+- `voice.js` `render()` tries `ttsSynthesize` first and plays the returned base64
+  audio via an `<audio>` Blob URL; on `{fallback:true}` or any failure it falls
+  back to `speakWebSpeech`. `stopSpeaking`/`destroy` also pause the audio element.
+  No `ttsEngine` flag in the renderer — main is the single source of truth, so a
+  system-voice user just gets `{fallback:true}` and the web-speech path.
+- Settings → Voice is now `VoiceSection`: engine segmented control, key field
+  (save/clear), provider voice/model, and a Test button.
+
+### Settings redesign
+- `SETTINGS_NAV` gained `group` + `keywords`; nav is grouped (Account /
+  Intelligence / Experience / System), has a search box (filters nav + hides
+  non-matching `[data-settings-sec]` nodes via a DOM effect), and a scroll-spy
+  `IntersectionObserver` drives the active highlight. `Section` now renders its
+  icon (looked up from `SETTINGS_NAV` by `sec`, so no call-site changes) and uses
+  the friendly `label` for the heading.
+
 ## 4.2.0 — "Macy" implementation notes
 
 ### Theme reduction

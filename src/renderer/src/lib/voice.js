@@ -24,6 +24,7 @@ export class VoiceEngine {
     this.rec = null
     this.speaking = false
     this.lastSpoken = ''
+    this.audio = null // current cloud-TTS <audio> element, if any
   }
 
   configure(cfg) { this.cfg = { ...this.cfg, ...cfg } }
@@ -113,7 +114,7 @@ export class VoiceEngine {
     this.setState('idle')
   }
 
-  // ---- TTS (system voice) -------------------------------------------------
+  // ---- TTS (cloud voice with system fallback) -----------------------------
   speak(text) {
     const clean = String(text || '').replace(/ACTION:[^\n]*/g, '').replace(/[*_`#>]/g, '').trim()
     if (!clean) return
@@ -121,7 +122,42 @@ export class VoiceEngine {
     this.lastSpoken = clean
     this.speaking = true
     this.setState('speaking')
-    this.speakWebSpeech(clean)
+    this.render(clean)
+  }
+
+  // Prefer cloud TTS — main holds the key + provider and returns audio bytes.
+  // Fall back to the system voice on any miss (provider 'system', no key, or a
+  // failed request) so Seducia is never silenced by a TTS hiccup.
+  async render(text) {
+    let used = false
+    try {
+      const r = await window.sush?.ttsSynthesize?.({ text, rate: this.cfg.rate })
+      if (!this.speaking) return // barged-in / stopped while the request was in flight
+      if (r?.ok && r.audio) { this.playAudio(r.audio, r.mime); used = true }
+      else if (r?.error && !r.fallback) this.on.onError?.(r.error)
+    } catch {}
+    if (!used && this.speaking) this.speakWebSpeech(text)
+  }
+
+  playAudio(base64, mime) {
+    try {
+      this.stopAudio()
+      const bin = atob(base64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'audio/mpeg' }))
+      const a = new Audio(url)
+      this.audio = a
+      a.volume = this.cfg.volume ?? 1.0
+      const end = () => { URL.revokeObjectURL(url); if (this.audio === a) this.audio = null; this.onSpeakEnd() }
+      a.onended = end
+      a.onerror = end
+      a.play().catch(end)
+    } catch { this.onSpeakEnd() }
+  }
+
+  stopAudio() {
+    if (this.audio) { try { this.audio.pause() } catch {} this.audio = null }
   }
 
   speakWebSpeech(text) {
@@ -147,6 +183,7 @@ export class VoiceEngine {
 
   stopSpeaking() {
     this.speaking = false
+    this.stopAudio()
     try { window.speechSynthesis?.cancel() } catch {}
   }
 

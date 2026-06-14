@@ -6,6 +6,43 @@ built-in command layer.
 
 ---
 
+## 4.5.0 — "Pulse"
+
+Account health you can see, a real voice for Seducia, and a Settings page that
+no longer feels like a generic prefs pane.
+
+### Added — Per-account health
+- **Usage bars per Claude account.** Each account row has a refresh button that
+  reads that login's live limit snapshot — session/week bars when the data
+  carries them, otherwise the status and reset window. On-demand only (one tiny
+  probe per click), so it never hammers a weak CPU. The "limit hit Xh ago" badge
+  now rides alongside it on every CLI.
+
+### Added — A voice that isn't robotic
+- **Cloud TTS for Seducia.** Pick OpenAI or ElevenLabs in Settings → Voice,
+  paste your own API key, and Seducia speaks in a real neural voice instead of
+  the Windows SAPI default. The key lives in the main process (encrypted with the
+  OS keychain when available) and never crosses into the renderer. A **Test
+  voice** button plays a sample, and anything that fails falls back to the system
+  voice so she's never silenced.
+
+### Changed — Per-CLI limit policy
+- **"When this CLI hits its limit" moved onto each CLI.** It used to be one global
+  Never/Ask/Auto toggle; now it lives with each provider's accounts (and only
+  shows once you have a second login to switch to), so you can auto-hop on Claude
+  while leaving Codex alone. Stored with the account data, read by the limit
+  cascade directly.
+- **Removed the standalone "Claude limit" card.** The per-account health view
+  replaces it.
+
+### Changed — Settings redesign
+- **Searchable, grouped navigation.** A search box filters settings by name or
+  keyword (and hides non-matching sections), the nav is grouped into Account /
+  Intelligence / Experience / System, and the highlight now follows you as you
+  scroll. Section headers carry their icon for a more deliberate look.
+
+---
+
 ## 4.4.0 — "Lumen"
 
 A cleanup-and-polish release: dead weight removed, the lock screen rebuilt, and

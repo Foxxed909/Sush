@@ -13,9 +13,17 @@ function Label({ children }) {
 }
 
 function Section({ title, accent, children }) {
+  const nav = SETTINGS_NAV.find(n => n.sec === title)
   return (
-    <div data-settings-sec={title} style={{ marginBottom: 28, scrollMarginTop: 12 }}>
-      <div style={{ color: accent, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, paddingBottom: 7, borderBottom: `1px solid ${rgba(accent, 0.18)}` }}>{title}</div>
+    <div data-settings-sec={title} style={{ marginBottom: 30, scrollMarginTop: 12 }}>
+      <div className="flex items-center" style={{ gap: 10, marginBottom: 15, paddingBottom: 9, borderBottom: `1px solid ${rgba(accent, 0.16)}` }}>
+        {nav?.icon && (
+          <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: 7, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.22)}`, color: accent, flexShrink: 0 }}>
+            <Icon name={nav.icon} size={13} strokeWidth={2} />
+          </span>
+        )}
+        <span style={{ color: '#e9eef2', fontSize: 13.5, fontWeight: 800, letterSpacing: 0.2 }}>{nav?.label || title}</span>
+      </div>
       {children}
     </div>
   )
@@ -24,17 +32,18 @@ function Section({ title, accent, children }) {
 // Nav entries -> the Section titles they scroll to. Adding a settings page =
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
-  { label: 'Accounts', sec: 'Accounts', icon: 'users' },
-  { label: 'Usage', sec: 'Usage', icon: 'activity' },
-  { label: 'Agents', sec: 'Agents', icon: 'rocket' },
-  { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles' },
-  { label: 'Voice', sec: 'Voice', icon: 'mic' },
-  { label: 'Terminal', sec: 'Terminal', icon: 'terminal' },
-  { label: 'Appearance', sec: 'Appearance', icon: 'palette' },
-  { label: 'Theme', sec: 'Theme', icon: 'layout' },
-  { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText' },
-  { label: 'Window', sec: 'Window', icon: 'layers' }
+  { label: 'Accounts', sec: 'Accounts', icon: 'users', group: 'Account', keywords: 'login limit switch claude codex slot' },
+  { label: 'Usage', sec: 'Usage', icon: 'activity', group: 'Account', keywords: 'limit quota tokens cost' },
+  { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles', group: 'Intelligence', keywords: 'engine orchestrator cli' },
+  { label: 'Agents', sec: 'Agents', icon: 'rocket', group: 'Intelligence', keywords: 'custom cli tools' },
+  { label: 'Voice', sec: 'Voice', icon: 'mic', group: 'Intelligence', keywords: 'tts speech openai elevenlabs sound' },
+  { label: 'Terminal', sec: 'Terminal', icon: 'terminal', group: 'Experience', keywords: 'font shell scrollback' },
+  { label: 'Appearance', sec: 'Appearance', icon: 'palette', group: 'Experience', keywords: 'wallpaper background opacity' },
+  { label: 'Theme', sec: 'Theme', icon: 'layout', group: 'Experience', keywords: 'color accent glass' },
+  { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText', group: 'System', keywords: 'sushrc config' },
+  { label: 'Window', sec: 'Window', icon: 'layers', group: 'System', keywords: 'notifications startup' }
 ]
+const NAV_GROUPS = ['Account', 'Intelligence', 'Experience', 'System']
 
 function Row({ children }) {
   return <div style={{ marginBottom: 16 }}>{children}</div>
@@ -121,6 +130,47 @@ function WallpaperRow({ accent, settings, set }) {
   )
 }
 
+// A thin usage bar (session / week %). Goes amber past 70%, red past 90% so a
+// near-limit account reads at a glance.
+function MiniBar({ label, pct, accent }) {
+  const p = Math.max(0, Math.min(100, pct ?? 0))
+  const col = p >= 90 ? '#ff7a8a' : p >= 70 ? '#ffb74d' : accent
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 9, fontWeight: 800, color: '#69737d', width: 48, flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
+      <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+        <div style={{ width: `${p}%`, height: '100%', borderRadius: 3, background: col, transition: 'width 0.4s ease' }} />
+      </div>
+      <span style={{ fontSize: 9.5, fontWeight: 800, color: p >= 90 ? '#ff7a8a' : '#aab3bb', width: 30, textAlign: 'right' }}>{p}%</span>
+    </div>
+  )
+}
+
+// Per-account usage readout under a slot row. Shows the session/week bars when
+// the probe returned utilization numbers; otherwise falls back to status + the
+// reset window (still useful, and honest about what we could read).
+function SlotUsage({ usage, accent }) {
+  if (!usage) return null
+  const hasBars = usage.sessionPct != null || usage.weekPct != null
+  const resetTxt = usage.resetsAt ? new Date(usage.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+  return (
+    <div style={{ padding: '1px 13px 9px 24px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {hasBars ? (
+        <>
+          {usage.sessionPct != null && <MiniBar label="Session" pct={usage.sessionPct} accent={accent} />}
+          {usage.weekPct != null && <MiniBar label="Week" pct={usage.weekPct} accent={accent} />}
+        </>
+      ) : (
+        <div style={{ fontSize: 10, color: '#69737d', fontWeight: 700 }}>
+          {usage.status === 'allowed' ? 'Within limits' : `Status: ${(usage.status || 'unknown').replace(/_/g, ' ')}`}
+          {resetTxt ? ` · resets ${resetTxt}` : ''}
+        </div>
+      )}
+      <div style={{ fontSize: 9, color: '#4a545d', fontWeight: 600 }}>updated {ago(usage.at) || 'just now'}</div>
+    </div>
+  )
+}
+
 // The account switcher. One row per signed-in account, per CLI: "Account 1"
 // is the identity's own login, extra accounts get their own isolated config
 // dir. Adding one opens a session running that CLI so its normal browser
@@ -128,26 +178,29 @@ function WallpaperRow({ accent, settings, set }) {
 // it only points the CLI at the right slot. The OAuth plumbing that used to
 // live here (GitHub/Google client status) is an app concern, not a user one,
 // so it no longer has UI.
-function AccountsSection({ accent, settings, set }) {
+function AccountsSection({ accent }) {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [limits, setLimits] = useState(null)
-  const [checking, setChecking] = useState(false)
+  const [usageBusy, setUsageBusy] = useState({})   // `${provider}:${slotId}` -> bool
 
   useEffect(() => {
     window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
-    window.sush.claudeLimitsGet?.().then(r => { if (r?.limits) setLimits(r.limits) }).catch(() => {})
   }, [])
 
-  const checkLimits = async () => {
-    setChecking(true)
+  // On-demand usage read for one Claude account. Spawns a tiny probe under that
+  // slot's login — never auto-polled, so it's safe on a weak CPU.
+  const readUsage = async (provider, slotId) => {
+    const key = `${provider}:${slotId}`
+    setUsageBusy(b => ({ ...b, [key]: true }))
     setErr('')
-    const r = await window.sush.claudeLimitsCheck?.()
-    if (r?.ok && r.limits) setLimits(r.limits)
+    const r = await window.sush.accountsUsageRead?.({ provider, slotId })
+    if (r?.ok) setData(r.providers)
     else if (r?.error) setErr(r.error)
-    setChecking(false)
+    setUsageBusy(b => ({ ...b, [key]: false }))
   }
+
+  const setPolicy = (provider, policy) => call(() => window.sush.accountsSetPolicy({ provider, policy }))
 
   const call = async (fn) => {
     setBusy(true)
@@ -220,60 +273,98 @@ function AccountsSection({ accent, settings, set }) {
             </div>
             {st.slots.map((slot, i) => {
               const on = st.active === slot.id
+              const isEditing = editing && editing.provider === p && editing.slotId === slot.id
+              const uKey = `${p}:${slot.id}`
               return (
-                <div key={slot.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: on ? '#5fd3a8' : 'rgba(255,255,255,0.16)', boxShadow: on ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
-                  {editing && editing.provider === p && editing.slotId === slot.id ? (
-                    <input
-                      autoFocus
-                      value={editing.value}
-                      onChange={e2 => setEditing({ ...editing, value: e2.target.value })}
-                      onBlur={commitRename}
-                      onKeyDown={e2 => { if (e2.key === 'Enter') commitRename(); if (e2.key === 'Escape') setEditing(null) }}
-                      style={{ flex: 1, background: '#0f1318', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 6, color: '#e6ebef', fontSize: 12, fontWeight: 700, padding: '2px 7px', outline: 'none' }}
-                    />
-                  ) : (
-                    <span
-                      title="Double-click to rename"
-                      onDoubleClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
-                      style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? '#e6ebef' : '#8a939c', cursor: 'text' }}
-                    >
-                      {slotName(slot, i)}
-                      {limitAgo(slot) && <span style={{ marginLeft: 8, fontSize: 9.5, fontWeight: 800, color: '#ffb74d' }}>{limitAgo(slot)}</span>}
-                    </span>
-                  )}
-                  {on ? (
-                    <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, color: '#5fd3a8' }}>ACTIVE</span>
-                  ) : (
-                    <button
-                      onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))}
-                      disabled={busy}
-                      style={{ fontSize: 10.5, fontWeight: 800, color: '#aab3bb', background: 'transparent', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
-                    >
-                      Switch
-                    </button>
-                  )}
-                  {!(editing && editing.provider === p && editing.slotId === slot.id) && (
-                    <button
-                      onClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
-                      disabled={busy}
-                      title="Rename this account"
-                      className="flex items-center justify-center"
-                      style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
-                      onMouseEnter={e => { e.currentTarget.style.color = accent }}
-                      onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
-                    >
-                      <Icon name="edit" size={12} strokeWidth={2.2} />
-                    </button>
-                  )}
-                  {slot.id !== 'default' && (
-                    <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>
-                      ×
-                    </button>
-                  )}
+                <div key={slot.id} className="sush-row-hover">
+                  <div className="flex items-center" style={{ gap: 10, padding: '8px 13px' }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: on ? '#5fd3a8' : 'rgba(255,255,255,0.16)', boxShadow: on ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
+                    {isEditing ? (
+                      <input
+                        autoFocus
+                        value={editing.value}
+                        onChange={e2 => setEditing({ ...editing, value: e2.target.value })}
+                        onBlur={commitRename}
+                        onKeyDown={e2 => { if (e2.key === 'Enter') commitRename(); if (e2.key === 'Escape') setEditing(null) }}
+                        style={{ flex: 1, background: '#0f1318', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 6, color: '#e6ebef', fontSize: 12, fontWeight: 700, padding: '2px 7px', outline: 'none' }}
+                      />
+                    ) : (
+                      <span
+                        title="Double-click to rename"
+                        onDoubleClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
+                        style={{ flex: 1, fontSize: 12, fontWeight: 700, color: on ? '#e6ebef' : '#8a939c', cursor: 'text' }}
+                      >
+                        {slotName(slot, i)}
+                        {limitAgo(slot) && <span style={{ marginLeft: 8, fontSize: 9.5, fontWeight: 800, color: '#ffb74d' }}>{limitAgo(slot)}</span>}
+                      </span>
+                    )}
+                    {on ? (
+                      <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, color: '#5fd3a8' }}>ACTIVE</span>
+                    ) : (
+                      <button
+                        onClick={() => call(() => window.sush.accountsSwitch({ provider: p, slotId: slot.id }))}
+                        disabled={busy}
+                        style={{ fontSize: 10.5, fontWeight: 800, color: '#aab3bb', background: 'transparent', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 999, padding: '3px 11px', cursor: 'pointer' }}
+                      >
+                        Switch
+                      </button>
+                    )}
+                    {p === 'claude' && !isEditing && (
+                      <button
+                        onClick={() => readUsage(p, slot.id)}
+                        disabled={usageBusy[uKey]}
+                        title="Refresh usage"
+                        className="flex items-center justify-center"
+                        style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = accent }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+                      >
+                        {usageBusy[uKey] ? <span className="sush-spinner" style={{ width: 11, height: 11 }} /> : <Icon name="refresh" size={12} strokeWidth={2.2} />}
+                      </button>
+                    )}
+                    {!isEditing && (
+                      <button
+                        onClick={() => setEditing({ provider: p, slotId: slot.id, value: slotName(slot, i) })}
+                        disabled={busy}
+                        title="Rename this account"
+                        className="flex items-center justify-center"
+                        style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = accent }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#5a646d' }}
+                      >
+                        <Icon name="edit" size={12} strokeWidth={2.2} />
+                      </button>
+                    )}
+                    {slot.id !== 'default' && (
+                      <button onClick={() => call(() => window.sush.accountsRemove({ provider: p, slotId: slot.id }))} disabled={busy} title="Remove this account" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', padding: '0 2px', fontSize: 13, lineHeight: 1 }}>
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  {p === 'claude' && slot.usage && <SlotUsage usage={slot.usage} accent={accent} />}
                 </div>
               )
             })}
+            {st.slots.length >= 2 && (
+              <div style={{ padding: '4px 13px 11px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: '#69737d', textTransform: 'uppercase', margin: '8px 0 6px' }}>When this CLI hits its limit</div>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  {[['never', 'Never'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
+                    const on2 = (st.limitPolicy || 'ask') === val
+                    return (
+                      <button
+                        key={val}
+                        onClick={() => setPolicy(p, val)}
+                        disabled={busy}
+                        style={{ flex: 1, padding: '6px 0', borderRadius: 'var(--r-sm)', fontSize: 11, fontWeight: 700, cursor: 'pointer', background: on2 ? accent : '#0f1318', color: on2 ? '#0a0a0a' : '#8a939c', border: `1px solid ${on2 ? accent : '#20272e'}` }}
+                      >
+                        {lbl}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )
       })}
@@ -300,55 +391,6 @@ function AccountsSection({ accent, settings, set }) {
         ))}
       </div>
 
-      {/* Claude limit previewer — passive capture from panel runs + an active probe */}
-      <div className="flex items-center" style={{ gap: 10, marginBottom: 12, padding: '9px 13px', borderRadius: 'var(--r-lg)', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
-        <Icon name="activity" size={13} color={limits?.status === 'allowed' ? '#5fd3a8' : limits ? '#ffb74d' : '#5a646d'} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 800, color: '#c6cdd4' }}>
-            {!limits
-              ? 'Claude limit: unknown'
-              : limits.status === 'allowed'
-                ? 'Claude limit: OK'
-                : `Claude limit: ${limits.status}`}
-          </div>
-          <div style={{ fontSize: 10.5, color: '#69737d', marginTop: 1 }}>
-            {limits?.resetsAt
-              ? `${limits.rateLimitType ? limits.rateLimitType.replace(/_/g, ' ') + ' window - ' : ''}resets ${new Date(limits.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-              : 'Use the Claude panel once, or check now.'}
-          </div>
-        </div>
-        <button
-          onClick={checkLimits}
-          disabled={checking}
-          className="flex items-center"
-          style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '3px 11px', cursor: 'pointer', opacity: checking ? 0.6 : 1 }}
-        >
-          {checking && <span className="sush-spinner" style={{ width: 10, height: 10 }} />}
-          {checking ? 'Checking…' : 'Check now'}
-        </button>
-      </div>
-
-      <Row>
-        <Label>When an account hits its limit</Label>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {[['never', 'Never switch'], ['ask', 'Ask me'], ['auto', 'Auto switch']].map(([val, lbl]) => {
-            const current = settings.cliLimitPolicy || 'ask'
-            const on = current === val
-            return (
-              <button
-                key={val}
-                onClick={() => set('cliLimitPolicy', val)}
-                style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
-              >
-                {lbl}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-          With a second account added: keep failing, tell you a switch is available, or hop accounts and retry automatically.
-        </div>
-      </Row>
       {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 4 }}>{err}</div>}
     </Section>
   )
@@ -564,6 +606,220 @@ function AgentsSection({ accent }) {
   )
 }
 
+// Play a base64 audio clip once (used by the Voice "Test" button).
+function playB64(base64, mime) {
+  try {
+    const bin = atob(base64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'audio/mpeg' }))
+    const a = new Audio(url)
+    a.onended = () => URL.revokeObjectURL(url)
+    a.play().catch(() => URL.revokeObjectURL(url))
+  } catch {}
+}
+
+const TTS_ENGINES = [['system', 'System'], ['openai', 'OpenAI'], ['elevenlabs', 'ElevenLabs']]
+const OPENAI_VOICES = ['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']
+
+// Voice settings: the system (Web Speech) voice OR a cloud neural voice driven
+// by the user's own OpenAI/ElevenLabs key. The key is held in main and never
+// round-trips here — this panel only sends it once on save and shows whether
+// one is set. "Test" plays a sample through whichever engine is selected.
+function VoiceSection({ accent, settings, set, voices }) {
+  const [tts, setTts] = useState(null)      // public cloud config from main
+  const [keyInput, setKeyInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    window.sush?.ttsConfigGet?.().then(c => { if (c) setTts(c) }).catch(() => {})
+  }, [])
+
+  const provider = tts?.provider || 'system'
+  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
+
+  const saveCfg = async (patch) => {
+    setBusy(true); setErr('')
+    const r = await window.sush?.ttsConfigSet?.(patch)
+    if (r?.ok) setTts(r)
+    else if (r?.error) setErr(r.error)
+    setBusy(false)
+    return r
+  }
+
+  const saveKey = async () => {
+    if (!keyInput.trim()) return
+    const r = await saveCfg({ apiKey: keyInput.trim() })
+    if (r?.ok) setKeyInput('')
+  }
+
+  const testVoice = async () => {
+    setTesting(true); setErr('')
+    const sample = "Hey, I'm Seducia — this is how I sound now."
+    try {
+      if (provider !== 'system') {
+        const r = await window.sush?.ttsSynthesize?.({ text: sample, rate: settings.ttsRate })
+        if (r?.ok && r.audio) { playB64(r.audio, r.mime); setTesting(false); return }
+        if (r?.error) setErr(r.error)
+      }
+      const u = new SpeechSynthesisUtterance(sample)
+      u.rate = settings.ttsRate ?? 1.1
+      if (settings.ttsVoice) { const v = window.speechSynthesis.getVoices().find(v => v.voiceURI === settings.ttsVoice); if (v) u.voice = v }
+      u.onend = () => setTesting(false)
+      u.onerror = () => setTesting(false)
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(u)
+    } catch { setTesting(false) }
+  }
+
+  const isCloud = provider === 'openai' || provider === 'elevenlabs'
+  const voiceHint = tts?.defaults?.[provider]?.voice
+  const modelHint = tts?.defaults?.[provider]?.model
+
+  return (
+    <Section title="Voice" accent={accent}>
+      <Row>
+        <Label>Text-to-speech (Seducia speaks back)</Label>
+        <button
+          onClick={() => set('ttsEnabled', !settings.ttsEnabled)}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+        >
+          <Icon name="volume2" size={14} strokeWidth={2} />
+          {settings.ttsEnabled ? 'TTS enabled' : 'TTS disabled'}
+        </button>
+        <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+          Off by default — Seducia replies in text either way.
+        </div>
+      </Row>
+
+      {settings.ttsEnabled && (
+        <>
+          <Row>
+            <Label>Voice engine</Label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {TTS_ENGINES.map(([val, lbl]) => {
+                const on = provider === val
+                return (
+                  <button
+                    key={val}
+                    onClick={() => saveCfg({ provider: val })}
+                    disabled={busy}
+                    style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                  >
+                    {lbl}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+              {provider === 'system'
+                ? 'Your built-in OS voices (robotic, but free and offline).'
+                : 'A real neural voice via your own API key — the key stays on this machine and never leaves the main process.'}
+            </div>
+          </Row>
+
+          <Row>
+            <Label>Speech rate</Label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {TTS_RATES.map(r => (
+                <button key={r} onClick={() => set('ttsRate', r)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: (settings.ttsRate ?? 1.1) === r ? accent : '#0f1318', color: (settings.ttsRate ?? 1.1) === r ? '#0a0a0a' : '#8a939c', border: `1px solid ${(settings.ttsRate ?? 1.1) === r ? accent : '#20272e'}` }}>
+                  {r}×
+                </button>
+              ))}
+            </div>
+          </Row>
+
+          {provider === 'system' && voices.length > 0 && (
+            <Row>
+              <Label>System voice</Label>
+              <select value={settings.ttsVoice ?? ''} onChange={e => set('ttsVoice', e.target.value)} style={inputStyle}>
+                <option value="">System default</option>
+                {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
+              </select>
+            </Row>
+          )}
+
+          {isCloud && (
+            <>
+              <Row>
+                <Label>{provider === 'openai' ? 'OpenAI API key' : 'ElevenLabs API key'}</Label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    type="password"
+                    value={keyInput}
+                    onChange={e => setKeyInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveKey() }}
+                    placeholder={tts?.hasKey ? '•••••••••• (saved — paste to replace)' : (provider === 'openai' ? 'sk-...' : 'paste your key')}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button onClick={saveKey} disabled={busy || !keyInput.trim()} style={{ fontSize: 11.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 8, padding: '0 14px', cursor: keyInput.trim() ? 'pointer' : 'default', opacity: keyInput.trim() ? 1 : 0.5 }}>Save</button>
+                  {tts?.hasKey && (
+                    <button onClick={() => saveCfg({ apiKey: '' })} disabled={busy} title="Forget key" style={{ fontSize: 11.5, fontWeight: 700, color: '#7a838b', background: 'transparent', border: '1px solid #20272e', borderRadius: 8, padding: '0 12px', cursor: 'pointer' }}>Clear</button>
+                  )}
+                </div>
+                {tts && !tts.safeStorage && (
+                  <div style={{ fontSize: 10, color: '#ffb74d', marginTop: 5, lineHeight: 1.5 }}>
+                    Your OS keychain isn’t available, so the key is stored unencrypted on this machine.
+                  </div>
+                )}
+                <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
+                  {provider === 'openai'
+                    ? 'Get a key at platform.openai.com. Billed per character to your OpenAI account.'
+                    : 'Get a key at elevenlabs.io. Billed per character to your ElevenLabs account.'}
+                </div>
+              </Row>
+
+              <Row>
+                <Label>Voice</Label>
+                {provider === 'openai' ? (
+                  <select value={tts?.voice || ''} onChange={e => saveCfg({ voice: e.target.value })} style={inputStyle}>
+                    <option value="">{`Default (${voiceHint || 'alloy'})`}</option>
+                    {OPENAI_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    value={tts?.voice || ''}
+                    onChange={e => setTts({ ...tts, voice: e.target.value })}
+                    onBlur={e => saveCfg({ voice: e.target.value })}
+                    placeholder={`Voice ID (default: Rachel ${voiceHint || ''})`}
+                    style={inputStyle}
+                  />
+                )}
+              </Row>
+
+              <Row>
+                <Label>Model (optional)</Label>
+                <input
+                  value={tts?.model || ''}
+                  onChange={e => setTts({ ...tts, model: e.target.value })}
+                  onBlur={e => saveCfg({ model: e.target.value })}
+                  placeholder={`Default: ${modelHint || ''}`}
+                  style={inputStyle}
+                />
+              </Row>
+            </>
+          )}
+
+          <Row>
+            <button
+              onClick={testVoice}
+              disabled={testing}
+              className="flex items-center justify-center"
+              style={{ gap: 8, width: '100%', padding: '8px 12px', borderRadius: 8, background: '#0f1318', border: `1px solid ${rgba(accent, 0.3)}`, color: '#d4dbe1', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+            >
+              {testing ? <span className="sush-spinner" style={{ width: 12, height: 12 }} /> : <Icon name="volume2" size={14} color={accent} strokeWidth={2} />}
+              {testing ? 'Speaking…' : 'Test voice'}
+            </button>
+            {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 6 }}>{err}</div>}
+          </Row>
+        </>
+      )}
+    </Section>
+  )
+}
+
 export default function Settings({ settings, onChange, onClose, accent, onEditSushrc }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const [voices, setVoices] = useState([])
@@ -576,19 +832,53 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
   }, [])
 
   // Standalone settings page: left nav scrolls the content pane to the
-  // matching section.
+  // matching section, and the nav highlight tracks the section you scroll past.
   const bodyRef = useRef(null)
   const [activeSec, setActiveSec] = useState(SETTINGS_NAV[0].sec)
+  const [query, setQuery] = useState('')
   const goTo = (sec) => {
     setActiveSec(sec)
     bodyRef.current?.querySelector(`[data-settings-sec="${sec}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  // Scroll-spy: highlight whichever section is nearest the top of the pane.
+  useEffect(() => {
+    const root = bodyRef.current
+    if (!root || typeof IntersectionObserver === 'undefined') return
+    const secs = Array.from(root.querySelectorAll('[data-settings-sec]'))
+    const io = new IntersectionObserver(
+      (entries) => {
+        const top = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+        if (top) setActiveSec(top.target.getAttribute('data-settings-sec'))
+      },
+      { root, rootMargin: '0px 0px -70% 0px', threshold: 0 }
+    )
+    secs.forEach(s => io.observe(s))
+    return () => io.disconnect()
+  }, [])
+
+  // Filter the nav (and content) by the search box — matches label or keywords.
+  const q = query.trim().toLowerCase()
+  const navMatch = (item) => !q || item.label.toLowerCase().includes(q) || (item.keywords || '').includes(q)
+  const visibleSecs = SETTINGS_NAV.filter(navMatch)
+  const visibleSet = new Set(visibleSecs.map(i => i.sec))
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // Search hides non-matching sections in the content pane too (toggled on the
+  // DOM nodes so no section component needs to know about the filter).
+  useEffect(() => {
+    const root = bodyRef.current
+    if (!root) return
+    root.querySelectorAll('[data-settings-sec]').forEach(el => {
+      const sec = el.getAttribute('data-settings-sec')
+      el.style.display = (!q || visibleSet.has(sec)) ? '' : 'none'
+    })
+  }, [q])
 
   return (
     <div className="sush-page-in" style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: '#08090c' }}>
@@ -606,22 +896,47 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* Section nav */}
-        <nav style={{ width: 190, flexShrink: 0, borderRight: '1px solid #171c22', padding: '14px 10px', overflowY: 'auto' }} className="sush-scroll">
-          {SETTINGS_NAV.map(item => {
-            const on = activeSec === item.sec
+        {/* Section nav — searchable, grouped, with a scroll-spy highlight */}
+        <nav style={{ width: 204, flexShrink: 0, borderRight: '1px solid #171c22', padding: '13px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }} className="sush-scroll">
+          <div style={{ position: 'relative', marginBottom: 8 }}>
+            <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#5a646d', display: 'flex', pointerEvents: 'none' }}>
+              <Icon name="search" size={13} strokeWidth={2} />
+            </span>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search settings"
+              style={{ width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 9, padding: '7px 9px 7px 28px', fontSize: 12, outline: 'none' }}
+              onFocus={e => { e.target.style.borderColor = rgba(accent, 0.5) }}
+              onBlur={e => { e.target.style.borderColor = '#20272e' }}
+            />
+          </div>
+          {NAV_GROUPS.map(group => {
+            const items = visibleSecs.filter(i => i.group === group)
+            if (!items.length) return null
             return (
-              <button
-                key={item.sec}
-                onClick={() => goTo(item.sec)}
-                className="flex items-center"
-                style={{ gap: 9, width: '100%', padding: '8px 11px', marginBottom: 2, borderRadius: 9, border: 'none', textAlign: 'left', background: on ? rgba(accent, 0.12) : 'transparent', color: on ? accent : '#8a939c', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
-              >
-                <Icon name={item.icon} size={14} strokeWidth={2} color={on ? accent : '#5a646d'} />
-                {item.label}
-              </button>
+              <div key={group} style={{ marginBottom: 4 }}>
+                {!q && <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.9, color: '#4a545d', textTransform: 'uppercase', padding: '6px 11px 4px' }}>{group}</div>}
+                {items.map(item => {
+                  const on = activeSec === item.sec
+                  return (
+                    <button
+                      key={item.sec}
+                      onClick={() => goTo(item.sec)}
+                      className="flex items-center"
+                      style={{ gap: 9, width: '100%', padding: '8px 11px', marginBottom: 1, borderRadius: 9, border: 'none', borderLeft: `2px solid ${on ? accent : 'transparent'}`, textAlign: 'left', background: on ? rgba(accent, 0.12) : 'transparent', color: on ? accent : '#8a939c', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, transition: 'background 0.12s' }}
+                    >
+                      <Icon name={item.icon} size={14} strokeWidth={2} color={on ? accent : '#5a646d'} />
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
             )
           })}
+          {q && !visibleSecs.length && (
+            <div style={{ fontSize: 11, color: '#5a646d', fontWeight: 600, padding: '8px 11px', lineHeight: 1.5 }}>No settings match “{query}”.</div>
+          )}
         </nav>
 
         {/* Content */}
@@ -653,7 +968,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           </Section>
 
           {/* Accounts — the Claude/Codex account switcher */}
-          <AccountsSection accent={accent} settings={settings} set={set} />
+          <AccountsSection accent={accent} />
 
           {/* Usage — live limit/account dashboard across all CLIs */}
           <UsageSection accent={accent} settings={settings} set={set} />
@@ -661,45 +976,8 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {/* Agents — built-ins + the user's custom CLIs */}
           <AgentsSection accent={accent} />
 
-          {/* Voice */}
-          <Section title="Voice" accent={accent}>
-            <Row>
-              <Label>Text-to-speech (Seducia speaks back)</Label>
-              <button
-                onClick={() => set('ttsEnabled', !settings.ttsEnabled)}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ttsEnabled ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${settings.ttsEnabled ? rgba(accent, 0.4) : '#20272e'}`, color: settings.ttsEnabled ? accent : '#76808a', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
-              >
-                <Icon name="volume2" size={14} strokeWidth={2} />
-                {settings.ttsEnabled ? 'TTS enabled' : 'TTS disabled'}
-              </button>
-              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
-                Uses your system voice. Off by default — Seducia replies in text either way.
-              </div>
-            </Row>
-            {settings.ttsEnabled && (
-              <>
-                <Row>
-                  <Label>Speech rate</Label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {TTS_RATES.map(r => (
-                      <button key={r} onClick={() => set('ttsRate', r)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: (settings.ttsRate ?? 1.1) === r ? accent : '#0f1318', color: (settings.ttsRate ?? 1.1) === r ? '#0a0a0a' : '#8a939c', border: `1px solid ${(settings.ttsRate ?? 1.1) === r ? accent : '#20272e'}` }}>
-                        {r}×
-                      </button>
-                    ))}
-                  </div>
-                </Row>
-                {voices.length > 0 && (
-                  <Row>
-                    <Label>System voice</Label>
-                    <select value={settings.ttsVoice ?? ''} onChange={e => set('ttsVoice', e.target.value)} style={{ width: '100%', background: '#0f1318', border: `1px solid #20272e`, color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}>
-                      <option value="">System default</option>
-                      {voices.map(v => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
-                    </select>
-                  </Row>
-                )}
-              </>
-            )}
-          </Section>
+          {/* Voice — system + cloud (OpenAI / ElevenLabs) TTS */}
+          <VoiceSection accent={accent} settings={settings} set={set} voices={voices} />
 
           {/* Terminal */}
           <Section title="Terminal" accent={accent}>

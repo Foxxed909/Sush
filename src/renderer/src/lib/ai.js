@@ -64,7 +64,7 @@ ${sessionSummary}`
 // parseAIResponse extracts (and hides) for the UI chip.
 const CLI_ENGINE_ORDER = ['claude', 'codex', 'gemini']
 
-export async function* streamAgentCli(messages, { tabs, activeCwd, scope, engine = 'auto', limitPolicy = 'ask' }) {
+export async function* streamAgentCli(messages, { tabs, activeCwd, scope, engine = 'auto' }) {
   if (!window.sush?.seduciaCli) throw new Error('CLI bridge unavailable')
   const system = sedusiaSystemPrompt(tabs, activeCwd, scope)
   const convo = messages
@@ -75,7 +75,10 @@ export async function* streamAgentCli(messages, { tabs, activeCwd, scope, engine
   const order = engine === 'auto' ? CLI_ENGINE_ORDER : [engine]
   const failures = []
   for (const id of order) {
-    const res = await window.sush.seduciaCli({ prompt, cwd: activeCwd, engine: id, limitPolicy })
+    // No limitPolicy sent: it's per-CLI now and lives with the account data,
+    // so main resolves it for this engine. Helpers (cliComplete) still pass
+    // 'never' explicitly to opt out of rotation.
+    const res = await window.sush.seduciaCli({ prompt, cwd: activeCwd, engine: id })
     if (res?.ok) {
       yield res.text
       // Surface account rotation so the user knows whose quota answered.
@@ -131,8 +134,9 @@ export function parseAIResponse(full) {
 export function getStreamer(settings = {}) {
   if (typeof window === 'undefined' || !window.sush?.seduciaCli) return null
   const engine = settings.seduciaCliEngine || 'auto'
-  const limitPolicy = settings.cliLimitPolicy || 'ask'
-  return (msgs, ctx) => streamAgentCli(msgs, { ...ctx, engine, limitPolicy })
+  // Limit policy is per-CLI now (stored with the account data); main resolves
+  // it per engine, so it's no longer read from global settings here.
+  return (msgs, ctx) => streamAgentCli(msgs, { ...ctx, engine })
 }
 
 // One-shot text completion via the logged-in CLI, for the small AI helpers

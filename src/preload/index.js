@@ -39,12 +39,18 @@ contextBridge.exposeInMainWorld('sush', {
   accountsSwitch: (payload) => ipcRenderer.invoke('sush:accounts-switch', payload),
   accountsRemove: (payload) => ipcRenderer.invoke('sush:accounts-remove', payload),
   accountsRename: (payload) => ipcRenderer.invoke('sush:accounts-rename', payload),
+  accountsSetPolicy: (payload) => ipcRenderer.invoke('sush:accounts-set-policy', payload),
+  accountsUsageRead: (payload) => ipcRenderer.invoke('sush:accounts-usage-read', payload),
   // Claude Code panel (stream-json driver)
   claudePanelStart: (payload) => ipcRenderer.invoke('sush:claude-panel-start', payload),
   claudePanelStop: (payload) => ipcRenderer.invoke('sush:claude-panel-stop', payload),
   claudeLimitsGet: () => ipcRenderer.invoke('sush:claude-limits-get'),
   claudeLimitsCheck: () => ipcRenderer.invoke('sush:claude-limits-check'),
   usageSnapshot: () => ipcRenderer.invoke('sush:usage-snapshot'),
+  // Cloud TTS (key stays in main)
+  ttsConfigGet: () => ipcRenderer.invoke('sush:tts-config-get'),
+  ttsConfigSet: (payload) => ipcRenderer.invoke('sush:tts-config-set', payload),
+  ttsSynthesize: (payload) => ipcRenderer.invoke('sush:tts-synthesize', payload),
   onClaudePanelEvent: (callback) => {
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on('sush:claude-panel-event', listener)

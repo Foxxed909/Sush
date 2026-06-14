@@ -82,6 +82,67 @@ export function checkClaudeLimits() {
   })
 }
 
+// Map a rate_limit_info blob to the small shape the account UI paints. We rely
+// on status + the reset window (always present), and opportunistically pick up
+// any utilization-percentage fields — the CLI's stream-json shape varies across
+// versions, so we probe the likely names and simply omit a bar when none match.
+function parseUsageInfo(info) {
+  const pct = (v) => (typeof v === 'number' && v >= 0 && v <= 100 ? Math.round(v) : null)
+  return {
+    status: info.status || 'unknown',
+    rateLimitType: info.rateLimitType || '',
+    resetsAt: Number(info.resetsAt) ? Number(info.resetsAt) * 1000 : null,
+    sessionPct: pct(info.sessionUtilization ?? info.usagePercent ?? info.utilization ?? info.fiveHourUtilization),
+    weekPct: pct(info.weeklyUtilization ?? info.weekUtilization ?? info.sevenDayUtilization)
+  }
+}
+
+// Read a fresh rate-limit snapshot for a SPECIFIC account: the env overlay
+// points the CLI at that slot's config dir. Same one-tiny-prompt trick as
+// checkClaudeLimits, but isolated — it never touches the shared lastLimits, so
+// probing account B can't clobber the panel's live view of account A.
+export function probeClaudeUsage(envOverlay = {}) {
+  const bin = resolveExecutable('claude')
+  if (!bin) return Promise.resolve({ ok: false, error: 'The `claude` CLI was not found on your PATH.' })
+  const { file, args } = shimSpawnSpec(bin, ['-p', '--output-format', 'stream-json', '--verbose', '--strict-mcp-config'])
+  return new Promise(resolve => {
+    let buf = ''
+    let settled = false
+    let child
+    const done = (result) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      try { child?.kill() } catch {}
+      resolve(result)
+    }
+    try {
+      child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...envOverlay } })
+    } catch (e) {
+      return resolve({ ok: false, error: e.message })
+    }
+    const timer = setTimeout(() => done({ ok: false, error: 'Timed out reading usage (60s).' }), 60000)
+    child.stdout.on('data', d => {
+      buf += d
+      const lines = buf.split('\n')
+      buf = lines.pop()
+      for (const line of lines) {
+        if (!line.trim()) continue
+        try {
+          const msg = JSON.parse(line)
+          if (msg?.type === 'rate_limit_event' && msg.rate_limit_info) {
+            done({ ok: true, usage: parseUsageInfo(msg.rate_limit_info) })
+            return
+          }
+        } catch {}
+      }
+    })
+    child.on('error', e => done({ ok: false, error: e.message }))
+    child.on('close', () => done({ ok: false, error: 'No usage info in the response (is this account signed in?).' }))
+    try { child.stdin.write('ping'); child.stdin.end() } catch (e) { done({ ok: false, error: e.message }) }
+  })
+}
+
 function emit(panelId, event) {
   send?.({ panelId, ...event })
 }
