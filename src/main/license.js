@@ -12,6 +12,10 @@ import { sign } from './license-secret.mjs'
 // One source of truth for what each tier unlocks. Main reads it directly for
 // the things it owns (account slots, cloud TTS); the renderer mirrors it via
 // `license-get` so the UI gates the same way.
+// `themes` is reserved for a future gate (no base/premium flag on themes yet),
+// so it's intentionally NOT advertised in the Plan table or enforced — all
+// themes are free for now. The four enforced gates are slots/gridCap/
+// customAgents/cloudTts.
 export const TIER_FEATURES = {
   free: { slots: 1, gridCap: 4,  customAgents: false, cloudTts: false, themes: 'base' },
   plus: { slots: 3, gridCap: 9,  customAgents: true,  cloudTts: true,  themes: 'all'  },

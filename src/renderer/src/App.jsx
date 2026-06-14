@@ -29,6 +29,7 @@ import { agentById, MAX_SESSIONS, LOGIN_COMMANDS } from './lib/agents'
 import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
 import { useAgentActivity } from './hooks/useAgentActivity'
+import { useEntitlements } from './hooks/useEntitlements'
 import { STATES } from './lib/agentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { recordCommand } from './lib/commandFrequency'
@@ -234,6 +235,7 @@ export default function App() {
   const [seduciaOpen, setSeduciaOpen] = useState(false)
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
   const [settings, setSettings] = useState(loadSettings)
+  const entitlements = useEntitlements()
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartResult, setSmartResult] = useState(null)
@@ -1516,11 +1518,12 @@ export default function App() {
               // placeholders (the lazy-boot CPU guard extends into the grid).
               (() => {
                 // Grid auto-sizes to the session count: a near-square layout
-                // (2 sessions → 1×2, 3-4 → 2×2, 5-9 → 3×3, 10-16 → 4×4). Capped
-                // at 16 live tiles — the lazy-boot CPU guard, honest about it via
-                // the "showing X of N" note below — so a weak machine isn't asked
-                // to paint 30+ WebGL terminals at once.
-                const GRID_CAP = 16
+                // (2 sessions → 1×2, 3-4 → 2×2, 5-9 → 3×3, 10-16 → 4×4). The live
+                // tile count is capped by the plan tier (Free 4 / Plus 9 / Pro 16)
+                // — also the lazy-boot CPU guard, honest about it via the
+                // "showing X of N" note below — so a weak machine isn't asked to
+                // paint a wall of WebGL terminals at once.
+                const GRID_CAP = entitlements.limit('gridCap') || 4
                 const gridTabs = gridMode ? tabs.slice(0, GRID_CAP) : tabs.filter(tab => bootedIds.has(tab.id))
                 const n = gridTabs.length
                 const cols = gridMode ? Math.max(1, Math.ceil(Math.sqrt(n))) : 1

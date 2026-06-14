@@ -3,6 +3,7 @@ import { themes } from '../themes'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { loadCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../lib/agents'
+import { useEntitlements } from '../hooks/useEntitlements'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
@@ -32,6 +33,7 @@ function Section({ title, accent, children }) {
 // Nav entries -> the Section titles they scroll to. Adding a settings page =
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
+  { label: 'Plan', sec: 'Plan', icon: 'star', group: 'Account', keywords: 'tier unlock code upgrade plus pro free license' },
   { label: 'Accounts', sec: 'Accounts', icon: 'users', group: 'Account', keywords: 'login limit switch claude codex slot' },
   { label: 'Usage', sec: 'Usage', icon: 'activity', group: 'Account', keywords: 'limit quota tokens cost' },
   { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles', group: 'Intelligence', keywords: 'engine orchestrator cli' },
@@ -559,14 +561,127 @@ function UsageSection({ accent, settings, set }) {
 // the old way was hardcoding machine-specific paths into lib/agents.js.
 // Stored per user (localStorage); the launcher, Seducia and the availability
 // probe pick them up through allAgents().
-function AgentsSection({ accent }) {
+const TIER_META = {
+  free: { label: 'Free', color: '#8a939c', blurb: 'The essentials, no code needed.' },
+  plus: { label: 'Plus', color: '#5ab0ff', blurb: 'Multi-account work + cloud voice.' },
+  pro:  { label: 'Pro',  color: '#c08bff', blurb: 'Everything, max grid.' }
+}
+const PLAN_ROWS = [
+  ['Accounts per CLI', t => String(t.slots)],
+  ['Grid sessions',    t => String(t.gridCap)],
+  ['Custom agents',    t => (t.customAgents ? 'yes' : '—')],
+  ['Cloud voices',     t => (t.cloudTts ? 'yes' : '—')]
+]
+const PLAN_ORDER = ['free', 'plus', 'pro']
+
+// Tier / unlock-code panel. No paywall: the user pastes a code I mint offline
+// and it flips the tier. The actual feature gating lives where each feature does
+// (slots in main, grid in App, cloud voice here) — this is just where you see
+// what you've got and redeem a code.
+function PlanSection({ accent, ent }) {
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null) // { ok, text }
+  const tier = ent.tier || 'free'
+  const tiers = ent.tiers && Object.keys(ent.tiers).length ? ent.tiers : null
+  const meta = TIER_META[tier] || TIER_META.free
+
+  const redeem = async () => {
+    const c = code.trim()
+    if (!c || busy) return
+    setBusy(true); setMsg(null)
+    const r = await ent.redeem(c)
+    setBusy(false)
+    if (r?.ok) { setMsg({ ok: true, text: `Unlocked ${TIER_META[r.tier]?.label || r.tier}. Enjoy.` }); setCode('') }
+    else setMsg({ ok: false, text: r?.error || 'Could not redeem that code.' })
+  }
+  const revert = async () => { await ent.clear(); setMsg({ ok: true, text: 'Reverted to Free.' }); setCode('') }
+
+  const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '8px 11px', fontSize: 12.5, outline: 'none', letterSpacing: 0.5, fontFamily: 'var(--font-mono, monospace)' }
+
+  return (
+    <Section title="Plan" accent={accent}>
+      {/* Current tier */}
+      <div className="flex items-center" style={{ gap: 12, padding: '13px 15px', borderRadius: 'var(--r-lg)', border: `1px solid ${rgba(meta.color, 0.35)}`, background: rgba(meta.color, 0.08), marginBottom: 16 }}>
+        <span className="flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: 9, background: rgba(meta.color, 0.16), border: `1px solid ${rgba(meta.color, 0.4)}`, color: meta.color, flexShrink: 0 }}>
+          <Icon name="star" size={16} strokeWidth={2} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 900, color: '#eef2f5' }}>
+            {meta.label} plan {ent.expiry && <span style={{ color: '#76808a', fontWeight: 700, fontSize: 11 }}>· trial</span>}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a939c', marginTop: 1 }}>{meta.blurb}</div>
+        </div>
+        {tier !== 'free' && (
+          <button onClick={revert} title="Remove code, back to Free" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#8a939c', background: '#11151a', border: '1px solid #20272e', borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
+            Revert to Free
+          </button>
+        )}
+      </div>
+
+      {/* What each tier unlocks */}
+      {tiers && (
+        <div style={{ borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', marginBottom: 16 }}>
+          <div className="flex" style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ flex: '1.4 1 0', padding: '9px 12px', fontSize: 10, fontWeight: 800, color: '#5a646d', textTransform: 'uppercase', letterSpacing: 0.8 }}>Feature</div>
+            {PLAN_ORDER.map(t => (
+              <div key={t} style={{ flex: 1, padding: '9px 8px', textAlign: 'center', fontSize: 11, fontWeight: 900, color: t === tier ? (TIER_META[t]?.color) : '#76808a' }}>
+                {TIER_META[t]?.label}{t === tier ? ' ●' : ''}
+              </div>
+            ))}
+          </div>
+          {PLAN_ROWS.map(([name, fn], i) => (
+            <div key={name} className="flex" style={{ borderBottom: i < PLAN_ROWS.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+              <div style={{ flex: '1.4 1 0', padding: '8px 12px', fontSize: 11.5, color: '#aab3bb' }}>{name}</div>
+              {PLAN_ORDER.map(t => (
+                <div key={t} style={{ flex: 1, padding: '8px', textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: t === tier ? '#e6ebef' : '#76808a' }}>
+                  {tiers[t] ? fn(tiers[t]) : '—'}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Redeem */}
+      <Label>Have an unlock code?</Label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={code}
+          onChange={e => setCode(e.target.value.toUpperCase())}
+          onKeyDown={e => { if (e.key === 'Enter') redeem() }}
+          placeholder="SUSH-PLUS-XXXXXXXX-XXXXXXXXXX"
+          spellCheck={false}
+          style={inputStyle}
+        />
+        <button
+          onClick={redeem}
+          disabled={!code.trim() || busy}
+          style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: code.trim() && !busy ? '#0a0a0a' : '#5a646d', background: code.trim() && !busy ? accent : 'rgba(255,255,255,0.05)', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 999, padding: '0 18px', cursor: code.trim() && !busy ? 'pointer' : 'default' }}
+        >
+          {busy ? '…' : 'Redeem'}
+        </button>
+      </div>
+      {msg && (
+        <div style={{ marginTop: 9, fontSize: 11.5, fontWeight: 700, color: msg.ok ? '#7fd6a0' : '#ff8aa0' }}>{msg.text}</div>
+      )}
+      <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 10, lineHeight: 1.55 }}>
+        No payment, no account — a code just unlocks a tier offline. Don't have one? Ask the dev.
+      </div>
+    </Section>
+  )
+}
+
+function AgentsSection({ accent, ent }) {
   const [custom, setCustom] = useState(() => loadCustomAgents())
   const [form, setForm] = useState({ label: '', command: '', resumeCommand: '' })
   const [err, setErr] = useState('')
 
   const inputStyle = { width: '100%', background: '#0f1318', border: '1px solid #20272e', color: '#e1e6ea', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
+  const locked = !ent.can('customAgents')
 
   const add = () => {
+    if (locked) return
     const r = addCustomAgent(form)
     if (!r.ok) { setErr(r.error); return }
     setErr('')
@@ -591,23 +706,35 @@ function AgentsSection({ accent }) {
           <button onClick={() => { removeCustomAgent(a.id); setCustom(loadCustomAgents()) }} title="Remove agent" style={{ background: 'none', border: 'none', color: '#5a646d', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button>
         </div>
       ))}
-      <div style={{ borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', padding: 12, marginTop: custom.length ? 8 : 0 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <input placeholder="Name (e.g. Aider)" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} style={{ ...inputStyle, flex: '0 0 160px' }} />
-          <input className="sush-mono" placeholder="Command (e.g. aider)" value={form.command} onChange={e => setForm({ ...form, command: e.target.value })} style={inputStyle} />
+      {locked ? (
+        <div className="flex items-center" style={{ gap: 11, borderRadius: 'var(--r-lg)', border: `1px solid ${rgba(accent, 0.25)}`, background: rgba(accent, 0.05), padding: '12px 14px', marginTop: custom.length ? 8 : 0 }}>
+          <span className="flex items-center justify-center" style={{ width: 30, height: 30, borderRadius: 8, background: rgba(accent, 0.12), color: accent, flexShrink: 0 }}>
+            <Icon name="lock" size={14} strokeWidth={2} />
+          </span>
+          <div style={{ fontSize: 11.5, color: '#aab3bb', lineHeight: 1.5 }}>
+            Custom agents are a <strong style={{ color: accent }}>Plus</strong> feature.
+            Redeem a code under <strong style={{ color: accent }}>Plan</strong> to add your own CLIs.
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input className="sush-mono" placeholder="Resume command (optional, e.g. aider --restore)" value={form.resumeCommand} onChange={e => setForm({ ...form, resumeCommand: e.target.value })} style={inputStyle} />
-          <button
-            onClick={add}
-            disabled={!form.label.trim() || !form.command.trim()}
-            style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: form.label.trim() && form.command.trim() ? accent : '#5a646d', background: rgba(accent, form.label.trim() && form.command.trim() ? 0.1 : 0.03), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '6px 14px', cursor: 'pointer' }}
-          >
-            + Add agent
-          </button>
+      ) : (
+        <div style={{ borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', padding: 12, marginTop: custom.length ? 8 : 0 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input placeholder="Name (e.g. Aider)" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} style={{ ...inputStyle, flex: '0 0 160px' }} />
+            <input className="sush-mono" placeholder="Command (e.g. aider)" value={form.command} onChange={e => setForm({ ...form, command: e.target.value })} style={inputStyle} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input className="sush-mono" placeholder="Resume command (optional, e.g. aider --restore)" value={form.resumeCommand} onChange={e => setForm({ ...form, resumeCommand: e.target.value })} style={inputStyle} />
+            <button
+              onClick={add}
+              disabled={!form.label.trim() || !form.command.trim()}
+              style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: form.label.trim() && form.command.trim() ? accent : '#5a646d', background: rgba(accent, form.label.trim() && form.command.trim() ? 0.1 : 0.03), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '6px 14px', cursor: 'pointer' }}
+            >
+              + Add agent
+            </button>
+          </div>
+          {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 8 }}>{err}</div>}
         </div>
-        {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 8 }}>{err}</div>}
-      </div>
+      )}
     </Section>
   )
 }
@@ -632,7 +759,8 @@ const OPENAI_VOICES = ['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova',
 // by the user's own OpenAI/ElevenLabs key. The key is held in main and never
 // round-trips here — this panel only sends it once on save and shows whether
 // one is set. "Test" plays a sample through whichever engine is selected.
-function VoiceSection({ accent, settings, set, voices }) {
+function VoiceSection({ accent, settings, set, voices, ent }) {
+  const cloudLocked = !ent.can('cloudTts')
   const [tts, setTts] = useState(null)      // public cloud config from main
   const [keyInput, setKeyInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -707,18 +835,28 @@ function VoiceSection({ accent, settings, set, voices }) {
             <div style={{ display: 'flex', gap: 6 }}>
               {TTS_ENGINES.map(([val, lbl]) => {
                 const on = provider === val
+                const isCloudOpt = val !== 'system'
+                const optLocked = isCloudOpt && cloudLocked
                 return (
                   <button
                     key={val}
-                    onClick={() => saveCfg({ provider: val })}
-                    disabled={busy}
-                    style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
+                    onClick={() => { if (!optLocked) saveCfg({ provider: val }) }}
+                    disabled={busy || optLocked}
+                    title={optLocked ? 'Cloud voices are a Plus feature — redeem a code under Plan' : ''}
+                    className="flex items-center justify-center"
+                    style={{ gap: 5, flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: optLocked ? 'default' : 'pointer', opacity: optLocked ? 0.6 : 1, background: on ? accent : '#0f1318', color: on ? '#0a0a0a' : '#8a939c', border: `1px solid ${on ? accent : '#20272e'}` }}
                   >
+                    {optLocked && <Icon name="lock" size={11} strokeWidth={2.2} />}
                     {lbl}
                   </button>
                 )
               })}
             </div>
+            {cloudLocked && (
+              <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 6, lineHeight: 1.5 }}>
+                The system voice is free. Cloud neural voices (OpenAI / ElevenLabs) unlock with <strong style={{ color: accent }}>Plus</strong> — see <strong style={{ color: accent }}>Plan</strong>.
+              </div>
+            )}
             <div style={{ fontSize: 10.5, color: '#5a646d', marginTop: 5, lineHeight: 1.5 }}>
               {provider === 'system'
                 ? 'Your built-in OS voices (robotic, but free and offline).'
@@ -828,6 +966,7 @@ function VoiceSection({ accent, settings, set, voices }) {
 
 export default function Settings({ settings, onChange, onClose, accent, onEditSushrc }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
+  const ent = useEntitlements()
   const [voices, setVoices] = useState([])
 
   useEffect(() => {
@@ -973,6 +1112,9 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
             </div>
           </Section>
 
+          {/* Plan — tier + unlock-code redemption */}
+          <PlanSection accent={accent} ent={ent} />
+
           {/* Accounts — the Claude/Codex account switcher */}
           <AccountsSection accent={accent} />
 
@@ -980,10 +1122,10 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           <UsageSection accent={accent} settings={settings} set={set} />
 
           {/* Agents — built-ins + the user's custom CLIs */}
-          <AgentsSection accent={accent} />
+          <AgentsSection accent={accent} ent={ent} />
 
           {/* Voice — system + cloud (OpenAI / ElevenLabs) TTS */}
-          <VoiceSection accent={accent} settings={settings} set={set} voices={voices} />
+          <VoiceSection accent={accent} settings={settings} set={set} voices={voices} ent={ent} />
 
           {/* Terminal */}
           <Section title="Terminal" accent={accent}>
