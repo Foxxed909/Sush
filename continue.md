@@ -1,57 +1,154 @@
-# Sush — Continue (battery-safe handoff)
+# Sush — Continue / Roadmap (battery-safe handoff)
 
-Last worked: 2026-06-14. Battery was **17% and discharging** — working in push-as-I-go
-chunks so nothing's lost. This file is the resume point if the PC died mid-task.
+Last worked 2026-06-14, battery 12%→6% window, no grid power (Nigeria). Working
+cloud-side brainstorm only: NO builds, NO spawns — designs poured here, pushed at
+intervals. Code execution happens next session (cloud or when charged).
 
-## The 7 asks (this session)
-
-1. **Codex usage** — make the per-account usage refresh work for Codex, not just Claude.
-   - FINDING: Codex CLI has **no usage/rate-limit command** (`codex --help` → no `usage`/`status`;
-     only `doctor` = auth/runtime health). Claude works only because `claude -p --output-format
-     stream-json` emits a `rate_limit_event`. Codex emits nothing comparable.
-   - PLAN: make Codex's refresh run a cheap `codex doctor`-style health probe and show
-     "signed in · healthy" / "not authenticated" instead of fake bars. `probeCodexHealth` in
-     main, wired through `readAccountUsage` (currently Claude-only at ipc.js).
-2. **Power-saver / optimize toggle** — user-toggleable mode to cut CPU/GPU/RAM/battery.
-   - Build on existing `settings.lite` (`sush-lite` class kills glass blur + some animations).
-   - Add a stronger `settings.powerSaver` → `sush-saver` class that kills ALL `infinite`
-     ambient animations (index.css has ~15: orb pulse, breathe, ring, pulse-dot, lock-drift,
-     shimmer, progress-slide, blink, sleep-breathe). Lengthen/disable non-essential polling
-     (usePolling already pauses on blur). Consider slowing useAgentActivity TICK_MS (700ms)
-     and the Settings/usage polls. Settings → Appearance toggle.
-3. **FIFX** — find+fix bugs + add 10 features. (Not started — biggest, do last.)
-4. **Tier/plan gating with unlock codes (NO paywall)** — features gated to tiers; a special
-   code I generate unlocks each tier.
-   - DESIGN (proposed): tiers Free / Plus / Pro. Offline-verifiable codes: `SUSH-<TIER>-<RANDOM>-<CHECK>`
-     where CHECK = short HMAC of (tier+random) using a secret baked into main. Main verifies +
-     stores the unlocked tier in userData. Renderer gates features via a `useEntitlements` hook.
-     Code generator: a tools/ script (node) that mints valid codes. Pick the gated features
-     (e.g. grid layout cap, custom agents, cloud TTS, multi-account slots beyond 1, themes).
-5. **Open-ended** — "what we were trying to do but didn't achieve." Candidate: the per-account
-   usage bars never confirmed to show real % (Claude probe may not carry utilization). Also the
-   CPU/battery weight (covered by #2).
-6. **Self-conscious resource checks** — check battery/CPU periodically; if PC is dying, finish
-   the current sub-task, update THIS file, push to main. (Check cmd: PowerShell
-   `(Get-CimInstance Win32_Battery).EstimatedChargeRemaining`.)
-7. **Push to main** (no branch, no merge — commit straight to main).
+## Battery protocol (standing)
+- Every local tool call (build/spawn/file I/O) drains the user's battery; token
+  thinking does not (runs in cloud). Prefer thinking + one file write + one push.
+- Check `(Get-CimInstance Win32_Battery).EstimatedChargeRemaining` sparingly.
+- At ~6%: stop, ensure this file + git are current, push, end.
+- Push straight to **main** (no branch, no merge) — user's explicit standing rule.
 
 ## Status
-- [x] 1 Codex usage — refresh now shows Codex sign-in health (auth.json check, no spawn);
-      honest "Codex doesn't report usage" note. Claude bars unchanged.
-- [x] 2 Power-saver toggle — Settings → Appearance. `sush-saver` class (implies lite),
-      kills ambient infinite animations + glows/shadows, slows agent-activity tick to 2.2s.
-- [ ] 3 FIFX
-- [ ] 4 Tier/unlock-code system
-- [ ] 5 Open-ended
-- (6 ongoing; 7 after each chunk)
+- [x] 1 Codex usage — refresh shows Codex sign-in health (auth.json, no spawn). Pushed `001ee48`.
+- [x] 2 Power-saver toggle — Settings → Appearance (`settings.powerSaver` → `sush-saver`). Pushed `001ee48`.
+- [ ] 3 FIFX — see §3 (bug checklist + 10 features).
+- [ ] 4 Tier/unlock-code system — see §4 (full design, ready to build).
+- [ ] 5 Open-ended — see §5.
+- [ ] 2b Deeper optimization levers — see §2b.
 
-### Pushed chunks
-- (pending) chunk 1: codex health + power-saver.
+---
 
-## Key files
-- Usage probe: `src/main/claudePanel.js` (probeClaudeUsage), `src/main/ipc.js` (readAccountUsage),
-  `src/main/accounts.js` (slotEnv, setAccountUsage), `src/renderer/.../Settings.jsx` (SlotUsage/MiniBar).
-- Animations: `src/renderer/src/index.css` (search `infinite`). Lite mode: `sush-lite` class,
-  applied in `App.jsx:1427`, toggled in Settings → Appearance.
-- Polling: `src/renderer/src/hooks/usePolling.js`, `useAgentActivity.js` (TICK_MS).
-- Build: `npm run build` (clean = exit 0). On main, remote Foxxed909/Sush.
+## §4 — Tier gating + unlock codes (NO paywall)  ← biggest, build first next session
+
+### Concept
+Offline-verifiable unlock codes. No server, no payment. I mint a code; user pastes
+it; the app unlocks that tier. Gating is *gentle* (locked features show an "Unlock
+with Plus/Pro" hint), not DRM. **Honest limitation:** offline verification means the
+signing secret ships inside the app, so a determined user could extract it and mint
+codes. That's acceptable for "gating, not paywall" — state it in code comments.
+
+### Tiers (functional names; branded names optional: Spark / Flow / Swarm)
+| Tier | Account slots/CLI | Grid cap | Custom agents | Cloud TTS | Themes |
+|------|------|------|------|------|------|
+| Free | 1    | 4    | no   | no   | base 2 |
+| Plus | 3    | 9    | yes  | yes  | all |
+| Pro  | 6    | 16   | yes  | yes  | all + future Pro-only |
+
+Feature→minTier map lives in ONE place (`src/main/license.js` `TIER_FEATURES`), mirrored
+to the renderer via `license-get` so gating is consistent.
+
+### Code format
+`SUSH-<TIER>-<NONCE>-<SIG>`
+- TIER: `PLUS` | `PRO` (Free needs no code).
+- NONCE: 8 chars base32 (random) — makes each printed code unique/shareable.
+- SIG: first 10 chars (base32, uppercased) of HMAC-SHA256(SECRET, `${TIER}:${NONCE}`).
+- Optional expiry variant: `SUSH-<TIER>-<YYYYMMDD>-<NONCE>-<SIG>` where SIG signs
+  `${TIER}:${YYYYMMDD}:${NONCE}`; main rejects if past date. Use for trials.
+
+### New files
+- `src/main/license.js`:
+  - `const SECRET = '...'` (random 32+ bytes baked in; comment: client-side, extractable).
+  - `TIER_FEATURES = { free:{slots:1,gridCap:4,customAgents:false,cloudTts:false,themes:'base'}, plus:{...}, pro:{...} }`
+  - `getLicense()` → reads `userData/sush-license.json` `{tier, code, redeemedAt}`, default `{tier:'free'}`.
+  - `verifyCode(code)` → parse, recompute HMAC, check (+expiry); returns `{ok, tier}` or `{ok:false,error}`.
+  - `redeemCode(code)` → verify, persist tier, return `{ok, tier, features}`.
+  - `tierOf()` / `featuresOf(tier)` / `can(feature)` helpers.
+  - `clearLicense()` (revert to free, for testing).
+- `tools/mint-code.mjs`:
+  - `node tools/mint-code.mjs pro [count] [--expires YYYY-MM-DD]` → prints valid code(s).
+  - Imports SECRET (duplicate the constant here, or read from a shared `src/main/license-secret.js`
+    that BOTH import — keep the secret in one module so they never drift).
+- `src/renderer/src/hooks/useEntitlements.js`:
+  - Loads `window.sush.licenseGet()` on mount + on a `sush:license-changed` event.
+  - Returns `{ tier, features, can(name), limit(name) }`.
+
+### IPC + preload
+- `sush:license-get` → `{tier, features}`; `sush:license-redeem` `{code}` → `{ok, tier, features, error}`;
+  `sush:license-clear` (dev).
+- preload: `licenseGet`, `licenseRedeem`, `licenseClear`.
+- After redeem, main broadcasts `sush:license-changed` so all windows refresh.
+
+### Gating application (each degrades gracefully)
+- `accounts.addAccount` (main, `MAX_SLOTS=6`): cap at `featuresOf(tier).slots`; error
+  `"Plus unlocks up to 3 accounts — redeem a code in Settings → Plan."`
+- Grid cap (`App.jsx GRID_CAP=16`): use `entitlements.limit('gridCap')`.
+- Custom agents (`agents.js addCustomAgent` + Settings AgentsSection): block add when `!can('customAgents')`,
+  show lock + hint.
+- Cloud TTS (`VoiceSection` / `tts.setTtsConfig`): if `!can('cloudTts')`, disable OpenAI/ElevenLabs
+  options with an "Unlock with Plus" overlay (system voice stays free).
+- Themes (`Settings` theme list / `themes`): if tier base, show non-base themes locked.
+
+### Redemption UI — Settings → new "Plan" section (nav group: Account)
+- Current tier badge, what each tier unlocks (the table above), a code input + Redeem,
+  success/err states, and (dev only) a Clear button. Add `{label:'Plan', sec:'Plan',
+  icon:'sparkles'/'zap', group:'Account', keywords:'tier unlock code upgrade'}` to SETTINGS_NAV.
+
+### Verify
+- `node tools/mint-code.mjs plus` → paste into Settings → tier flips to Plus → slot cap rises,
+  custom agents unlock. Wrong/garbled code → clear error, stays Free. Restart → tier persists.
+
+---
+
+## §3 — FIFX
+
+### Bug / verify checklist (mostly "confirm on a live run")
+1. **Usage % bars may never render** — `parseUsageInfo` (claudePanel.js) guesses field names
+   (`sessionUtilization`/`usagePercent`/`fiveHourUtilization`…). Unconfirmed Claude sends any.
+   FIX: temporarily log the raw `rate_limit_info` once to discover the true field (if any),
+   then map it. If none exists, the status+reset fallback is the honest ceiling — say so in UI.
+2. **`claudeLimitsGet` preload method now unused in renderer** — harmless dead code; remove.
+3. **Per-CLI policy migration** — old global `settings.cliLimitPolicy` is silently dropped.
+   One-time seed: on first run after upgrade, copy it into each provider's `limitPolicy`.
+4. **Power-saver doesn't gate WebGL** — GL contexts persist (idle GPU). See §2b.
+5. **VoiceSection ElevenLabs voice/model** — `setTts(local)` + `onBlur saveCfg` can double-write;
+   confirm no flicker/race. OpenAI uses a select (fine).
+6. **Grid agent-state dots** (v4.4.0) — confirm they update live with `powerSaver` tick slowdown.
+7. **Idle-sleep + new timers** — confirm Settings usage poll & StatusBar poll honor sleep.
+
+### 10 features (the X)
+1. **Battery-aware auto power-saver** — `systeminformation` is already a dep; read battery %,
+   auto-enable power-saver under a threshold (e.g. 20%), restore on AC. Perfect for this user.
+   Use Electron `powerMonitor` ('on-battery'/'on-ac') + a battery poll.
+2. **Global hotkey to toggle power-saver** (Ctrl+Shift+B) + a status-bar battery/saver chip.
+3. **Focus mode** — hide all chrome, one terminal, minimal repaint (battery + concentration).
+4. **Offline awareness** — pause network polls (GitHub tab, update checks) when offline; offline chip.
+5. **Per-session resource meter** — CPU/RAM per agent PID via systeminformation (opt-in, off in saver).
+6. **Usage history sparkline** — keep last N usage probes per account; tiny trend line.
+7. **Settings/accounts export & import** — JSON backup/restore (no secrets/keys).
+8. **Redeem from command palette** — `unlock <code>` built-in command.
+9. **Codex health upgrade** — optionally parse `codex doctor` for richer status when online.
+10. **Quiet hours / scheduled sleep** — auto-enter idle-sleep + saver during set hours.
+
+---
+
+## §2b — Deeper CPU/GPU/RAM/battery levers (extend power-saver)
+- **WebGL in saver → DOM renderer.** `useTerminal` already skips WebGL when `transparentBg`.
+  Add `skipWebgl` (or reuse) so saver uses the DOM renderer (lower idle GPU; slightly higher
+  CPU only while actively scrolling). Thread `powerSaver` App→Terminal→useTerminal.
+- **Electron `powerMonitor`** in main: react to suspend/resume + battery/AC to auto-toggle saver.
+- **Throttle polls in saver**: lengthen StatusBar git poll + Settings usage poll intervals.
+- **Confirm `backgroundThrottling`** stays default-true (it is — not set). Hidden window throttles.
+- **Default-on shadow reduction** for very large glows even outside saver (audit `box-shadow` blurs).
+- **Cap splash/entrance animation work** on low battery (skip splash entirely under threshold).
+
+---
+
+## §5 — Open-ended (what we aimed at but didn't fully land)
+- The headline **usage bars** only half-land until the real Claude % field is confirmed (§3.1).
+  This is the #1 thing to close — the feature reads as "bars" but may only show status+reset.
+- **Usage for all CLIs** — genuinely blocked: Codex/Gemini expose no usage. Codex now shows
+  sign-in health (best available); document the limit rather than fake it.
+- **One coherent "system health" surface** — battery + per-CLI usage + agent activity could live
+  in one place (the Usage dashboard), tying together §3 features 1/5/6.
+
+## Key files (quick map)
+- License (new): `src/main/license.js`, `tools/mint-code.mjs`, `src/renderer/src/hooks/useEntitlements.js`.
+- Gating points: `accounts.js` (MAX_SLOTS), `App.jsx` (GRID_CAP ~1523), `agents.js` (addCustomAgent),
+  `tts.js`/`VoiceSection`, `themes/index.js`.
+- Usage: `claudePanel.js` (probeClaudeUsage/parseUsageInfo), `ipc.js` (readAccountUsage),
+  `Settings.jsx` (SlotUsage/MiniBar).
+- Saver: `index.css` (`.sush-saver`), `App.jsx:1427`, `useAgentActivity.js` (TICK), `usePolling.js`.
+- Build `npm run build` (clean=exit 0). Remote Foxxed909/Sush. Collaborator T-REXED (write, pending).
