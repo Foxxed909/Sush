@@ -71,7 +71,13 @@ export function listAccounts(userId) {
     providers[p] = {
       active: st.active,
       limitPolicy: LIMIT_POLICIES.includes(st.limitPolicy) ? st.limitPolicy : 'ask',
-      slots: st.slots.map(s => ({ id: s.id, label: s.label, lastLimitAt: s.lastLimitAt || null, usage: s.usage || null }))
+      slots: st.slots.map(s => ({
+        id: s.id,
+        label: s.label,
+        lastLimitAt: s.lastLimitAt || null,
+        usage: s.usage || null,
+        usageHistory: Array.isArray(s.usageHistory) ? s.usageHistory.slice(-24) : []
+      }))
     }
   }
   return { ok: true, providers }
@@ -134,7 +140,18 @@ export function setAccountUsage(userId, provider, slotId, usage) {
   const st = providerState(data, provider)
   const slot = st.slots.find(s => s.id === slotId)
   if (!slot) return { ok: false, error: 'No such account' }
-  slot.usage = usage ? { ...usage, at: Date.now() } : null
+  const snapshot = usage ? { ...usage, at: Date.now() } : null
+  slot.usage = snapshot
+  if (snapshot) {
+    const point = {
+      at: snapshot.at,
+      status: snapshot.status || null,
+      signedIn: snapshot.signedIn,
+      sessionPct: typeof snapshot.sessionPct === 'number' ? snapshot.sessionPct : null,
+      weekPct: typeof snapshot.weekPct === 'number' ? snapshot.weekPct : null
+    }
+    slot.usageHistory = [...(Array.isArray(slot.usageHistory) ? slot.usageHistory : []), point].slice(-24)
+  }
   if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
   return { ok: true, ...listAccounts(userId) }
 }

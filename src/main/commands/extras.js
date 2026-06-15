@@ -22,7 +22,7 @@ export const cp = {
     if (!existsSync(s)) return err(`cp: no such file: ${src}`)
     try {
       await copyFile(s, d)
-      return ok(ansi.green(`copied: ${src} → ${dest}`))
+      return ok(ansi.green(`copied: ${src} -> ${dest}`))
     } catch (e) {
       return err(`cp: ${e.message}`)
     }
@@ -41,7 +41,7 @@ export const mv = {
     if (!existsSync(s)) return err(`mv: no such file: ${src}`)
     try {
       await rename(s, d)
-      return ok(ansi.green(`moved: ${src} → ${dest}`))
+      return ok(ansi.green(`moved: ${src} -> ${dest}`))
     } catch (e) {
       return err(`mv: ${e.message}`)
     }
@@ -159,7 +159,7 @@ export const diff = {
       if (la !== undefined) out.push(ansi.red(`- ${la}`))
       if (lb !== undefined) out.push(ansi.green(`+ ${lb}`))
       changes++
-      if (changes > 80) { out.push(ansi.dim('… truncated')); break }
+      if (changes > 80) { out.push(ansi.dim('... truncated')); break }
     }
     if (changes === 0) return ok(ansi.dim('Files are identical'))
     return ok(out.join('\r\n'))
@@ -326,7 +326,7 @@ export const todo = {
     if (!sub || sub === 'list') {
       if (!todos.length) return ok(ansi.dim('No todos. Add one with: todo add <task>'))
       const lines = todos.map((t, i) =>
-        `${ansi.dim(String(i + 1).padStart(2))}  ${t.done ? ansi.dim('[✓] ' + t.text) : '[ ] ' + ansi.white(t.text)}`
+        `${ansi.dim(String(i + 1).padStart(2))}  ${t.done ? ansi.dim('[x] ' + t.text) : '[ ] ' + ansi.white(t.text)}`
       )
       return ok(lines.join('\r\n'))
     }
@@ -397,7 +397,7 @@ export const snippet = {
       if (!value) return err('snippet set: missing command value')
       snips[name] = value
       await saveSnippets(snips)
-      return ok(ansi.green(`Snippet saved: ${name} → ${value}`))
+      return ok(ansi.green(`Snippet saved: ${name} -> ${value}`))
     }
 
     if (sub === 'get') {
@@ -504,7 +504,7 @@ export const scripts = {
       if (!keys.length) return ok(ansi.dim('No scripts defined in package.json'))
       const header = ansi.bold(ansi.pink(pkg.name || 'package.json') + ' scripts')
       const rows = keys.map(k => `  ${ansi.cyan(('npm run ' + k).padEnd(28))} ${ansi.dim(s[k])}`)
-      return ok([header, ansi.dim('─'.repeat(50)), ...rows].join('\r\n'))
+      return ok([header, ansi.dim('-'.repeat(50)), ...rows].join('\r\n'))
     } catch (e) {
       return err(`scripts: ${e.message}`)
     }
@@ -545,8 +545,8 @@ export const fetchCmd = {
       return ok([
         `${ansi.cyan('Status')} ${res.status} ${res.statusText}`,
         `${ansi.cyan('Type  ')} ${res.headers.get('content-type') || 'unknown'}`,
-        ansi.dim('─'.repeat(40)),
-        preview.length < body.length ? preview + ansi.dim('\n… truncated') : preview
+        ansi.dim('-'.repeat(40)),
+        preview.length < body.length ? preview + ansi.dim('\n... truncated') : preview
       ].join('\r\n'))
     } catch (e) {
       return err(`fetch: ${e.message}`)
@@ -581,10 +581,9 @@ export const timeCmd = {
     if (!args.length) return err('time: missing command')
     const input = args.join(' ')
     const start = performance.now()
-    // Lazy-import to avoid circular dep with registry.
     try {
-      const { registry } = await import('../shell/registry.js')
-      const { parseInput } = await import('../shell/parser.js')
+      const { registry, parseInput } = ctx
+      if (!registry || !parseInput) return err('time: command runner unavailable')
       const parsed = parseInput(input)
       if (!parsed) return err('time: empty command')
       const cmd = registry.get(parsed.cmd)
@@ -593,7 +592,7 @@ export const timeCmd = {
       const ms = (performance.now() - start).toFixed(1)
       return {
         ...result,
-        output: (result?.output || '') + `\r\n${ansi.dim('──')} ${ansi.cyan(ms + 'ms')}`
+        output: (result?.output || '') + `\r\n${ansi.dim('--')} ${ansi.cyan(ms + 'ms')}`
       }
     } catch (e) {
       const ms = (performance.now() - start).toFixed(1)
@@ -610,7 +609,7 @@ export const ask = {
   async run(args) {
     const question = args.join(' ').trim()
     return {
-      ...ok(question ? `Asking Seducia: "${question}"` : 'Opening Seducia…'),
+      ...ok(question ? `Asking Seducia: "${question}"` : 'Opening Seducia...'),
       action: { name: 'open-seducia', question }
     }
   }
@@ -652,7 +651,7 @@ export const reload = {
   description: 'Reload the Sush app',
   usage: 'reload',
   async run() {
-    return { ...ok('Reloading…'), action: { name: 'reload-app' } }
+    return { ...ok('Reloading...'), action: { name: 'reload-app' } }
   }
 }
 
@@ -664,7 +663,7 @@ export const duplicate = {
   aliases: ['dup'],
   async run(_, ctx) {
     return {
-      ...ok('Duplicating session…'),
+      ...ok('Duplicating session...'),
       action: { name: 'duplicate-tab', cwd: ctx.cwd }
     }
   }
@@ -681,12 +680,12 @@ export const sessionInfo = {
     const memMB = Math.round(process.memoryUsage().rss / 1024 / 1024)
     const lines = [
       ansi.bold(ansi.pink('Session Info')),
-      ansi.dim('─'.repeat(36)),
+      ansi.dim('-'.repeat(36)),
       `${ansi.cyan('Tab ID  ')} ${ctx.tabId || 'n/a'}`,
       `${ansi.cyan('CWD     ')} ${ctx.cwd || homedir()}`,
       `${ansi.cyan('Aliases ')} ${Object.keys(ctx.aliases || {}).length}`,
       `${ansi.cyan('History ')} ${(ctx.history || []).length} commands`,
-      ansi.dim('─'.repeat(36)),
+      ansi.dim('-'.repeat(36)),
       `${ansi.cyan('App uptime')} ${uptime}s`,
       `${ansi.cyan('Memory    ')} ${memMB} MB (main process)`
     ]
@@ -700,6 +699,6 @@ export const handoff = {
   description: 'Hand off this session to another',
   usage: 'handoff',
   async run() {
-    return { ...ok('Opening handoff…'), action: { name: 'handoff' } }
+    return { ...ok('Opening handoff...'), action: { name: 'handoff' } }
   }
 }

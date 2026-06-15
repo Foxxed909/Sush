@@ -6,7 +6,7 @@ import { usePolling } from '../hooks/usePolling'
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
 // live cpu/mem. Reuses the existing gitStatus + getSystemStats IPC. Polls on a
 // gentle 4s cadence; git is re-read whenever the active cwd changes too.
-export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, gridMode, agentSummary, onOpenMission, battery, saverActive, saverAuto }) {
+export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, gridMode, agentSummary, onOpenMission, battery, saverActive, saverAuto, saverReason = '', online = true }) {
   const cwd = activeTab?.cwd || null
   const shell = activeTab?.shellLabel || activeTab?.shell || null
   const [git, setGit] = useState(null)
@@ -42,7 +42,7 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         .catch(() => {})
     }
   }, [cwd])
-  usePolling(poll, 4000)
+  usePolling(poll, saverActive ? 12000 : 4000)
 
   const cpu = stats ? Math.round(stats.cpu?.load ?? 0) : null
   const memPct = stats?.memory?.total
@@ -94,7 +94,7 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
             <Icon name="folder" size={11} />
           </button>
           <button
-            onClick={() => window.sush.openInEditor({ path: cwd })}
+            onClick={() => window.sush.openInEditor({ cwd })}
             title="Open in VS Code"
             style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', color: dim, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
             onMouseEnter={e => { e.currentTarget.style.color = accent }}
@@ -123,6 +123,12 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       <span style={{ flex: 1 }} />
 
       {/* mode chips */}
+      {!online && (
+        <span style={{ ...segR, color: '#ffcb6b', fontWeight: 800, letterSpacing: 0.3 }} title="Network polls are paused until the connection comes back.">
+          <Icon name="wifi" size={12} color="#ffcb6b" />
+          OFFLINE
+        </span>
+      )}
       {broadcastMode && <span style={{ ...segR, color: '#ff5370', fontWeight: 800, letterSpacing: 0.4 }}>BROADCAST</span>}
       {gridMode && <span style={{ ...segR, color: accent, fontWeight: 800, letterSpacing: 0.4 }}>GRID</span>}
 
@@ -187,7 +193,17 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
 
       {/* power saver chip */}
       {saverActive && (
-        <span style={{ ...segR, color: '#5fd3a8', fontWeight: 800, letterSpacing: 0.3 }} title={saverAuto ? 'Power saver on automatically — battery low. Ctrl+Shift+E to override.' : 'Power saver on — animations & effects trimmed. Ctrl+Shift+E to toggle.'}>
+        <span style={{ ...segR, color: '#5fd3a8', fontWeight: 800, letterSpacing: 0.3 }} title={
+          saverReason === 'quiet'
+            ? 'Power saver on for quiet hours.'
+            : saverReason === 'battery'
+              ? 'Power saver on automatically because the battery is low. Ctrl+Shift+E to override.'
+              : saverReason === 'focus'
+                ? 'Focus mode is using saver rendering.'
+                : saverAuto
+                  ? 'Power saver on automatically.'
+                  : 'Power saver on. Ctrl+Shift+E to toggle.'
+        }>
           <Icon name="leaf" size={12} color="#5fd3a8" />
           SAVER
         </span>

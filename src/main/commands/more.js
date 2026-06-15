@@ -1,4 +1,4 @@
-// More built-ins (v3.1) — developer utilities that round out the Sush toolkit.
+// More built-ins (v3.1) - developer utilities that round out the Sush toolkit.
 // Each command follows the same contract as the rest of the registry:
 //   run(args, ctx) -> { output, type } | { ...ok, action }
 import { readFile } from 'fs/promises'
@@ -103,15 +103,15 @@ export const tree = {
       entries.forEach((e, i) => {
         if (count++ > 1000) return
         const last = i === entries.length - 1
-        const branch = last ? '└─ ' : '├─ '
+        const branch = last ? '`-- ' : '|-- '
         const name = e.isDirectory() ? ansi.cyan(e.name + '/') : e.name
         lines.push(`${prefix}${ansi.dim(branch)}${name}`)
-        if (e.isDirectory()) walk(join(current, e.name), prefix + (last ? '   ' : ansi.dim('│  ')), level + 1)
+        if (e.isDirectory()) walk(join(current, e.name), prefix + (last ? '    ' : ansi.dim('|   ')), level + 1)
       })
     }
 
     walk(root, '', 1)
-    if (count > 1000) lines.push(ansi.dim('… truncated (1000+ entries)'))
+    if (count > 1000) lines.push(ansi.dim('... truncated (1000+ entries)'))
     return ok(lines.join('\r\n'))
   }
 }
@@ -140,7 +140,7 @@ export const now = {
       `${ansi.cyan('Local ')} ${d.toLocaleString()}`,
       `${ansi.cyan('UTC   ')} ${d.toUTCString()}`,
       `${ansi.cyan('ISO   ')} ${d.toISOString()}`,
-      `${ansi.cyan('Epoch ')} ${Math.floor(d.getTime() / 1000)} ${ansi.dim('s')}  ·  ${d.getTime()} ${ansi.dim('ms')}`
+      `${ansi.cyan('Epoch ')} ${Math.floor(d.getTime() / 1000)} ${ansi.dim('s')}  |  ${d.getTime()} ${ansi.dim('ms')}`
     ].join('\r\n'))
   }
 }
@@ -168,7 +168,7 @@ export const ip = {
   description: 'Show local network interfaces and public IP',
   usage: 'ip',
   async run() {
-    const lines = [ansi.bold(ansi.pink('NETWORK')), ansi.dim('─'.repeat(40))]
+    const lines = [ansi.bold(ansi.pink('NETWORK')), ansi.dim('-'.repeat(40))]
     const ifaces = networkInterfaces()
     for (const [name, addrs] of Object.entries(ifaces)) {
       for (const addr of addrs ?? []) {
@@ -207,7 +207,7 @@ export const gitlog = {
       )
       const rows = stdout.split('\n').filter(Boolean).map(line => {
         const [hash, subject, author, when] = line.split('\x1f')
-        return `${ansi.yellow(hash)}  ${subject}  ${ansi.dim(`— ${author}, ${when}`)}`
+        return `${ansi.yellow(hash)}  ${subject}  ${ansi.dim(`- ${author}, ${when}`)}`
       })
       if (!rows.length) return ok(ansi.dim('No commits yet'))
       return ok(rows.join('\r\n'))
@@ -237,9 +237,9 @@ export const json = {
     }
     try {
       const pretty = JSON.stringify(JSON.parse(raw), null, 2)
-      return ok(`${ansi.green('✓ valid JSON')}\r\n${ansi.dim('─'.repeat(30))}\r\n${pretty}`)
+      return ok(`${ansi.green('[ok] valid JSON')}\r\n${ansi.dim('-'.repeat(30))}\r\n${pretty}`)
     } catch (e) {
-      return err(`json: invalid JSON — ${e.message}`)
+      return err(`json: invalid JSON - ${e.message}`)
     }
   }
 }

@@ -31,6 +31,7 @@ import { accentVars, glassVars, rgba } from './lib/ui'
 import { useAgentActivity } from './hooks/useAgentActivity'
 import { useEntitlements } from './hooks/useEntitlements'
 import { useBattery } from './hooks/useBattery'
+import { useOnline } from './hooks/useOnline'
 import { STATES } from './lib/agentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { recordCommand } from './lib/commandFrequency'
@@ -149,6 +150,25 @@ function loadSettings() {
   try { return JSON.parse(localStorage.getItem('sush-settings') ?? '{}') } catch { return {} }
 }
 
+function minutesOfDay(value, fallback) {
+  const match = String(value ?? '').match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return fallback
+  const h = Math.max(0, Math.min(23, Number(match[1]) || 0))
+  const m = Math.max(0, Math.min(59, Number(match[2]) || 0))
+  return h * 60 + m
+}
+
+function quietHoursNow(settings, now = new Date()) {
+  if (settings.quietHoursEnabled !== true) return false
+  const start = minutesOfDay(settings.quietHoursStart, 22 * 60)
+  const end = minutesOfDay(settings.quietHoursEnd, 7 * 60)
+  if (start === end) return false
+  const current = now.getHours() * 60 + now.getMinutes()
+  return start < end
+    ? current >= start && current < end
+    : current >= start || current < end
+}
+
 function normalizeRecentSession(item) {
   if (!item || typeof item !== 'object' || !item.cwd) return null
   return {
@@ -237,17 +257,20 @@ export default function App() {
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
   const [settings, setSettings] = useState(loadSettings)
   const entitlements = useEntitlements()
+  const online = useOnline()
   // Auto power-saver: when running on battery below the threshold, conserve even
   // if the user never flipped the manual toggle. Charging or above threshold,
   // we respect only the manual setting. On by default — this user has no grid.
   const battery = useBattery({ saver: !!settings.powerSaver })
   const AUTO_SAVER_AT = 20
   const autoSaverActive = settings.autoPowerSaver !== false && battery.hasBattery && !battery.charging && battery.percent <= AUTO_SAVER_AT
-  const effectiveSaver = !!settings.powerSaver || autoSaverActive
+  const [quietHoursActive, setQuietHoursActive] = useState(() => quietHoursNow(loadSettings()))
+  const effectiveSaver = !!settings.powerSaver || autoSaverActive || quietHoursActive
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartResult, setSmartResult] = useState(null)
   const [zenMode, setZenMode] = useState(false)
+  const terminalSaver = effectiveSaver || zenMode
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMission, setShowMission] = useState(false)
@@ -284,6 +307,17 @@ export default function App() {
 
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
+
+  useEffect(() => {
+    const sync = () => {
+      const active = quietHoursNow(settings)
+      setQuietHoursActive(active)
+      if (active) setSleeping(true)
+    }
+    sync()
+    const id = setInterval(sync, 60_000)
+    return () => clearInterval(id)
+  }, [settings.quietHoursEnabled, settings.quietHoursStart, settings.quietHoursEnd])
 
   // Boot a tab's terminal the first time it's actually shown. New tabs created
   // at runtime boot via the same path because openTab/selectTab set view +
@@ -374,6 +408,29 @@ export default function App() {
     localStorage.setItem('sush-settings', JSON.stringify(next))
   }
 
+  // One-time migration from the old global CLI limit policy into the current
+  // per-provider account setting. Keeping it here lets renderer-owned
+  // localStorage hand the value to main, where accounts.json lives.
+  useEffect(() => {
+    const legacy = settings.cliLimitPolicy
+    if (!identity.ready || !['never', 'ask', 'auto'].includes(legacy)) return
+    let cancelled = false
+    ;(async () => {
+      await Promise.allSettled([
+        window.sush.accountsSetPolicy?.({ provider: 'claude', policy: legacy }),
+        window.sush.accountsSetPolicy?.({ provider: 'codex', policy: legacy })
+      ])
+      if (cancelled) return
+      setSettings(prev => {
+        if (prev.cliLimitPolicy !== legacy) return prev
+        const { cliLimitPolicy, ...rest } = prev
+        try { localStorage.setItem('sush-settings', JSON.stringify(rest)) } catch {}
+        return rest
+      })
+    })()
+    return () => { cancelled = true }
+  }, [identity.ready, settings.cliLimitPolicy])
+
   const rememberSession = useCallback((session) => {
     if (!session?.cwd) return
 
@@ -428,7 +485,7 @@ export default function App() {
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
   // Mission Control: live per-session state inferred from the PTY stream.
-  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false, powerSaver: effectiveSaver })
+  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false, powerSaver: terminalSaver })
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
   const agentStatesRef = useRef(agentStates)
@@ -450,14 +507,29 @@ export default function App() {
   // nearly free; focus-gating comes from usePolling itself.
   const [ghNotifCount, setGhNotifCount] = useState(0)
   const pollGhNotifs = useCallback(async () => {
+    if (!online) return
     try {
       const res = await window.sush.githubNotifications({})
       setGhNotifCount(res?.ok ? (res.unreadCount || 0) : 0)
     } catch {
       setGhNotifCount(0)
     }
-  }, [])
-  usePolling(pollGhNotifs, 120000, identity.ready)
+  }, [online])
+  usePolling(pollGhNotifs, 120000, identity.ready && online)
+  useEffect(() => { if (!online) setGhNotifCount(0) }, [online])
+
+  const [sessionMetrics, setSessionMetrics] = useState({})
+  const pollSessionMetrics = useCallback(async () => {
+    if (!settings.sessionResourceMeter || terminalSaver) return
+    try {
+      const stats = await window.sush.getSystemStats?.()
+      if (!stats?.error) setSessionMetrics(stats?.sessions || {})
+    } catch {}
+  }, [settings.sessionResourceMeter, terminalSaver])
+  usePolling(pollSessionMetrics, 5000, showMission && settings.sessionResourceMeter === true && !terminalSaver)
+  useEffect(() => {
+    if (!settings.sessionResourceMeter || terminalSaver || !showMission) setSessionMetrics({})
+  }, [settings.sessionResourceMeter, terminalSaver, showMission])
 
   // Auto-alias miner: tally omnibar commands; suggest a .sushrc alias once one
   // is run often enough. `cmdTick` bumps on each run to re-evaluate the table.
@@ -554,8 +626,15 @@ export default function App() {
       if (ctrl && key === 'p' && !e.shiftKey) { e.preventDefault(); setShowPalette(prev => !prev) }
       // Ctrl+? or Ctrl+Shift+/ → shortcuts
       if (ctrl && (key === '?' || (e.shiftKey && key === '/'))) { e.preventDefault(); setShowShortcuts(prev => !prev) }
-      // Ctrl+Shift+Z → zen mode
-      if (ctrl && e.shiftKey && key === 'z') { e.preventDefault(); setZenMode(prev => !prev) }
+      // Ctrl+Shift+Z -> focus mode: one terminal, no chrome, saver rendering.
+      if (ctrl && e.shiftKey && key === 'z') {
+        e.preventDefault()
+        setZenMode(prev => {
+          const next = !prev
+          if (next && tabsRef.current.length) setView('terminal')
+          return next
+        })
+      }
       // Ctrl+Shift+B → broadcast mode
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
       // Ctrl+Shift+M → Mission Control (Ctrl+M alone is Enter in a terminal)
@@ -1440,7 +1519,7 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || effectiveSaver) ? ' sush-lite' : ''}${effectiveSaver ? ' sush-saver' : ''}`}
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
@@ -1537,12 +1616,13 @@ export default function App() {
                 // — also the lazy-boot CPU guard, honest about it via the
                 // "showing X of N" note below — so a weak machine isn't asked to
                 // paint a wall of WebGL terminals at once.
+                const layoutGridMode = gridMode && !zenMode
                 const GRID_CAP = entitlements.limit('gridCap') || 4
-                const gridTabs = gridMode ? tabs.slice(0, GRID_CAP) : tabs.filter(tab => bootedIds.has(tab.id))
+                const gridTabs = layoutGridMode ? tabs.slice(0, GRID_CAP) : tabs.filter(tab => bootedIds.has(tab.id))
                 const n = gridTabs.length
-                const cols = gridMode ? Math.max(1, Math.ceil(Math.sqrt(n))) : 1
+                const cols = layoutGridMode ? Math.max(1, Math.ceil(Math.sqrt(n))) : 1
                 return (
-                  <div style={gridMode
+                  <div style={layoutGridMode
                     ? { position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gap: 7, padding: 8 }
                     : { position: 'absolute', inset: 0 }}>
                     {gridTabs.map(tab => {
@@ -1554,11 +1634,11 @@ export default function App() {
                       return (
                         <div
                           key={tab.id}
-                          onMouseDown={gridMode ? () => {
+                          onMouseDown={layoutGridMode ? () => {
                             if (!booted) setBootedIds(prev => new Set(prev).add(tab.id))
                             setActiveId(tab.id)
                           } : undefined}
-                          style={gridMode
+                          style={layoutGridMode
                             ? { position: 'relative', overflow: 'hidden', borderRadius: 10, border: `1px solid ${focused ? rgba(accent, 0.6) : 'rgba(255,255,255,0.08)'}`, boxShadow: focused ? `0 0 0 1px ${rgba(accent, 0.35)}` : 'none', background: wallpaperOnTerminals ? 'transparent' : '#07090b' }
                             : { position: 'absolute', inset: 0 }}
                         >
@@ -1568,16 +1648,17 @@ export default function App() {
                               theme={t}
                               profile={prof}
                               active={focused}
-                              splitVisible={gridMode}
+                              splitVisible={layoutGridMode}
                               initialCwd={tab.cwd}
                               bootCommand={tab.bootCommand}
-                              fontSize={gridMode ? Math.max(10, fontSize - 2) : fontSize}
+                              fontSize={layoutGridMode ? Math.max(10, fontSize - 2) : fontSize}
                               fontFamily={fontFamily}
                               cursorStyle={cursorStyle}
                               broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
                               restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                               persistScrollback={settings.persistScrollback !== false}
                               transparentBg={wallpaperOnTerminals}
+                              powerSaver={terminalSaver}
                               onSessionState={(state) => handleSessionState(tab.id, state)}
                               onReady={(state) => handleTerminalReady(tab.id, state)}
                               onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -1592,7 +1673,7 @@ export default function App() {
                               </div>
                             </div>
                           )}
-                          {gridMode && (() => {
+                          {layoutGridMode && (() => {
                             // Live state dot, same classifier the rail uses, so a
                             // tile that needs you (amber) or errored (red) stands
                             // out in the grid without opening Mission Control.
@@ -1620,7 +1701,7 @@ export default function App() {
                         </div>
                       )
                     })}
-                    {gridMode && tabs.length > GRID_CAP && (
+                    {layoutGridMode && tabs.length > GRID_CAP && (
                       <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 70, fontSize: 10.5, fontWeight: 700, color: '#8a939c', background: 'rgba(5,7,10,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '4px 12px' }}>
                         showing {GRID_CAP} of {tabs.length} (CPU guard)
                       </div>
@@ -1739,8 +1820,10 @@ export default function App() {
           agentSummary={agentSummary}
           onOpenMission={() => setShowMission(true)}
           battery={battery}
-          saverActive={effectiveSaver}
-          saverAuto={autoSaverActive}
+          saverActive={terminalSaver}
+          saverAuto={autoSaverActive || quietHoursActive}
+          saverReason={quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : settings.powerSaver ? 'manual' : zenMode ? 'focus' : ''}
+          online={online}
         />
       )}
 
@@ -1785,10 +1868,10 @@ export default function App() {
       {zenMode && (
         <button
           onClick={() => setZenMode(false)}
-          title="Exit Zen Mode (Ctrl+Shift+Z)"
+          title="Exit Focus Mode (Ctrl+Shift+Z)"
           style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 200, padding: '6px 14px', background: 'rgba(0,0,0,0.7)', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 8, color: accent, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
         >
-          Exit Zen
+          Exit Focus
         </button>
       )}
 
@@ -1847,6 +1930,7 @@ export default function App() {
           states={agentStates}
           limits={agentLimits}
           summary={agentSummary}
+          metrics={sessionMetrics}
           onFocus={(id) => { setActiveId(id); setView('terminal'); setShowMission(false) }}
           onClose={closeTab}
           onCloseGroup={closeGroup}

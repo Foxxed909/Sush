@@ -12,7 +12,7 @@ const SECTIONS = [
       { keys: ['Ctrl', 'L'], label: 'Focus command bar' },
       { keys: ['Ctrl', ','], label: 'Open Settings' },
       { keys: ['Ctrl', 'Shift', 'Home'], label: 'Go to Home screen' },
-      { keys: ['Ctrl', 'Shift', 'Z'], label: 'Toggle zen mode' },
+      { keys: ['Ctrl', 'Shift', 'Z'], label: 'Toggle focus mode' },
       { keys: ['Ctrl', '?'], label: 'This help screen' },
     ]
   },

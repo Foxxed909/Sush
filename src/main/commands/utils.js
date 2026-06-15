@@ -22,8 +22,8 @@ export const help = {
     const cmds = registry.all().sort((a, b) => a.name.localeCompare(b.name))
     const lines = cmds.map(c => `  ${ansi.pink(c.name.padEnd(12))} ${ansi.dim(c.description ?? '')}`)
     return ok([
-      ansi.bold(ansi.pink('SUSH')) + ansi.dim(' — available commands'),
-      ansi.dim('─'.repeat(50)),
+      ansi.bold(ansi.pink('SUSH')) + ansi.dim(' - available commands'),
+      ansi.dim('-'.repeat(50)),
       ...lines,
       '',
       ansi.dim('Type help <command> for details')
@@ -92,7 +92,7 @@ export const alert = {
   async run(args) {
     const msg = args.join(' ')
     if (!msg) return err('alert: missing message')
-    const bar = ansi.pink('█'.repeat(Math.min(msg.length + 4, 60)))
-    return ok([bar, `  ${ansi.bold(ansi.yellow('⚠'))}  ${msg}`, bar].join('\r\n'))
+    const bar = ansi.pink('!'.repeat(Math.min(msg.length + 4, 60)))
+    return ok([bar, `  ${ansi.bold(ansi.yellow('!'))}  ${msg}`, bar].join('\r\n'))
   }
 }

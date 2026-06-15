@@ -188,30 +188,106 @@ async function runCliEngineWithAccounts(engine, opts, policy = 'ask') {
   return alt ? { ...first, canSwitch: { provider: engine, slotId: alt.id, label: alt.label } } : first
 }
 
+function firstUsefulLine(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(line => line && !/^\W*$/.test(line)) || ''
+}
+
+function readCodexHealth(env, { doctor = false } = {}) {
+  const home = env.CODEX_HOME || join(homedir(), '.codex')
+  const signedIn = existsSync(join(home, 'auth.json'))
+  if (!doctor) {
+    return Promise.resolve({
+      ok: true,
+      usage: {
+        kind: 'health',
+        status: signedIn ? 'signed in' : 'not signed in',
+        note: 'Codex does not report usage limits',
+        signedIn
+      }
+    })
+  }
+
+  const bin = resolveExecutable('codex')
+  if (!bin) {
+    return Promise.resolve({
+      ok: true,
+      usage: {
+        kind: 'health',
+        status: 'not found',
+        note: 'codex CLI was not found',
+        signedIn: false
+      }
+    })
+  }
+
+  const { file, args } = shimSpawnSpec(bin, ['doctor'])
+  return new Promise(resolve => {
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let child
+    let timer = null
+    const done = (usage) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      try { child?.kill() } catch {}
+      resolve({ ok: true, usage })
+    }
+    try {
+      child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...env } })
+    } catch (e) {
+      return done({
+        kind: 'health',
+        status: 'doctor failed',
+        note: e.message,
+        signedIn
+      })
+    }
+    timer = setTimeout(() => done({
+      kind: 'health',
+      status: 'doctor timed out',
+      note: 'codex doctor exceeded 45s',
+      signedIn
+    }), 45000)
+    child.stdout.on('data', d => { stdout = (stdout + d).slice(-6000) })
+    child.stderr.on('data', d => { stderr = (stderr + d).slice(-6000) })
+    child.on('error', e => done({
+      kind: 'health',
+      status: 'doctor failed',
+      note: e.message,
+      signedIn
+    }))
+    child.on('close', code => {
+      const out = `${stdout}\n${stderr}`.trim()
+      done({
+        kind: 'health',
+        status: code === 0 ? 'doctor ok' : 'doctor failed',
+        note: signedIn ? 'signed in' : 'not signed in',
+        detail: firstUsefulLine(out) || `codex doctor exited ${code}`,
+        signedIn,
+        doctorCode: code
+      })
+    })
+  })
+}
+
 // Read one account's "usage" by probing the CLI with that slot's env layered on
 // top of the active identity env (so only this provider's config dir moves).
 //   • Claude: a real rate-limit snapshot from its stream-json `rate_limit_event`.
-//   • Codex: the CLI exposes NO usage/rate-limit command (verified via --help),
-//     so we read the cheapest honest signal — whether this slot is signed in
-//     (its auth.json exists). No spawn at all, which is the right call on battery.
-async function readAccountUsage(userId, provider, slotId) {
+//   • Codex: default stays spawn-free (auth.json). The optional doctor flag is
+//     button-only and bounded, for richer health when the user asks for it.
+async function readAccountUsage(userId, provider, slotId, options = {}) {
   if (provider === 'claude') {
     const overlay = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
     return probeClaudeUsage(overlay)
   }
   if (provider === 'codex') {
     const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
-    const home = env.CODEX_HOME || join(homedir(), '.codex')
-    const signedIn = existsSync(join(home, 'auth.json'))
-    return {
-      ok: true,
-      usage: {
-        kind: 'health',
-        status: signedIn ? 'signed in' : 'not signed in',
-        note: 'Codex doesn’t report usage limits',
-        signedIn
-      }
-    }
+    return readCodexHealth(env, { doctor: options.doctor === true })
   }
   return { ok: false, error: 'Usage isn’t available for this CLI.' }
 }
@@ -727,6 +803,8 @@ function getContext(tabId) {
   const ctx = contexts.get(tabId)
   if (ctx.tabId !== tabId) ctx.tabId = tabId
   if (session?.cwd && ctx.cwd !== session.cwd) ctx.setCwd(session.cwd)
+  ctx.registry = registry
+  ctx.parseInput = parseInput
   return ctx
 }
 
@@ -1088,8 +1166,8 @@ export function registerIpcHandlers(win) {
   // On-demand usage scrape for one account slot. Spawns the CLI with that
   // slot's env, reads its usage view, caches the parsed bars. Never auto-polled
   // (one real CLI spawn per call) — only the per-account refresh button calls it.
-  ipcMain.handle('sush:accounts-usage-read', requireUser(async (user, { provider, slotId }) => {
-    const parsed = await readAccountUsage(user.id, provider, slotId)
+  ipcMain.handle('sush:accounts-usage-read', requireUser(async (user, { provider, slotId, doctor }) => {
+    const parsed = await readAccountUsage(user.id, provider, slotId, { doctor })
     if (!parsed.ok) return parsed
     return setAccountUsage(user.id, provider, slotId, parsed.usage)
   }))

@@ -13,7 +13,7 @@ export default defineConfig({
   renderer: {
     // Pin a dedicated dev port so we don't collide with the default 5173/5174
     // that other Vite projects (or stale dev processes) grab. strictPort: false
-    // lets it auto-increment if 5180 is also busy — the main process picks up the
+    // lets it auto-increment if 5180 is also busy - the main process picks up the
     // real URL from process.env.ELECTRON_RENDERER_URL either way.
     server: {
       port: 5180,

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { usePolling } from '../hooks/usePolling'
+import { useOnline } from '../hooks/useOnline'
 
 // GitHub panel: connection state, your repos (search + clone), your open
 // work (PRs / review requests / issues) and the notifications inbox. All
@@ -50,6 +51,7 @@ function ExternalRow({ accent, title, meta, onOpen, unread }) {
 }
 
 export default function GitHubTab({ accent, onRun, onConnect }) {
+  const online = useOnline()
   const [status, setStatus] = useState(null)       // sush:github-status result
   const [query, setQuery] = useState('')
   const [repos, setRepos] = useState(null)         // null = loading
@@ -60,31 +62,35 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
   const debounceRef = useRef(null)
 
   const loadStatus = useCallback(async () => {
+    if (!online) return
     try { setStatus(await window.sush.githubStatus()) } catch {}
-  }, [])
+  }, [online])
 
   const loadRepos = useCallback(async (q) => {
+    if (!online) return
     setReposError('')
     try {
       const res = await window.sush.githubRepos({ query: q })
       if (res?.ok) setRepos(res.repos)
       else { setRepos([]); setReposError(res?.error || 'failed') }
     } catch { setRepos([]) }
-  }, [])
+  }, [online])
 
   const loadWork = useCallback(async () => {
+    if (!online) return
     try {
       const res = await window.sush.githubWork()
       if (res?.ok) setWork(res)
     } catch {}
-  }, [])
+  }, [online])
 
   const loadInbox = useCallback(async () => {
+    if (!online) return
     try {
       const res = await window.sush.githubNotifications({})
       if (res?.ok) setInbox(res)
     } catch {}
-  }, [])
+  }, [online])
 
   const connected = !!status?.connected
 
@@ -93,13 +99,13 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
   }, [loadStatus])
 
   useEffect(() => {
-    if (!connected) return
+    if (!connected || !online) return
     loadRepos('')
     loadWork()
-  }, [connected, loadRepos, loadWork])
+  }, [connected, online, loadRepos, loadWork])
 
   // Inbox refreshes while the tab is open and the window focused.
-  usePolling(loadInbox, 60000, connected)
+  usePolling(loadInbox, 60000, connected && online)
 
   // Debounced repo search.
   const onQuery = (value) => {
@@ -128,6 +134,20 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
   }
 
   // ── Not connected / not configured states ────────────────────────────────
+  if (!online) {
+    return (
+      <div className="flex flex-col items-center justify-center" style={{ height: '100%', gap: 12, padding: 24, textAlign: 'center' }}>
+        <span className="flex items-center justify-center" style={{ width: 44, height: 44, borderRadius: 12, background: rgba('#ffcb6b', 0.1), border: '1px solid rgba(255,203,107,0.28)', color: '#ffcb6b' }}>
+          <Icon name="wifi" size={20} />
+        </span>
+        <div style={{ color: 'var(--text-2)', fontSize: 13, fontWeight: 700 }}>GitHub is offline</div>
+        <div style={{ color: 'var(--text-3)', fontSize: 11.5, maxWidth: 260, lineHeight: 1.6 }}>
+          Repo, work, and notification polling are paused until the network comes back.
+        </div>
+      </div>
+    )
+  }
+
   if (status && !connected) {
     return (
       <div className="flex flex-col items-center justify-center" style={{ height: '100%', gap: 12, padding: 24, textAlign: 'center' }}>

@@ -4,6 +4,7 @@ import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { loadCustomAgents, saveCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../lib/agents'
 import { useEntitlements } from '../hooks/useEntitlements'
+import { useOnline } from '../hooks/useOnline'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
@@ -148,10 +149,34 @@ function MiniBar({ label, pct, accent }) {
   )
 }
 
+function MiniSparkline({ history, accent }) {
+  const values = (Array.isArray(history) ? history : [])
+    .map(h => h.weekPct ?? h.sessionPct)
+    .filter(v => typeof v === 'number' && isFinite(v))
+    .slice(-18)
+  if (values.length < 2) return null
+  const width = 86
+  const height = 22
+  const step = width / Math.max(1, values.length - 1)
+  const points = values.map((v, i) => {
+    const y = height - Math.max(0, Math.min(100, v)) / 100 * (height - 4) - 2
+    return `${Math.round(i * step)},${Math.round(y)}`
+  }).join(' ')
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 1 }}>
+      <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-4)', width: 48, textTransform: 'uppercase', letterSpacing: 0.4 }}>Trend</span>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+        <polyline points={points} fill="none" stroke={accent} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span style={{ fontSize: 9, color: 'var(--text-5)', fontWeight: 700 }}>{values.length}</span>
+    </div>
+  )
+}
+
 // Per-account usage readout under a slot row. Shows the session/week bars when
 // the probe returned utilization numbers; otherwise falls back to status + the
 // reset window (still useful, and honest about what we could read).
-function SlotUsage({ usage, accent }) {
+function SlotUsage({ usage, history, accent }) {
   if (!usage) return null
   const hasBars = usage.sessionPct != null || usage.weekPct != null
   const resetTxt = usage.resetsAt ? new Date(usage.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
@@ -167,6 +192,7 @@ function SlotUsage({ usage, accent }) {
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: usage.signedIn ? '#5fd3a8' : '#ff7a8a', flexShrink: 0 }} />
           <span style={{ color: usage.signedIn ? 'var(--text-2)' : '#ff9aa8' }}>{usage.status}</span>
           {usage.note && <span style={{ color: 'var(--text-4)', fontWeight: 600 }}>· {usage.note}</span>}
+          {usage.detail && <span style={{ color: 'var(--text-4)', fontWeight: 600 }} title={usage.detail}>· {usage.detail.slice(0, 80)}</span>}
         </div>
       ) : (
         <div style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 700 }}>
@@ -174,6 +200,7 @@ function SlotUsage({ usage, accent }) {
           {resetTxt ? ` · resets ${resetTxt}` : ''}
         </div>
       )}
+      <MiniSparkline history={history} accent={accent} />
       <div style={{ fontSize: 9, color: 'var(--text-5)', fontWeight: 600 }}>updated {ago(usage.at) || 'just now'}</div>
     </div>
   )
@@ -187,6 +214,7 @@ function SlotUsage({ usage, accent }) {
 // live here (GitHub/Google client status) is an app concern, not a user one,
 // so it no longer has UI.
 function AccountsSection({ accent }) {
+  const online = useOnline()
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -198,11 +226,11 @@ function AccountsSection({ accent }) {
 
   // On-demand usage read for one Claude account. Spawns a tiny probe under that
   // slot's login — never auto-polled, so it's safe on a weak CPU.
-  const readUsage = async (provider, slotId) => {
+  const readUsage = async (provider, slotId, options = {}) => {
     const key = `${provider}:${slotId}`
     setUsageBusy(b => ({ ...b, [key]: true }))
     setErr('')
-    const r = await window.sush.accountsUsageRead?.({ provider, slotId })
+    const r = await window.sush.accountsUsageRead?.({ provider, slotId, ...options })
     if (r?.ok) setData(r.providers)
     else if (r?.error) setErr(r.error)
     setUsageBusy(b => ({ ...b, [key]: false }))
@@ -319,11 +347,11 @@ function AccountsSection({ accent }) {
                     )}
                     {(p === 'claude' || p === 'codex') && !isEditing && (
                       <button
-                        onClick={() => readUsage(p, slot.id)}
-                        disabled={usageBusy[uKey]}
-                        title={p === 'claude' ? 'Refresh usage' : 'Check sign-in'}
+                        onClick={() => readUsage(p, slot.id, p === 'codex' ? { doctor: true } : {})}
+                        disabled={usageBusy[uKey] || (p === 'codex' && !online)}
+                        title={p === 'claude' ? 'Refresh usage' : online ? 'Run codex doctor' : 'Codex doctor waits for network'}
                         className="flex items-center justify-center"
-                        style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: (p === 'codex' && !online) ? 'default' : 'pointer', padding: '0 2px', flexShrink: 0, opacity: (p === 'codex' && !online) ? 0.45 : 1 }}
                         onMouseEnter={e => { e.currentTarget.style.color = accent }}
                         onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-4)' }}
                       >
@@ -349,7 +377,7 @@ function AccountsSection({ accent }) {
                       </button>
                     )}
                   </div>
-                  {(p === 'claude' || p === 'codex') && slot.usage && <SlotUsage usage={slot.usage} accent={accent} />}
+                  {(p === 'claude' || p === 'codex') && slot.usage && <SlotUsage usage={slot.usage} history={slot.usageHistory} accent={accent} />}
                 </div>
               )
             })}
@@ -422,6 +450,7 @@ function ago(ts) {
 const USAGE_INTERVALS = [[0, 'Off'], [30, '30s'], [60, '1 min'], [300, '5 min']]
 
 function UsageSection({ accent, settings, set }) {
+  const online = useOnline()
   const [snap, setSnap] = useState(null)
   const [live, setLive] = useState(null)        // live Claude probe result
   const [checking, setChecking] = useState(false)
@@ -445,6 +474,7 @@ function UsageSection({ accent, settings, set }) {
   }, [interval, pull])
 
   const checkLive = async () => {
+    if (!online) return
     setChecking(true)
     try {
       const r = await window.sush.claudeLimitsCheck?.()
@@ -500,6 +530,20 @@ function UsageSection({ accent, settings, set }) {
         actually probe Claude’s current window and reset time.
       </div>
 
+      <Row>
+        <Label>Per-session resource meter</Label>
+        <button
+          onClick={() => set('sessionResourceMeter', settings.sessionResourceMeter !== true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.sessionResourceMeter === true ? rgba(accent, 0.1) : 'var(--surface-2)', border: `1px solid ${settings.sessionResourceMeter === true ? rgba(accent, 0.4) : 'var(--border-2)'}`, color: settings.sessionResourceMeter === true ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+        >
+          <Icon name="cpu" size={14} strokeWidth={2} />
+          {settings.sessionResourceMeter === true ? 'On - Mission Control shows CPU/RAM per session' : 'Off - no per-process scan'}
+        </button>
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
+          Opt-in because it reads the process table. Power saver and focus mode turn it off automatically.
+        </div>
+      </Row>
+
       {/* Controls */}
       <div className="flex items-center" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>Auto-refresh</span>
@@ -518,9 +562,10 @@ function UsageSection({ accent, settings, set }) {
         <span style={{ flex: 1 }} />
         <button
           onClick={checkLive}
-          disabled={checking}
+          disabled={checking || !online}
+          title={online ? 'Probe Claude now' : 'Live probe waits for network'}
           className="flex items-center"
-          style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '5px 13px', cursor: 'pointer', opacity: checking ? 0.6 : 1 }}
+          style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '5px 13px', cursor: online ? 'pointer' : 'default', opacity: (checking || !online) ? 0.6 : 1 }}
         >
           {checking && <span className="sush-spinner" style={{ width: 10, height: 10 }} />}
           {checking ? 'Probing…' : 'Check Claude live'}
@@ -1239,6 +1284,26 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
                 When you’re unplugged and the battery drops below 20%, Sush flips
                 into power saver on its own, then steps back out once you charge.
+              </div>
+            </Row>
+            <Row>
+              <Label>Quiet hours / scheduled sleep</Label>
+              <button
+                onClick={() => set('quietHoursEnabled', settings.quietHoursEnabled !== true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.quietHoursEnabled === true ? rgba(accent, 0.1) : 'var(--surface-2)', border: `1px solid ${settings.quietHoursEnabled === true ? rgba(accent, 0.4) : 'var(--border-2)'}`, color: settings.quietHoursEnabled === true ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="clock" size={14} strokeWidth={2} />
+                {settings.quietHoursEnabled === true ? 'On - sleep and saver during quiet hours' : 'Off - no scheduled sleep'}
+              </button>
+              {settings.quietHoursEnabled === true && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                  <input type="time" value={settings.quietHoursStart || '22:00'} onChange={e => set('quietHoursStart', e.target.value)} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-2)', color: 'var(--text-2)', borderRadius: 8, padding: '7px 10px', fontSize: 12 }} />
+                  <span style={{ color: 'var(--text-4)', fontSize: 11, fontWeight: 800 }}>to</span>
+                  <input type="time" value={settings.quietHoursEnd || '07:00'} onChange={e => set('quietHoursEnd', e.target.value)} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-2)', color: 'var(--text-2)', borderRadius: 8, padding: '7px 10px', fontSize: 12 }} />
+                </div>
+              )}
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
+                During quiet hours Sush enters idle sleep and applies power-saver rendering. PTYs keep running.
               </div>
             </Row>
             <Row>

@@ -20,6 +20,7 @@ export function useTerminal({
   restoreKey,
   persistScrollback = true,
   transparentBg = false,
+  powerSaver = false,
   onAutoCopy,
   onCommand,
   onSessionState,
@@ -33,6 +34,7 @@ export function useTerminal({
   const onSessionStateRef = useRef(onSessionState)
   const onReadyRef = useRef(onReady)
   const broadcastTabIdsRef = useRef(broadcastTabIds)
+  const webglAddonRef = useRef(null)
   // Accent colour for command-start markers; kept in a ref so the create-effect
   // (which doesn't depend on theme) always reads the current value.
   const accentRef = useRef(theme?.ui?.accent ?? '#ff6b9d')
@@ -75,6 +77,26 @@ export function useTerminal({
   useEffect(() => {
     accentRef.current = theme?.ui?.accent ?? '#ff6b9d'
   }, [theme])
+
+  const loadWebglRenderer = useCallback((term) => {
+    if (!term || webglAddonRef.current) return
+    try {
+      const addon = new WebglAddon()
+      addon.onContextLoss(() => {
+        try { addon.dispose() } catch {}
+        if (webglAddonRef.current === addon) webglAddonRef.current = null
+      })
+      term.loadAddon(addon)
+      webglAddonRef.current = addon
+    } catch {
+      webglAddonRef.current = null
+    }
+  }, [])
+
+  const disposeWebglRenderer = useCallback(() => {
+    try { webglAddonRef.current?.dispose() } catch {}
+    webglAddonRef.current = null
+  }, [])
 
   const resizePty = useCallback(() => {
     const term = termRef.current
@@ -124,14 +146,7 @@ export function useTerminal({
     // through it. The DOM renderer honours `allowTransparency` correctly. This is
     // opt-in (the "wallpaper through terminals" setting), so the perf trade only
     // applies when the user has explicitly chosen looks over raw throughput.
-    let webglAddon = null
-    if (!transparentBg) {
-      try {
-        webglAddon = new WebglAddon()
-        webglAddon.onContextLoss(() => { try { webglAddon?.dispose() } catch {}; webglAddon = null })
-        term.loadAddon(webglAddon)
-      } catch { webglAddon = null }
-    }
+    if (!transparentBg && !powerSaver) loadWebglRenderer(term)
 
     try { fitAddon.fit() } catch {}
     term.focus()
@@ -311,13 +326,21 @@ export function useTerminal({
       removeExitListener()
       removeStateListener()
       resizeObserver.disconnect()
-      try { webglAddon?.dispose() } catch {}
+      disposeWebglRenderer()
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null
       searchAddonRef.current = null
     }
   }, [containerRef, profile?.id, profile?.shell, resizePty, tabId, transparentBg])
+
+  useEffect(() => {
+    if (transparentBg || powerSaver) {
+      disposeWebglRenderer()
+      return
+    }
+    loadWebglRenderer(termRef.current)
+  }, [disposeWebglRenderer, loadWebglRenderer, powerSaver, transparentBg])
 
   useEffect(() => {
     if (termRef.current) {

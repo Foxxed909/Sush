@@ -25,7 +25,27 @@ function StatePill({ stateId }) {
   )
 }
 
-function SessionRow({ tab, stateId, limited, canSwitch, accent, onFocus, onClose, onPrompt, onSwitchResume }) {
+function fmtMem(mb) {
+  const n = Number(mb) || 0
+  if (n >= 1024) return `${(n / 1024).toFixed(1)}GB`
+  return `${Math.round(n)}MB`
+}
+
+function ResourcePill({ metric }) {
+  if (!metric) return null
+  const cpu = Math.max(0, Math.round(metric.cpu || 0))
+  const mem = metric.memRss || 0
+  return (
+    <span className="flex items-center" style={{ gap: 6, flexShrink: 0, color: 'var(--text-3)', fontSize: 10.5, fontWeight: 800 }}>
+      <Icon name="cpu" size={12} strokeWidth={2} />
+      <span style={{ color: cpu >= 70 ? '#ffcb6b' : 'var(--text-3)' }}>{cpu}%</span>
+      <span style={{ color: 'var(--text-5)' }}>/</span>
+      <span>{fmtMem(mem)}</span>
+    </span>
+  )
+}
+
+function SessionRow({ tab, stateId, limited, canSwitch, accent, metric, onFocus, onClose, onPrompt, onSwitchResume }) {
   const agent = agentById(tab.agentId) || agentById('shell')
   const waiting = stateId === 'waiting'
   const LIMIT = '#ff9f43'
@@ -61,6 +81,8 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, onFocus, onClose
       ) : (
         <StatePill stateId={stateId} />
       )}
+
+      <ResourcePill metric={metric} />
 
       {/* Limit hit + another account exists → switch & resume in one click. */}
       {limited && canSwitch && (
@@ -98,7 +120,7 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, onFocus, onClose
   )
 }
 
-export default function MissionControl({ accent, tabs, states, limits = {}, summary, onFocus, onClose, onCloseGroup, onPrompt, onSwitchResume, onDismiss }) {
+export default function MissionControl({ accent, tabs, states, limits = {}, summary, metrics = {}, onFocus, onClose, onCloseGroup, onPrompt, onSwitchResume, onDismiss }) {
   // Which CLIs have a second account to switch to — so the "Switch & resume"
   // action only appears when it can actually do something. Fetched once on open.
   const [altProviders, setAltProviders] = useState(() => new Set())
@@ -202,6 +224,7 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
                     stateId={states[tab.id] || 'idle'}
                     limited={!!limits[tab.id]}
                     canSwitch={altProviders.has(tab.agentId)}
+                    metric={metrics[tab.id]}
                     accent={accent}
                     onFocus={onFocus}
                     onClose={onClose}
