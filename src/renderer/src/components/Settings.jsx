@@ -35,7 +35,7 @@ function Section({ title, accent, children }) {
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
   { label: 'Plan', sec: 'Plan', icon: 'star', group: 'Account', keywords: 'tier unlock code upgrade plus pro free license' },
-  { label: 'Accounts', sec: 'Accounts', icon: 'users', group: 'Account', keywords: 'login limit switch claude codex slot' },
+  { label: 'Accounts', sec: 'Accounts', icon: 'users', group: 'Account', keywords: 'login limit switch claude codex gemini opencode slot' },
   { label: 'Usage', sec: 'Usage', icon: 'activity', group: 'Account', keywords: 'limit quota tokens cost' },
   { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles', group: 'Intelligence', keywords: 'engine orchestrator cli' },
   { label: 'Agents', sec: 'Agents', icon: 'rocket', group: 'Intelligence', keywords: 'custom cli tools' },
@@ -251,7 +251,9 @@ function AccountsSection({ accent }) {
 
   const providers = [
     ['claude', 'Claude', 'Claude Pro / Max subscription'],
-    ['codex', 'Codex', 'ChatGPT subscription']
+    ['codex', 'Codex', 'ChatGPT subscription'],
+    ['gemini', 'Gemini', 'Google account'],
+    ['opencode', 'OpenCode', 'any provider']
   ]
   const slotName = (slot, i) => slot.id === 'default' && slot.label === 'Default' ? 'Account 1' : (slot.label || `Account ${i + 1}`)
   const limitAgo = (slot) => {
@@ -404,28 +406,6 @@ function AccountsSection({ accent }) {
           </div>
         )
       })}
-
-      {/* CLIs that keep their login outside a relocatable, CLI-specific config
-          dir (Gemini → ~/.gemini, OpenCode → ~/.local/share/opencode) can't be
-          cleanly multi-accounted without leaking env into every session, so
-          they're one login per profile. You can still connect them here. */}
-      <div style={{ marginBottom: 14, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
-        <div style={{ padding: '9px 13px 4px', fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, color: 'var(--text-3)', textTransform: 'uppercase' }}>One login per profile</div>
-        {[['gemini', 'Gemini', 'Google account'], ['opencode', 'OpenCode', 'any provider']].map(([p, label, sub]) => (
-          <div key={p} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '8px 13px' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)' }}>{label}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 1 }}>{sub} — separate per profile</div>
-            </div>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('sush:open-login-session', { detail: { provider: p } }))}
-              style={{ fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 999, padding: '4px 12px', cursor: 'pointer' }}
-            >
-              Sign in
-            </button>
-          </div>
-        ))}
-      </div>
 
       {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 4 }}>{err}</div>}
     </Section>
@@ -591,7 +571,13 @@ function UsageSection({ accent, settings, set }) {
       </Card>
 
       <Card name="gemini" label="Gemini" sub="Google account" data={snap?.gemini}>
-        <div style={{ color: 'var(--text-4)' }}>One login per profile. No live usage probe; limits surface in-session.</div>
+        <AccountLine account={snap?.gemini?.account} />
+        <div style={{ color: 'var(--text-4)' }}>No live usage probe; Sush can rotate slots when limits surface in-session.</div>
+      </Card>
+
+      <Card name="opencode" label="OpenCode" sub="any provider" data={snap?.opencode}>
+        <AccountLine account={snap?.opencode?.account} />
+        <div style={{ color: 'var(--text-4)' }}>No live usage probe; Sush keeps each slot in its own XDG config/data dirs.</div>
       </Card>
 
       <div style={{ fontSize: 10, color: 'var(--text-5)', marginTop: 4 }}>
@@ -1216,7 +1202,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {/* Plan — tier + unlock-code redemption */}
           <PlanSection accent={accent} ent={ent} />
 
-          {/* Accounts — the Claude/Codex account switcher */}
+          {/* Accounts - multi-login slots for supported agent CLIs */}
           <AccountsSection accent={accent} />
 
           {/* Usage — live limit/account dashboard across all CLIs */}

@@ -4,6 +4,7 @@ import { rgba, accentVars } from '../lib/ui'
 import { allAgents, agentById } from '../lib/agents'
 import { getStreamer, parseAIResponse } from '../lib/ai'
 import { applyAction } from '../lib/seduciaActions'
+import { GATHER_THOUGHTS_PROMPT } from '../lib/seducia'
 
 function pathLabel(cwd) {
   if (!cwd) return 'this directory'
@@ -57,6 +58,10 @@ function parseIntent(input, activeCwd, dirs = []) {
       /\b(?:what|who)(?:'s| is| are)?\s+(?:running|on|up|going|live|active|here)\b/.test(text) ||
       /\blist\s+(?:sessions|agents|swarm)\b/.test(text)) {
     return { type: 'status' }
+  }
+
+  if (/\b(gather thoughts|gather my thoughts|what am i trying|what am i actually trying|ask questions|clarify intent|challenge claude|hard questions)\b/.test(text)) {
+    return { type: 'prompt', target: 'claude', text: GATHER_THOUGHTS_PROMPT }
   }
 
   const colon = raw.match(/^\s*([a-z][a-z ]*?)\s*:\s*(.+)$/i)
@@ -135,6 +140,7 @@ function speak(text, voiceSettings = {}) {
 
 const QUICK = [
   { label: 'Build team', send: 'build team here' },
+  { label: 'Gather thoughts', send: 'gather thoughts' },
   { label: 'Status', send: 'status' },
   { label: '3× Claude', send: '3 claude here' },
   { label: 'Doctor', send: 'doctor' }

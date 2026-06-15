@@ -8,7 +8,11 @@ const DEFAULT = {
   tier: 'free',
   expiry: null,
   features: { slots: 1, gridCap: 4, customAgents: false, cloudTts: false, themes: 'base' },
-  tiers: {}
+  tiers: {
+    free: { slots: 1, gridCap: 4, customAgents: false, cloudTts: false, themes: 'base' },
+    plus: { slots: 4, gridCap: 9, customAgents: true, cloudTts: true, themes: 'all' },
+    pro: { slots: 8, gridCap: 16, customAgents: true, cloudTts: true, themes: 'all' }
+  }
 }
 
 export function useEntitlements() {

@@ -18,8 +18,8 @@ import { sign } from './license-secret.mjs'
 // customAgents/cloudTts.
 export const TIER_FEATURES = {
   free: { slots: 1, gridCap: 4,  customAgents: false, cloudTts: false, themes: 'base' },
-  plus: { slots: 3, gridCap: 9,  customAgents: true,  cloudTts: true,  themes: 'all'  },
-  pro:  { slots: 6, gridCap: 16, customAgents: true,  cloudTts: true,  themes: 'all'  }
+  plus: { slots: 4, gridCap: 9,  customAgents: true,  cloudTts: true,  themes: 'all'  },
+  pro:  { slots: 8, gridCap: 16, customAgents: true,  cloudTts: true,  themes: 'all'  }
 }
 const RANK = { free: 0, plus: 1, pro: 2 }
 const file = () => join(app.getPath('userData'), 'sush-license.json')

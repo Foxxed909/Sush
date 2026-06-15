@@ -5,6 +5,7 @@ import { useSeducia } from '../hooks/useSeducia'
 
 const QUICK = [
   { label: 'Status', send: 'status' },
+  { label: 'Gather thoughts', send: 'gather thoughts' },
   { label: 'Build team', send: 'build team here' },
   { label: '3x Claude', send: '3 claude here' }
 ]

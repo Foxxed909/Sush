@@ -3,22 +3,37 @@ import { join } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { randomBytes } from 'crypto'
 
-// Per-identity CLI account slots: one Sush identity can hold several Claude /
-// Codex logins and hop between them when a session limit bites, without
-// switching Sush profiles. Each slot owns a config dir that the provider's
-// redirect env var points at. The 'default' slot is the identity's original
-// config dir inside its home — an identity with no accounts.json behaves
-// exactly like before this feature existed.
-//
-// Gemini is absent on purpose: its CLI has no config-dir env redirect, so it
-// stays one-account-per-identity (full isolation redirects HOME instead).
+// Per-identity CLI account slots: one Sush identity can hold several agent CLI
+// logins and hop between them when a session limit bites, without
+// switching Sush profiles. Each slot owns a provider-specific config/home
+// overlay. The default slot is the identity's original config dir inside
+// its home - an identity with no accounts.json behaves exactly like before
+// this feature existed.
 
 export const SLOT_PROVIDERS = {
   claude: { env: 'CLAUDE_CONFIG_DIR', label: 'Claude Code' },
-  codex: { env: 'CODEX_HOME', label: 'Codex' }
+  codex: { env: 'CODEX_HOME', label: 'Codex' },
+  gemini: {
+    label: 'Gemini',
+    env: {
+      HOME: '.',
+      USERPROFILE: '.',
+      APPDATA: 'AppData/Roaming',
+      LOCALAPPDATA: 'AppData/Local'
+    }
+  },
+  opencode: {
+    label: 'OpenCode',
+    env: {
+      XDG_CONFIG_HOME: '.config',
+      XDG_DATA_HOME: '.local/share',
+      XDG_STATE_HOME: '.local/state',
+      XDG_CACHE_HOME: '.cache'
+    }
+  }
 }
 
-const MAX_SLOTS = 6
+const MAX_SLOTS = 8
 
 function identityDir(userId) {
   return join(app.getPath('userData'), 'identities', String(userId))
@@ -30,6 +45,26 @@ function accountsFile(userId) {
 
 function slotDir(userId, provider, slotId) {
   return join(identityDir(userId), 'accounts', provider, slotId)
+}
+
+function envForSlot(userId, provider, slotId) {
+  const spec = SLOT_PROVIDERS[provider]
+  if (!userId || !spec || !slotId || slotId === 'default') return {}
+  const root = slotDir(userId, provider, slotId)
+  if (typeof spec.env === 'string') return { [spec.env]: root }
+  const env = {}
+  for (const [key, subPath] of Object.entries(spec.env || {})) {
+    env[key] = subPath === '.' ? root : join(root, subPath)
+  }
+  return env
+}
+
+function ensureSlotDirs(userId, provider, slotId) {
+  const root = slotDir(userId, provider, slotId)
+  mkdirSync(root, { recursive: true })
+  for (const dir of Object.values(envForSlot(userId, provider, slotId))) {
+    mkdirSync(dir, { recursive: true })
+  }
 }
 
 function load(userId) {
@@ -167,7 +202,7 @@ export function addAccount(userId, provider, label) {
   const id = 'acct-' + randomBytes(4).toString('hex')
   const name = String(label ?? '').trim().slice(0, 24) || `Account ${st.slots.length + 1}`
   try {
-    mkdirSync(slotDir(userId, provider, id), { recursive: true })
+    ensureSlotDirs(userId, provider, id)
   } catch (e) {
     return { ok: false, error: e.message }
   }
@@ -230,14 +265,12 @@ export function removeAccount(userId, provider, slotId) {
   return { ok: true, ...listAccounts(userId) }
 }
 
-// Env overlay that points ONE provider's config dir at a SPECIFIC slot (not
-// necessarily the active one) — used to read a given account's usage without
-// switching to it. The default slot returns {} (identity env already points
-// there). Overlay this ON TOP of activeUserEnv() so just this provider moves.
+// Env overlay that points one provider at a specific slot. Claude/Codex use
+// provider-specific config vars; Gemini/OpenCode need slot-local HOME/XDG
+// overlays because their CLIs do not expose a narrower account-dir variable.
+// The default slot returns {} because identity env already points there.
 export function slotEnv(userId, provider, slotId) {
-  const spec = SLOT_PROVIDERS[provider]
-  if (!userId || !spec || !slotId || slotId === 'default') return {}
-  return { [spec.env]: slotDir(userId, provider, slotId) }
+  return envForSlot(userId, provider, slotId)
 }
 
 // Env overlay for the active slots. Spread AFTER the identity env so a
@@ -251,7 +284,7 @@ export function accountSlotEnv(userId) {
     const st = data.providers?.[p]
     if (!st || !st.active || st.active === 'default') continue
     if (!st.slots?.some(s => s.id === st.active)) continue
-    env[spec.env] = slotDir(userId, p, st.active)
+    Object.assign(env, envForSlot(userId, p, st.active))
   }
   return env
 }

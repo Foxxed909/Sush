@@ -911,8 +911,7 @@ export default function App() {
 
   // Settings "Add account" / "Sign in" hands off here: open a session running
   // the CLI's own login so its browser OAuth (Google where supported) starts.
-  // For slot CLIs (claude/codex) the freshly-activated slot captures it; for
-  // per-profile CLIs (gemini/opencode) it signs into the profile's one login.
+  // The freshly activated account slot captures the provider's CLI state.
   useEffect(() => {
     const handler = (e) => {
       const provider = e.detail?.provider

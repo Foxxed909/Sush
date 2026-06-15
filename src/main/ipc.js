@@ -1362,7 +1362,8 @@ export function registerIpcHandlers(win) {
       signedIn: !!user,
       claude: { installed: present('claude'), account: activeOf('claude'), limits: getClaudeLimits() },
       codex: { installed: present('codex'), account: activeOf('codex') },
-      gemini: { installed: present('gemini'), account: null }
+      gemini: { installed: present('gemini'), account: activeOf('gemini') },
+      opencode: { installed: present('opencode'), account: activeOf('opencode') }
     }
   })
 

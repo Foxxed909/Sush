@@ -2,6 +2,14 @@
 // Extracted so the orb, the docked panel, and the voice loop share one brain.
 import { allAgents, agentById } from './agents'
 
+export const GATHER_THOUGHTS_PROMPT = [
+  'Gather thoughts with me before anyone writes code.',
+  'Infer what I am probably trying to achieve, then ask the sharpest clarifying questions.',
+  'Be direct and skeptical: call out weak assumptions, contradictions, missing success criteria, and hidden scope.',
+  'Do not flatter me. Do not shame, manipulate, or gaslight. Challenge the plan with evidence and better options.',
+  'End with a compact recommended next action.'
+].join(' ')
+
 export function pathLabel(cwd) {
   if (!cwd) return 'this directory'
   const trimmed = String(cwd).replace(/[\\/]+$/, '')
@@ -90,6 +98,10 @@ export function parseIntent(input, activeCwd, dirs = []) {
       /\b(?:what|who)(?:'s| is| are)?\s+(?:running|on|up|going|live|active|here)\b/.test(text) ||
       /\blist\s+(?:sessions|agents|swarm)\b/.test(text)) {
     return { type: 'status' }
+  }
+
+  if (/\b(gather thoughts|gather my thoughts|what am i trying|what am i actually trying|ask questions|clarify intent|challenge claude|hard questions)\b/.test(text)) {
+    return { type: 'prompt', target: 'claude', text: GATHER_THOUGHTS_PROMPT }
   }
 
   const colon = raw.match(/^\s*([a-z][a-z ]*?)\s*:\s*(.+)$/i)

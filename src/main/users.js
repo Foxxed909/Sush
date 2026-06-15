@@ -306,7 +306,7 @@ export function activeUserEnv() {
     env.APPDATA = join(home, 'AppData', 'Roaming')
     env.LOCALAPPDATA = join(home, 'AppData', 'Local')
   }
-  // Account slots last: a non-default Claude/Codex slot re-points that CLI's
-  // config dir at the slot, beating the identity default above.
+  // Account slots last: non-default CLI slots re-point provider-specific
+  // config/home overlays at the slot, beating the identity default above.
   return { ...env, ...accountSlotEnv(user.id) }
 }
