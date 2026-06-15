@@ -587,6 +587,98 @@ function writeMemoryNote(cwd, name, content) {
   }
 }
 
+function sushProjectDir(cwd) {
+  return join(resolveStartCwd(cwd), '.sush')
+}
+
+function tasksPath(cwd) {
+  return join(sushProjectDir(cwd), 'tasks.json')
+}
+
+const TASK_STATUSES = new Set(['todo', 'doing', 'review', 'blocked', 'done'])
+const TASK_ROLES = new Set(['Scout', 'Builder', 'Reviewer', 'Tester', 'Docs', 'Security'])
+
+function taskId() {
+  return `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function cleanList(value) {
+  if (Array.isArray(value)) {
+    return value.map(v => String(v || '').trim()).filter(Boolean).slice(0, 40)
+  }
+  return String(value || '')
+    .split(/[\n,]+/)
+    .map(v => v.trim())
+    .filter(Boolean)
+    .slice(0, 40)
+}
+
+function normalizeTask(task, fallback = {}, { touch = false } = {}) {
+  const now = new Date().toISOString()
+  const title = String(task?.title ?? fallback.title ?? '').trim().slice(0, 180)
+  const status = TASK_STATUSES.has(task?.status) ? task.status : (TASK_STATUSES.has(fallback.status) ? fallback.status : 'todo')
+  const role = TASK_ROLES.has(task?.role) ? task.role : (TASK_ROLES.has(fallback.role) ? fallback.role : 'Builder')
+  const evidence = cleanList(task?.evidence ?? fallback.evidence)
+  return {
+    id: String(task?.id || fallback.id || taskId()),
+    title: title || 'Untitled task',
+    status,
+    role,
+    owner: String(task?.owner ?? fallback.owner ?? '').trim().slice(0, 80),
+    files: cleanList(task?.files ?? fallback.files),
+    gate: String(task?.gate ?? fallback.gate ?? '').trim().slice(0, 240),
+    evidence,
+    createdAt: String(task?.createdAt || fallback.createdAt || now),
+    updatedAt: touch ? now : String(task?.updatedAt || fallback.updatedAt || now)
+  }
+}
+
+function readTasks(cwd) {
+  const file = tasksPath(cwd)
+  try {
+    if (!existsSync(file)) return { ok: true, file, tasks: [] }
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    const rawTasks = Array.isArray(parsed) ? parsed : Array.isArray(parsed.tasks) ? parsed.tasks : []
+    return { ok: true, file, tasks: rawTasks.map(t => normalizeTask(t)) }
+  } catch (err) {
+    return { ok: false, file, tasks: [], error: err.message }
+  }
+}
+
+function writeTasks(cwd, tasks) {
+  const dir = sushProjectDir(cwd)
+  const file = tasksPath(cwd)
+  try {
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    const normalized = (Array.isArray(tasks) ? tasks : []).map(t => normalizeTask(t))
+    writeFileSync(file, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), tasks: normalized }, null, 2), 'utf8')
+    return { ok: true, file, tasks: normalized }
+  } catch (err) {
+    return { ok: false, file, tasks: [], error: err.message }
+  }
+}
+
+function addTask(cwd, task) {
+  const current = readTasks(cwd)
+  if (!current.ok) return current
+  return writeTasks(cwd, [normalizeTask(task, {}, { touch: true }), ...current.tasks])
+}
+
+function updateTask(cwd, id, patch) {
+  const current = readTasks(cwd)
+  if (!current.ok) return current
+  const wanted = String(id || '')
+  const tasks = current.tasks.map(task => task.id === wanted ? normalizeTask({ ...task, ...(patch || {}), id: task.id, createdAt: task.createdAt }, task, { touch: true }) : task)
+  return writeTasks(cwd, tasks)
+}
+
+function deleteTask(cwd, id) {
+  const current = readTasks(cwd)
+  if (!current.ok) return current
+  const wanted = String(id || '')
+  return writeTasks(cwd, current.tasks.filter(task => task.id !== wanted))
+}
+
 function parseCwdFromOsc7(data) {
   let cwd = null
   const text = String(data ?? '')
@@ -1044,6 +1136,10 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:memory-list', (event, { cwd }) => listMemoryNotes(cwd))
   ipcMain.handle('sush:memory-read', (event, { cwd, name }) => readMemoryNote(cwd, name))
   ipcMain.handle('sush:memory-write', (event, { cwd, name, content }) => writeMemoryNote(cwd, name, content))
+  ipcMain.handle('sush:tasks-read', (event, { cwd }) => readTasks(cwd))
+  ipcMain.handle('sush:tasks-add', (event, { cwd, task }) => addTask(cwd, task))
+  ipcMain.handle('sush:tasks-update', (event, { cwd, id, patch }) => updateTask(cwd, id, patch))
+  ipcMain.handle('sush:tasks-delete', (event, { cwd, id }) => deleteTask(cwd, id))
 
   ipcMain.handle('sush:app-version', () => app.getVersion())
   ipcMain.handle('sush:home-dir', () => homedir())

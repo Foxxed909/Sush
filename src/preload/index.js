@@ -82,6 +82,10 @@ contextBridge.exposeInMainWorld('sush', {
   memoryList: (payload) => ipcRenderer.invoke('sush:memory-list', payload),
   memoryRead: (payload) => ipcRenderer.invoke('sush:memory-read', payload),
   memoryWrite: (payload) => ipcRenderer.invoke('sush:memory-write', payload),
+  tasksRead: (payload) => ipcRenderer.invoke('sush:tasks-read', payload),
+  tasksAdd: (payload) => ipcRenderer.invoke('sush:tasks-add', payload),
+  tasksUpdate: (payload) => ipcRenderer.invoke('sush:tasks-update', payload),
+  tasksDelete: (payload) => ipcRenderer.invoke('sush:tasks-delete', payload),
   // New in v2
   readFile: (payload) => ipcRenderer.invoke('sush:read-file', payload),
   writeFile: (payload) => ipcRenderer.invoke('sush:write-file', payload),
