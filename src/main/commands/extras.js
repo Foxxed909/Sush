@@ -6,6 +6,7 @@ import { createHash } from 'crypto'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { homedir } from 'os'
+import { Notification } from 'electron'
 import { ok, err, ansi } from './_helpers'
 
 const execFileAsync = promisify(execFile)
@@ -287,7 +288,7 @@ export function clearTabTimer(tabId) {
 
 export const timer = {
   name: 'timer',
-  description: 'Start a countdown timer',
+  description: 'Start a countdown timer (notifies when it finishes)',
   usage: 'timer <seconds>',
   async run([secs], ctx) {
     const n = parseInt(secs, 10)
@@ -300,9 +301,16 @@ export const timer = {
     }
     const id = setTimeout(() => {
       activeTimers.delete(key)
+      // The command already returned by the time this fires, so the only way to
+      // reach the user is a native notification (was previously a silent no-op).
+      try {
+        if (Notification.isSupported()) {
+          new Notification({ title: 'Sush timer', body: `${n}s timer finished`, silent: false }).show()
+        }
+      } catch {}
     }, n * 1000)
     activeTimers.set(key, id)
-    return ok(ansi.green(`Timer started: ${n}s`))
+    return ok(ansi.green(`Timer started: ${n}s`) + ansi.dim(' — run timer again to cancel'))
   }
 }
 
