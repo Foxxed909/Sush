@@ -173,6 +173,3 @@ export function getListeningPorts() {
     return []
   }
 }
-
-// Legacy named export used by workspace.js
-export { getListeningPorts as parseListeningPortPid }

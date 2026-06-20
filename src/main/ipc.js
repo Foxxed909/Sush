@@ -101,14 +101,26 @@ function commandExists(file) {
 // so no untrusted text ever lands on the command line (no shell, and for
 // .cmd shims cmd.exe re-parses argv — stdin is the only safe channel). Each
 // uses the user's existing CLI login — no API key required.
+//
+// An engine may live here ONLY if it can read its prompt from stdin. That's
+// why OpenCode is deliberately absent: it has no stdin mode (`opencode run`
+// takes the prompt as an argv argument only), and pushing a multi-line prompt
+// through argv would be mangled/injected by cmd.exe on Windows .cmd shims.
+// OpenCode stays a first-class *launchable agent* and *account provider*
+// (see lib/agents.js) — it just can't drive the Seducia chat.
 const SEDUCIA_ENGINES = {
   // --strict-mcp-config with no --mcp-config = load ZERO MCP servers. A chat
   // reply needs none of them, and on a slow machine their startup alone was
   // blowing the old 90s timeout.
   claude: { args: ['-p', '--strict-mcp-config'] },
   codex: { args: ['exec', '--skip-git-repo-check', '-'] },
+  // Empty args + piped stdin: Gemini runs headless when stdin is non-TTY and
+  // reads the piped text as its prompt (google-gemini/gemini-cli headless mode).
   gemini: { args: [] }
 }
+// Engines that can actually drive Seducia chat — derived from the table above
+// so the IPC allow-list can never drift from what's wired.
+const CHAT_ENGINES = Object.keys(SEDUCIA_ENGINES)
 const CLI_TIMEOUT_MS = 180000   // weak-CPU headroom; was 90s and timing out
 
 // codex exec logs a banner + thinking lines; the final reply follows the
@@ -1227,7 +1239,15 @@ export function registerIpcHandlers(win) {
 
   // ── Seducia via local agent CLIs (no API key) ─────────────────────────────
   ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd, engine, limitPolicy }) => {
-    const id = ['claude', 'codex', 'gemini'].includes(engine) ? engine : 'claude'
+    // A specific-but-unsupported engine (e.g. 'opencode', which has no stdin
+    // mode) must NOT silently fall back to claude — that would answer as the
+    // wrong model under the user's nose. Only an unset/empty engine defaults
+    // to claude (the 'auto' cascade in lib/ai.js always resolves to a concrete
+    // engine before it reaches here).
+    if (engine && !SEDUCIA_ENGINES[engine]) {
+      return { ok: false, engine, error: `\`${engine}\` can't drive Seducia chat (no stdin mode). Supported engines: ${CHAT_ENGINES.join(', ')}. You can still launch it as an agent.` }
+    }
+    const id = SEDUCIA_ENGINES[engine] ? engine : 'claude'
     // The renderer only sends limitPolicy for an explicit override (helpers
     // force 'never' so they never burn a rotation). Otherwise the policy is
     // per-CLI and lives with the account data — read it straight from there.

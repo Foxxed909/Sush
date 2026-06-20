@@ -281,11 +281,3 @@ export const sushrc = {
   }
 }
 
-export const handoff = {
-  name: 'handoff',
-  description: 'Hand off this session\'s context to another session',
-  usage: 'handoff',
-  async run() {
-    return { ...ok('Preparing handoff'), action: { name: 'handoff' } }
-  }
-}
