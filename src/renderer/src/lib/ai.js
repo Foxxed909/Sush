@@ -63,6 +63,11 @@ ${sessionSummary}`
 // Claude session limit silently rolls over to the next logged-in CLI. The
 // engine that actually answered is appended as a marker line which
 // parseAIResponse extracts (and hides) for the UI chip.
+//
+// Must mirror CHAT_ENGINES in main (ipc.js): only stdin-driven engines belong
+// here. OpenCode is intentionally excluded — it has no stdin mode, so it's a
+// launchable agent / account provider only, never a chat driver. Main also
+// rejects any unsupported engine rather than misrouting it to claude.
 const CLI_ENGINE_ORDER = ['claude', 'codex', 'gemini']
 
 export async function* streamAgentCli(messages, { tabs, activeCwd, scope, engine = 'auto' }) {
