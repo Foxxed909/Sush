@@ -1,27 +1,33 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from 'react'
 import Terminal from './components/Terminal'
 import TitleBar from './components/TitleBar'
 import ProfileManager, { useProfiles } from './components/ProfileManager'
-import Settings from './components/Settings'
 import SessionRail from './components/SessionRail'
 import HomeDashboard from './components/HomeDashboard'
 import SmartCommandBar from './components/SmartCommandBar'
 import StatusBar from './components/StatusBar'
-import NewSessionModal from './components/NewSessionModal'
-import RightPanel from './components/RightPanel'
 import SeduciaOrb from './components/SeduciaOrb'
-import Hush from './components/Hush'
-import MissionControl from './components/MissionControl'
-import AliasNudge from './components/AliasNudge'
-import CommandPalette from './components/CommandPalette'
-import ShortcutsHelp from './components/ShortcutsHelp'
-import HandoffModal from './components/HandoffModal'
-import SushrcEditor from './components/SushrcEditor'
-import QuickSwitcher from './components/QuickSwitcher'
 import SplashScreen from './components/SplashScreen'
 import LockScreen from './components/LockScreen'
-import UserManager from './components/UserManager'
+// Static: LockScreen already imports ProfileViewer, so it's in the initial
+// graph regardless — lazy-loading it here would only split a shared chunk.
 import ProfileViewer from './components/ProfileViewer'
+
+// Heavy, interaction-gated surfaces are code-split: they don't belong in the
+// first paint, so each becomes its own chunk loaded on demand. This trims the
+// initial renderer bundle (which was a single ~1.6 MB chunk) substantially.
+const Settings = lazy(() => import('./components/Settings'))
+const NewSessionModal = lazy(() => import('./components/NewSessionModal'))
+const RightPanel = lazy(() => import('./components/RightPanel'))
+const Hush = lazy(() => import('./components/Hush'))
+const MissionControl = lazy(() => import('./components/MissionControl'))
+const AliasNudge = lazy(() => import('./components/AliasNudge'))
+const CommandPalette = lazy(() => import('./components/CommandPalette'))
+const ShortcutsHelp = lazy(() => import('./components/ShortcutsHelp'))
+const HandoffModal = lazy(() => import('./components/HandoffModal'))
+const SushrcEditor = lazy(() => import('./components/SushrcEditor'))
+const QuickSwitcher = lazy(() => import('./components/QuickSwitcher'))
+const UserManager = lazy(() => import('./components/UserManager'))
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { themes, getTheme } from './themes'
@@ -1517,8 +1523,9 @@ export default function App() {
   }
 
   return (
+    <Suspense fallback={null}>
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}`}
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${settings.compactDensity ? ' sush-compact' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
@@ -2045,5 +2052,6 @@ export default function App() {
       )}
 
     </div>
+    </Suspense>
   )
 }

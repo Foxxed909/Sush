@@ -1732,6 +1732,18 @@ function loadApiHistory() {
   try { return JSON.parse(localStorage.getItem(API_HISTORY_KEY) ?? '[]') } catch { return [] }
 }
 
+// Strip one matching pair of surrounding quotes from a .env value
+// (API_KEY="abc" → abc), so the editor shows the bare value. Unquoted values
+// come back trimmed as-is. Without this the tab threw a ReferenceError the
+// moment it loaded any .env file.
+function unquoteEnv(raw) {
+  const v = String(raw ?? '').trim()
+  const quoted =
+    v.length >= 2 &&
+    ((v[0] === '"' && v[v.length - 1] === '"') || (v[0] === "'" && v[v.length - 1] === "'"))
+  return quoted ? v.slice(1, -1) : v
+}
+
 function EnvManagerTab({ accent, cwd }) {
   const [pairs, setPairs] = useState([])
   const [loading, setLoading] = useState(false)

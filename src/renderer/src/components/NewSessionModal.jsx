@@ -203,7 +203,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                   key={agent.id}
                   onClick={() => { if (!locked) setCount(agent.id, on ? 0 : 1) }}
                   className="sush-row flex items-center"
-                  title={locked ? `${agent.label} is not installed - install it to unlock this tile` : undefined}
+                  title={locked ? `${agent.label} isn't on your PATH yet${agent.command ? ` — install its CLI (\`${agent.command}\`) to enable this tile` : ''}. This is not a plan limit.` : undefined}
                   style={{
                     gap: 12,
                     cursor: locked ? 'default' : 'pointer',
@@ -238,8 +238,8 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                     </span>
                   </span>
                   {locked ? (
-                    <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.8, color: 'var(--text-3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '3px 8px' }}>
-                      LOCKED
+                    <span title="Not a plan limit — the CLI just isn't installed" style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.8, color: 'var(--text-3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>
+                      INSTALL
                     </span>
                   ) : (
                     <div className="flex items-center" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>
