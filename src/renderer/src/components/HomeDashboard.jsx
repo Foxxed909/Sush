@@ -368,7 +368,7 @@ export default function HomeDashboard({
                   <Icon name="arrowRight" size={14} color="var(--text-5)" className="sush-row-arrow" />
                 </button>
               )) : (
-                <EmptyState icon="folder" accent={accent}>No directories yet</EmptyState>
+                <EmptyState icon="folder" accent={accent} actionLabel="New session" onAction={onNewSession}>No directories yet — open one to get started</EmptyState>
               )}
             </div>
           </section>
@@ -407,7 +407,7 @@ export default function HomeDashboard({
                   </span>
                 </button>
               )) : (
-                <EmptyState icon="clock" accent={accent}>No sessions yet</EmptyState>
+                <EmptyState icon="clock" accent={accent} actionLabel="Launch" onAction={onNewSession}>No sessions yet — launch your first workspace</EmptyState>
               )}
             </div>
           </section>
@@ -475,7 +475,9 @@ function NpmScriptsSection({ accent, cwd, onRun }) {
   )
 }
 
-function EmptyState({ icon, accent, children }) {
+// Empty states earn their space: alongside the message they offer the single
+// most useful next action, so a first-run home is a launchpad, not a dead end.
+function EmptyState({ icon, accent, children, actionLabel, onAction }) {
   return (
     <div
       className="flex items-center"
@@ -490,7 +492,28 @@ function EmptyState({ icon, accent, children }) {
       }}
     >
       <Icon name={icon} size={16} color="var(--text-5)" />
-      {children}
+      <span style={{ flex: 1 }}>{children}</span>
+      {actionLabel && onAction && (
+        <button
+          onClick={onAction}
+          className="flex items-center"
+          style={{
+            gap: 6,
+            flexShrink: 0,
+            fontSize: 11.5,
+            fontWeight: 800,
+            color: accent,
+            background: rgba(accent, 0.12),
+            border: `1px solid ${rgba(accent, 0.4)}`,
+            borderRadius: 999,
+            padding: '5px 12px',
+            cursor: 'pointer'
+          }}
+        >
+          <Icon name="plus" size={12} strokeWidth={2.4} color={accent} />
+          {actionLabel}
+        </button>
+      )}
     </div>
   )
 }

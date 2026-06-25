@@ -104,6 +104,16 @@ pre, code, kbd, .sush-mono,
   flex-direction: column;
 }
 
+/* ---- Compact density ----
+   Settings ▸ Appearance ▸ Density. The UI is built largely from fixed-px inline
+   styles, so the reliable, uniform way to raise density is a small zoom on the
+   whole shell — everything scales together (chrome, rails, panels) while the
+   terminal keeps its own font size. ~8% smaller fits noticeably more on screen
+   without the per-component restyling that would risk layout regressions. */
+.sush-compact {
+  zoom: 0.92;
+}
+
 .xterm {
   height: 100%;
   padding: 8px;

@@ -1308,6 +1308,19 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               </div>
             </Row>
             <Row>
+              <Label>Density</Label>
+              <button
+                onClick={() => set('compactDensity', !settings.compactDensity)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.compactDensity ? rgba(accent, 0.1) : 'var(--surface-2)', border: `1px solid ${settings.compactDensity ? rgba(accent, 0.4) : 'var(--border-2)'}`, color: settings.compactDensity ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="layout" size={14} strokeWidth={2} />
+                {settings.compactDensity ? 'Compact — tighter chrome for many sessions' : 'Comfortable — default spacing'}
+              </button>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
+                Compact shrinks the whole interface a touch so more fits on screen — handy when you're running a wall of sessions.
+              </div>
+            </Row>
+            <Row>
               <Label>Restore session history</Label>
               <button
                 onClick={() => set('persistScrollback', settings.persistScrollback === false)}

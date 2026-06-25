@@ -6,7 +6,22 @@ import { promisify } from 'util'
 import { fileURLToPath } from 'url'
 
 const execFileAsync = promisify(execFile)
-import * as pty from 'node-pty'
+
+// node-pty is a native addon. If its binary was never built (or was built for
+// the wrong Electron ABI), a static `import` would throw while this module is
+// still being evaluated — taking the entire main process down before a window
+// is ever shown, so the user just sees a dead app. Load it defensively instead:
+// keep `pty` null on failure and let spawnPty() surface an actionable error.
+import { createRequire } from 'node:module'
+const _require = createRequire(import.meta.url)
+let pty = null
+let ptyLoadError = null
+try {
+  pty = _require('node-pty')
+} catch (err) {
+  ptyLoadError = err
+  console.error('[sush] node-pty failed to load — terminals are disabled. Run `npm run rebuild`.', err?.message)
+}
 import si from 'systeminformation'
 import { registry } from './shell/registry'
 import { clearTabTimer } from './commands/extras'
@@ -472,6 +487,12 @@ function resolveStartCwd(cwd) {
 // single bad shell/option can never hard-crash a session, and surface an
 // actionable error if everything fails.
 function spawnPty(shell, { cols, rows, cwd, env }) {
+  if (!pty) {
+    throw new Error(
+      `Terminal engine unavailable: node-pty did not load (${ptyLoadError?.message || 'native build missing'}). ` +
+      'Rebuild it with `npm run rebuild`.'
+    )
+  }
   const base = {
     name: 'xterm-256color',
     cols: Number(cols) || 80,
