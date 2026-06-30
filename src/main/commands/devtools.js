@@ -103,6 +103,43 @@ function rgbToHsl({ r, g, b }) {
   return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) }
 }
 
+// ---------- base ----------
+// Convert an integer between bases. `base ff` auto-detects (0x / 0b / 0o
+// prefixes, else decimal) and shows all four; `base 255 10 2` converts
+// explicitly from base 10 to base 2.
+function detectRadix(raw) {
+  if (/^0x/i.test(raw)) return { radix: 16, digits: raw.slice(2) }
+  if (/^0b/i.test(raw)) return { radix: 2, digits: raw.slice(2) }
+  if (/^0o/i.test(raw)) return { radix: 8, digits: raw.slice(2) }
+  return { radix: 10, digits: raw }
+}
+
+export const base = {
+  name: 'base',
+  description: 'Convert an integer between bases (bin/oct/dec/hex)',
+  usage: 'base <number> [fromBase] [toBase]',
+  async run([value, from, to]) {
+    if (!value) return err('base: usage: base <number> [fromBase] [toBase]')
+    const fromBase = from ? parseInt(from, 10) : null
+    const { radix, digits } = fromBase ? { radix: fromBase, digits: value } : detectRadix(value)
+    if (radix < 2 || radix > 36) return err('base: fromBase must be between 2 and 36')
+    const n = parseInt(digits, radix)
+    if (Number.isNaN(n)) return err(`base: "${value}" is not a valid base-${radix} integer`)
+
+    if (to) {
+      const toBase = parseInt(to, 10)
+      if (toBase < 2 || toBase > 36) return err('base: toBase must be between 2 and 36')
+      return ok(`${ansi.dim(`base ${radix} → ${toBase}:`)} ${ansi.pink(n.toString(toBase))}`)
+    }
+    return ok([
+      `${ansi.cyan('DEC')}  ${n}`,
+      `${ansi.cyan('HEX')}  0x${n.toString(16)}`,
+      `${ansi.cyan('OCT')}  0o${n.toString(8)}`,
+      `${ansi.cyan('BIN')}  0b${n.toString(2)}`
+    ].join('\r\n'))
+  }
+}
+
 export const color = {
   name: 'color',
   description: 'Convert a color between hex / rgb / hsl and preview it',
