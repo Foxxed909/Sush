@@ -105,9 +105,6 @@ export async function* streamAgentCli(messages, { tabs, activeCwd, scope, engine
   )
 }
 
-// Backward-compatible alias (older call sites).
-export const streamClaudeCli = streamAgentCli
-
 // Parse a completed AI response: strips every ACTION:<json> line (and the
 // ENGINE marker) out of the prose. Returns { message, actions, engine } —
 // actions is an array (possibly empty), in emission order.
