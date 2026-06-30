@@ -10,8 +10,9 @@ import * as extras from '../commands/extras'
 import * as more from '../commands/more'
 import * as github from '../commands/github'
 import * as license from '../commands/license'
+import * as devtools from '../commands/devtools'
 
-const allModules = [workspace, fs, system, dev, gh, secrets, tools, utils, extras, more, github, license]
+const allModules = [workspace, fs, system, dev, gh, secrets, tools, utils, extras, more, github, license, devtools]
 
 class CommandRegistry {
   constructor() {
