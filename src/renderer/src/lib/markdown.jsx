@@ -169,7 +169,21 @@ export function renderMarkdown(content, accent) {
     const ulM = line.match(/^[-*]\s+(.+)/)
     if (ulM) {
       if (listType !== 'ul') flushList(); listType = 'ul'
-      listItems.push(<li key={`li${i}`} style={{ marginBottom: 2 }}>{parseInline(ulM[1], accent)}</li>)
+      // GFM task list: "- [ ] todo" / "- [x] done". Render an inline checkbox
+      // (read-only — this is a renderer, not an editor) and strike the label
+      // when checked, instead of showing a literal "[ ]".
+      const task = ulM[1].match(/^\[([ xX])\]\s+(.*)$/)
+      if (task) {
+        const done = task[1].toLowerCase() === 'x'
+        listItems.push(
+          <li key={`li${i}`} style={{ marginBottom: 2, listStyle: 'none', marginLeft: -16 }}>
+            <span style={{ color: done ? accent : '#5a646d', marginRight: 6 }}>{done ? '☑' : '☐'}</span>
+            <span style={done ? { textDecoration: 'line-through', color: '#6b757e' } : undefined}>{parseInline(task[2], accent)}</span>
+          </li>
+        )
+      } else {
+        listItems.push(<li key={`li${i}`} style={{ marginBottom: 2 }}>{parseInline(ulM[1], accent)}</li>)
+      }
       i++; continue
     }
 

@@ -10,6 +10,14 @@ export const GATHER_THOUGHTS_PROMPT = [
   'End with a compact recommended next action.'
 ].join(' ')
 
+// Escape a string so it can be embedded literally in a RegExp. Agent ids /
+// synonyms are interpolated into match patterns below; a custom-agent id (or a
+// future synonym source) containing regex metacharacters would otherwise throw
+// or match wrongly.
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export function pathLabel(cwd) {
   if (!cwd) return 'this directory'
   const trimmed = String(cwd).replace(/[\\/]+$/, '')
@@ -139,7 +147,8 @@ export function parseIntent(input, activeCwd, dirs = []) {
   for (const agent of allAgents()) {
     const names = SYNONYMS[agent.id] || [agent.id]
     let count = 0
-    for (const name of names) {
+    for (const rawName of names) {
+      const name = escapeRegExp(rawName)
       const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|×)?\\s*${name}\\b`, 'i'))
       const after = raw.match(new RegExp(`\\b${name}\\s*(?:x|×)\\s*(\\d+)`, 'i'))
       if (before) count = Math.max(count, parseInt(before[1], 10) || 0)
