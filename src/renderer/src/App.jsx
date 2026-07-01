@@ -1518,7 +1518,7 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}`}
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${settings.reduceMotion ? ' sush-reduce-motion' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),

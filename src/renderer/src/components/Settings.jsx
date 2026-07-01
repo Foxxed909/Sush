@@ -594,16 +594,24 @@ function UsageSection({ accent, settings, set }) {
 // Stored per user (localStorage); the launcher, Seducia and the availability
 // probe pick them up through allAgents().
 const TIER_META = {
-  free: { label: 'Free', color: 'var(--text-3)', blurb: 'The essentials, no code needed.' },
-  plus: { label: 'Plus', color: '#5ab0ff', blurb: 'Multi-account work + cloud voice.' },
-  pro:  { label: 'Pro',  color: '#c08bff', blurb: 'Everything, max grid.' }
+  free: { label: 'Free', price: '$0', unit: 'forever',  color: 'var(--text-3)', blurb: 'The essentials, no code needed.' },
+  plus: { label: 'Plus', price: '$8', unit: '/ month',  color: '#5ab0ff',       blurb: 'Multi-account work + cloud voice.', popular: true },
+  pro:  { label: 'Pro',  price: '$16', unit: '/ month', color: '#c08bff',       blurb: 'Everything, max grid.' }
 }
-const PLAN_ROWS = [
-  ['Accounts per CLI', t => String(t.slots)],
-  ['Grid sessions',    t => String(t.gridCap)],
-  ['Custom agents',    t => (t.customAgents ? 'yes' : '—')],
-  ['Cloud voices',     t => (t.cloudTts ? 'yes' : '—')]
+// Dictation minutes per tier — mirror main/credits.js TIER_ALLOWANCE_SEC so the
+// pricing cards and the real meter never disagree.
+const CREDIT_MINUTES = { free: 5, plus: 60, pro: 300 }
+// One row per comparable feature. `fn(features, tierName)` renders the cell.
+const PLAN_FEATURES = [
+  ['Accounts per CLI',     t => String(t.slots)],
+  ['Grid sessions',        t => String(t.gridCap)],
+  ['Quiet Credits',        (t, name) => `${CREDIT_MINUTES[name] ?? 5}m / mo`],
+  ['Custom agents',        t => t.customAgents],
+  ['Cloud voices',         t => t.cloudTts]
 ]
+// The plans we SHOW. Extra/experimental tiers can be added to TIER_FEATURES
+// without appearing here — hidden, not removed. Keep this to three for a clean
+// pricing wall.
 const PLAN_ORDER = ['free', 'plus', 'pro']
 
 // Tier / unlock-code panel. No paywall: the user pastes a code I mint offline
@@ -633,45 +641,76 @@ function PlanSection({ accent, ent }) {
 
   return (
     <Section title="Plan" accent={accent}>
-      {/* Current tier */}
-      <div className="flex items-center" style={{ gap: 12, padding: '13px 15px', borderRadius: 'var(--r-lg)', border: `1px solid ${rgba(meta.color, 0.35)}`, background: rgba(meta.color, 0.08), marginBottom: 16 }}>
-        <span className="flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: 9, background: rgba(meta.color, 0.16), border: `1px solid ${rgba(meta.color, 0.4)}`, color: meta.color, flexShrink: 0 }}>
-          <Icon name="star" size={16} strokeWidth={2} />
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 900, color: 'var(--text-1)' }}>
-            {meta.label} plan {ent.expiry && <span style={{ color: 'var(--text-3)', fontWeight: 700, fontSize: 11 }}>· trial</span>}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{meta.blurb}</div>
-        </div>
-        {tier !== 'free' && (
-          <button onClick={revert} title="Remove code, back to Free" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--text-3)', background: 'var(--surface-1)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
-            Revert to Free
-          </button>
-        )}
-      </div>
-
-      {/* What each tier unlocks */}
+      {/* Pricing wall — three cards, current plan lifted, Plus flagged popular. */}
       {tiers && (
-        <div style={{ borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden', marginBottom: 16 }}>
-          <div className="flex" style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ flex: '1.4 1 0', padding: '9px 12px', fontSize: 10, fontWeight: 800, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Feature</div>
-            {PLAN_ORDER.map(t => (
-              <div key={t} style={{ flex: 1, padding: '9px 8px', textAlign: 'center', fontSize: 11, fontWeight: 900, color: t === tier ? (TIER_META[t]?.color) : 'var(--text-3)' }}>
-                {TIER_META[t]?.label}{t === tier ? ' ●' : ''}
-              </div>
-            ))}
-          </div>
-          {PLAN_ROWS.map(([name, fn], i) => (
-            <div key={name} className="flex" style={{ borderBottom: i < PLAN_ROWS.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-              <div style={{ flex: '1.4 1 0', padding: '8px 12px', fontSize: 11.5, color: 'var(--text-2)' }}>{name}</div>
-              {PLAN_ORDER.map(t => (
-                <div key={t} style={{ flex: 1, padding: '8px', textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: t === tier ? 'var(--text-2)' : 'var(--text-3)' }}>
-                  {tiers[t] ? fn(tiers[t]) : '—'}
+        <div className="sush-plan-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 18 }}>
+          {PLAN_ORDER.map(t => {
+            const m = TIER_META[t] || {}
+            const f = tiers[t]
+            if (!f) return null
+            const current = t === tier
+            const popular = !!m.popular && !current
+            return (
+              <div
+                key={t}
+                className="sush-plan-card"
+                style={{
+                  position: 'relative',
+                  display: 'flex', flexDirection: 'column',
+                  borderRadius: 16,
+                  border: `1px solid ${current ? rgba(m.color, 0.55) : popular ? rgba(m.color, 0.32) : 'var(--border-2)'}`,
+                  background: current ? rgba(m.color, 0.08) : 'var(--surface-1)',
+                  boxShadow: current ? `0 10px 30px ${rgba(m.color, 0.16)}` : '0 2px 10px rgba(0,0,0,0.18)',
+                  padding: '16px 15px 15px',
+                  transform: current ? 'translateY(-2px)' : 'none',
+                  transition: 'transform 260ms cubic-bezier(0.22,1,0.36,1), box-shadow 260ms ease, border-color 200ms ease'
+                }}
+              >
+                {(popular || current) && (
+                  <span style={{ position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', color: current ? '#05070b' : '#05070b', background: m.color, borderRadius: 999, padding: '2px 9px', whiteSpace: 'nowrap' }}>
+                    {current ? 'Your plan' : 'Popular'}
+                  </span>
+                )}
+                <div style={{ fontSize: 12.5, fontWeight: 900, color: m.color, letterSpacing: 0.3 }}>{m.label}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 6 }}>
+                  <span style={{ fontSize: 26, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1 }}>{m.price}</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--text-4)', fontWeight: 700 }}>{m.unit}</span>
                 </div>
-              ))}
-            </div>
-          ))}
+                <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.45, minHeight: 30 }}>{m.blurb}</div>
+                <div style={{ height: 1, background: 'var(--border-2)', margin: '11px 0' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
+                  {PLAN_FEATURES.map(([name, fn]) => {
+                    const val = fn(f, t)
+                    const bool = typeof val === 'boolean'
+                    return (
+                      <div key={name} className="flex items-center" style={{ gap: 7, fontSize: 11 }}>
+                        <Icon name={bool ? (val ? 'check' : 'x') : 'check'} size={12} strokeWidth={2.4} color={bool ? (val ? m.color : 'var(--text-5, #4a545e)') : m.color} />
+                        <span style={{ color: bool && !val ? 'var(--text-4)' : 'var(--text-2)', flex: 1 }}>{name}</span>
+                        {!bool && <span style={{ color: 'var(--text-2)', fontWeight: 800 }}>{val}</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ marginTop: 13 }}>
+                  {current ? (
+                    tier === 'free'
+                      ? <div style={{ textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: 'var(--text-4)', padding: '7px 0' }}>You're here</div>
+                      : <button onClick={revert} title="Remove code, back to Free" style={{ width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '7px 0', cursor: 'pointer' }}>Revert to Free</button>
+                  ) : (
+                    <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 800, color: m.color, letterSpacing: 0.4, textTransform: 'uppercase', padding: '7px 0', borderRadius: 999, background: rgba(m.color, 0.08), border: `1px solid ${rgba(m.color, 0.25)}` }}>
+                      {t === 'free' ? 'Downgrade with a code' : 'Redeem a code'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {ent.expiry && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: TIER_META[tier]?.color || 'var(--text-3)', marginBottom: 12 }}>
+          Your {meta.label} code is a trial — it reverts to Free after it expires.
         </div>
       )}
 
@@ -1434,6 +1473,21 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
                 Drops the frosted-glass blur and ambient glow animations. Big GPU
                 saver on laptops or when running a busy agent swarm.{settings.powerSaver ? ' (Included in Power saver.)' : ''}
+              </div>
+            </Row>
+            <Row>
+              <Label>Reduce motion</Label>
+              <button
+                onClick={() => set('reduceMotion', !settings.reduceMotion)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.reduceMotion ? rgba(accent, 0.1) : 'var(--surface-2)', border: `1px solid ${settings.reduceMotion ? rgba(accent, 0.4) : 'var(--border-2)'}`, color: settings.reduceMotion ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="sparkles" size={14} strokeWidth={2} />
+                {settings.reduceMotion ? 'Motion reduced — transitions instant' : 'Smooth animations on'}
+              </button>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
+                Makes every panel, modal and hover transition snap instantly instead of
+                easing. Calmer, and a touch lighter on the GPU. (Your OS “reduce motion”
+                setting is always honoured too.)
               </div>
             </Row>
             <Row>

@@ -636,3 +636,50 @@ body[data-sleeping] *:not(.sush-sleep-breathe) {
 @media (prefers-reduced-motion: reduce) {
   .sush-sleep-breathe { animation: none; }
 }
+
+/* ── Apple-style polish (Wave 2) ────────────────────────────────────────────
+   A single interactive-lift curve, a responsive pricing grid, and an explicit
+   reduce-motion switch that goes further than lite/saver: it flattens EVERY
+   animation and transition app-wide for people who find motion distracting or
+   are on very weak hardware. Toggled from Settings ▸ Appearance. */
+
+/* Interactive lift: cards/buttons rise a hair and deepen their shadow on hover,
+   settle on press. GPU-cheap (transform + shadow only). */
+.sush-lift {
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  will-change: transform;
+}
+.sush-lift:hover { transform: translateY(-1px); }
+.sush-lift:active { transform: translateY(0) scale(0.99); }
+
+/* Pricing wall: three cards that fold to one column when the settings pane is
+   narrow, with a gentle hover lift on the non-current plans. */
+.sush-plan-card { transition: transform 260ms var(--ease-spring), box-shadow 260ms var(--ease-out), border-color 200ms ease; }
+.sush-plan-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,0.34); }
+@media (max-width: 620px) {
+  .sush-plan-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Staggered entrance for a row of cards/tiles: add .sush-stagger to the parent;
+   children fade-up in sequence. Caps at 8 so a long list doesn't crawl in. */
+.sush-stagger > * { animation: sush-fade-up var(--dur-med) var(--ease-spring) both; }
+.sush-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.sush-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.sush-stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.sush-stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.sush-stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.sush-stagger > *:nth-child(n+6) { animation-delay: 0.22s; }
+
+/* Explicit reduce-motion: user opt-in (Settings) OR the OS preference. Collapses
+   every animation/transition to an imperceptible tick — nothing is disabled
+   functionally, it just arrives instantly. */
+.sush-reduce-motion *,
+.sush-reduce-motion *::before,
+.sush-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
