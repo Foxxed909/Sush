@@ -83,6 +83,28 @@ export class ScrollbackStore {
     }, 1500)
   }
 
+  // Search every LIVE session's buffer for a term (case-insensitive, plain
+  // text). Returns [{ tabId, lines: [{ line, text }] }] — line numbers are
+  // relative to the kept tail, matches capped so a chatty session can't flood
+  // the caller. Powers the `hunt` command.
+  search(term, { maxPerSession = 8 } = {}) {
+    const q = String(term ?? '').trim().toLowerCase()
+    if (!q) return []
+    const out = []
+    for (const [tabId, entry] of this.live) {
+      if (!entry?.text) continue
+      const lines = entry.text.split('\n')
+      const hits = []
+      for (let i = 0; i < lines.length && hits.length < maxPerSession; i++) {
+        if (lines[i].toLowerCase().includes(q)) {
+          hits.push({ line: i + 1, text: lines[i].trim().slice(0, 200) })
+        }
+      }
+      if (hits.length) out.push({ tabId, lines: hits })
+    }
+    return out
+  }
+
   flush() {
     for (const tabId of [...this.live.keys()]) this.persist(tabId)
     if (this._writeTimer) { clearTimeout(this._writeTimer); this._writeTimer = null }

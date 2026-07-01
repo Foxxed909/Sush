@@ -3,6 +3,7 @@ import { app, Notification } from 'electron'
 import { ok, err, ansi } from './_helpers'
 import { registry } from '../shell/registry'
 import { getCredits } from '../credits'
+import { runtime } from '../shell/runtime'
 
 export const help = {
   name: 'help',
@@ -107,6 +108,35 @@ export const credits = {
       `  ${ansi.cyan(mins(c.remainingSec))} left of ${mins(c.allowanceSec)} dictation this month`,
       ansi.dim(`  Refills ${reset || 'next month'}. Speak with the mic or Ctrl+Shift+S.`),
       ansi.dim('  Set a Whisper key in Settings ▸ Voice to enable dictation.')
+    ].join('\r\n'))
+  }
+}
+
+export const hunt = {
+  name: 'hunt',
+  description: 'Search the output of every open session',
+  usage: 'hunt <text>',
+  aliases: ['searchall'],
+  async run(args, ctx) {
+    const term = args.join(' ').trim()
+    if (!term) return err('hunt: what am I looking for? usage: hunt <text>')
+    const store = runtime.scrollback
+    if (!store) return err('hunt: scrollback store not ready yet')
+    const results = store.search(term)
+    if (!results.length) return ok(ansi.dim(`No session output matches "${term}".`))
+    const sessions = runtime.sessions
+    const blocks = results.map(({ tabId, lines }) => {
+      const label = sessions?.get?.(tabId)?.label || tabId
+      const marker = tabId === ctx.tabId ? ansi.dim(' (this session)') : ''
+      const head = ansi.bold(ansi.pink(`▸ ${label}`)) + marker
+      const body = lines.map(l => `  ${ansi.dim(String(l.line).padStart(5))}  ${l.text.replace(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => ansi.pink(m))}`)
+      return [head, ...body].join('\r\n')
+    })
+    const total = results.reduce((n, r) => n + r.lines.length, 0)
+    return ok([
+      ansi.dim(`${total} match${total === 1 ? '' : 'es'} across ${results.length} session${results.length === 1 ? '' : 's'}:`),
+      '',
+      ...blocks
     ].join('\r\n'))
   }
 }

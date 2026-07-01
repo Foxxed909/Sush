@@ -281,6 +281,7 @@ export default function App() {
   const [pinnedProjects, setPinnedProjects] = useState(loadPinnedProjects)
   const [broadcastMode, setBroadcastMode] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
+  const [splitId, setSplitId] = useState(null)      // second pane of a 2-up split (Ctrl+\)
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
   const [renamingId, setRenamingId] = useState(null)
   const [handoffSource, setHandoffSource] = useState(null)
@@ -658,6 +659,8 @@ export default function App() {
       }
       // Ctrl+Shift+D → duplicate active tab
       if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
+      // Ctrl+\ → toggle 2-up split (active + most recent other session)
+      if (ctrl && e.key === '\\') { e.preventDefault(); toggleSplit() }
       // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
       if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); openTab(profiles[0]) }
       // Ctrl+W → close active tab
@@ -765,23 +768,73 @@ export default function App() {
     })
   }, [])
 
-  // Download the active session's recent output as a text file.
-  const exportSessionOutput = useCallback(async (tabId) => {
+  // Download the active session's recent output — plain text, or a Markdown
+  // transcript (metadata header + fenced output) ready to paste into an issue,
+  // PR, or note.
+  const exportSessionOutput = useCallback(async (tabId, format = 'txt') => {
     const id = tabId ?? activeIdRef.current
     const tab = tabsRef.current.find(t => t.id === id)
     if (!tab) return
     try {
       const res = await window.sush.getScrollback({ tabId: id, chars: 60000 })
       const text = res?.text || ''
-      const blob = new Blob([text || '(no captured output)'], { type: 'text/plain' })
+      const md = format === 'md'
+      const body = md
+        ? [
+            `# Sush session — ${tab.label || 'session'}`,
+            '',
+            `| | |`,
+            `|---|---|`,
+            `| Directory | \`${tab.cwd || 'unknown'}\` |`,
+            `| Agent | ${tab.agentId || 'shell'} |`,
+            `| Exported | ${new Date().toLocaleString()} |`,
+            '',
+            '```text',
+            (text || '(no captured output)').replace(/```/g, '``​`'),
+            '```',
+            ''
+          ].join('\n')
+        : (text || '(no captured output)')
+      const blob = new Blob([body], { type: md ? 'text/markdown' : 'text/plain' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `sush-${(tab.label || 'session').replace(/[^\w.-]+/g, '_')}-${Date.now()}.txt`
+      a.download = `sush-${(tab.label || 'session').replace(/[^\w.-]+/g, '_')}-${Date.now()}.${md ? 'md' : 'txt'}`
       a.click()
       URL.revokeObjectURL(url)
     } catch {}
   }, [])
+
+  // Copy the active session's recent output straight to the clipboard.
+  const copySessionOutput = useCallback(async (tabId) => {
+    const id = tabId ?? activeIdRef.current
+    if (!id) return
+    try {
+      const res = await window.sush.getScrollback({ tabId: id, chars: 20000 })
+      await window.sush.copyText(res?.text || '')
+    } catch {}
+  }, [])
+
+  // 2-up split: the active session plus one partner, side by side. Toggling on
+  // picks the most-recently-used other session; toggling off returns to the
+  // single-terminal view. The partner boots if it was a lazy rail entry.
+  const toggleSplit = useCallback(() => {
+    setSplitId(prev => {
+      if (prev) return null
+      const activeNow = activeIdRef.current
+      const partner = mruRef.current.find(id => id !== activeNow && tabsRef.current.some(t => t.id === id))
+        || tabsRef.current.find(t => t.id !== activeNow)?.id
+      if (!partner) return null
+      setBootedIds(b => b.has(partner) ? b : new Set(b).add(partner))
+      setView('terminal')
+      return partner
+    })
+  }, [])
+
+  // Drop the split when its partner closes.
+  useEffect(() => {
+    if (splitId && !tabs.some(t => t.id === splitId)) setSplitId(null)
+  }, [tabs, splitId])
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
@@ -1386,6 +1439,10 @@ export default function App() {
     else if (action === 'rename') { if (activeIdRef.current) { setView('terminal'); setRenamingId(activeIdRef.current) } }
     else if (action === 'sushrc') setShowSushrc(true)
     else if (action === 'export-output') exportSessionOutput()
+    else if (action === 'export-md') exportSessionOutput(undefined, 'md')
+    else if (action === 'copy-output') copySessionOutput()
+    else if (action === 'reopen') reopenLastClosed()
+    else if (action === 'split') toggleSplit()
     else if (action === 'lock') identity.lock()
     else if (action === 'switch-user') identity.signOut()
     else if (action === 'manage-users') setShowUserManager(true)
@@ -1410,7 +1467,7 @@ export default function App() {
       const s = recentSessions.find(r => r.cwd === cwd)
       if (s) openRecentSession(s)
     }
-  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput])
+  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleSplit])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
@@ -1420,6 +1477,10 @@ export default function App() {
       { id: 'act-rename', label: 'Rename Session', description: 'Rename the active session (F2)', icon: 'edit', action: 'rename' },
       { id: 'act-sushrc', label: 'Edit .sushrc Profile', description: 'Your shell-agnostic Sush profile', icon: 'fileText', action: 'sushrc' },
       { id: 'act-export', label: 'Export Session Output', description: 'Save this session\'s recent output as .txt', icon: 'fileText', action: 'export-output' },
+      { id: 'act-export-md', label: 'Export Session as Markdown', description: 'Transcript with metadata + fenced output, ready for an issue or PR', icon: 'fileText', action: 'export-md' },
+      { id: 'act-copy-output', label: 'Copy Session Output', description: 'Copy this session\'s recent output to the clipboard', icon: 'fileText', action: 'copy-output' },
+      { id: 'act-reopen', label: 'Reopen Closed Session', description: 'Bring back the last session you closed (Ctrl+Shift+T)', icon: 'clock', action: 'reopen' },
+      { id: 'act-split', label: 'Toggle Split View', description: 'Active session + the previous one, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
       { id: 'act-switch-user', label: 'Switch User / Sign Out', description: 'Closes your sessions and opens the user picker', icon: 'users', action: 'switch-user' },
       { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
@@ -1615,11 +1676,20 @@ export default function App() {
                 // — also the lazy-boot CPU guard, honest about it via the
                 // "showing X of N" note below — so a weak machine isn't asked to
                 // paint a wall of WebGL terminals at once.
-                const layoutGridMode = gridMode && !zenMode
+                // Split (Ctrl+\) is a constrained grid of two: the active
+                // session plus its pinned partner, reusing the same keyed
+                // wrappers so neither terminal remounts.
+                const splitPartner = !gridMode && !zenMode && splitId && splitId !== activeId
+                  ? tabs.find(t => t.id === splitId) : null
+                const layoutGridMode = (gridMode || !!splitPartner) && !zenMode
                 const GRID_CAP = entitlements.limit('gridCap') || 4
-                const gridTabs = layoutGridMode ? tabs.slice(0, GRID_CAP) : tabs.filter(tab => bootedIds.has(tab.id))
+                const gridTabs = gridMode && !zenMode
+                  ? tabs.slice(0, GRID_CAP)
+                  : splitPartner
+                    ? [tabs.find(t => t.id === activeId), splitPartner].filter(Boolean)
+                    : tabs.filter(tab => bootedIds.has(tab.id))
                 const n = gridTabs.length
-                const cols = layoutGridMode ? Math.max(1, Math.ceil(Math.sqrt(n))) : 1
+                const cols = gridMode && !zenMode ? Math.max(1, Math.ceil(Math.sqrt(n))) : splitPartner ? 2 : 1
                 return (
                   <div style={layoutGridMode
                     ? { position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gap: 7, padding: 8 }
@@ -1635,6 +1705,10 @@ export default function App() {
                           key={tab.id}
                           onMouseDown={layoutGridMode ? () => {
                             if (!booted) setBootedIds(prev => new Set(prev).add(tab.id))
+                            // In split view, focusing the partner swaps the panes
+                            // instead of collapsing the split (active === splitId
+                            // would otherwise dissolve it).
+                            if (splitPartner && tab.id === splitId) setSplitId(activeIdRef.current)
                             setActiveId(tab.id)
                           } : undefined}
                           style={layoutGridMode

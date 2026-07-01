@@ -14,6 +14,7 @@ import { parseInput } from './shell/parser'
 import { ShellContext } from './shell/context'
 import { loadSushrc, readSushrcRaw, writeSushrcRaw, sushrcPath } from './shell/sushrc'
 import { ScrollbackStore } from './shell/scrollback'
+import { runtime } from './shell/runtime'
 import { homedir } from 'os'
 import {
   initUsers, listUsers, getActiveUser, getLastUserId, createUser, updateUser,
@@ -1016,6 +1017,10 @@ export function registerIpcHandlers(win) {
   handlersRegistered = true
 
   scrollback = new ScrollbackStore(app.getPath('userData'))
+  // Late-bound refs so shell commands (hunt, credits…) can reach the live
+  // stores without importing ipc.js (circular).
+  runtime.scrollback = scrollback
+  runtime.sessions = ptySessions
   initUsers()
   app.once('before-quit', () => {
     scrollback?.flush()

@@ -176,6 +176,7 @@ export function useTerminal({
       }
 
       if (key === 'Tab') return false                                  // MRU switcher
+      if (key === '\\') return false                                   // app split toggle (^\ is SIGQUIT — never forward)
       if (key === '?' || (e.shiftKey && key === '/')) return false     // shortcuts help
       if (e.shiftKey) return APP_CTRL_SHIFT.has(key) || key === 'Home'
         ? false : true
