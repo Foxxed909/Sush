@@ -1,27 +1,31 @@
-// Voice engine for Seducia — push-to-talk STT + system TTS.
+// Voice engine for Seducia — push-to-talk STT + TTS.
 //
-// The always-on wake word ("Seducia") and the ElevenLabs streaming TTS are
-// gone: the wake loop held the microphone hostage (it fought Hush for the
-// mic and burned battery listening 24/7), and ElevenLabs was a paid demo
-// feature. What remains is the honest core: tap the mic, speak a command,
-// and — if TTS is enabled in Settings — she answers in your system voice.
+// STT was the browser Web Speech API, which needs Google's speech backend that
+// Electron doesn't bundle (it failed with a `network` error in the packaged
+// app). It now shares Hush's working path: MediaRecorder capture → Whisper in
+// main (the user's own key) → text. TTS is unchanged (cloud voice with a system
+// fallback).
 //
 // State machine (reported via onState): idle -> listening -> thinking ->
-// speaking -> idle. `thinking`/`speaking` are driven by the caller via
-// setThinking()/speak(); `listening` by recognition. Everything is
-// defensive: the Web Speech API is flaky, so every call is wrapped.
+// speaking -> idle. `listening` covers recording; `thinking` covers both
+// transcription and the AI turn the caller runs on the committed text.
+// Everything is defensive: mic/network calls are all wrapped.
 
-const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
+import { DictationRecorder, dictationSupported } from './dictation'
 
-export const speechRecognitionSupported = !!SR
+// Kept under the old name so callers (useSeducia) don't need to change: it now
+// reflects MediaRecorder support, which actually works in Electron.
+export const speechRecognitionSupported = dictationSupported
+
+const MAX_CLIP_MS = 30000   // safety cap so a forgotten-open mic never runs on
 
 export class VoiceEngine {
   constructor(handlers = {}) {
     this.on = handlers // { onState, onPartial, onCommand, onError }
     this.cfg = {}
     this.state = 'idle'
-    this.pushToTalk = false // a one-shot manual capture is active
-    this.rec = null
+    this.recorder = null
+    this.capTimer = null
     this.speaking = false
     this.lastSpoken = ''
     this.audio = null // current cloud-TTS <audio> element, if any
@@ -37,81 +41,70 @@ export class VoiceEngine {
 
   setThinking(on) { if (on) this.setState('thinking'); else this.setState('idle') }
 
-  // ---- Recognition -------------------------------------------------------
-  ensureRec() {
-    if (!SR || this.rec) return this.rec
-    const rec = new SR()
-    rec.lang = navigator.language || 'en-US'
-    rec.continuous = false
-    rec.interimResults = true
-    rec.onresult = (e) => this.handleResult(e)
-    rec.onerror = (e) => {
-      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
-        this.on.onError?.('Microphone permission denied.')
-        this.setState('idle')
-      }
+  clearCap() { if (this.capTimer) { clearTimeout(this.capTimer); this.capTimer = null } }
+
+  // ---- Recognition (record → Whisper) ------------------------------------
+  // One-shot manual capture (push-to-talk / mic button). Tap once to start,
+  // again (finishListening) to stop + transcribe + submit.
+  async listenOnce() {
+    if (!dictationSupported) { this.on.onError?.('Voice capture is not available in this build.'); return }
+    if (this.recorder) return
+    // Barge-in: starting to talk cuts Seducia off mid-sentence.
+    this.stopSpeaking()
+    const rec = new DictationRecorder()
+    try {
+      await rec.start()
+    } catch (e) {
+      const denied = e?.name === 'NotAllowedError' || e?.name === 'SecurityError'
+      this.on.onError?.(denied ? 'Microphone permission denied.'
+        : e?.name === 'NotFoundError' ? 'No microphone found.' : 'Could not start the microphone.')
+      this.setState('idle')
+      return
     }
-    rec.onend = () => {
-      this.pushToTalk = false
-      if (this.state === 'listening') this.setState(this.speaking ? 'speaking' : 'idle')
-    }
-    this.rec = rec
-    return rec
-  }
-
-  startRec() {
-    const rec = this.ensureRec()
-    if (!rec) return
-    try { rec.start() } catch { /* already started */ }
-  }
-
-  handleResult(e) {
-    const result = e.results[e.results.length - 1]
-    const transcript = Array.from(e.results).slice(-1).map(r => r[0].transcript).join('').trim()
-    if (!transcript) return
-
-    // Barge-in: if Seducia is talking and the user clearly says something new
-    // (not just our own audio echoing back), cut the speech immediately.
-    if (this.speaking && transcript.length > 2 && !this.isEcho(transcript)) {
-      this.stopSpeaking()
-    }
-
-    this.on.onPartial?.(transcript)
+    this.recorder = rec
     this.setState('listening')
-    if (result.isFinal) this.commit(transcript)
+    this.capTimer = setTimeout(() => { if (this.state === 'listening') this.finishListening() }, MAX_CLIP_MS)
+  }
+
+  // Stop recording, transcribe, and hand the text to the caller.
+  async finishListening() {
+    this.clearCap()
+    const rec = this.recorder
+    if (!rec) return
+    this.recorder = null
+    this.setState('thinking')
+    let clip = null
+    try { clip = await rec.stop() } catch {}
+    if (!clip || clip.seconds < 0.3) { this.setState('idle'); return }
+    try {
+      const res = await window.sush?.sttTranscribe?.({ audio: clip.base64, mime: clip.mime, seconds: clip.seconds })
+      if (res?.ok && res.text) { this.commit(res.text); return }
+      if (res?.error === 'no-key') this.on.onError?.('Add a Whisper key in Settings ▸ Voice to talk to Seducia.')
+      else if (res?.error === 'out-of-credits') this.on.onError?.('Out of Quiet Credits this month — they refill on the 1st.')
+      else if (res?.error) this.on.onError?.(res.error)
+      this.setState('idle')
+    } catch (e) {
+      this.on.onError?.(e?.message || 'Transcription failed.')
+      this.setState('idle')
+    }
+  }
+
+  cancelListen() {
+    this.clearCap()
+    const rec = this.recorder
+    this.recorder = null
+    try { rec?.cancel() } catch {}
+    this.setState('idle')
   }
 
   commit(text) {
-    const command = text.trim()
-    this.pushToTalk = false
+    const command = String(text || '').trim()
     if (command) {
       this.setState('thinking')
       this.on.onCommand?.(command)
     } else {
       this.setState('idle')
     }
-  }
-
-  isEcho(transcript) {
-    if (!this.lastSpoken) return false
-    const a = transcript.toLowerCase()
-    const b = this.lastSpoken.toLowerCase()
-    return b.includes(a) || a.includes(b.slice(0, Math.min(b.length, 24)))
-  }
-
-  // ---- Public controls ---------------------------------------------------
-  // One-shot manual capture (push-to-talk / mic button).
-  listenOnce() {
-    if (!SR) { this.on.onError?.('Voice recognition is not available in this build.'); return }
-    this.pushToTalk = true
-    this.setState('listening')
-    this.startRec()
-  }
-
-  cancelListen() {
-    this.pushToTalk = false
-    try { this.rec?.stop() } catch {}
-    this.setState('idle')
   }
 
   // ---- TTS (cloud voice with system fallback) -----------------------------
@@ -188,9 +181,9 @@ export class VoiceEngine {
   }
 
   destroy() {
-    this.pushToTalk = false
+    this.clearCap()
     this.stopSpeaking()
-    try { this.rec?.abort() } catch {}
-    this.rec = null
+    try { this.recorder?.cancel() } catch {}
+    this.recorder = null
   }
 }

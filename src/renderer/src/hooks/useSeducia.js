@@ -219,7 +219,9 @@ export function useSeducia({
   const listen = useCallback(() => {
     const engine = engineRef.current
     if (!engine) return
-    if (voiceState === 'listening') engine.cancelListen()
+    // Tap again while listening to STOP and transcribe (submit) — matches Hush.
+    // Whisper is record-then-transcribe, so a second tap is "send", not "cancel".
+    if (voiceState === 'listening') engine.finishListening()
     else engine.listenOnce()
   }, [voiceState])
 

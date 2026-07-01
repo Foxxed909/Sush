@@ -2,6 +2,7 @@ import { execFileSync } from 'child_process'
 import { app, Notification } from 'electron'
 import { ok, err, ansi } from './_helpers'
 import { registry } from '../shell/registry'
+import { getCredits } from '../credits'
 
 export const help = {
   name: 'help',
@@ -82,6 +83,31 @@ export const notify = {
     } catch (e) {
       return err(`notify: ${e.message}`)
     }
+  }
+}
+
+export const credits = {
+  name: 'credits',
+  description: 'Show your Quiet Credits dictation balance',
+  usage: 'credits',
+  aliases: ['quiet'],
+  async run() {
+    const c = getCredits()
+    const mins = (s) => `${Math.round((Number(s) || 0) / 60)}m`
+    const width = 24
+    const usedPct = Math.min(1, (c.usedSec || 0) / Math.max(1, c.allowanceSec))
+    const filled = Math.round(usedPct * width)
+    const bar = ansi.pink('█'.repeat(filled)) + ansi.dim('░'.repeat(width - filled))
+    let reset = ''
+    try { reset = new Date(c.resetAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) } catch {}
+    return ok([
+      ansi.bold(ansi.pink('Quiet Credits')) + ansi.dim(`  ·  ${c.tier} plan`),
+      ansi.dim('─'.repeat(42)),
+      `  ${bar}`,
+      `  ${ansi.cyan(mins(c.remainingSec))} left of ${mins(c.allowanceSec)} dictation this month`,
+      ansi.dim(`  Refills ${reset || 'next month'}. Speak with the mic or Ctrl+Shift+S.`),
+      ansi.dim('  Set a Whisper key in Settings ▸ Voice to enable dictation.')
+    ].join('\r\n'))
   }
 }
 
