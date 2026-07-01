@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { featuresOf } from './license'
+import { tierOf } from './license'
 
 // ── Quiet Credits ────────────────────────────────────────────────────────────
 // A local, offline usage meter for voice dictation ("Quiet" = the Hush/whisper
@@ -68,17 +68,13 @@ function rollover() {
   return c
 }
 
-// Current tier comes from the license module so a redeemed code lifts the
-// allowance immediately. Used seconds persist across a tier change (you don't
-// get your spent minutes back by upgrading), but the ceiling moves.
+// Current tier comes straight from the license module so a redeemed code lifts
+// the allowance immediately. Used seconds persist across a tier change (you
+// don't get spent minutes back by upgrading), but the ceiling moves.
+// (Was previously reverse-mapped from feature slots — broke if TIER_FEATURES
+// numbers ever changed; tierOf() is the source of truth.)
 function currentTier() {
-  // featuresOf() resolves the active tier's feature set; we only need the tier
-  // name, which the license file owns. Re-derive it cheaply.
-  const f = featuresOf()
-  // Map the resolved feature object back to a tier label via slots (1/4/8).
-  if (f.slots >= 8) return 'pro'
-  if (f.slots >= 4) return 'plus'
-  return 'free'
+  return tierOf()
 }
 
 export function getCredits() {

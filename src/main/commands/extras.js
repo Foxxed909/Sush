@@ -408,13 +408,16 @@ export const snippet = {
       return ok(ansi.green(`Snippet saved: ${name} -> ${value}`))
     }
 
-    if (sub === 'get') {
-      if (!name) return err('snippet get: missing name')
-      if (!snips[name]) return err(`snippet: no snippet named "${name}"`)
+    // `snip get <name>` — or just `snip <name>` (the natural muscle-memory
+    // form; previously it errored with usage instead of recalling).
+    const wanted = sub === 'get' ? name : sub
+    if (sub === 'get' || (wanted && !['set', 'del', 'delete'].includes(sub))) {
+      if (!wanted) return err('snippet get: missing name')
+      if (!snips[wanted]) return err(`snippet: no snippet named "${wanted}" — see: snippet list`)
       // Echo the expanded command so the user can see it, and trigger passthrough.
       return {
-        ...ok(snips[name]),
-        action: { name: 'passthrough', input: snips[name], cwd: ctx.cwd }
+        ...ok(snips[wanted]),
+        action: { name: 'passthrough', input: snips[wanted], cwd: ctx.cwd }
       }
     }
 

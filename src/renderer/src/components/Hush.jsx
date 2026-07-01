@@ -80,7 +80,11 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
   const begin = useCallback(async () => {
     if (stateRef.current === 'listening' || stateRef.current === 'transcribing') return
     // Refuse early when the bucket is empty so the mic never opens for nothing.
-    if (credits && credits.remainingSec <= 0) {
+    // Fetch FRESH first — the mounted snapshot could predate a monthly rollover
+    // and would otherwise keep blocking dictation after the bucket refilled.
+    let live = credits
+    try { const c = await window.sush?.creditsGet?.(); if (c) { live = c; setCredits(c) } } catch {}
+    if (live && live.remainingSec <= 0) {
       fail('Out of Quiet Credits this month — they refill on the 1st, or upgrade your plan.')
       return
     }
