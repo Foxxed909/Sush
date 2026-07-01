@@ -28,6 +28,8 @@ import {
   getClaudeLimits, checkClaudeLimits, probeClaudeUsage
 } from './claudePanel'
 import { getTtsConfigPublic, setTtsConfig, synthesizeTts } from './tts'
+import { getSttConfigPublic, setSttConfig, transcribe } from './stt'
+import { getCredits, resetCredits } from './credits'
 import { licensePublic, redeemCode, clearLicense, featuresOf, can, setLicenseChangeSender } from './license'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
@@ -1314,6 +1316,17 @@ export function registerIpcHandlers(win) {
     if (!can('cloudTts')) return { ok: false, fallback: true }
     return synthesizeTts(payload)
   })
+
+  // ── Whisper dictation + Quiet Credits ─────────────────────────────────────
+  // The transcription key lives in main (never crosses to the renderer); the
+  // renderer sends captured mic bytes and gets text back. Dictation is metered
+  // by the local Quiet Credits bucket, gated per tier — available to everyone
+  // (free tier gets a small monthly allowance), so it's never license-locked.
+  ipcMain.handle('sush:stt-config-get', () => getSttConfigPublic())
+  ipcMain.handle('sush:stt-config-set', (event, payload = {}) => setSttConfig(payload))
+  ipcMain.handle('sush:stt-transcribe', (event, payload = {}) => transcribe(payload))
+  ipcMain.handle('sush:credits-get', () => getCredits())
+  ipcMain.handle('sush:credits-reset', () => resetCredits())
 
   // ── License / tiers (offline unlock codes) ────────────────────────────────
   // One broadcast path for every license change — redeemCode/clearLicense emit

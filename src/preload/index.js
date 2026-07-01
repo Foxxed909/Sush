@@ -51,6 +51,12 @@ contextBridge.exposeInMainWorld('sush', {
   ttsConfigGet: () => ipcRenderer.invoke('sush:tts-config-get'),
   ttsConfigSet: (payload) => ipcRenderer.invoke('sush:tts-config-set', payload),
   ttsSynthesize: (payload) => ipcRenderer.invoke('sush:tts-synthesize', payload),
+  // Whisper dictation + Quiet Credits (key stays in main)
+  sttConfigGet: () => ipcRenderer.invoke('sush:stt-config-get'),
+  sttConfigSet: (payload) => ipcRenderer.invoke('sush:stt-config-set', payload),
+  sttTranscribe: (payload) => ipcRenderer.invoke('sush:stt-transcribe', payload),
+  creditsGet: () => ipcRenderer.invoke('sush:credits-get'),
+  creditsReset: () => ipcRenderer.invoke('sush:credits-reset'),
   onClaudePanelEvent: (callback) => {
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on('sush:claude-panel-event', listener)

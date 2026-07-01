@@ -5,6 +5,7 @@ import { rgba } from '../lib/ui'
 import { loadCustomAgents, saveCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../lib/agents'
 import { useEntitlements } from '../hooks/useEntitlements'
 import { useOnline } from '../hooks/useOnline'
+import { formatCredits } from '../lib/dictation'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
@@ -991,7 +992,135 @@ function VoiceSection({ accent, settings, set, voices, ent }) {
           </Row>
         </>
       )}
+
+      <div style={{ height: 1, background: 'var(--border-2)', margin: '18px 0 4px' }} />
+      <DictationBlock accent={accent} settings={settings} set={set} />
     </Section>
+  )
+}
+
+// Dictation (Hush): speak into the focused terminal. Runs Whisper over the
+// user's own key — held in main, never round-tripped here — and is metered by
+// the local Quiet Credits bucket (shown live below). This replaced the old
+// browser Web Speech path, which doesn't work in Electron.
+const STT_MODELS = ['whisper-1', 'gpt-4o-mini-transcribe', 'gpt-4o-transcribe']
+function DictationBlock({ accent, settings, set }) {
+  const [stt, setStt] = useState(null)     // public config + credits from main
+  const [keyInput, setKeyInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const refresh = () => window.sush?.sttConfigGet?.().then(c => { if (c) setStt(c) }).catch(() => {})
+  useEffect(() => { refresh() }, [])
+
+  const inputStyle = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-2)', color: 'var(--text-2)', borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none' }
+
+  const saveCfg = async (patch) => {
+    setBusy(true); setErr('')
+    const r = await window.sush?.sttConfigSet?.(patch)
+    if (r?.ok) setStt(r); else if (r?.error) setErr(r.error)
+    setBusy(false)
+    return r
+  }
+  const saveKey = async () => {
+    if (!keyInput.trim()) return
+    const r = await saveCfg({ apiKey: keyInput.trim() })
+    if (r?.ok) setKeyInput('')
+  }
+
+  const enabled = settings.hushEnabled !== false
+  const autoSend = settings.hushAutoSend !== false
+  const credits = stt?.credits
+  const pct = credits && credits.allowanceSec ? Math.max(0, Math.min(100, Math.round(100 * credits.remainingSec / credits.allowanceSec))) : 0
+  const reset = credits?.resetAt ? new Date(credits.resetAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null
+
+  return (
+    <>
+      <Row>
+        <Label>Dictation (Hush · speak into the terminal)</Label>
+        <button
+          onClick={() => set('hushEnabled', !enabled)}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: enabled ? rgba(accent, 0.1) : 'var(--surface-2)', border: `1px solid ${enabled ? rgba(accent, 0.4) : 'var(--border-2)'}`, color: enabled ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}
+        >
+          <Icon name="mic" size={14} strokeWidth={2} />
+          {enabled ? 'Hush enabled' : 'Hush disabled'}
+        </button>
+        <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
+          Tap the mic (bottom-left) or press <strong style={{ color: accent }}>Ctrl+Shift+S</strong> anywhere, speak, and your words are typed into the focused terminal.
+        </div>
+      </Row>
+
+      {enabled && (
+        <>
+          <Row>
+            <Label>After transcribing</Label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[['Send it', true], ['Type only', false]].map(([lbl, val]) => {
+                const on = autoSend === val
+                return (
+                  <button key={lbl} onClick={() => set('hushAutoSend', val)} style={{ flex: 1, padding: '7px 0', borderRadius: 'var(--r-sm)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', background: on ? accent : 'var(--surface-2)', color: on ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${on ? accent : 'var(--border-2)'}` }}>
+                    {lbl}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
+              {autoSend ? 'Runs the command as soon as it’s transcribed.' : 'Types it at the prompt so you can review, then press Enter yourself.'}
+            </div>
+          </Row>
+
+          <Row>
+            <Label>Whisper API key (OpenAI)</Label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="password"
+                value={keyInput}
+                onChange={e => setKeyInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveKey() }}
+                placeholder={stt?.hasKey ? '•••••••••• (saved — paste to replace)' : 'sk-...'}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button onClick={saveKey} disabled={busy || !keyInput.trim()} style={{ fontSize: 11.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 8, padding: '0 14px', cursor: keyInput.trim() ? 'pointer' : 'default', opacity: keyInput.trim() ? 1 : 0.5 }}>Save</button>
+              {stt?.hasKey && (
+                <button onClick={() => saveCfg({ apiKey: '' })} disabled={busy} title="Forget key" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)', background: 'transparent', border: '1px solid var(--border-2)', borderRadius: 8, padding: '0 12px', cursor: 'pointer' }}>Clear</button>
+              )}
+            </div>
+            {stt && !stt.safeStorage && (
+              <div style={{ fontSize: 10, color: '#ffb74d', marginTop: 5, lineHeight: 1.5 }}>
+                Your OS keychain isn’t available, so the key is stored unencrypted on this machine.
+              </div>
+            )}
+            <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
+              Get a key at platform.openai.com. The key stays on this machine and never leaves the main process — Sush only sends your audio to OpenAI to transcribe it.
+            </div>
+          </Row>
+
+          <Row>
+            <Label>Model</Label>
+            <select value={stt?.model || ''} onChange={e => saveCfg({ model: e.target.value })} style={inputStyle}>
+              <option value="">Default (whisper-1)</option>
+              {STT_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </Row>
+
+          {credits && (
+            <Row>
+              <Label>Quiet Credits · {stt.credits.tier} plan</Label>
+              <div style={{ height: 8, borderRadius: 5, background: 'var(--surface-2)', border: '1px solid var(--border-2)', overflow: 'hidden' }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: pct <= 10 ? '#ffb74d' : accent, transition: 'width 400ms cubic-bezier(0.22,1,0.36,1)' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, fontWeight: 600 }}>
+                <span>{formatCredits(credits.remainingSec)} of {Math.round(credits.allowanceSec / 60)}m</span>
+                {reset && <span>Refills {reset}</span>}
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
+                Dictation minutes reset monthly. More on <strong style={{ color: accent }}>Plus</strong> and <strong style={{ color: accent }}>Pro</strong> — see <strong style={{ color: accent }}>Plan</strong>.
+              </div>
+            </Row>
+          )}
+        </>
+      )}
+    </>
   )
 }
 
