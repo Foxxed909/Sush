@@ -16,12 +16,17 @@ import { sign } from './license-secret.mjs'
 // so it's intentionally NOT advertised in the Plan table or enforced — all
 // themes are free for now. The four enforced gates are slots/gridCap/
 // customAgents/cloudTts.
+// Five tiers. Pro was trimmed when Ultra/Max landed above it (slots 8→6,
+// grid 16→12) — the top of the old Pro moved into Ultra. usageGuard gates the
+// Claude quota guard (Pro+); autoHandoff gates its hands-free mode (Ultra+).
 export const TIER_FEATURES = {
-  free: { slots: 1, gridCap: 4,  customAgents: false, cloudTts: false, themes: 'base' },
-  plus: { slots: 4, gridCap: 9,  customAgents: true,  cloudTts: true,  themes: 'all'  },
-  pro:  { slots: 8, gridCap: 16, customAgents: true,  cloudTts: true,  themes: 'all'  }
+  free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, themes: 'base' },
+  plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, themes: 'all'  },
+  pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, themes: 'all'  },
+  ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  themes: 'all'  },
+  max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  themes: 'all'  }
 }
-const RANK = { free: 0, plus: 1, pro: 2 }
+const RANK = { free: 0, plus: 1, pro: 2, ultra: 3, max: 4 }
 const file = () => join(app.getPath('userData'), 'sush-license.json')
 
 // Set by main so any path that changes the license (IPC redeem OR the `unlock`
@@ -35,8 +40,8 @@ function emitChange() { try { _emit?.(licensePublic()) } catch {} }
 // that stops working after its date.
 export function verifyCode(raw) {
   const code = String(raw || '').trim().toUpperCase()
-  const plain = code.match(/^SUSH-(PLUS|PRO)-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
-  const dated = code.match(/^SUSH-(PLUS|PRO)-(\d{8})-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
+  const plain = code.match(/^SUSH-(PLUS|PRO|ULTRA|MAX)-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
+  const dated = code.match(/^SUSH-(PLUS|PRO|ULTRA|MAX)-(\d{8})-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
   let tier, nonce, s, expiry = null
   if (plain) { ;[, tier, nonce, s] = plain }
   else if (dated) { ;[, tier, expiry, nonce, s] = dated }

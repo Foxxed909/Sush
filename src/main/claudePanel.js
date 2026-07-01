@@ -23,13 +23,11 @@ let lastLimits = null    // { status, resetsAt(ms), rateLimitType, at }
 
 function captureLimits(msg) {
   if (msg?.type !== 'rate_limit_event' || !msg.rate_limit_info) return
-  const info = msg.rate_limit_info
-  lastLimits = {
-    status: info.status || 'unknown',
-    resetsAt: Number(info.resetsAt) ? Number(info.resetsAt) * 1000 : null,
-    rateLimitType: info.rateLimitType || '',
-    at: Date.now()
-  }
+  // Keep the utilization percentages too (was status/reset only) — the Usage
+  // panel's passive view and the Usage Guard both read this snapshot, and
+  // dropping the pcts forced a paid probe to learn a number the CLI had
+  // already sent us for free.
+  lastLimits = { ...parseUsageInfo(msg.rate_limit_info), at: Date.now() }
   send?.({ panelId: '*', kind: 'limits', limits: lastLimits })
 }
 

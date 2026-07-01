@@ -35,6 +35,7 @@ import { useOnline } from './hooks/useOnline'
 import { STATES } from './lib/agentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { recordCommand } from './lib/commandFrequency'
+import { cliComplete } from './lib/ai'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
 
@@ -1315,6 +1316,40 @@ export default function App() {
     openTab(prof, { cwd: tab.cwd, shell: tab.shell, label: `${tab.label} (copy)`, tag: `copy-${Date.now()}` })
   }, [profiles, openTab])
 
+  // ── Usage Guard (Pro+) ─────────────────────────────────────────────────────
+  // Watch Claude's utilization from the PASSIVE rate-limit snapshot (no probe
+  // spawned, no tokens spent) and act at the user's threshold. The mode is the
+  // user's choice, previewed in Settings: warn / auto-handoff (Ultra+) / block.
+  const guardOn = entitlements.can('usageGuard') && settings.usageGuardEnabled === true
+  const guardPct = settings.usageGuardPct ?? 80
+  const guardMode = (settings.usageGuardMode === 'handoff' && !entitlements.can('autoHandoff'))
+    ? 'warn' : (settings.usageGuardMode || 'warn')
+  const [guardTrip, setGuardTrip] = useState(null)   // { pct } while tripped
+  const guardHandledRef = useRef(new Set())          // sessions auto-handed-off this trip
+  const guardModeRef = useRef(guardMode)
+  guardModeRef.current = guardMode
+
+  const pollGuard = useCallback(async () => {
+    try {
+      const r = await window.sush.claudeLimitsGet?.()
+      const lim = r?.limits
+      const pct = Math.max(lim?.sessionPct ?? -1, lim?.weekPct ?? -1)
+      if (pct < 0) return
+      setGuardTrip(prev => {
+        if (pct >= guardPct) return prev ? { ...prev, pct } : { pct }
+        // Hysteresis: only stand down once clearly below the line, so a value
+        // hovering at the threshold doesn't flap the guard on and off.
+        if (prev && pct < guardPct - 5) { guardHandledRef.current.clear(); return null }
+        return prev
+      })
+    } catch {}
+  }, [guardPct])
+  usePolling(pollGuard, 45000, guardOn)
+  useEffect(() => { if (!guardOn) { setGuardTrip(null); guardHandledRef.current.clear() } }, [guardOn])
+
+  // Block mode: keystrokes to Claude sessions are dropped while tripped.
+  const guardBlocked = !!guardTrip && guardMode === 'block'
+
   // Gather a portable context card for a session: cwd, branch, recent commands,
   // and a tail of its output. Used by the handoff flow.
   const buildHandoffCard = useCallback(async (sourceId) => {
@@ -1362,6 +1397,66 @@ export default function App() {
     }
     setHandoffSource(null)
   }, [openTab, profiles, launchSessions])
+
+  // ── Cross-model limit handoff ──────────────────────────────────────────────
+  // A limited Claude (or any agent) session's work continues on another model:
+  // summarize the session with a NON-limited CLI, then launch the fallback
+  // agent in the same directory with the summary as its brief — so hitting a
+  // limit never cuts the task off mid-flight. Used by Mission Control's
+  // "Hand off →" and by the Usage Guard's hands-free mode.
+  const performLimitHandoff = useCallback(async (tabId) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    if (!tab) return
+    const from = tab.agentId || 'shell'
+    const card = await buildHandoffCard(tabId)
+    // Pick the first fallback CLI that's actually installed (never the one
+    // that just hit its limit).
+    const pool = ['codex', 'gemini', 'claude'].filter(n => n !== from)
+    let fallback = pool[0]
+    try {
+      const probe = await window.sush.checkClis({ names: pool })
+      fallback = pool.find(n => probe?.found?.[n]) || pool[0]
+    } catch {}
+    const scroll = stripAnsi(String(card?.scroll || '')).slice(-3500)
+    // Summarize with the fallback engine itself — the limited CLI can't answer.
+    let summary = null
+    try {
+      summary = await cliComplete(
+        `Summarize this terminal session for a fresh coding agent taking over mid-task. State the inferred goal, what is already done, what remains, and the exact next step. Under 120 words, plain prose, no preamble.\n--- session output (tail) ---\n${scroll}`,
+        { cwd: tab.cwd || undefined, engine: fallback }
+      )
+    } catch {}
+    const brief = [
+      `You are taking over from another AI agent (${from}) that hit its usage limit mid-task.`,
+      summary ? `Handoff summary: ${summary}` : `Recent output tail: ${scroll.slice(-900)}`,
+      card?.branch ? `Git branch: ${card.branch}${card.dirty ? ` (${card.dirty} changed files)` : ''}.` : '',
+      'Pick the work up from exactly where it stopped.'
+    ].filter(Boolean).join(' ')
+    performHandoff({
+      openNew: true,
+      agentId: fallback,
+      sourceCwd: tab.cwd || null,
+      fullText: `# Sush limit handoff\nFrom: ${from} — "${tab.label}"\nDir: ${tab.cwd || 'unknown'}\n\n${summary || scroll.slice(-2000)}`,
+      injectText: brief
+    })
+  }, [buildHandoffCard, performHandoff])
+  const performLimitHandoffRef = useRef(performLimitHandoff)
+  performLimitHandoffRef.current = performLimitHandoff
+
+  // Guard trip actions: one notification per trip; hands-free mode hands off
+  // each live Claude session exactly once per trip.
+  useEffect(() => {
+    if (!guardTrip) return
+    try { new Notification('Sush — Usage Guard', { body: `Claude is at ${guardTrip.pct}% of its window (threshold ${guardPct}%).`, silent: true }) } catch {}
+    if (guardModeRef.current !== 'handoff') return
+    const targets = tabsRef.current.filter(t => t.agentId === 'claude' && t.status !== 'exited' && !guardHandledRef.current.has(t.id))
+    targets.forEach(t => {
+      guardHandledRef.current.add(t.id)
+      performLimitHandoffRef.current(t.id)
+    })
+    // Deliberately only on trip start — re-polls refresh pct without re-firing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!guardTrip])
 
   const applySmartAction = useCallback((action, result) => {
     if (!action) return
@@ -1735,6 +1830,7 @@ export default function App() {
                               persistScrollback={settings.persistScrollback !== false}
                               transparentBg={wallpaperOnTerminals}
                               powerSaver={terminalSaver}
+                              inputLocked={guardBlocked && tab.agentId === 'claude'}
                               onSessionState={(state) => handleSessionState(tab.id, state)}
                               onReady={(state) => handleTerminalReady(tab.id, state)}
                               onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
@@ -2012,8 +2108,37 @@ export default function App() {
           onCloseGroup={closeGroup}
           onPrompt={promptSession}
           onSwitchResume={switchAndResume}
+          onLimitHandoff={(id) => performLimitHandoff(id)}
           onDismiss={() => setShowMission(false)}
         />
+      )}
+
+      {/* Usage Guard pill — visible whenever the guard is tripped. */}
+      {guardTrip && !zenMode && (
+        <div
+          data-glass
+          className="sush-fade-up"
+          style={{ position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)', zIndex: 350, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 999, background: 'rgba(10,12,16,0.92)', border: '1px solid rgba(255,159,67,0.45)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff9f43', flexShrink: 0 }} className="sush-pulse-dot" />
+          <span style={{ fontSize: 11.5, fontWeight: 800, color: '#ffb877' }}>
+            Usage Guard · Claude at {guardTrip.pct}%
+            {guardMode === 'block' ? ' — input to Claude sessions paused' : guardMode === 'handoff' ? ' — handing work to your next model' : ''}
+          </span>
+          <button
+            onClick={() => setShowMission(true)}
+            style={{ fontSize: 10.5, fontWeight: 800, color: '#ffcb9b', background: 'rgba(255,159,67,0.14)', border: '1px solid rgba(255,159,67,0.4)', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
+          >
+            Mission Control
+          </button>
+          <button
+            title="Dismiss until the next threshold crossing"
+            onClick={() => setGuardTrip(null)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}
+          >
+            ×
+          </button>
+        </div>
       )}
 
       {aliasSuggestion && !nudgeHidden && !zenMode && view === 'terminal' && (

@@ -21,6 +21,7 @@ export function useTerminal({
   persistScrollback = true,
   transparentBg = false,
   powerSaver = false,
+  inputLocked = false,
   onAutoCopy,
   onCommand,
   onSessionState,
@@ -73,6 +74,12 @@ export function useTerminal({
   useEffect(() => {
     broadcastTabIdsRef.current = broadcastTabIds
   }, [broadcastTabIds])
+
+  // Usage Guard "block" mode: drop keystrokes bound for this PTY while locked.
+  const inputLockedRef = useRef(inputLocked)
+  useEffect(() => {
+    inputLockedRef.current = inputLocked
+  }, [inputLocked])
 
   useEffect(() => {
     accentRef.current = theme?.ui?.accent ?? '#ff6b9d'
@@ -218,6 +225,9 @@ export function useTerminal({
     })
 
     const inputDisposable = term.onData((data) => {
+      // Usage Guard block: swallow input to this session while the guard is
+      // tripped — except Ctrl+C, so a runaway stream can still be interrupted.
+      if (inputLockedRef.current && data !== '\x03') return
       if (data === '\r') {
         const command = commandBuffer.trim()
         // Notify completion of a previously flagged long command

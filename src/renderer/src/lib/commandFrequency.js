@@ -9,7 +9,7 @@
 const STORE_KEY = 'sush.cmdfreq.v1'
 const DISMISS_KEY = 'sush.cmdfreq.dismissed.v1'
 
-export const THRESHOLD = 15
+const THRESHOLD = 15
 const MAX_TRACKED = 200            // cap the table so it can never grow unbounded
 const DECAY_MS = 45 * 86400_000    // commands unseen for ~45 days fade out
 

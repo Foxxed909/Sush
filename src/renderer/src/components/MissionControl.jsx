@@ -45,7 +45,7 @@ function ResourcePill({ metric }) {
   )
 }
 
-function SessionRow({ tab, stateId, limited, canSwitch, accent, metric, onFocus, onClose, onPrompt, onSwitchResume }) {
+function SessionRow({ tab, stateId, limited, canSwitch, accent, metric, onFocus, onClose, onPrompt, onSwitchResume, onLimitHandoff }) {
   const agent = agentById(tab.agentId) || agentById('shell')
   const waiting = stateId === 'waiting'
   const LIMIT = '#ff9f43'
@@ -93,6 +93,15 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, metric, onFocus,
         </button>
       )}
 
+      {/* Limit hit → continue the task on ANOTHER model: summary + fresh agent. */}
+      {limited && onLimitHandoff && (
+        <button className="sush-mc-btn" title="Summarize this session and continue the task with another model (Codex/Gemini)"
+          onClick={() => onLimitHandoff(tab.id)}
+          style={{ fontSize: 11, fontWeight: 800, color: '#82aaff', background: rgba('#82aaff', 0.12), border: `1px solid ${rgba('#82aaff', 0.4)}`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          Hand off →
+        </button>
+      )}
+
       {/* Quick answers for agents blocked on a prompt */}
       {waiting && (
         <span className="flex items-center" style={{ gap: 4, flexShrink: 0 }}>
@@ -120,7 +129,7 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, metric, onFocus,
   )
 }
 
-export default function MissionControl({ accent, tabs, states, limits = {}, summary, metrics = {}, onFocus, onClose, onCloseGroup, onPrompt, onSwitchResume, onDismiss }) {
+export default function MissionControl({ accent, tabs, states, limits = {}, summary, metrics = {}, onFocus, onClose, onCloseGroup, onPrompt, onSwitchResume, onLimitHandoff, onDismiss }) {
   // Which CLIs have a second account to switch to — so the "Switch & resume"
   // action only appears when it can actually do something. Fetched once on open.
   const [altProviders, setAltProviders] = useState(() => new Set())
@@ -230,6 +239,7 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
                     onClose={onClose}
                     onPrompt={onPrompt}
                     onSwitchResume={onSwitchResume}
+                    onLimitHandoff={onLimitHandoff}
                   />
                 ))}
               </div>

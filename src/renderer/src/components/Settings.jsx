@@ -430,6 +430,97 @@ function ago(ts) {
 
 const USAGE_INTERVALS = [[0, 'Off'], [30, '30s'], [60, '1 min'], [300, '5 min']]
 
+// Usage Guard: watch Claude's utilization (from the passive rate-limit
+// snapshot — no probe spawned) and act when it crosses the chosen threshold.
+// The MODE is the user's choice, previewed in plain words before anything
+// happens. Guard itself is Pro+; the hands-free handoff mode is Ultra+.
+const GUARD_PCTS = [50, 60, 70, 80, 90]
+const GUARD_MODES = [
+  ['warn', 'Warn'],
+  ['handoff', 'Auto-handoff'],
+  ['block', 'Block']
+]
+function guardPreview(mode, pct) {
+  if (mode === 'handoff') return `At ${pct}%, Sush summarizes each live Claude session and hands the work to your next available model — hands-free.`
+  if (mode === 'block') return `At ${pct}%, Sush stops sending new input to Claude sessions until the window resets (their current stream finishes; other agents are untouched).`
+  return `At ${pct}%, Sush notifies you and flags Claude sessions in Mission Control with a one-click "Hand off" — nothing is interrupted.`
+}
+
+function UsageGuardBlock({ accent, settings, set }) {
+  const ent = useEntitlements()
+  const locked = !ent.can('usageGuard')
+  const handoffLocked = !ent.can('autoHandoff')
+  const enabled = settings.usageGuardEnabled === true && !locked
+  const pct = settings.usageGuardPct ?? 80
+  const mode = settings.usageGuardMode || 'warn'
+
+  if (locked) {
+    return (
+      <Row>
+        <Label>Usage Guard</Label>
+        <div className="flex items-center" style={{ gap: 11, borderRadius: 'var(--r-lg)', border: `1px solid ${rgba(accent, 0.25)}`, background: rgba(accent, 0.05), padding: '12px 14px' }}>
+          <span className="flex items-center justify-center" style={{ width: 30, height: 30, borderRadius: 8, background: rgba(accent, 0.12), color: accent, flexShrink: 0 }}>
+            <Icon name="lock" size={14} strokeWidth={2} />
+          </span>
+          <div style={{ fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.5 }}>
+            Stop Claude before the limit stops you: pick a threshold (e.g. 80%) and Sush warns,
+            hands off, or blocks — your choice. A <strong style={{ color: accent }}>Pro</strong> feature — see <strong style={{ color: accent }}>Plan</strong>.
+          </div>
+        </div>
+      </Row>
+    )
+  }
+
+  return (
+    <Row>
+      <Label>Usage Guard · Claude quota</Label>
+      <button
+        onClick={() => set('usageGuardEnabled', !settings.usageGuardEnabled)}
+        style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: enabled ? rgba(accent, 0.1) : 'var(--surface-2)', border: `1px solid ${enabled ? rgba(accent, 0.4) : 'var(--border-2)'}`, color: enabled ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+      >
+        <Icon name="doctor" size={14} strokeWidth={2} />
+        {enabled ? `Guard armed at ${pct}%` : 'Guard off'}
+      </button>
+      {enabled && (
+        <>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            {GUARD_PCTS.map(p => (
+              <button key={p} onClick={() => set('usageGuardPct', p)} style={{ flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', background: pct === p ? accent : 'var(--surface-2)', color: pct === p ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${pct === p ? accent : 'var(--border-2)'}` }}>
+                {p}%
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            {GUARD_MODES.map(([val, lbl]) => {
+              const optLocked = val === 'handoff' && handoffLocked
+              const on = mode === val
+              return (
+                <button
+                  key={val}
+                  onClick={() => { if (!optLocked) set('usageGuardMode', val) }}
+                  disabled={optLocked}
+                  title={optLocked ? 'Hands-free handoff is an Ultra feature — see Plan' : ''}
+                  className="flex items-center justify-center"
+                  style={{ gap: 5, flex: 1, padding: '6px 0', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: optLocked ? 'default' : 'pointer', opacity: optLocked ? 0.55 : 1, background: on ? accent : 'var(--surface-2)', color: on ? '#0a0a0a' : 'var(--text-3)', border: `1px solid ${on ? accent : 'var(--border-2)'}` }}
+                >
+                  {optLocked && <Icon name="lock" size={10} strokeWidth={2.2} />}
+                  {lbl}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.55, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
+            <strong style={{ color: accent }}>Preview:</strong> {guardPreview(mode, pct)}
+          </div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
+            Reads the passive rate-limit snapshot Claude already sends — no extra probes, no tokens spent.
+          </div>
+        </>
+      )}
+    </Row>
+  )
+}
+
 function UsageSection({ accent, settings, set }) {
   const online = useOnline()
   const [snap, setSnap] = useState(null)
@@ -525,6 +616,8 @@ function UsageSection({ accent, settings, set }) {
         </div>
       </Row>
 
+      <UsageGuardBlock accent={accent} settings={settings} set={set} />
+
       {/* Controls */}
       <div className="flex items-center" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>Auto-refresh</span>
@@ -594,25 +687,30 @@ function UsageSection({ accent, settings, set }) {
 // Stored per user (localStorage); the launcher, Seducia and the availability
 // probe pick them up through allAgents().
 const TIER_META = {
-  free: { label: 'Free', price: '$0', unit: 'forever',  color: 'var(--text-3)', blurb: 'The essentials, no code needed.' },
-  plus: { label: 'Plus', price: '$8', unit: '/ month',  color: '#5ab0ff',       blurb: 'Multi-account work + cloud voice.', popular: true },
-  pro:  { label: 'Pro',  price: '$16', unit: '/ month', color: '#c08bff',       blurb: 'Everything, max grid.' }
+  free:  { label: 'Free',  price: '$0',  unit: 'forever',  color: 'var(--text-3)', blurb: 'The essentials, no code needed.' },
+  plus:  { label: 'Plus',  price: '$8',  unit: '/ month',  color: '#5ab0ff',       blurb: 'Multi-account work + cloud voice.', popular: true },
+  pro:   { label: 'Pro',   price: '$16', unit: '/ month',  color: '#c08bff',       blurb: 'Bigger grid + the Usage Guard.' },
+  ultra: { label: 'Ultra', price: '$29', unit: '/ month',  color: '#ffb454',       blurb: 'Standing swarms, hands-free handoff.' },
+  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#ff6b81',       blurb: 'Everything Sush can do, maxed.' }
 }
 // Dictation minutes per tier — mirror main/credits.js TIER_ALLOWANCE_SEC so the
 // pricing cards and the real meter never disagree.
-const CREDIT_MINUTES = { free: 5, plus: 60, pro: 300 }
+const CREDIT_MINUTES = { free: 5, plus: 60, pro: 150, ultra: 600, max: 1500 }
 // One row per comparable feature. `fn(features, tierName)` renders the cell.
 const PLAN_FEATURES = [
   ['Accounts per CLI',     t => String(t.slots)],
   ['Grid sessions',        t => String(t.gridCap)],
   ['Quiet Credits',        (t, name) => `${CREDIT_MINUTES[name] ?? 5}m / mo`],
   ['Custom agents',        t => t.customAgents],
-  ['Cloud voices',         t => t.cloudTts]
+  ['Cloud voices',         t => t.cloudTts],
+  ['Usage Guard',          t => !!t.usageGuard],
+  ['Auto-handoff',         t => !!t.autoHandoff]
 ]
-// The plans we SHOW. Extra/experimental tiers can be added to TIER_FEATURES
-// without appearing here — hidden, not removed. Keep this to three for a clean
-// pricing wall.
+// The pricing wall shows three cards by default; "See all plans" reveals the
+// full ladder. A tier can exist in TIER_FEATURES without being listed at all —
+// hidden, not removed.
 const PLAN_ORDER = ['free', 'plus', 'pro']
+const PLAN_ORDER_ALL = ['free', 'plus', 'pro', 'ultra', 'max']
 
 // Tier / unlock-code panel. No paywall: the user pastes a code I mint offline
 // and it flips the tier. The actual feature gating lives where each feature does
@@ -625,6 +723,11 @@ function PlanSection({ accent, ent }) {
   const tier = ent.tier || 'free'
   const tiers = ent.tiers && Object.keys(ent.tiers).length ? ent.tiers : null
   const meta = TIER_META[tier] || TIER_META.free
+
+  // Show the full five-tier ladder when asked — or whenever the active tier
+  // is one of the hidden ones (your own plan card must never be invisible).
+  const [showAll, setShowAll] = useState(false)
+  const shownPlans = (showAll || tier === 'ultra' || tier === 'max') ? PLAN_ORDER_ALL : PLAN_ORDER
 
   const redeem = async () => {
     const c = code.trim()
@@ -643,8 +746,8 @@ function PlanSection({ accent, ent }) {
     <Section title="Plan" accent={accent}>
       {/* Pricing wall — three cards, current plan lifted, Plus flagged popular. */}
       {tiers && (
-        <div className="sush-plan-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 18 }}>
-          {PLAN_ORDER.map(t => {
+        <div className="sush-plan-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
+          {shownPlans.map(t => {
             const m = TIER_META[t] || {}
             const f = tiers[t]
             if (!f) return null
@@ -706,6 +809,15 @@ function PlanSection({ accent, ent }) {
             )
           })}
         </div>
+      )}
+
+      {tiers && tier !== 'ultra' && tier !== 'max' && (
+        <button
+          onClick={() => setShowAll(s => !s)}
+          style={{ display: 'block', margin: '0 auto 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'transparent', border: '1px solid var(--border-2)', borderRadius: 999, padding: '5px 16px', cursor: 'pointer', letterSpacing: 0.3 }}
+        >
+          {showAll ? 'Show fewer plans' : 'See all plans — Ultra & Max'}
+        </button>
       )}
 
       {ent.expiry && (
