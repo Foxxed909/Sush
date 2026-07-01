@@ -108,6 +108,15 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
     else if (stateRef.current === 'idle' || stateRef.current === 'error') begin()
   }, [begin, finish])
 
+  // Abandon an active recording without transcribing (spends nothing).
+  const cancel = useCallback(() => {
+    clearCap()
+    const rec = recRef.current
+    recRef.current = null
+    try { rec?.cancel() } catch {}
+    setState('idle')
+  }, [clearCap])
+
   // App-level hotkey (Ctrl+Shift+S) arrives as a window event so terminals,
   // modals, and the home screen all reach the same toggle. Routed through a ref
   // so the listener is subscribed exactly once.
@@ -118,6 +127,21 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
     window.addEventListener('sush:hush-toggle', handler)
     return () => window.removeEventListener('sush:hush-toggle', handler)
   }, [])
+
+  // Esc while listening throws the clip away — no transcription, no credits.
+  const cancelRef = useRef(cancel)
+  cancelRef.current = cancel
+  useEffect(() => {
+    if (state !== 'listening') return
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      cancelRef.current()
+    }
+    window.addEventListener('keydown', onEsc, { capture: true })
+    return () => window.removeEventListener('keydown', onEsc, { capture: true })
+  }, [state])
 
   useEffect(() => () => {
     clearCap()
@@ -165,7 +189,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
           <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {errored ? errMsg
               : transcribing ? 'Turning your words into text…'
-              : listening ? 'Speak now — tap again to send.'
+              : listening ? 'Speak now — tap again to send, Esc to cancel.'
               : 'Done.'}
           </div>
           {credits && !errored && (

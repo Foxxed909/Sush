@@ -2,7 +2,7 @@ import { execFileSync } from 'child_process'
 import { app, Notification } from 'electron'
 import { ok, err, ansi } from './_helpers'
 import { registry } from '../shell/registry'
-import { getCredits } from '../credits'
+import { getCredits, resetCredits } from '../credits'
 import { runtime } from '../shell/runtime'
 
 export const help = {
@@ -90,10 +90,12 @@ export const notify = {
 export const credits = {
   name: 'credits',
   description: 'Show your Quiet Credits dictation balance',
-  usage: 'credits',
+  usage: 'credits [reset]',
   aliases: ['quiet'],
-  async run() {
-    const c = getCredits()
+  async run([sub]) {
+    // `credits reset` refills the local meter — it's your own offline bucket,
+    // so this is a dev/testing affordance, not a cheat around a server.
+    const c = sub === 'reset' ? resetCredits() : getCredits()
     const mins = (s) => `${Math.round((Number(s) || 0) / 60)}m`
     const width = 24
     const usedPct = Math.min(1, (c.usedSec || 0) / Math.max(1, c.allowanceSec))

@@ -1396,6 +1396,9 @@ export default function App() {
     } else if (action.name === 'duplicate-tab') {
       const active = tabsRef.current.find(t => t.id === activeIdRef.current)
       if (active) duplicateTab(active.id)
+    } else if (action.name === 'rename-tab') {
+      // `title <name>` from the omnibar renames the focused session.
+      if (activeIdRef.current && action.label) renameTab(activeIdRef.current, String(action.label).slice(0, 40))
     } else if (action.name === 'open-sushrc') {
       setSmartResult(null)
       setShowSushrc(true)
@@ -1403,7 +1406,7 @@ export default function App() {
       setSmartResult(null)
       if (activeIdRef.current) setHandoffSource(activeIdRef.current)
     }
-  }, [findOrOpenCwd, queuePtyCommand, recentSessions, duplicateTab])
+  }, [findOrOpenCwd, queuePtyCommand, recentSessions, duplicateTab, renameTab])
 
   const runSmartInput = useCallback(async (input) => {
     const command = input.trim()
