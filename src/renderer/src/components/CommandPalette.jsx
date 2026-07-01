@@ -109,7 +109,6 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
                 background: i === idx ? rgba(accent, 0.1) : 'transparent',
                 color: 'var(--text-2)',
                 cursor: 'pointer',
-                borderLeft: `3px solid ${i === idx ? accent : 'transparent'}`,
                 textAlign: 'left'
               }}
             >

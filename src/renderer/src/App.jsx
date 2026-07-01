@@ -22,6 +22,7 @@ import SplashScreen from './components/SplashScreen'
 import LockScreen from './components/LockScreen'
 import UserManager from './components/UserManager'
 import ProfileViewer from './components/ProfileViewer'
+import PlansPage from './components/PlansPage'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { themes, getTheme } from './themes'
@@ -277,6 +278,14 @@ export default function App() {
   const [showMission, setShowMission] = useState(false)
   const [showUserManager, setShowUserManager] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [showPlans, setShowPlans] = useState(false)   // standalone pricing page
+
+  // Any surface can open the Plans page (Settings summary, upgrade hints).
+  useEffect(() => {
+    const open = () => setShowPlans(true)
+    window.addEventListener('sush:open-plans', open)
+    return () => window.removeEventListener('sush:open-plans', open)
+  }, [])
   // Command history persists per user (scoped storage) so it survives restarts.
   const [commandHistory, setCommandHistory] = useState(loadCommandHistory)
   const [pinnedProjects, setPinnedProjects] = useState(loadPinnedProjects)
@@ -1541,6 +1550,7 @@ export default function App() {
     else if (action === 'copy-output') copySessionOutput()
     else if (action === 'reopen') reopenLastClosed()
     else if (action === 'split') toggleSplit()
+    else if (action === 'plans') setShowPlans(true)
     else if (action === 'lock') identity.lock()
     else if (action === 'switch-user') identity.signOut()
     else if (action === 'manage-users') setShowUserManager(true)
@@ -1579,6 +1589,7 @@ export default function App() {
       { id: 'act-copy-output', label: 'Copy Session Output', description: 'Copy this session\'s recent output to the clipboard', icon: 'fileText', action: 'copy-output' },
       { id: 'act-reopen', label: 'Reopen Closed Session', description: 'Bring back the last session you closed (Ctrl+Shift+T)', icon: 'clock', action: 'reopen' },
       { id: 'act-split', label: 'Toggle Split View', description: 'Active session + the previous one, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
+      { id: 'act-plans', label: 'Plans & Upgrade', description: 'Compare tiers, redeem an unlock code', icon: 'star', action: 'plans' },
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
       { id: 'act-switch-user', label: 'Switch User / Sign Out', description: 'Closes your sessions and opens the user picker', icon: 'users', action: 'switch-user' },
       { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
@@ -2056,6 +2067,10 @@ export default function App() {
           onClose={() => setShowProfiles(false)}
           accent={accent}
         />
+      )}
+
+      {showPlans && (
+        <PlansPage accent={accent} ent={entitlements} onDismiss={() => setShowPlans(false)} />
       )}
 
       {showSettings && (

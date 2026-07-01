@@ -1115,7 +1115,7 @@ function BarStat({ label, value, max, unit, accent, small = false }) {
         {unit && <span style={{ color, fontWeight: 700 }}>{pct.toFixed(small ? 0 : 1)}{unit}</span>}
       </div>
       <div style={{ height: small ? 3 : 5, background: 'var(--border-1)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.6s ease' }} />
+        <div style={{ width: '100%', height: '100%', background: color, borderRadius: 3, transform: `scaleX(${Math.max(0, Math.min(100, pct)) / 100})`, transformOrigin: 'left', transition: 'transform 0.6s var(--ease-out)' }} />
       </div>
     </div>
   )

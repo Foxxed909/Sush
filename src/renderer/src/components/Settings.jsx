@@ -6,6 +6,7 @@ import { loadCustomAgents, saveCustomAgents, addCustomAgent, removeCustomAgent, 
 import { useEntitlements } from '../hooks/useEntitlements'
 import { useOnline } from '../hooks/useOnline'
 import { formatCredits } from '../lib/dictation'
+import { TIER_META } from './PlansPage'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
@@ -143,7 +144,7 @@ function MiniBar({ label, pct, accent }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-3)', width: 48, flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
       <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
-        <div style={{ width: `${p}%`, height: '100%', borderRadius: 3, background: col, transition: 'width 0.4s ease' }} />
+        <div style={{ width: '100%', height: '100%', borderRadius: 3, background: col, transform: `scaleX(${p / 100})`, transformOrigin: 'left', transition: 'transform 0.4s var(--ease-out)' }} />
       </div>
       <span style={{ fontSize: 9.5, fontWeight: 800, color: p >= 90 ? '#ff7a8a' : 'var(--text-2)', width: 30, textAlign: 'right' }}>{p}%</span>
     </div>
@@ -686,174 +687,38 @@ function UsageSection({ accent, settings, set }) {
 // the old way was hardcoding machine-specific paths into lib/agents.js.
 // Stored per user (localStorage); the launcher, Seducia and the availability
 // probe pick them up through allAgents().
-const TIER_META = {
-  free:  { label: 'Free',  price: '$0',  unit: 'forever',  color: 'var(--text-3)', blurb: 'The essentials, no code needed.' },
-  plus:  { label: 'Plus',  price: '$8',  unit: '/ month',  color: '#5ab0ff',       blurb: 'Multi-account work + cloud voice.', popular: true },
-  pro:   { label: 'Pro',   price: '$16', unit: '/ month',  color: '#c08bff',       blurb: 'Bigger grid + the Usage Guard.' },
-  ultra: { label: 'Ultra', price: '$29', unit: '/ month',  color: '#ffb454',       blurb: 'Standing swarms, hands-free handoff.' },
-  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#ff6b81',       blurb: 'Everything Sush can do, maxed.' }
-}
-// Dictation minutes per tier — mirror main/credits.js TIER_ALLOWANCE_SEC so the
-// pricing cards and the real meter never disagree.
-const CREDIT_MINUTES = { free: 5, plus: 60, pro: 150, ultra: 600, max: 1500 }
-// One row per comparable feature. `fn(features, tierName)` renders the cell.
-const PLAN_FEATURES = [
-  ['Accounts per CLI',     t => String(t.slots)],
-  ['Grid sessions',        t => String(t.gridCap)],
-  ['Quiet Credits',        (t, name) => `${CREDIT_MINUTES[name] ?? 5}m / mo`],
-  ['Custom agents',        t => t.customAgents],
-  ['Cloud voices',         t => t.cloudTts],
-  ['Usage Guard',          t => !!t.usageGuard],
-  ['Auto-handoff',         t => !!t.autoHandoff]
-]
-// The pricing wall shows three cards by default; "See all plans" reveals the
-// full ladder. A tier can exist in TIER_FEATURES without being listed at all —
-// hidden, not removed.
-const PLAN_ORDER = ['free', 'plus', 'pro']
-const PLAN_ORDER_ALL = ['free', 'plus', 'pro', 'ultra', 'max']
-
-// Tier / unlock-code panel. No paywall: the user pastes a code I mint offline
-// and it flips the tier. The actual feature gating lives where each feature does
-// (slots in main, grid in App, cloud voice here) — this is just where you see
-// what you've got and redeem a code.
+// Plan summary. The full pricing wall lives on its own page now (PlansPage,
+// opened via the button below / the palette) — Settings just shows where you
+// are and hands you the door.
 function PlanSection({ accent, ent }) {
-  const [code, setCode] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState(null) // { ok, text }
   const tier = ent.tier || 'free'
-  const tiers = ent.tiers && Object.keys(ent.tiers).length ? ent.tiers : null
   const meta = TIER_META[tier] || TIER_META.free
-
-  // Show the full five-tier ladder when asked — or whenever the active tier
-  // is one of the hidden ones (your own plan card must never be invisible).
-  const [showAll, setShowAll] = useState(false)
-  const shownPlans = (showAll || tier === 'ultra' || tier === 'max') ? PLAN_ORDER_ALL : PLAN_ORDER
-
-  const redeem = async () => {
-    const c = code.trim()
-    if (!c || busy) return
-    setBusy(true); setMsg(null)
-    const r = await ent.redeem(c)
-    setBusy(false)
-    if (r?.ok) { setMsg({ ok: true, text: `Unlocked ${TIER_META[r.tier]?.label || r.tier}. Enjoy.` }); setCode('') }
-    else setMsg({ ok: false, text: r?.error || 'Could not redeem that code.' })
-  }
-  const revert = async () => { await ent.clear(); setMsg({ ok: true, text: 'Reverted to Free.' }); setCode('') }
-
-  const inputStyle = { width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border-2)', color: 'var(--text-2)', borderRadius: 8, padding: '8px 11px', fontSize: 12.5, outline: 'none', letterSpacing: 0.5, fontFamily: 'var(--font-mono, monospace)' }
-
   return (
     <Section title="Plan" accent={accent}>
-      {/* Pricing wall — three cards, current plan lifted, Plus flagged popular. */}
-      {tiers && (
-        <div className="sush-plan-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 10 }}>
-          {shownPlans.map(t => {
-            const m = TIER_META[t] || {}
-            const f = tiers[t]
-            if (!f) return null
-            const current = t === tier
-            const popular = !!m.popular && !current
-            return (
-              <div
-                key={t}
-                className="sush-plan-card"
-                style={{
-                  position: 'relative',
-                  display: 'flex', flexDirection: 'column',
-                  borderRadius: 16,
-                  border: `1px solid ${current ? rgba(m.color, 0.55) : popular ? rgba(m.color, 0.32) : 'var(--border-2)'}`,
-                  background: current ? rgba(m.color, 0.08) : 'var(--surface-1)',
-                  boxShadow: current ? `0 10px 30px ${rgba(m.color, 0.16)}` : '0 2px 10px rgba(0,0,0,0.18)',
-                  padding: '16px 15px 15px',
-                  transform: current ? 'translateY(-2px)' : 'none',
-                  transition: 'transform 260ms cubic-bezier(0.22,1,0.36,1), box-shadow 260ms ease, border-color 200ms ease'
-                }}
-              >
-                {(popular || current) && (
-                  <span style={{ position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase', color: current ? '#05070b' : '#05070b', background: m.color, borderRadius: 999, padding: '2px 9px', whiteSpace: 'nowrap' }}>
-                    {current ? 'Your plan' : 'Popular'}
-                  </span>
-                )}
-                <div style={{ fontSize: 12.5, fontWeight: 900, color: m.color, letterSpacing: 0.3 }}>{m.label}</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 6 }}>
-                  <span style={{ fontSize: 26, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1 }}>{m.price}</span>
-                  <span style={{ fontSize: 10.5, color: 'var(--text-4)', fontWeight: 700 }}>{m.unit}</span>
-                </div>
-                <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.45, minHeight: 30 }}>{m.blurb}</div>
-                <div style={{ height: 1, background: 'var(--border-2)', margin: '11px 0' }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1 }}>
-                  {PLAN_FEATURES.map(([name, fn]) => {
-                    const val = fn(f, t)
-                    const bool = typeof val === 'boolean'
-                    return (
-                      <div key={name} className="flex items-center" style={{ gap: 7, fontSize: 11 }}>
-                        <Icon name={bool ? (val ? 'check' : 'x') : 'check'} size={12} strokeWidth={2.4} color={bool ? (val ? m.color : 'var(--text-5, #4a545e)') : m.color} />
-                        <span style={{ color: bool && !val ? 'var(--text-4)' : 'var(--text-2)', flex: 1 }}>{name}</span>
-                        {!bool && <span style={{ color: 'var(--text-2)', fontWeight: 800 }}>{val}</span>}
-                      </div>
-                    )
-                  })}
-                </div>
-                <div style={{ marginTop: 13 }}>
-                  {current ? (
-                    tier === 'free'
-                      ? <div style={{ textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: 'var(--text-4)', padding: '7px 0' }}>You're here</div>
-                      : <button onClick={revert} title="Remove code, back to Free" style={{ width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '7px 0', cursor: 'pointer' }}>Revert to Free</button>
-                  ) : (
-                    <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 800, color: m.color, letterSpacing: 0.4, textTransform: 'uppercase', padding: '7px 0', borderRadius: 999, background: rgba(m.color, 0.08), border: `1px solid ${rgba(m.color, 0.25)}` }}>
-                      {t === 'free' ? 'Downgrade with a code' : 'Redeem a code'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+      <div className="flex items-center" style={{ gap: 13, padding: '14px 16px', borderRadius: 'var(--r-lg)', border: `1px solid ${rgba(meta.color, 0.35)}`, background: rgba(meta.color, 0.07) }}>
+        <span className="flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: 10, background: rgba(meta.color, 0.15), border: `1px solid ${rgba(meta.color, 0.4)}`, color: meta.color, flexShrink: 0 }}>
+          <Icon name="star" size={16} strokeWidth={2} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 900, color: 'var(--text-1)' }}>
+            {meta.label} plan {ent.expiry && <span style={{ color: 'var(--text-3)', fontWeight: 700, fontSize: 11 }}>· trial</span>}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{meta.blurb}</div>
         </div>
-      )}
-
-      {tiers && tier !== 'ultra' && tier !== 'max' && (
         <button
-          onClick={() => setShowAll(s => !s)}
-          style={{ display: 'block', margin: '0 auto 16px', fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'transparent', border: '1px solid var(--border-2)', borderRadius: 999, padding: '5px 16px', cursor: 'pointer', letterSpacing: 0.3 }}
+          onClick={() => window.dispatchEvent(new CustomEvent('sush:open-plans'))}
+          style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: '#0a0a0a', background: accent, border: `1px solid ${accent}`, borderRadius: 999, padding: '8px 16px', cursor: 'pointer' }}
         >
-          {showAll ? 'Show fewer plans' : 'See all plans — Ultra & Max'}
-        </button>
-      )}
-
-      {ent.expiry && (
-        <div style={{ fontSize: 11, fontWeight: 700, color: TIER_META[tier]?.color || 'var(--text-3)', marginBottom: 12 }}>
-          Your {meta.label} code is a trial — it reverts to Free after it expires.
-        </div>
-      )}
-
-      {/* Redeem */}
-      <Label>Have an unlock code?</Label>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          value={code}
-          onChange={e => setCode(e.target.value.toUpperCase())}
-          onKeyDown={e => { if (e.key === 'Enter') redeem() }}
-          placeholder="SUSH-PLUS-XXXXXXXX-XXXXXXXXXX"
-          spellCheck={false}
-          style={inputStyle}
-        />
-        <button
-          onClick={redeem}
-          disabled={!code.trim() || busy}
-          style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: code.trim() && !busy ? '#0a0a0a' : 'var(--text-4)', background: code.trim() && !busy ? accent : 'rgba(255,255,255,0.05)', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 999, padding: '0 18px', cursor: code.trim() && !busy ? 'pointer' : 'default' }}
-        >
-          {busy ? '…' : 'Redeem'}
+          View plans →
         </button>
       </div>
-      {msg && (
-        <div style={{ marginTop: 9, fontSize: 11.5, fontWeight: 700, color: msg.ok ? '#7fd6a0' : '#ff8aa0' }}>{msg.text}</div>
-      )}
-      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.55 }}>
-        No payment, no account — a code just unlocks a tier offline. Don't have one? Ask the dev.
+      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 8, lineHeight: 1.5 }}>
+        Compare tiers, redeem an unlock code, or revert to Free — all on the Plans page.
       </div>
     </Section>
   )
 }
+
 
 function AgentsSection({ accent, ent }) {
   const [custom, setCustom] = useState(() => loadCustomAgents())
@@ -1258,7 +1123,7 @@ function DictationBlock({ accent, settings, set }) {
             <Row>
               <Label>Quiet Credits · {stt.credits.tier} plan</Label>
               <div style={{ height: 8, borderRadius: 5, background: 'var(--surface-2)', border: '1px solid var(--border-2)', overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: pct <= 10 ? '#ffb74d' : accent, transition: 'width 400ms cubic-bezier(0.22,1,0.36,1)' }} />
+                <div style={{ width: '100%', height: '100%', background: pct <= 10 ? '#ffb74d' : accent, transform: `scaleX(${pct / 100})`, transformOrigin: 'left', transition: 'transform 400ms var(--ease-out)' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, fontWeight: 600 }}>
                 <span>{formatCredits(credits.remainingSec)} of {Math.round(credits.allowanceSec / 60)}m</span>
