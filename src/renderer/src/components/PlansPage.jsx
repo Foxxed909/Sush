@@ -22,8 +22,7 @@ export const TIER_META = {
 // meter never disagree.
 export const CREDIT_MINUTES = { free: 5, plus: 60, pro: 150, ultra: 600, max: 1500 }
 
-const CORE = ['free', 'plus', 'pro']
-const PERFORMANCE = ['ultra', 'max']
+const ORDER = ['free', 'plus', 'pro', 'ultra', 'max']
 
 const FEATURES = [
   ['Accounts per CLI', t => String(t.slots)],
@@ -58,6 +57,8 @@ function PlanBadge({ text, color }) {
 export default function PlansPage({ accent, ent, onDismiss }) {
   const tier = ent.tier || 'free'
   const tiers = ent.tiers && Object.keys(ent.tiers).length ? ent.tiers : null
+  // Which card is dealt to the front of the fan — defaults to your tier.
+  const [active, setActive] = useState(ORDER.includes(tier) ? tier : 'plus')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -110,105 +111,96 @@ export default function PlansPage({ accent, ent, onDismiss }) {
           long-running swarms alive.
         </p>
 
-        {/* Core ladder */}
+        {/* The deck — all five plans fanned like a hand of cards. The front
+            card is fully dealt (complete feature list); the rest peek out
+            behind it, each showing its name + price on the exposed corner.
+            Click a card to bring it forward. */}
         {tiers && (
-          <div className="sush-plan-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {CORE.map(t => {
-              const m = TIER_META[t]
-              const f = tiers[t]
-              if (!f) return null
-              const current = t === tier
-              return (
-                <div
-                  key={t}
-                  className="sush-plan-card"
-                  style={{
-                    position: 'relative', display: 'flex', flexDirection: 'column',
-                    borderRadius: 16, padding: '20px 17px 17px',
-                    border: `1px solid ${current ? rgba(m.color, 0.55) : 'var(--border-2)'}`,
-                    background: current ? rgba(m.color, 0.07) : 'var(--surface-1)',
-                    boxShadow: current ? `0 12px 32px ${rgba(m.color, 0.14)}` : 'none'
-                  }}
-                >
-                  {current ? <PlanBadge text="Your plan" color={m.color} />
-                    : m.popular ? <PlanBadge text="Popular" color={m.color} /> : null}
-                  <div style={{ fontSize: 13, fontWeight: 900, color: m.color }}>{m.label}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 7 }}>
-                    <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1, letterSpacing: '-0.02em' }}>{m.price}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>{m.unit}</span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-2)', margin: '8px 0 0', lineHeight: 1.5, minHeight: 34 }}>{m.blurb}</div>
-                  <div style={{ height: 1, background: 'var(--border-1)', margin: '13px 0' }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-                    {FEATURES.map(([name, fn]) => (
-                      <FeatureLine key={name} name={name} value={fn(f, t)} color={m.color} />
-                    ))}
-                  </div>
-                  {current && t !== 'free' && (
-                    <button onClick={revert} style={{ marginTop: 14, width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '8px 0', cursor: 'pointer' }}>
-                      Revert to Free
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Performance band — a different shape on purpose: these are not more
-            cards in the wall, they're the ceiling for people running swarms
-            all day. */}
-        {tiers && (
-          <div style={{ marginTop: 26 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)', marginBottom: 10 }}>
-              For standing swarms
-              <span style={{ color: 'var(--text-3)', fontWeight: 600 }}> — agents running all day, every day</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {PERFORMANCE.map(t => {
+          <div className="sush-fan" style={{ position: 'relative', height: 470, marginTop: 6 }}>
+            {(() => {
+              // Front card at the left, the rest fanned to the right in tier
+              // order, rotated around a shared bottom-left pivot.
+              const rest = ORDER.filter(t => t !== active)
+              const deck = [active, ...rest]
+              return deck.map((t, i) => {
                 const m = TIER_META[t]
                 const f = tiers[t]
                 if (!f) return null
+                const front = i === 0
                 const current = t === tier
                 return (
                   <div
                     key={t}
-                    className="flex items-center sush-plan-card"
+                    className="sush-fan-card"
+                    onClick={() => setActive(t)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActive(t) } }}
+                    aria-pressed={front}
                     style={{
-                      gap: 18, flexWrap: 'wrap', padding: '16px 18px', borderRadius: 14,
-                      border: `1px solid ${current ? rgba(m.color, 0.55) : 'var(--border-2)'}`,
-                      background: current ? rgba(m.color, 0.07) : 'var(--surface-1)'
+                      position: 'absolute', top: 0, left: 0,
+                      width: 300, height: 430,
+                      transformOrigin: '20% 130%',
+                      transform: front ? 'rotate(0deg)' : `translateX(${72 + i * 96}px) rotate(${i * 5.5}deg)`,
+                      zIndex: 10 - i,
+                      cursor: front ? 'default' : 'pointer',
+                      display: 'flex', flexDirection: 'column',
+                      borderRadius: 18, padding: '18px 17px 16px',
+                      border: `1px solid ${front ? rgba(m.color, 0.55) : rgba(m.color, 0.3)}`,
+                      background: front ? '#101114' : 'var(--surface-1)',
+                      boxShadow: front ? `0 18px 44px rgba(0,0,0,0.5), 0 0 0 1px ${rgba(m.color, 0.12)}` : '0 10px 26px rgba(0,0,0,0.42)'
                     }}
                   >
-                    <div style={{ minWidth: 120 }}>
-                      <div className="flex items-center" style={{ gap: 8 }}>
-                        <span style={{ fontSize: 13.5, fontWeight: 900, color: m.color }}>{m.label}</span>
-                        {current && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase', color: '#05070b', background: m.color, borderRadius: 999, padding: '2px 8px' }}>Your plan</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
-                        <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1 }}>{m.price}</span>
-                        <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 700 }}>{m.unit}</span>
-                      </div>
+                    {/* Exposed corner: name + price sit on whichever corner the
+                        fan actually reveals — left on the dealt card, right on
+                        the peeking ones. */}
+                    <div className="flex items-center" style={{ gap: 8, justifyContent: front ? 'flex-start' : 'flex-end' }}>
+                      <span style={{ fontSize: 13, fontWeight: 900, color: m.color }}>{m.label}</span>
+                      {current && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: '#05070b', background: m.color, borderRadius: 999, padding: '2px 8px' }}>Your plan</span>}
+                      {!current && m.popular && front && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: '#05070b', background: m.color, borderRadius: 999, padding: '2px 8px' }}>Popular</span>}
                     </div>
-                    <div style={{ flex: 1, minWidth: 220, fontSize: 12, color: 'var(--text-2)', lineHeight: 1.55 }}>
-                      <strong style={{ color: 'var(--text-1)' }}>{f.slots} accounts</strong> per CLI · <strong style={{ color: 'var(--text-1)' }}>{f.gridCap}</strong>-tile grid · <strong style={{ color: 'var(--text-1)' }}>{CREDIT_MINUTES[t]}m</strong> dictation
-                      <span style={{ color: 'var(--text-3)' }}> — plus Usage Guard with hands-free auto-handoff.</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 6, justifyContent: front ? 'flex-start' : 'flex-end' }}>
+                      <span style={{ fontSize: 27, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1, letterSpacing: '-0.02em' }}>{m.price}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>{m.unit}</span>
                     </div>
-                    {current && (
-                      <button onClick={revert} style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '7px 14px', cursor: 'pointer' }}>
-                        Revert to Free
-                      </button>
+                    {/* Full details only on the dealt card — the fan stays calm. */}
+                    {front ? (
+                      <>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-2)', margin: '9px 0 0', lineHeight: 1.5 }}>{m.blurb}</div>
+                        <div style={{ height: 1, background: 'var(--border-1)', margin: '13px 0' }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8.5, flex: 1 }}>
+                          {FEATURES.map(([name, fn]) => (
+                            <FeatureLine key={name} name={name} value={fn(f, t)} color={m.color} />
+                          ))}
+                        </div>
+                        {current && t !== 'free' ? (
+                          <button onClick={e => { e.stopPropagation(); revert() }} style={{ marginTop: 12, width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '8px 0', cursor: 'pointer' }}>
+                            Revert to Free
+                          </button>
+                        ) : current ? (
+                          <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: 'var(--text-4)', padding: '8px 0' }}>You're here</div>
+                        ) : (
+                          <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, fontWeight: 800, color: m.color, letterSpacing: 0.4, textTransform: 'uppercase', padding: '8px 0', borderRadius: 999, background: rgba(m.color, 0.09), border: `1px solid ${rgba(m.color, 0.28)}` }}>
+                            Unlocks with a code
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.45, textAlign: 'right' }}>{m.blurb}</div>
                     )}
                   </div>
                 )
-              })}
-            </div>
+              })
+            })()}
           </div>
         )}
 
         {/* Redeem */}
         <div style={{ marginTop: 34, borderTop: '1px solid var(--border-1)', paddingTop: 22 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)', marginBottom: 9 }}>Have an unlock code?</div>
+          <div className="flex items-center" style={{ gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1, color: 'var(--text-3)' }}>OR</span>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>Enter a Sush code</span>
+          </div>
           <div style={{ display: 'flex', gap: 8, maxWidth: 520 }}>
             <input
               value={code}

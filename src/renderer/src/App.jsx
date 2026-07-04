@@ -35,6 +35,8 @@ import { useBattery } from './hooks/useBattery'
 import { useOnline } from './hooks/useOnline'
 import { STATES } from './lib/agentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
+import { useSplitView } from './hooks/useSplitView'
+import { useUsageGuard } from './hooks/useUsageGuard'
 import { recordCommand } from './lib/commandFrequency'
 import { cliComplete } from './lib/ai'
 import JsonViewer from './components/JsonViewer'
@@ -291,7 +293,6 @@ export default function App() {
   const [pinnedProjects, setPinnedProjects] = useState(loadPinnedProjects)
   const [broadcastMode, setBroadcastMode] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
-  const [splitId, setSplitId] = useState(null)      // second pane of a 2-up split (Ctrl+\)
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
   const [renamingId, setRenamingId] = useState(null)
   const [handoffSource, setHandoffSource] = useState(null)
@@ -825,26 +826,8 @@ export default function App() {
     } catch {}
   }, [])
 
-  // 2-up split: the active session plus one partner, side by side. Toggling on
-  // picks the most-recently-used other session; toggling off returns to the
-  // single-terminal view. The partner boots if it was a lazy rail entry.
-  const toggleSplit = useCallback(() => {
-    setSplitId(prev => {
-      if (prev) return null
-      const activeNow = activeIdRef.current
-      const partner = mruRef.current.find(id => id !== activeNow && tabsRef.current.some(t => t.id === id))
-        || tabsRef.current.find(t => t.id !== activeNow)?.id
-      if (!partner) return null
-      setBootedIds(b => b.has(partner) ? b : new Set(b).add(partner))
-      setView('terminal')
-      return partner
-    })
-  }, [])
-
-  // Drop the split when its partner closes.
-  useEffect(() => {
-    if (splitId && !tabs.some(t => t.id === splitId)) setSplitId(null)
-  }, [tabs, splitId])
+  // 2-up split (Ctrl+\): state + toggle live in useSplitView.
+  const { splitId, setSplitId, toggleSplit } = useSplitView({ tabs, tabsRef, mruRef, activeIdRef, setBootedIds, setView })
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
@@ -1326,38 +1309,20 @@ export default function App() {
   }, [profiles, openTab])
 
   // ── Usage Guard (Pro+) ─────────────────────────────────────────────────────
-  // Watch Claude's utilization from the PASSIVE rate-limit snapshot (no probe
-  // spawned, no tokens spent) and act at the user's threshold. The mode is the
-  // user's choice, previewed in Settings: warn / auto-handoff (Ultra+) / block.
-  const guardOn = entitlements.can('usageGuard') && settings.usageGuardEnabled === true
-  const guardPct = settings.usageGuardPct ?? 80
+  // Threshold + mode come from Settings; the watching/tripping lives in
+  // useUsageGuard. Auto-handoff falls back to warn below Ultra.
   const guardMode = (settings.usageGuardMode === 'handoff' && !entitlements.can('autoHandoff'))
     ? 'warn' : (settings.usageGuardMode || 'warn')
-  const [guardTrip, setGuardTrip] = useState(null)   // { pct } while tripped
-  const guardHandledRef = useRef(new Set())          // sessions auto-handed-off this trip
-  const guardModeRef = useRef(guardMode)
-  guardModeRef.current = guardMode
-
-  const pollGuard = useCallback(async () => {
-    try {
-      const r = await window.sush.claudeLimitsGet?.()
-      const lim = r?.limits
-      const pct = Math.max(lim?.sessionPct ?? -1, lim?.weekPct ?? -1)
-      if (pct < 0) return
-      setGuardTrip(prev => {
-        if (pct >= guardPct) return prev ? { ...prev, pct } : { pct }
-        // Hysteresis: only stand down once clearly below the line, so a value
-        // hovering at the threshold doesn't flap the guard on and off.
-        if (prev && pct < guardPct - 5) { guardHandledRef.current.clear(); return null }
-        return prev
-      })
-    } catch {}
-  }, [guardPct])
-  usePolling(pollGuard, 45000, guardOn)
-  useEffect(() => { if (!guardOn) { setGuardTrip(null); guardHandledRef.current.clear() } }, [guardOn])
-
-  // Block mode: keystrokes to Claude sessions are dropped while tripped.
-  const guardBlocked = !!guardTrip && guardMode === 'block'
+  const guardPct = settings.usageGuardPct ?? 80
+  const guard = useUsageGuard({
+    enabled: entitlements.can('usageGuard') && settings.usageGuardEnabled === true,
+    thresholdPct: guardPct,
+    mode: guardMode,
+    tabsRef,
+    onHandoff: (tabId) => performLimitHandoffRef.current(tabId)
+  })
+  const guardTrip = guard.trip
+  const guardBlocked = guard.blocked
 
   // Gather a portable context card for a session: cwd, branch, recent commands,
   // and a tail of its output. Used by the handoff flow.
@@ -1451,21 +1416,6 @@ export default function App() {
   }, [buildHandoffCard, performHandoff])
   const performLimitHandoffRef = useRef(performLimitHandoff)
   performLimitHandoffRef.current = performLimitHandoff
-
-  // Guard trip actions: one notification per trip; hands-free mode hands off
-  // each live Claude session exactly once per trip.
-  useEffect(() => {
-    if (!guardTrip) return
-    try { new Notification('Sush — Usage Guard', { body: `Claude is at ${guardTrip.pct}% of its window (threshold ${guardPct}%).`, silent: true }) } catch {}
-    if (guardModeRef.current !== 'handoff') return
-    const targets = tabsRef.current.filter(t => t.agentId === 'claude' && t.status !== 'exited' && !guardHandledRef.current.has(t.id))
-    targets.forEach(t => {
-      guardHandledRef.current.add(t.id)
-      performLimitHandoffRef.current(t.id)
-    })
-    // Deliberately only on trip start — re-polls refresh pct without re-firing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!guardTrip])
 
   const applySmartAction = useCallback((action, result) => {
     if (!action) return
@@ -2148,7 +2098,7 @@ export default function App() {
           </button>
           <button
             title="Dismiss until the next threshold crossing"
-            onClick={() => setGuardTrip(null)}
+            onClick={guard.dismiss}
             style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}
           >
             ×
