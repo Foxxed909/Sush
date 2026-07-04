@@ -697,7 +697,17 @@ p { text-wrap: pretty; }
 .sush-fan-card {
   transform: var(--fan-pose, none);
   transition: transform 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out), border-color 0.2s ease;
+  animation: sush-deal 0.5s var(--ease-out) both;
 }
+/* Deal-in: the hand starts stacked on the front card and fans open. The `to`
+   pose is each card's own --fan-pose (implicit), so one keyframe serves all. */
+@keyframes sush-deal {
+  from { transform: translateX(0) rotate(0deg); opacity: 0.5; }
+}
+.sush-fan-card:nth-child(2) { animation-delay: 0.05s; }
+.sush-fan-card:nth-child(3) { animation-delay: 0.10s; }
+.sush-fan-card:nth-child(4) { animation-delay: 0.15s; }
+.sush-fan-card:nth-child(5) { animation-delay: 0.20s; }
 .sush-fan-card:not([aria-pressed="true"]):hover {
   transform: var(--fan-pose, none) translateY(-16px);
   box-shadow: 0 22px 48px rgba(0,0,0,0.55), 0 0 30px var(--tier-glow, rgba(255,255,255,0.1)) !important;

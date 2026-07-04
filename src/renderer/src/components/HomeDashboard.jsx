@@ -74,8 +74,12 @@ export default function HomeDashboard({
     .filter((item, index, list) => list.findIndex(other => other.path === item.path) === index)
     .slice(0, 5)
 
+  // A returning user (has projects/recents) gets a compact hero — the big
+  // greeting earns its space exactly once.
+  const returning = uniqueCwds.length > 0 || pinnedProjects.length > 0
+
   const quick = [
-    { icon: 'terminal', label: 'Terminal', sub: 'New shell session', run: () => onOpenTab() },
+    { icon: 'terminal', label: 'Terminal', sub: 'New shell session', run: () => onOpenTab(), primary: true },
     { icon: 'serve', label: 'Serve', sub: 'Run dev server', run: () => onRun('serve') },
     { icon: 'ports', label: 'Ports', sub: 'Listening TCP', run: () => onRun('ports') },
     { icon: 'doctor', label: 'Doctor', sub: 'Environment check', run: () => onRun('doctor') }
@@ -97,14 +101,14 @@ export default function HomeDashboard({
     >
       <div style={{ maxWidth: 1180, margin: '0 auto' }} className="sush-fade-up">
         {/* Hero */}
-        <div className="flex items-start justify-between gap-4" style={{ marginBottom: 34 }}>
+        <div className="flex items-start justify-between gap-4" style={{ marginBottom: returning ? 22 : 34 }}>
           <div className="flex items-center" style={{ gap: 16, minWidth: 0 }}>
             <div
               className="flex items-center justify-center"
               style={{
-                width: 60,
-                height: 60,
-                borderRadius: 16,
+                width: returning ? 46 : 60,
+                height: returning ? 46 : 60,
+                borderRadius: returning ? 13 : 16,
                 flexShrink: 0,
                 background: `linear-gradient(150deg, ${rgba(accent, 0.32)}, ${rgba(accent, 0.06)})`,
                 border: `1px solid ${rgba(accent, 0.5)}`,
@@ -112,14 +116,14 @@ export default function HomeDashboard({
                 color: accent
               }}
             >
-              <Icon name="terminal" size={28} strokeWidth={2.4} />
+              <Icon name="terminal" size={returning ? 22 : 28} strokeWidth={2.4} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 40,
-                  lineHeight: 1.02,
+                  fontSize: returning ? 27 : 40,
+                  lineHeight: 1.05,
                   color: 'var(--text-1)',
                   letterSpacing: -1.2
                 }}
@@ -127,7 +131,7 @@ export default function HomeDashboard({
                 {greet.hi}{userName ? <>, <span style={{ color: accent, textShadow: `0 0 36px ${rgba(accent, 0.5)}` }}>{userName}</span></> : ''}
               </div>
               <div className="flex items-center" style={{ gap: 10, marginTop: 6 }}>
-                <span style={{ fontSize: 13.5, color: 'var(--text-3)', fontWeight: 600 }}>{greet.sub}</span>
+                {!returning && <span style={{ fontSize: 13.5, color: 'var(--text-3)', fontWeight: 600 }}>{greet.sub}</span>}
                 <span style={{ fontSize: 12, color: rgba(accent, 0.6), fontWeight: 800, background: rgba(accent, 0.08), borderRadius: 6, padding: '2px 8px', border: `1px solid ${rgba(accent, 0.15)}` }}>{clockStr}</span>
               </div>
               <div className="flex items-center" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
@@ -234,9 +238,13 @@ export default function HomeDashboard({
                 style={{
                   gap: 14,
                   textAlign: 'left',
-                  border: '1px solid var(--border-2)',
+                  // The dominant action reads as dominant: Terminal wears the
+                  // accent, the utilities stay quiet.
+                  border: `1px solid ${item.primary ? rgba(accent, 0.5) : 'var(--border-2)'}`,
                   borderRadius: 14,
-                  background: 'linear-gradient(180deg, rgba(28,29,33,0.72), rgba(15,16,17,0.6))',
+                  background: item.primary
+                    ? `linear-gradient(180deg, ${rgba(accent, 0.2)}, ${rgba(accent, 0.05)})`
+                    : 'linear-gradient(180deg, rgba(28,29,33,0.72), rgba(15,16,17,0.6))',
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), var(--shadow-card)',
                   color: 'var(--text-2)',
                   padding: '16px 17px',
@@ -268,7 +276,7 @@ export default function HomeDashboard({
           </div>
         </section>
 
-        {/* Pinned projects — star a workdir below to keep it here */}
+        {/* Pinned projects — star a project below to keep it here */}
         {pinnedProjects.length > 0 && (
           <section style={{ marginBottom: 30 }}>
             <SectionLabel icon="star" accent={accent}>Pinned</SectionLabel>
@@ -324,7 +332,7 @@ export default function HomeDashboard({
           }}
         >
           <section style={{ minWidth: 0 }}>
-            <SectionLabel icon="folder" accent={accent}>Workdirs</SectionLabel>
+            <SectionLabel icon="folder" accent={accent}>Projects</SectionLabel>
             <div className="flex flex-col" style={{ gap: 9 }}>
               {uniqueCwds.length ? uniqueCwds.map(item => (
                 <button

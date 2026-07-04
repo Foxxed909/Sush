@@ -141,7 +141,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                       position: 'absolute', top: 0, left: 0,
                       width: 300, height: 430,
                       transformOrigin: '20% 130%',
-                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${72 + i * 96}px) rotate(${i * 5.5}deg)`,
+                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${80 + i * 106}px) rotate(${i * 6}deg)`,
                       '--tier-glow': rgba(m.color, 0.28),
                       zIndex: 10 - i,
                       cursor: front ? 'default' : 'pointer',
