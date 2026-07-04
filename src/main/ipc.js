@@ -1,7 +1,7 @@
 ﻿import { ipcMain, app, clipboard, Tray, Menu, nativeImage, powerMonitor } from 'electron'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, watch as fsWatch } from 'fs'
-import { join } from 'path'
+import { join, parse, resolve } from 'path'
 import { promisify } from 'util'
 import { fileURLToPath } from 'url'
 
@@ -52,6 +52,25 @@ const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
 const SAFE_EXTERNAL_URL = /^https?:\/\//i
+
+function guardedFsTarget(raw, { blockHome = false } = {}) {
+  const text = String(raw ?? '').trim()
+  if (!text) return { ok: false, error: 'Missing path' }
+  const target = resolve(text)
+  const root = parse(target).root
+  const protectedPaths = [root]
+  if (blockHome) {
+    protectedPaths.push(homedir())
+    try { protectedPaths.push(app.getPath('userData')) } catch {}
+  }
+  const lower = target.toLowerCase()
+  const blocked = protectedPaths
+    .filter(Boolean)
+    .map(p => resolve(p).toLowerCase())
+    .includes(lower)
+  if (blocked) return { ok: false, error: 'Refusing to operate on a protected path' }
+  return { ok: true, path: target }
+}
 
 // Static art block sent immediately; boot lines are staggered in sendStaggeredBanner().
 const WELCOME_ART = [
@@ -1433,32 +1452,51 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:sushrc-path', () => ({ path: sushrcPath() }))
 
   // ── File operations ──────────────────────────────────────────────────────
-  ipcMain.handle('sush:read-file', async (event, { path: filePath }) => {
-    const { readFile: rf } = await import('fs/promises')
+  ipcMain.handle('sush:read-file', async (event, payload = {}) => {
+    const { path: filePath } = payload || {}
+    const target = guardedFsTarget(filePath)
+    if (!target.ok) return target
+    const { readFile: rf, stat } = await import('fs/promises')
     try {
-      const content = await rf(String(filePath ?? ''), 'utf8')
+      const info = await stat(target.path)
+      if (info.isDirectory()) return { ok: false, error: 'Path is a directory' }
+      const content = await rf(target.path, 'utf8')
       return { ok: true, content }
     } catch (e) {
       return { ok: false, error: e.message }
     }
   })
 
-  ipcMain.handle('sush:write-file', async (event, { path: filePath, content }) => {
-    const { writeFile: wf } = await import('fs/promises')
+  ipcMain.handle('sush:write-file', async (event, payload = {}) => {
+    const { path: filePath, content } = payload || {}
+    const target = guardedFsTarget(filePath)
+    if (!target.ok) return target
+    const { writeFile: wf, stat } = await import('fs/promises')
     try {
-      await wf(String(filePath ?? ''), String(content ?? ''), 'utf8')
+      try {
+        const info = await stat(target.path)
+        if (info.isDirectory()) return { ok: false, error: 'Path is a directory' }
+      } catch (e) {
+        if (e?.code !== 'ENOENT') throw e
+      }
+      await wf(target.path, String(content ?? ''), 'utf8')
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e.message }
     }
   })
 
-  ipcMain.handle('sush:delete-file', async (event, { path: filePath }) => {
-    const { rm: rmf } = await import('fs/promises')
+  ipcMain.handle('sush:delete-file', async (event, payload = {}) => {
+    const { path: filePath } = payload || {}
+    const target = guardedFsTarget(filePath, { blockHome: true })
+    if (!target.ok) return target
+    const { rm: rmf, stat } = await import('fs/promises')
     try {
-      await rmf(String(filePath ?? ''), { recursive: true, force: true })
+      await stat(target.path)
+      await rmf(target.path, { recursive: true, force: false })
       return { ok: true }
     } catch (e) {
+      if (e?.code === 'ENOENT') return { ok: false, error: 'Path not found' }
       return { ok: false, error: e.message }
     }
   })

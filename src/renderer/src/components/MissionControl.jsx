@@ -133,6 +133,8 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
   // Which CLIs have a second account to switch to — so the "Switch & resume"
   // action only appears when it can actually do something. Fetched once on open.
   const [altProviders, setAltProviders] = useState(() => new Set())
+  const [promptingGroup, setPromptingGroup] = useState(null)
+  const [groupPrompt, setGroupPrompt] = useState('')
   useEffect(() => {
     let live = true
     window.sush.accountsList?.().then(r => {
@@ -172,6 +174,16 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
     { id: 'idle', n: summary.idle + summary.booting },
     { id: 'done', n: summary.done }
   ].filter(c => c.n > 0)
+
+  const sendGroupPrompt = (group) => {
+    const text = groupPrompt.trim()
+    if (!text) return
+    group.tabs
+      .filter(tab => tab.status !== 'exited')
+      .forEach(tab => onPrompt?.(tab.id, `${text}\r`))
+    setGroupPrompt('')
+    setPromptingGroup(null)
+  }
 
   return (
     <div
@@ -214,13 +226,49 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
           )}
           {groups.map(group => (
             <div key={group.id || 'solo'}>
-              <div className="flex items-center" style={{ gap: 8, padding: '0 4px 8px' }}>
+              <div className="flex items-center" style={{ gap: 8, padding: '0 4px 8px', flexWrap: 'wrap' }}>
                 <Icon name={group.id ? 'layers' : 'terminal'} size={13} color={rgba(accent, 0.8)} strokeWidth={2} />
                 <span style={{ fontSize: 12, fontWeight: 800, color: '#aeb8c4', textTransform: 'uppercase', letterSpacing: 0.6 }}>{group.label}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-4)', fontWeight: 700 }}>{group.tabs.length}</span>
+                {promptingGroup === (group.id || 'solo') ? (
+                  <span className="flex items-center" style={{ gap: 6, marginLeft: 'auto' }}>
+                    <input
+                      value={groupPrompt}
+                      onChange={e => setGroupPrompt(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendGroupPrompt(group) } }}
+                      autoFocus
+                      placeholder="Prompt this workspace"
+                      style={{
+                        width: 'min(220px, 44vw)',
+                        height: 26,
+                        borderRadius: 7,
+                        border: `1px solid ${rgba(accent, 0.2)}`,
+                        background: '#0f1318',
+                        color: 'var(--text-1)',
+                        outline: 'none',
+                        padding: '0 8px',
+                        fontSize: 11.5,
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                    <button title="Send to all live sessions" onClick={() => sendGroupPrompt(group)}
+                      style={{ fontSize: 11, fontWeight: 800, color: accent, background: rgba(accent, 0.12), border: `1px solid ${rgba(accent, 0.32)}`, borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>
+                      Send
+                    </button>
+                    <button title="Cancel" onClick={() => { setPromptingGroup(null); setGroupPrompt('') }}
+                      style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7a8492', background: 'transparent', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 6, cursor: 'pointer' }}>
+                      <Icon name="x" size={12} strokeWidth={2} />
+                    </button>
+                  </span>
+                ) : (
+                  <button title="Prompt all live sessions in this group" onClick={() => setPromptingGroup(group.id || 'solo')}
+                    style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.18)}`, borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>
+                    Prompt all
+                  </button>
+                )}
                 {group.id && (
                   <button title="Close workspace" onClick={() => onCloseGroup(group.id)}
-                    style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#7a8492', background: 'transparent', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>
+                    style={{ fontSize: 11, fontWeight: 700, color: '#7a8492', background: 'transparent', border: `1px solid ${rgba(accent, 0.12)}`, borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>
                     Close all
                   </button>
                 )}

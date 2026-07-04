@@ -11,6 +11,22 @@ function pathLabel(cwd) {
   return trimmed.split(/[\\/]/).filter(Boolean).pop() || trimmed
 }
 
+const PRESETS = [
+  { label: 'Builder team', sub: 'Claude + Codex + Gemini', counts: { claude: 1, codex: 1, gemini: 1 } },
+  { label: 'Review pair', sub: 'Claude + Codex', counts: { claude: 1, codex: 1 } },
+  { label: 'Claude trio', sub: '3x Claude', counts: { claude: 3 } },
+  { label: 'Codex trio', sub: '3x Codex', counts: { codex: 3 } },
+  { label: 'Shell only', sub: 'Clean terminal', counts: { shell: 1 } }
+]
+
+const BRIEF_CHIPS = [
+  { label: 'FIF', text: 'Find, identify, and fix the highest-impact bugs. Reproduce first, keep changes scoped, and report verification.' },
+  { label: 'Review', text: 'Review this workspace for bugs, bloat, missing tests, and risky assumptions. Report findings before editing.' },
+  { label: 'Tests', text: 'Run the smallest useful verification for this workspace, fix failures, then broaden checks if needed.' },
+  { label: 'Plan', text: 'Inspect the workspace and propose the next concrete implementation step before making changes.' },
+  { label: 'Ship', text: 'Prepare this workspace for shipping: fix blockers, verify the build, and summarize remaining risks.' }
+]
+
 export default function NewSessionModal({ accent, activeCwd, recentSessions = [], onLaunch, onClose }) {
   // Snapshot built-ins + the user's custom agents once per open.
   const [AGENT_LIST] = useState(() => allAgents())
@@ -18,6 +34,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [cwdValid, setCwdValid] = useState(null)
   const [counts, setCounts] = useState({ shell: 1 })
   const [sessionName, setSessionName] = useState('')
+  const [brief, setBrief] = useState('')
   const { avail, rescan, checking } = useCliAvailability()
 
   // Fall back to the home directory if we don't have an active path yet.
@@ -60,6 +77,20 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     AGENT_LIST.filter(a => avail[a.id] !== false).slice(0, MAX_SESSIONS).map(a => [a.id, 1])
   ))
   const clearAll = () => setCounts({})
+  const applyPreset = (preset) => {
+    const next = {}
+    let used = 0
+    for (const [id, count] of Object.entries(preset.counts)) {
+      const agent = AGENT_LIST.find(a => a.id === id)
+      if (!agent || avail[id] === false || used >= MAX_SESSIONS) continue
+      const capped = Math.min(count, MAX_SESSIONS - used)
+      if (capped > 0) {
+        next[id] = capped
+        used += capped
+      }
+    }
+    if (used > 0) setCounts(next)
+  }
 
   // cwdValid is null until the first existence check resolves; treat null as
   // "not yet known, allow" so the button isn't disabled on a freshly-prefilled
@@ -71,7 +102,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     const agents = AGENT_LIST
       .filter(a => (counts[a.id] || 0) > 0)
       .map(a => ({ ...a, count: counts[a.id] }))
-    onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined })
+    onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined })
   }
 
   useEffect(() => {
@@ -193,6 +224,32 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             </div>
           </div>
 
+          <div className="flex" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+            {PRESETS.map(preset => {
+              const disabled = Object.entries(preset.counts).every(([id]) => avail[id] === false || !AGENT_LIST.some(a => a.id === id))
+              return (
+                <button
+                  key={preset.label}
+                  onClick={() => applyPreset(preset)}
+                  disabled={disabled}
+                  title={preset.sub}
+                  className="sush-mini-btn"
+                  style={{
+                    ...miniBtn(accent),
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    opacity: disabled ? 0.45 : 1,
+                    cursor: disabled ? 'default' : 'pointer'
+                  }}
+                >
+                  <Icon name="layers" size={12} strokeWidth={2.3} color={disabled ? 'var(--text-4)' : accent} />
+                  {preset.label}
+                </button>
+              )
+            })}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 11 }}>
             {AGENT_LIST.map(agent => {
               const count = counts[agent.id] || 0
@@ -251,6 +308,43 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                 </div>
               )
             })}
+          </div>
+
+          <div style={{ marginTop: 22 }}>
+            <SectionLabel icon="edit" accent={accent}>Brief</SectionLabel>
+            <textarea
+              value={brief}
+              onChange={e => setBrief(e.target.value.slice(0, 800))}
+              placeholder="Optional launch brief for every selected agent"
+              spellCheck={false}
+              rows={4}
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                minHeight: 86,
+                borderRadius: 10,
+                border: `1px solid ${rgba(accent, 0.18)}`,
+                background: '#0f1318',
+                color: 'var(--text-1)',
+                outline: 'none',
+                padding: '10px 11px',
+                fontSize: 12.5,
+                lineHeight: 1.45,
+                fontFamily: 'inherit'
+              }}
+            />
+            <div className="flex" style={{ gap: 7, flexWrap: 'wrap', marginTop: 9 }}>
+              {BRIEF_CHIPS.map(chip => (
+                <button
+                  key={chip.label}
+                  onClick={() => setBrief(chip.text)}
+                  className="sush-mini-btn"
+                  style={miniBtn(accent)}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

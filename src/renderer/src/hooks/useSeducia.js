@@ -122,7 +122,7 @@ export function useSeducia({
         updateMsg(msgId, { text: full.replace(/(?:ACTION|ENGINE):[^\n]*/g, '').trim(), streaming: true })
       }
     } catch (e) {
-      const msg = e.message?.includes('401') ? 'Invalid API key -- check Settings.' : `AI error: ${e.message}`
+      const msg = e.message?.includes('401') ? 'CLI auth failed -- check the selected agent CLI login.' : `AI error: ${e.message}`
       updateMsg(msgId, { text: msg, streaming: false })
       setStreaming(false)
       engineRef.current?.setThinking(false)
@@ -176,7 +176,7 @@ export function useSeducia({
 
     if (aiEnabled) { await runAI(command); return }
 
-    // Deterministic fallback when no AI provider is configured.
+    // Deterministic fallback when no CLI AI bridge is available.
     const { scopedCwd, dirs, scopedTabs } = stateRef.current
     const intent = parseIntent(command, scopedCwd, dirs)
     let reply

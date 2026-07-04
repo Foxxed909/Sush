@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import Seducia from './Seducia'
 import Browser from './Browser'
@@ -25,14 +25,7 @@ const TABS = [
   { id: 'docker', label: 'Docker', icon: 'layers' },
   { id: 'env', label: 'Env', icon: 'key' },
   { id: 'ssh', label: 'SSH', icon: 'lock' },
-  { id: 'convert', label: 'Convert', icon: 'code' },
-  { id: 'color', label: 'Color', icon: 'palette' },
-  { id: 'hash', label: 'Hash', icon: 'hash' },
-  { id: 'gen', label: 'Generate', icon: 'shuffle' },
-  { id: 'cheats', label: 'Cheats', icon: 'compass' },
   { id: 'markdown', label: 'Preview', icon: 'fileText' },
-  { id: 'scratch', label: 'Notes', icon: 'edit' },
-  { id: 'stats', label: 'Stats', icon: 'activity' },
 ]
 
 // Best-effort clipboard helper — uses Sush IPC, falls back to the web API.
@@ -100,6 +93,11 @@ export default function RightPanel({
     }
   }, [onRun, onTab])
 
+  const safeTab = TABS.some(t => t.id === tab) ? tab : 'agent'
+  useEffect(() => {
+    if (safeTab !== tab) onTab(safeTab)
+  }, [safeTab, tab, onTab])
+
   return (
     <aside
       className="shrink-0 flex flex-col"
@@ -113,11 +111,11 @@ export default function RightPanel({
       }}
     >
       {/* Tab header — single horizontal scrolling strip with a custom scroll indicator */}
-      <TabStrip accent={accent} tab={tab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} />
+      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} />
 
       {/* Tab body */}
       <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
-        {tab === 'agent' && (
+        {safeTab === 'agent' && (
           <Seducia
             docked
             accent={accent}
@@ -136,33 +134,26 @@ export default function RightPanel({
           />
         )}
         {/* Kept mounted so a running Claude turn isn't killed by a tab switch. */}
-        <div style={{ position: 'absolute', inset: 0, display: tab === 'claude' ? 'block' : 'none' }}>
-          <ClaudePanel accent={accent} activeCwd={activeCwd} visible={tab === 'claude'} />
+        <div style={{ position: 'absolute', inset: 0, display: safeTab === 'claude' ? 'block' : 'none' }}>
+          <ClaudePanel accent={accent} activeCwd={activeCwd} visible={safeTab === 'claude'} />
         </div>
         {/* Kept mounted so the page (and your scroll/login state) survives tab switches. */}
-        <div style={{ position: 'absolute', inset: 0, display: tab === 'browser' ? 'block' : 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, display: safeTab === 'browser' ? 'block' : 'none' }}>
           <Browser accent={accent} />
         </div>
-        {tab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} settings={settings} />}
-        {tab === 'github' && <GitHubTab accent={accent} onRun={onRun} onConnect={onManageUsers} />}
-        {tab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
-        {tab === 'tasks' && <TasksTab accent={accent} cwd={activeCwd} onRun={onRun} />}
-        {tab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
-        {tab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
-        {tab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} settings={settings} />}
-        {tab === 'snippets' && <SnippetsTab accent={accent} onRun={onRun} />}
-        {tab === 'ports' && <PortsTab accent={accent} onRun={onRun} />}
-        {tab === 'docker' && <DockerTab accent={accent} onRun={onRun} />}
-        {tab === 'env' && <EnvManagerTab accent={accent} cwd={activeCwd} />}
-        {tab === 'ssh' && <SshTab accent={accent} onNewTab={onNewTab} onRun={onRun} />}
-        {tab === 'convert' && <ConvertTab accent={accent} />}
-        {tab === 'color' && <ColorTab accent={accent} />}
-        {tab === 'hash' && <HashTab accent={accent} />}
-        {tab === 'gen' && <GenerateTab accent={accent} />}
-        {tab === 'cheats' && <CheatsTab accent={accent} onRun={onRun} />}
-        {tab === 'markdown' && <MarkdownTab accent={accent} cwd={activeCwd} initialPath={mdPath} />}
-        {tab === 'scratch' && <ScratchpadTab accent={accent} />}
-        {tab === 'stats' && <StatsTab accent={accent} />}
+        {safeTab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} settings={settings} />}
+        {safeTab === 'github' && <GitHubTab accent={accent} onRun={onRun} onConnect={onManageUsers} />}
+        {safeTab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
+        {safeTab === 'tasks' && <TasksTab accent={accent} cwd={activeCwd} onRun={onRun} />}
+        {safeTab === 'memory' && <MemoryTab accent={accent} cwd={activeCwd} />}
+        {safeTab === 'scripts' && <ScriptsTab accent={accent} cwd={activeCwd} onRun={onRun} />}
+        {safeTab === 'history' && <HistoryTab accent={accent} history={commandHistory} onRun={onRun} settings={settings} />}
+        {safeTab === 'snippets' && <SnippetsTab accent={accent} onRun={onRun} />}
+        {safeTab === 'ports' && <PortsTab accent={accent} onRun={onRun} />}
+        {safeTab === 'docker' && <DockerTab accent={accent} onRun={onRun} />}
+        {safeTab === 'env' && <EnvManagerTab accent={accent} cwd={activeCwd} />}
+        {safeTab === 'ssh' && <SshTab accent={accent} onNewTab={onNewTab} onRun={onRun} />}
+        {safeTab === 'markdown' && <MarkdownTab accent={accent} cwd={activeCwd} initialPath={mdPath} />}
       </div>
     </aside>
   )
@@ -174,7 +165,7 @@ export default function RightPanel({
 function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0 }) {
   const scrollerRef = useRef(null)
   const [edges, setEdges] = useState({ left: false, right: false })
-  // Compact mode: icon-only tabs, so all 20+ tools fit with little scrolling.
+  // Compact mode: icon-only tabs for a dense workspace panel.
   const [compact, setCompact] = useState(() => localStorage.getItem('sush-tabs-compact') === '1')
   const toggleCompact = () => setCompact(c => { const n = !c; localStorage.setItem('sush-tabs-compact', n ? '1' : '0'); return n })
 
@@ -1081,179 +1072,6 @@ function HistoryTab({ accent, history, onRun, settings = {} }) {
   )
 }
 
-// ---------- System Stats ----------
-function fmtBytes(bytes) {
-  if (!bytes || bytes < 0) return '0 B'
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
-  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
-}
-
-function fmtSpeed(bps) {
-  if (!bps || bps <= 0) return '0 B/s'
-  if (bps < 1024) return `${bps.toFixed(0)} B/s`
-  if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`
-  return `${(bps / (1024 * 1024)).toFixed(2)} MB/s`
-}
-
-function StatCard({ title, accent, children }) {
-  return (
-    <div style={{ border: '1px solid var(--border-1)', borderRadius: 10, background: 'var(--surface-2)', overflow: 'hidden' }}>
-      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-1)', fontSize: 10, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</div>
-      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
-    </div>
-  )
-}
-
-function BarStat({ label, value, max, unit, accent, small = false }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
-  const color = pct > 80 ? '#ff5370' : pct > 60 ? '#ffcb6b' : accent
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: small ? 10 : 11, color: 'var(--text-3)' }}>
-        <span>{label}</span>
-        {unit && <span style={{ color, fontWeight: 700 }}>{pct.toFixed(small ? 0 : 1)}{unit}</span>}
-      </div>
-      <div style={{ height: small ? 3 : 5, background: 'var(--border-1)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: '100%', height: '100%', background: color, borderRadius: 3, transform: `scaleX(${Math.max(0, Math.min(100, pct)) / 100})`, transformOrigin: 'left', transition: 'transform 0.6s var(--ease-out)' }} />
-      </div>
-    </div>
-  )
-}
-
-function StatsTab({ accent }) {
-  const [stats, setStats] = useState(null)
-  const [statErr, setStatErr] = useState(null)
-
-  const load = useCallback(() => {
-    window.sush?.getSystemStats?.()
-      .then(data => {
-        if (data?.error) { setStatErr(data.error) }
-        else { setStats(data); setStatErr(null) }
-      })
-      .catch(e => setStatErr(e.message))
-  }, [])
-
-  // Heavy combined stats (GPU/processes/network) — only polled while this panel
-  // is open AND the window is focused. Eased to 3s to keep the cost low.
-  usePolling(load, 3000)
-
-  if (!stats && !statErr) return <PanelEmpty icon="activity" accent={accent}>Loading system stats...</PanelEmpty>
-  if (statErr) return <PanelEmpty icon="activity" accent={accent} hint={statErr}>Stats unavailable</PanelEmpty>
-
-  const cpuPct = stats.cpu?.load ?? 0
-  const memUsed = stats.memory?.used ?? 0
-  const memTotal = stats.memory?.total ?? 1
-  const swapTotal = stats.memory?.swapTotal ?? 0
-  const swapUsed = stats.memory?.swapUsed ?? 0
-  const uptimeH = Math.floor((stats.uptime ?? 0) / 3600)
-  const uptimeM = Math.floor(((stats.uptime ?? 0) % 3600) / 60)
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader
-        accent={accent}
-        icon="activity"
-        title="System Stats"
-        sub={`Uptime ${uptimeH}h ${uptimeM}m · live`}
-        onRefresh={load}
-      />
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-        <StatCard title="CPU" accent={accent}>
-          <BarStat label="Overall load" value={cpuPct} max={100} unit="%" accent={accent} />
-          {stats.cpu?.cores?.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px', marginTop: 2 }}>
-              {stats.cpu.cores.slice(0, 16).map((load, i) => (
-                <BarStat key={i} label={`C${i}`} value={load} max={100} unit="%" accent={accent} small />
-              ))}
-            </div>
-          )}
-        </StatCard>
-
-        <StatCard title="Memory" accent={accent}>
-          <BarStat
-            label={`${fmtBytes(memUsed)} / ${fmtBytes(memTotal)}`}
-            value={memUsed}
-            max={memTotal}
-            unit="%"
-            accent={accent}
-          />
-          {swapTotal > 0 && (
-            <BarStat
-              label={`Swap: ${fmtBytes(swapUsed)} / ${fmtBytes(swapTotal)}`}
-              value={swapUsed}
-              max={swapTotal}
-              unit="%"
-              accent={accent}
-              small
-            />
-          )}
-        </StatCard>
-
-        {stats.gpu?.filter(g => g.utilizationGpu != null || g.memUsed != null).map((gpu, i) => (
-          <StatCard key={i} title={gpu.name || `GPU ${i}`} accent={accent}>
-            {gpu.utilizationGpu != null && (
-              <BarStat label="GPU load" value={gpu.utilizationGpu} max={100} unit="%" accent={accent} />
-            )}
-            {gpu.memUsed != null && gpu.memTotal != null && gpu.memTotal > 0 && (
-              <BarStat
-                label={`VRAM: ${fmtBytes(gpu.memUsed * 1024 * 1024)} / ${fmtBytes(gpu.memTotal * 1024 * 1024)}`}
-                value={gpu.memUsed}
-                max={gpu.memTotal}
-                unit="%"
-                accent={accent}
-                small
-              />
-            )}
-            {gpu.temperatureGpu != null && (
-              <div style={{ fontSize: 10.5, color: gpu.temperatureGpu > 80 ? '#ff5370' : 'var(--text-3)' }}>
-                Temp: <span style={{ fontWeight: 700 }}>{gpu.temperatureGpu}°C</span>
-              </div>
-            )}
-          </StatCard>
-        ))}
-
-        {stats.network?.length > 0 && (
-          <StatCard title="Network" accent={accent}>
-            {stats.network.map(n => (
-              <div key={n.iface} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Icon name="wifi" size={12} color="var(--text-4)" />
-                <span style={{ fontSize: 11, color: accent, fontWeight: 700, flexShrink: 0 }}>{n.iface}</span>
-                <span style={{ flex: 1 }} />
-                <span style={{ fontSize: 10.5, color: '#c3e88d' }}>↓ {fmtSpeed(n.rx_sec)}</span>
-                <span style={{ fontSize: 10.5, color: '#ff9aaa', marginLeft: 6 }}>↑ {fmtSpeed(n.tx_sec)}</span>
-              </div>
-            ))}
-            {stats.wifi?.filter(w => w.ssid).map((w, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 4, borderTop: '1px solid var(--border-1)' }}>
-                <Icon name="wifi" size={12} color={accent} />
-                <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 700 }}>{w.ssid}</span>
-                {w.quality != null && <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 'auto' }}>{w.quality}%</span>}
-                {w.txRate != null && <span style={{ fontSize: 10, color: 'var(--text-3)' }}>{w.txRate} Mbps</span>}
-              </div>
-            ))}
-          </StatCard>
-        )}
-
-        {Object.keys(stats.sessions || {}).length > 0 && (
-          <StatCard title={`Terminal Sessions (${Object.keys(stats.sessions).length})`} accent={accent}>
-            {Object.entries(stats.sessions).map(([tabId, s]) => (
-              <div key={tabId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', borderBottom: '1px solid var(--surface-2)' }}>
-                <Icon name="terminal" size={11} color={accent} />
-                <span style={{ fontSize: 10.5, color: 'var(--text-2)', fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
-                <span style={{ fontSize: 10, color: s.cpu > 20 ? '#ffcb6b' : 'var(--text-3)', flexShrink: 0 }}>CPU {s.cpu.toFixed(1)}%</span>
-                <span style={{ fontSize: 10, color: 'var(--text-3)', flexShrink: 0, marginLeft: 4 }}>{fmtBytes(s.memRss)}</span>
-              </div>
-            ))}
-          </StatCard>
-        )}
-
-      </div>
-    </div>
-  )
-}
-
 // ---------- Port Manager ----------
 // Individual well-known dev ports plus inclusive ranges. Ranges catch the many
 // fallback ports a dev server picks when its default is busy (e.g. Vite walking
@@ -1616,16 +1434,6 @@ function SnippetsTab({ accent, onRun }) {
   )
 }
 
-// ---------- Regex Tester ----------
-const REGEX_PRESETS = [
-  { label: 'Email', pattern: '[\\w.+-]+@[\\w-]+\\.[\\w.-]+' },
-  { label: 'URL', pattern: 'https?:\\/\\/[^\\s/$.?#].[^\\s]*' },
-  { label: 'IPv4', pattern: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b' },
-  { label: 'UUID', pattern: '[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}' },
-  { label: 'Hex', pattern: '#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\b' },
-  { label: 'Date', pattern: '\\d{4}-\\d{2}-\\d{2}' }
-]
-
 function DockerTab({ accent, onRun }) {
   const [data, setData] = useState(null)
   const [logs, setLogs] = useState({})
@@ -1723,13 +1531,6 @@ function DockerTab({ accent, onRun }) {
       </div>
     </div>
   )
-}
-
-// ---------- API Tester ----------
-const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
-const API_HISTORY_KEY = 'sush-api-history'
-function loadApiHistory() {
-  try { return JSON.parse(localStorage.getItem(API_HISTORY_KEY) ?? '[]') } catch { return [] }
 }
 
 function EnvManagerTab({ accent, cwd }) {
@@ -2071,442 +1872,6 @@ function MarkdownTab({ accent, cwd, initialPath }) {
           ? renderMarkdown(content, accent)
           : !mdError && <PanelEmpty icon="fileText" accent={accent} hint="Type a path above and press Enter, or click a .md file in the Files tab.">No file loaded</PanelEmpty>
         }
-      </div>
-    </div>
-  )
-}
-
-// ---------- Scratchpad ----------
-const SCRATCH_KEY = 'sush-scratchpad'
-
-function ScratchpadTab({ accent }) {
-  const [text, setText] = useState(() => {
-    try { return localStorage.getItem(SCRATCH_KEY) ?? '' } catch { return '' }
-  })
-  const [savedAt, setSavedAt] = useState(false)
-
-  // Debounced persist so we don't hit localStorage on every keystroke.
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try { localStorage.setItem(SCRATCH_KEY, text) } catch {}
-      setSavedAt(true)
-      const clear = setTimeout(() => setSavedAt(false), 1200)
-      return () => clearTimeout(clear)
-    }, 400)
-    return () => clearTimeout(t)
-  }, [text])
-
-  const chars = text.length
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0
-  const lines = text ? text.split('\n').length : 0
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader
-        accent={accent}
-        icon="edit"
-        title="Scratchpad"
-        sub="Auto-saved · local to this machine"
-        right={
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => copyToClipboard(text)} title="Copy all" disabled={!text} className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--border-2)', background: 'var(--surface-1)', color: text ? 'var(--text-3)' : 'var(--border-2)', cursor: text ? 'pointer' : 'default' }}>
-              <Icon name="copy" size={13} />
-            </button>
-            <button onClick={() => { if (text && confirm('Clear the scratchpad?')) setText('') }} title="Clear" disabled={!text} className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--border-2)', background: 'var(--surface-1)', color: text ? 'var(--text-3)' : 'var(--border-2)', cursor: text ? 'pointer' : 'default' }}>
-              <Icon name="trash" size={12} />
-            </button>
-          </div>
-        }
-      />
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder="A quick place for notes, snippets, TODOs… Everything here is saved automatically and survives restarts."
-        spellCheck={false}
-        style={{ flex: 1, padding: '12px 14px', background: 'var(--surface-0)', border: 'none', color: 'var(--text-2)', outline: 'none', resize: 'none', fontSize: 12.5, lineHeight: 1.65, fontFamily: "'Cascadia Code', 'Fira Code', monospace" }}
-      />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '5px 12px', borderTop: '1px solid var(--border-1)', fontSize: 10, color: 'var(--text-4)' }}>
-        <span>{words} words</span>
-        <span>{chars} chars</span>
-        <span>{lines} lines</span>
-        <span style={{ marginLeft: 'auto', color: savedAt ? '#c3e88d' : 'var(--text-5)', transition: 'color .2s ease' }}>{savedAt ? 'Saved ✓' : 'Auto-save'}</span>
-      </div>
-    </div>
-  )
-}
-
-// ===== Shared little controls for the dev-tool tabs =====
-function Segmented({ options, value, onChange, accent }) {
-  return (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-      {options.map(o => {
-        const active = value === o.value
-        return (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            style={{ padding: '4px 10px', borderRadius: 7, border: `1px solid ${active ? rgba(accent, 0.45) : 'var(--border-2)'}`, background: active ? rgba(accent, 0.12) : 'transparent', color: active ? accent : 'var(--text-3)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-          >
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function CopyRow({ label, value, accent, mono = true }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: 'var(--surface-2)', border: '1px solid var(--border-1)', borderRadius: 8 }}>
-      <span style={{ fontSize: 9.5, fontWeight: 800, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 42, flexShrink: 0 }}>{label}</span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: 'var(--text-2)', fontFamily: mono ? 'monospace' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value || '—'}</span>
-      <button onClick={() => copyToClipboard(value)} disabled={!value} title="Copy" style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, border: '1px solid var(--border-2)', background: 'transparent', color: value ? accent : 'var(--border-2)', cursor: value ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="copy" size={11} />
-      </button>
-    </div>
-  )
-}
-
-// ---------- Convert (Base64 / URL / JWT) ----------
-function b64encode(str) {
-  try { return btoa(String.fromCharCode(...new TextEncoder().encode(str))) } catch { return '' }
-}
-function b64decode(str) {
-  const bin = atob(str.trim())
-  return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)))
-}
-function b64urlDecode(str) {
-  let s = str.replace(/-/g, '+').replace(/_/g, '/')
-  while (s.length % 4) s += '='
-  return b64decode(s)
-}
-
-function ConvertTab({ accent }) {
-  const [mode, setMode] = useState('base64')
-  const [input, setInput] = useState('')
-
-  const { output, error } = useMemo(() => {
-    if (!input.trim()) return { output: '', error: null }
-    try {
-      if (mode === 'base64-dec') return { output: b64decode(input), error: null }
-      if (mode === 'base64') return { output: b64encode(input), error: null }
-      if (mode === 'url') return { output: encodeURIComponent(input), error: null }
-      if (mode === 'url-dec') return { output: decodeURIComponent(input.trim()), error: null }
-      if (mode === 'jwt') {
-        const parts = input.trim().split('.')
-        if (parts.length < 2) return { output: '', error: 'Not a JWT (needs header.payload.signature)' }
-        const header = JSON.parse(b64urlDecode(parts[0]))
-        const payload = JSON.parse(b64urlDecode(parts[1]))
-        let extra = ''
-        if (payload.exp) extra = `\n\n// exp: ${new Date(payload.exp * 1000).toLocaleString()}${payload.exp * 1000 < Date.now() ? ' (EXPIRED)' : ''}`
-        return { output: `// header\n${JSON.stringify(header, null, 2)}\n\n// payload\n${JSON.stringify(payload, null, 2)}${extra}`, error: null }
-      }
-      return { output: '', error: null }
-    } catch (e) { return { output: '', error: e.message } }
-  }, [mode, input])
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader accent={accent} icon="code" title="Convert" sub="Base64 · URL · JWT" />
-      <div style={{ padding: '10px', borderBottom: '1px solid var(--border-1)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Segmented
-          accent={accent}
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: 'base64', label: 'B64 enc' },
-            { value: 'base64-dec', label: 'B64 dec' },
-            { value: 'url', label: 'URL enc' },
-            { value: 'url-dec', label: 'URL dec' },
-            { value: 'jwt', label: 'JWT' }
-          ]}
-        />
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={mode === 'jwt' ? 'Paste a JWT…' : 'Input text…'}
-          spellCheck={false}
-          rows={5}
-          style={{ padding: '8px 10px', background: 'var(--surface-0)', border: '1px solid var(--border-1)', borderRadius: 8, color: 'var(--text-2)', fontSize: 11.5, outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.55 }}
-        />
-      </div>
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
-        {error && <div style={{ color: '#ff5370', fontSize: 11.5, padding: '4px 0' }}>{error}</div>}
-        {!error && output && (
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => copyToClipboard(output)} title="Copy output" style={{ position: 'absolute', top: 6, right: 6, display: 'flex', alignItems: 'center', gap: 4, padding: '2px 7px', borderRadius: 6, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.1), color: accent, fontSize: 9.5, fontWeight: 700, cursor: 'pointer' }}>
-              <Icon name="copy" size={10} /> Copy
-            </button>
-            <pre style={{ margin: 0, padding: '10px', paddingTop: 32, background: 'var(--surface-0)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 11.5, lineHeight: 1.6, color: '#c3e88d', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{output}</pre>
-          </div>
-        )}
-        {!error && !output && <PanelEmpty icon="code" accent={accent} hint="Pick a mode and paste your input above.">Nothing to convert</PanelEmpty>}
-      </div>
-    </div>
-  )
-}
-
-// ---------- Color converter / picker ----------
-function hexToRgb(hex) {
-  let h = hex.replace('#', '').trim()
-  if (h.length === 3) h = h.split('').map(c => c + c).join('')
-  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null
-  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) }
-}
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b)
-  let h = 0, s = 0; const l = (max + min) / 2
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
-    else if (max === g) h = (b - r) / d + 2
-    else h = (r - g) / d + 4
-    h /= 6
-  }
-  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) }
-}
-
-function ColorTab({ accent }) {
-  const [hex, setHex] = useState('#ff6b9d')
-  const rgb = hexToRgb(hex)
-  const hsl = rgb ? rgbToHsl(rgb.r, rgb.g, rgb.b) : null
-  const valid = !!rgb
-  const normHex = valid ? '#' + [rgb.r, rgb.g, rgb.b].map(x => x.toString(16).padStart(2, '0')).join('') : hex
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader accent={accent} icon="palette" title="Color" sub="HEX · RGB · HSL" />
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ width: 64, height: 64, borderRadius: 12, border: '1px solid var(--border-2)', background: valid ? normHex : 'var(--surface-1)', flexShrink: 0, boxShadow: valid ? `0 6px 18px ${normHex}55` : 'none' }} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <input
-              value={hex}
-              onChange={e => setHex(e.target.value)}
-              spellCheck={false}
-              placeholder="#rrggbb"
-              style={{ padding: '7px 10px', background: 'var(--surface-0)', border: `1px solid ${valid ? 'var(--border-1)' : 'rgba(255,83,112,0.4)'}`, borderRadius: 8, color: valid ? 'var(--text-2)' : '#ff5370', fontSize: 13, outline: 'none', fontFamily: 'monospace', fontWeight: 700 }}
-            />
-            <input
-              type="color"
-              value={valid ? normHex : '#000000'}
-              onChange={e => setHex(e.target.value)}
-              style={{ width: '100%', height: 30, background: 'transparent', border: '1px solid var(--border-1)', borderRadius: 8, cursor: 'pointer', padding: 2 }}
-            />
-          </div>
-        </div>
-        {valid ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <CopyRow label="HEX" value={normHex} accent={accent} />
-            <CopyRow label="RGB" value={`rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`} accent={accent} />
-            <CopyRow label="HSL" value={`hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`} accent={accent} />
-            <CopyRow label="CSS" value={`color: ${normHex};`} accent={accent} />
-          </div>
-        ) : (
-          <PanelEmpty icon="palette" accent={accent} hint="Enter a 3- or 6-digit hex like #f6a or #ff66aa.">Invalid color</PanelEmpty>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------- Hash (Web Crypto) ----------
-function HashTab({ accent }) {
-  const [input, setInput] = useState('')
-  const [hashes, setHashes] = useState({})
-
-  useEffect(() => {
-    let alive = true
-    if (!input) { setHashes({}); return }
-    const data = new TextEncoder().encode(input)
-    const algos = ['SHA-1', 'SHA-256', 'SHA-512']
-    Promise.all(algos.map(a =>
-      crypto.subtle.digest(a, data).then(buf => [a, [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')])
-    )).then(entries => { if (alive) setHashes(Object.fromEntries(entries)) }).catch(() => {})
-    return () => { alive = false }
-  }, [input])
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader accent={accent} icon="hash" title="Hash" sub="SHA-1 · SHA-256 · SHA-512" />
-      <div style={{ padding: 10, borderBottom: '1px solid var(--border-1)' }}>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="Text to hash…"
-          spellCheck={false}
-          rows={4}
-          style={{ width: '100%', padding: '8px 10px', background: 'var(--surface-0)', border: '1px solid var(--border-1)', borderRadius: 8, color: 'var(--text-2)', fontSize: 11.5, outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.55, boxSizing: 'border-box' }}
-        />
-      </div>
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {!input ? (
-          <PanelEmpty icon="hash" accent={accent} hint="Hashes are computed locally with the Web Crypto API.">Enter text to hash</PanelEmpty>
-        ) : ['SHA-1', 'SHA-256', 'SHA-512'].map(a => (
-          <div key={a} style={{ background: 'var(--surface-0)', border: '1px solid var(--border-1)', borderRadius: 8, padding: '7px 9px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontSize: 9.5, fontWeight: 800, color: accent, letterSpacing: 0.5, flex: 1 }}>{a}</span>
-              <button onClick={() => copyToClipboard(hashes[a])} disabled={!hashes[a]} title="Copy" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '1px 6px', borderRadius: 5, border: '1px solid var(--border-2)', background: 'transparent', color: hashes[a] ? 'var(--text-3)' : 'var(--border-2)', fontSize: 9, fontWeight: 700, cursor: hashes[a] ? 'pointer' : 'default' }}>
-                <Icon name="copy" size={9} /> Copy
-              </button>
-            </div>
-            <div style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.5 }}>{hashes[a] || '…'}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ---------- Generators (UUID / token / timestamp / lorem) ----------
-const LOREM = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat'.split(' ')
-
-function GenerateTab({ accent }) {
-  const [tick, setTick] = useState(0)
-  const regen = () => setTick(t => t + 1)
-  const [tokenLen, setTokenLen] = useState(24)
-  const [loremN, setLoremN] = useState(2)
-
-  // tick is a dependency so each regen produces fresh values.
-  const uuid = useMemo(() => (crypto.randomUUID ? crypto.randomUUID() : 'crypto.randomUUID unavailable'), [tick])
-  const token = useMemo(() => {
-    const bytes = new Uint8Array(tokenLen)
-    crypto.getRandomValues(bytes)
-    return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, tokenLen)
-  }, [tick, tokenLen])
-  const nowMs = useMemo(() => {
-    // Date.now via performance-free path is fine in the renderer.
-    return new Date()
-  }, [tick])
-  const lorem = useMemo(() => {
-    const lines = []
-    for (let i = 0; i < loremN; i++) {
-      const n = 18 + (i * 7 % 20)
-      let s = LOREM.slice(0, n).join(' ')
-      lines.push(s.charAt(0).toUpperCase() + s.slice(1) + '.')
-    }
-    return lines.join('\n\n')
-  }, [tick, loremN])
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader
-        accent={accent}
-        icon="shuffle"
-        title="Generate"
-        sub="UUID · token · time · lorem"
-        right={
-          <button onClick={regen} title="Regenerate all" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${rgba(accent, 0.35)}`, background: rgba(accent, 0.1), color: accent, cursor: 'pointer' }}>
-            <Icon name="refresh" size={13} />
-          </button>
-        }
-      />
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <StatCard title="UUID v4" accent={accent}>
-          <CopyRow label="uuid" value={uuid} accent={accent} />
-        </StatCard>
-
-        <StatCard title="Random token (hex)" accent={accent}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <input type="range" min={8} max={64} value={tokenLen} onChange={e => setTokenLen(Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
-            <span style={{ fontSize: 10.5, color: 'var(--text-3)', minWidth: 48, textAlign: 'right' }}>{tokenLen} chars</span>
-          </div>
-          <CopyRow label="token" value={token} accent={accent} />
-        </StatCard>
-
-        <StatCard title="Timestamp" accent={accent}>
-          <CopyRow label="unix" value={String(Math.floor(nowMs.getTime() / 1000))} accent={accent} />
-          <CopyRow label="ms" value={String(nowMs.getTime())} accent={accent} />
-          <CopyRow label="iso" value={nowMs.toISOString()} accent={accent} />
-        </StatCard>
-
-        <StatCard title="Lorem ipsum" accent={accent}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <input type="range" min={1} max={6} value={loremN} onChange={e => setLoremN(Number(e.target.value))} style={{ flex: 1, accentColor: accent }} />
-            <span style={{ fontSize: 10.5, color: 'var(--text-3)', minWidth: 64, textAlign: 'right' }}>{loremN} para{loremN > 1 ? 's' : ''}</span>
-          </div>
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => copyToClipboard(lorem)} title="Copy" style={{ position: 'absolute', top: 4, right: 4, display: 'flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 5, border: '1px solid var(--border-2)', background: 'var(--surface-2)', color: accent, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>
-              <Icon name="copy" size={9} /> Copy
-            </button>
-            <pre style={{ margin: 0, padding: '8px 9px', paddingTop: 26, background: 'var(--surface-0)', border: '1px solid var(--border-1)', borderRadius: 7, fontSize: 11, lineHeight: 1.6, color: 'var(--text-3)', whiteSpace: 'pre-wrap' }}>{lorem}</pre>
-          </div>
-        </StatCard>
-      </div>
-    </div>
-  )
-}
-
-// ---------- Cheatsheet (click to run / copy) ----------
-const CHEATS = [
-  { cat: 'git', items: [
-    { label: 'Status (short)', cmd: 'git status -sb' },
-    { label: 'Log (graph)', cmd: 'git log --oneline --graph --all -20' },
-    { label: 'Undo last commit (keep changes)', cmd: 'git reset --soft HEAD~1' },
-    { label: 'Discard local changes', cmd: 'git checkout -- .' },
-    { label: 'Current branch', cmd: 'git branch --show-current' },
-    { label: 'Stash all', cmd: 'git stash -u' }
-  ] },
-  { cat: 'npm', items: [
-    { label: 'Install', cmd: 'npm install' },
-    { label: 'Outdated', cmd: 'npm outdated' },
-    { label: 'List top-level', cmd: 'npm ls --depth=0' },
-    { label: 'Run dev', cmd: 'npm run dev' }
-  ] },
-  { cat: 'docker', items: [
-    { label: 'Running containers', cmd: 'docker ps' },
-    { label: 'All containers', cmd: 'docker ps -a' },
-    { label: 'Images', cmd: 'docker images' },
-    { label: 'Prune system', cmd: 'docker system prune -f' }
-  ] },
-  { cat: 'system', items: [
-    { label: 'Disk usage', cmd: 'df -h' },
-    { label: 'Listening ports', cmd: 'netstat -ano' },
-    { label: 'Env vars', cmd: 'Get-ChildItem Env:' }
-  ] }
-]
-
-function CheatsTab({ accent, onRun }) {
-  const [search, setSearch] = useState('')
-  const q = search.trim().toLowerCase()
-  const groups = CHEATS.map(g => ({
-    ...g,
-    items: g.items.filter(it => !q || it.label.toLowerCase().includes(q) || it.cmd.toLowerCase().includes(q))
-  })).filter(g => g.items.length)
-
-  return (
-    <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader accent={accent} icon="compass" title="Cheatsheet" sub="Click to run · copy" />
-      <div style={{ padding: '8px 10px 0' }}>
-        <div className="sush-omni flex items-center" style={{ height: 30, gap: 7 }}>
-          <Icon name="search" size={12} color="var(--text-4)" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search commands…" spellCheck={false} style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 11.5 }} />
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
-        {!groups.length ? (
-          <PanelEmpty icon="compass" accent={accent}>No matches</PanelEmpty>
-        ) : groups.map(g => (
-          <div key={g.cat} style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 9.5, fontWeight: 800, color: accent, textTransform: 'uppercase', letterSpacing: 0.8, padding: '0 4px 5px' }}>{g.cat}</div>
-            {g.items.map(it => (
-              <div key={it.cmd} className="flex items-center" style={{ gap: 7, padding: '6px 8px', marginBottom: 5, border: '1px solid var(--border-1)', borderRadius: 8, background: 'var(--surface-2)' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.label}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-4)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.cmd}</div>
-                </div>
-                <button onClick={() => copyToClipboard(it.cmd)} title="Copy" style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: '1px solid var(--border-1)', background: 'transparent', color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="copy" size={11} />
-                </button>
-                <button onClick={() => onRun?.(it.cmd)} title="Run" style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: accent, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="arrowRight" size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ))}
       </div>
     </div>
   )

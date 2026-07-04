@@ -1,124 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
-import { allAgents, agentById } from '../lib/agents'
 import { getStreamer, parseAIResponse } from '../lib/ai'
 import { applyAction } from '../lib/seduciaActions'
-import { GATHER_THOUGHTS_PROMPT } from '../lib/seducia'
-
-function pathLabel(cwd) {
-  if (!cwd) return 'this directory'
-  const trimmed = String(cwd).replace(/[\\/]+$/, '')
-  return trimmed.split(/[\\/]/).filter(Boolean).pop() || trimmed
-}
-
-const SYNONYMS = {
-    shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
-  claude: ['claude'],
-  codex: ['codex'],
-  gemini: ['gemini'],
-  opencode: ['opencode', 'open code']
-}
-
-function agentIdFromToken(token) {
-  const t = String(token || '').toLowerCase().trim()
-  if (!t) return null
-  if (['all', 'everyone', 'everybody', 'them', 'agents', 'team'].includes(t)) return 'all'
-  for (const [id, names] of Object.entries(SYNONYMS)) {
-    if (names.some(n => t === n || t.startsWith(n))) return id
-  }
-  return null
-}
-
-function buildTeam() {
-  return [
-    { ...agentById('claude'), command: 'claude', label: 'Builder', count: 1 },
-    { ...agentById('codex'), command: 'codex', label: 'Reviewer', count: 1 },
-    { ...agentById('gemini'), command: 'gemini', label: 'Scout', count: 1 }
-  ].filter(a => a.id)
-}
-
-function resolveDir(token, dirs, activeCwd) {
-  const t = String(token || '').trim().replace(/^["']|["']$/g, '')
-  if (!t) return activeCwd || null
-  if (/[\\/:]/.test(t)) return t
-  const lower = t.toLowerCase()
-  const hit =
-    dirs.find(d => pathLabel(d.cwd).toLowerCase() === lower) ||
-    dirs.find(d => (d.label || '').toLowerCase() === lower)
-  return hit ? hit.cwd : t
-}
-
-// Deterministic fallback intent parser (used when no API key is configured).
-function parseIntent(input, activeCwd, dirs = []) {
-  const raw = input.trim()
-  const text = raw.toLowerCase()
-
-  if (/^(?:status|sitrep|report)\b/.test(text) ||
-      /\b(?:what|who)(?:'s| is| are)?\s+(?:running|on|up|going|live|active|here)\b/.test(text) ||
-      /\blist\s+(?:sessions|agents|swarm)\b/.test(text)) {
-    return { type: 'status' }
-  }
-
-  if (/\b(gather thoughts|gather my thoughts|what am i trying|what am i actually trying|ask questions|clarify intent|challenge claude|hard questions)\b/.test(text)) {
-    return { type: 'prompt', target: 'claude', text: GATHER_THOUGHTS_PROMPT }
-  }
-
-  const colon = raw.match(/^\s*([a-z][a-z ]*?)\s*:\s*(.+)$/i)
-  if (colon) {
-    const id = agentIdFromToken(colon[1])
-    if (id) return { type: 'prompt', target: id, text: colon[2].trim() }
-  }
-  const verb = raw.match(/^\s*(?:tell|ask|prompt|send(?:\s+to)?|message|dm|have)\s+([a-z]+)\s+(.+)$/i)
-  if (verb) {
-    const id = agentIdFromToken(verb[1])
-    if (id) {
-      const text2 = verb[2].trim().replace(/^(?:to|that|:)\s+/i, '')
-      if (text2) return { type: 'prompt', target: id, text: text2 }
-    }
-  }
-  const bc = raw.match(/^\s*(?:broadcast|announce|tell everyone|tell all)\s+(.+)$/i)
-  if (bc) return { type: 'prompt', target: 'all', text: bc[1].trim() }
-
-  const focus = raw.match(/^\s*(?:focus(?:\s+on)?|switch to|switch|go to|jump to|show me)\s+([a-z]+)\s*$/i)
-  if (focus) {
-    const id = agentIdFromToken(focus[1])
-    if (id) return { type: 'focus', target: id }
-  }
-
-  let cwd = activeCwd || null
-  const inMatch = raw.match(/\b(?:in|into|at)\s+(.+)$/i)
-  if (inMatch) cwd = resolveDir(inMatch[1], dirs, activeCwd)
-  if (/\b(here|current|this dir|this directory|this folder)\b/.test(text)) cwd = activeCwd || cwd
-
-  if (/\b(team|squad|crew)\b/.test(text)) {
-    return { type: 'launch', cwd, groupLabel: `${pathLabel(cwd)} team`, agents: buildTeam() }
-  }
-
-  const agents = []
-  for (const agent of allAgents()) {
-    const names = SYNONYMS[agent.id] || [agent.id]
-    let count = 0
-    for (const name of names) {
-      const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|×)?\\s*${name}\\b`, 'i'))
-      const after = raw.match(new RegExp(`\\b${name}\\s*(?:x|×)\\s*(\\d+)`, 'i'))
-      if (before) count = Math.max(count, parseInt(before[1], 10) || 0)
-      else if (after) count = Math.max(count, parseInt(after[1], 10) || 0)
-      else if (new RegExp(`\\b${name}\\b`, 'i').test(raw)) count = Math.max(count, 1)
-    }
-    if (count > 0) agents.push({ ...agent, count })
-  }
-  if (agents.length) return { type: 'launch', cwd, agents }
-
-  if (/\b(launch|swarm|new session|session|sessions|open launcher|launcher)\b/.test(text)) {
-    return { type: 'open-launcher' }
-  }
-  return { type: 'run', input: raw }
-}
-
-function summarize(agents) {
-  return agents.map(a => `${a.count}× ${a.label}`).join(', ')
-}
+import { parseIntent as parseSharedIntent, pathLabel as sharedPathLabel, summarize as summarizeAgents } from '../lib/seducia'
 
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
 
@@ -167,7 +52,7 @@ function LaunchCard({ accent, launch, status, onGo, onCancel }) {
     <div style={{ maxWidth: '84%', borderRadius: 12, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.07), padding: '10px 12px' }}>
       <div style={{ fontSize: 10, fontWeight: 900, color: accent, letterSpacing: 1.2, marginBottom: 6 }}>LAUNCH PLAN</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-2)', fontWeight: 700, lineHeight: 1.5 }}>
-        {summarize(launch.agents)} in {pathLabel(launch.cwd)}
+        {summarizeAgents(launch.agents)} in {sharedPathLabel(launch.cwd)}
       </div>
       {brief && (
         <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
@@ -219,7 +104,7 @@ export default function Seducia({
   const scopedTabs = scope?.groupId ? tabs.filter(t => t.groupId === scope.groupId) : tabs
   const scopedCwd = scope?.cwd || activeCwd
   const dirs = [
-    ...(scopedCwd ? [{ cwd: scopedCwd, label: pathLabel(scopedCwd) }] : []),
+    ...(scopedCwd ? [{ cwd: scopedCwd, label: sharedPathLabel(scopedCwd) }] : []),
     ...recentSessions.map(s => ({ cwd: s.cwd, label: s.label }))
   ]
 
@@ -319,7 +204,7 @@ export default function Seducia({
         updateLast(msgId, { text: full.replace(/(?:ACTION|ENGINE):[^\n]*/g, '').trim(), streaming: true })
       }
     } catch (e) {
-      full = e.message?.includes('401') ? "Invalid API key -- check Settings." : `AI error: ${e.message}`
+      full = e.message?.includes('401') ? 'CLI auth failed -- check the selected agent CLI login.' : `AI error: ${e.message}`
       updateLast(msgId, { text: full, streaming: false })
       setStreaming(false)
       return true
@@ -362,14 +247,14 @@ export default function Seducia({
     push('you', command)
     setValue('')
 
-    // Try AI first if a key is configured and plan allows.
+    // Try the CLI-backed AI path first when an agent bridge is available.
     if (aiEnabled) {
       await handleAI(command)
       return
     }
 
     // Deterministic fallback.
-    const intent = parseIntent(command, scopedCwd, dirs)
+    const intent = parseSharedIntent(command, scopedCwd, dirs)
     const response = (await applyIntent(intent)) || `Running "${command}".`
 
     push('seducia', response)
@@ -408,7 +293,7 @@ export default function Seducia({
     try { rec.start() } catch { setListening(false) }
   }, [listening, voiceEnabled, handsFree, handle])
 
-  const hasAIKey = aiEnabled  // CLI-only now
+  const hasCliAI = aiEnabled
 
   const body = (
     <div
@@ -441,7 +326,7 @@ export default function Seducia({
           <div>
             <div className="flex items-center" style={{ gap: 6 }}>
               <span style={{ fontSize: docked ? 13 : 14.5, fontWeight: 900, color: 'var(--text-1)' }}>Seducia</span>
-              {aiEnabled && hasAIKey && (
+              {aiEnabled && hasCliAI && (
                 <span style={{ fontSize: 9, fontWeight: 800, color: accent, background: rgba(accent, 0.15), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 99, padding: '1px 6px', letterSpacing: 0.5 }}>AI</span>
               )}
             </div>
@@ -484,10 +369,10 @@ export default function Seducia({
         </div>
       </div>
 
-      {/* No AI key notice */}
-      {!hasAIKey && (
+      {/* No CLI AI notice */}
+      {!hasCliAI && (
         <div style={{ margin: '8px 10px 0', padding: '8px 12px', borderRadius: 8, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.2)}`, fontSize: 11, color: 'var(--text-2)' }}>
-          Add an API key in <strong style={{ color: accent }}>Settings → AI</strong> to enable AI responses.
+          Seducia uses your logged-in Claude, Codex, Gemini, or OpenCode CLIs. Install or sign in to one of them to enable AI replies.
         </div>
       )}
 

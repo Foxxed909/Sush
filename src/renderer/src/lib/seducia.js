@@ -10,14 +10,6 @@ export const GATHER_THOUGHTS_PROMPT = [
   'End with a compact recommended next action.'
 ].join(' ')
 
-// Escape a string so it can be embedded literally in a RegExp. Agent ids /
-// synonyms are interpolated into match patterns below; a custom-agent id (or a
-// future synonym source) containing regex metacharacters would otherwise throw
-// or match wrongly.
-function escapeRegExp(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 export function pathLabel(cwd) {
   if (!cwd) return 'this directory'
   const trimmed = String(cwd).replace(/[\\/]+$/, '')
@@ -25,19 +17,39 @@ export function pathLabel(cwd) {
 }
 
 export const SYNONYMS = {
-    shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
+  shell: ['terminal', 'shell', 'pwsh', 'powershell', 'bash'],
   claude: ['claude'],
   codex: ['codex'],
   gemini: ['gemini'],
   opencode: ['opencode', 'open code']
 }
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function wordsForAgent(agent) {
+  const base = [
+    agent.id,
+    agent.label,
+    agent.mono,
+    agent.command,
+    ...(SYNONYMS[agent.id] || [])
+  ]
+  return base
+    .filter(Boolean)
+    .flatMap(value => String(value).toLowerCase().split(/[|,&]+/))
+    .map(value => value.replace(/^custom-/, '').trim())
+    .filter(Boolean)
+}
+
 export function agentIdFromToken(token) {
   const t = String(token || '').toLowerCase().trim()
   if (!t) return null
   if (['all', 'everyone', 'everybody', 'them', 'agents', 'team'].includes(t)) return 'all'
-  for (const [id, names] of Object.entries(SYNONYMS)) {
-    if (names.some(n => t === n || t.startsWith(n))) return id
+  for (const agent of allAgents()) {
+    const names = wordsForAgent(agent)
+    if (names.some(n => t === n || t.startsWith(n))) return agent.id
   }
   return null
 }
@@ -73,9 +85,9 @@ export function describeSessions(tabs) {
     byAgent.get(id).push(t)
   })
   const parts = [...byAgent.entries()].map(([id, list]) => `${list.length}x ${agentById(id)?.label || 'Terminal'}`)
-  const groups = new Set(running.map(t => t.groupId).filter(Boolean)).size
-  const groupNote = groups ? ` across ${groups} workspace${groups === 1 ? '' : 's'}` : ''
-  return `${running.length} session${running.length === 1 ? '' : 's'} live${groupNote}: ${parts.join(', ')}. Say "tell claude ..." to prompt one, or "focus codex" to jump to it.`
+  const groups = [...new Set(running.map(t => t.groupLabel).filter(Boolean))]
+  const groupNote = groups.length ? ` across ${groups.length} workspace${groups.length === 1 ? '' : 's'} (${groups.slice(0, 3).join(', ')}${groups.length > 3 ? ', ...' : ''})` : ''
+  return `${running.length} session${running.length === 1 ? '' : 's'} live${groupNote}: ${parts.join(', ')}. Say "tell claude ..." to prompt one, "review workspace" to read output, or "focus codex" to jump to it.`
 }
 
 export function buildTeam() {
@@ -102,10 +114,24 @@ export function parseIntent(input, activeCwd, dirs = []) {
   const raw = input.trim()
   const text = raw.toLowerCase()
 
+  const rename = raw.match(/^\s*(?:rename\s+(?:this\s+)?workspace|name\s+(?:this\s+)?workspace)\s+(?:to\s+)?(.+)$/i)
+  if (rename?.[1]?.trim()) {
+    return { type: 'rename-workspace', name: 'this', to: rename[1].trim().slice(0, 48) }
+  }
+
+  if (/\b(?:close|stop|shut down)\s+(?:this\s+)?(?:workspace|crew|team)\b/.test(text)) {
+    return { type: 'close-workspace', name: 'this' }
+  }
+
   if (/^(?:status|sitrep|report)\b/.test(text) ||
       /\b(?:what|who)(?:'s| is| are)?\s+(?:running|on|up|going|live|active|here)\b/.test(text) ||
       /\blist\s+(?:sessions|agents|swarm)\b/.test(text)) {
     return { type: 'status' }
+  }
+
+  if (/\b(?:review|read|check|inspect)\s+(?:the\s+)?(?:workspace|agents|sessions|crew|team|output)\b/.test(text) ||
+      /\bwhat\s+did\s+(?:they|the agents)\s+(?:do|say|finish)\b/.test(text)) {
+    return { type: 'read-output', target: 'all' }
   }
 
   if (/\b(gather thoughts|gather my thoughts|what am i trying|what am i actually trying|ask questions|clarify intent|challenge claude|hard questions)\b/.test(text)) {
@@ -145,15 +171,15 @@ export function parseIntent(input, activeCwd, dirs = []) {
 
   const agents = []
   for (const agent of allAgents()) {
-    const names = SYNONYMS[agent.id] || [agent.id]
+    const names = wordsForAgent(agent)
     let count = 0
-    for (const rawName of names) {
-      const name = escapeRegExp(rawName)
-      const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|×)?\\s*${name}\\b`, 'i'))
-      const after = raw.match(new RegExp(`\\b${name}\\s*(?:x|×)\\s*(\\d+)`, 'i'))
+    for (const name of names) {
+      const needle = escapeRegex(name)
+      const before = raw.match(new RegExp(`(\\d+)\\s*(?:x|×)?\\s*${needle}\\b`, 'i'))
+      const after = raw.match(new RegExp(`\\b${needle}\\s*(?:x|×)\\s*(\\d+)`, 'i'))
       if (before) count = Math.max(count, parseInt(before[1], 10) || 0)
       else if (after) count = Math.max(count, parseInt(after[1], 10) || 0)
-      else if (new RegExp(`\\b${name}\\b`, 'i').test(raw)) count = Math.max(count, 1)
+      else if (new RegExp(`\\b${needle}\\b`, 'i').test(raw)) count = Math.max(count, 1)
     }
     if (count > 0) agents.push({ ...agent, count })
   }
