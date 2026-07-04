@@ -24,8 +24,10 @@ and every glass surface has a lite/saver/reduce-motion off-switch.
   primary actions, selection, and live state; never decoration.
 - **State vocabulary** (fixed): working `#5fd3a8`, needs-you `#ffcb6b`,
   error `#ff6b81`, limit `#ff9f43`, info `#82aaff`, idle grays.
-- **Tier colors**: Plus `#5ab0ff`, Pro `#c08bff`, Ultra `#ffb454`,
-  Max `#ff6b81`.
+- **Tier colors** (Nord family, so the plan ladder reads as one palette):
+  Free `#a4b0c4` (Nord-cast gray), Plus `#88c0d0` (nord8), Pro `#b48ead`
+  (nord15), Ultra `#ebcb8b` (nord13), Max `#d06f79` (nord11 brightened one
+  step for ≥4.5:1 at small sizes on the dark surfaces).
 
 ## Typography
 

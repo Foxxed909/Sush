@@ -10,12 +10,16 @@ import { rgba } from '../lib/ui'
 // page is a hierarchy, not five identical cards. Accent is restrained — tier
 // color marks each plan's identity, the pink accent only marks actions.
 
+// Tier identity colors come from Nord (frost + aurora) so the ladder reads as
+// one family instead of five unrelated hues. Max is nord11 brightened one step
+// (#bf616a → #d06f79) to clear 4.5:1 at the small sizes tiers render at; free
+// is a Nord-cast cool gray (the palette has no mid-gray of its own).
 export const TIER_META = {
-  free:  { label: 'Free',  price: '$0',  unit: 'forever',  color: '#9aa2ad', blurb: 'The essentials, no code needed.' },
-  plus:  { label: 'Plus',  price: '$8',  unit: '/ month',  color: '#5ab0ff', blurb: 'Multi-account work + cloud voice.', popular: true },
-  pro:   { label: 'Pro',   price: '$16', unit: '/ month',  color: '#c08bff', blurb: 'Bigger grid + the Usage Guard.' },
-  ultra: { label: 'Ultra', price: '$29', unit: '/ month',  color: '#ffb454', blurb: 'Standing swarms, hands-free handoff.' },
-  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#ff6b81', blurb: 'Everything Sush can do, maxed.' }
+  free:  { label: 'Free',  price: '$0',  unit: 'forever',  color: '#a4b0c4', blurb: 'The essentials, no code needed.' },
+  plus:  { label: 'Plus',  price: '$8',  unit: '/ month',  color: '#88c0d0', blurb: 'Multi-account work + cloud voice.', popular: true },
+  pro:   { label: 'Pro',   price: '$16', unit: '/ month',  color: '#b48ead', blurb: 'Bigger grid + the Usage Guard.' },
+  ultra: { label: 'Ultra', price: '$29', unit: '/ month',  color: '#ebcb8b', blurb: 'Standing swarms, hands-free handoff.' },
+  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#d06f79', blurb: 'Everything Sush can do, maxed.' }
 }
 
 // Mirror of main/credits.js TIER_ALLOWANCE_SEC so the cards and the real
@@ -141,7 +145,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                       position: 'absolute', top: 0, left: 0,
                       width: 300, height: 430,
                       transformOrigin: '20% 130%',
-                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${80 + i * 106}px) rotate(${i * 6}deg)`,
+                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${80 + i * 106}px) rotate(${i * 4.5}deg)`,
                       '--tier-glow': rgba(m.color, 0.28),
                       zIndex: 10 - i,
                       cursor: front ? 'default' : 'pointer',
@@ -201,7 +205,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                             <span style={{ color: 'var(--text-3)', fontWeight: 600 }}> {l}</span>
                           </div>
                         ))}
-                        <div style={{ fontSize: 9.5, color: 'var(--text-4)', fontWeight: 700, marginTop: 4, letterSpacing: 0.4, textTransform: 'uppercase' }}>Click to compare</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 700, marginTop: 4, letterSpacing: 0.4, textTransform: 'uppercase' }}>Click to compare</div>
                       </div>
                     )}
                   </div>
