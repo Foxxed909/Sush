@@ -141,14 +141,15 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                       position: 'absolute', top: 0, left: 0,
                       width: 300, height: 430,
                       transformOrigin: '20% 130%',
-                      transform: front ? 'rotate(0deg)' : `translateX(${72 + i * 96}px) rotate(${i * 5.5}deg)`,
+                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${72 + i * 96}px) rotate(${i * 5.5}deg)`,
+                      '--tier-glow': rgba(m.color, 0.28),
                       zIndex: 10 - i,
                       cursor: front ? 'default' : 'pointer',
                       display: 'flex', flexDirection: 'column',
                       borderRadius: 18, padding: '18px 17px 16px',
-                      border: `1px solid ${front ? rgba(m.color, 0.55) : rgba(m.color, 0.3)}`,
-                      background: front ? '#101114' : 'var(--surface-1)',
-                      boxShadow: front ? `0 18px 44px rgba(0,0,0,0.5), 0 0 0 1px ${rgba(m.color, 0.12)}` : '0 10px 26px rgba(0,0,0,0.42)'
+                      border: `1px solid ${front ? rgba(m.color, 0.65) : rgba(m.color, 0.42)}`,
+                      background: `radial-gradient(130% 55% at 50% 0%, ${rgba(m.color, front ? 0.20 : 0.13)}, transparent 62%), ${front ? '#101114' : 'var(--surface-1)'}`,
+                      boxShadow: front ? `0 18px 44px rgba(0,0,0,0.5), 0 0 26px ${rgba(m.color, 0.14)}, 0 0 0 1px ${rgba(m.color, 0.14)}` : '0 10px 26px rgba(0,0,0,0.42)'
                     }}
                   >
                     {/* Exposed corner: name + price sit on whichever corner the
@@ -160,7 +161,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                       {!current && m.popular && front && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: '#05070b', background: m.color, borderRadius: 999, padding: '2px 8px' }}>Popular</span>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 6, justifyContent: front ? 'flex-start' : 'flex-end' }}>
-                      <span style={{ fontSize: 27, fontWeight: 900, color: 'var(--text-1)', lineHeight: 1, letterSpacing: '-0.02em' }}>{m.price}</span>
+                      <span style={{ fontSize: 27, fontWeight: 900, color: m.color, lineHeight: 1, letterSpacing: '-0.02em' }}>{m.price}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>{m.unit}</span>
                     </div>
                     {/* Full details only on the dealt card — the fan stays calm. */}
@@ -186,7 +187,22 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                         )}
                       </>
                     ) : (
-                      <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.45, textAlign: 'right' }}>{m.blurb}</div>
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 7, alignItems: 'flex-end' }}>
+                        <div style={{ fontSize: 10.5, color: 'var(--text-2)', lineHeight: 1.45, textAlign: 'right', maxWidth: 190 }}>{m.blurb}</div>
+                        <div style={{ height: 1, width: 120, background: rgba(m.color, 0.3), margin: '3px 0' }} />
+                        {[
+                          [String(f.slots), f.slots === 1 ? 'account per CLI' : 'accounts per CLI'],
+                          [String(f.gridCap), 'grid sessions'],
+                          [`${CREDIT_MINUTES[t]}m`, 'dictation / mo'],
+                          ...(f.usageGuard ? [[f.autoHandoff ? 'Guard+' : 'Guard', f.autoHandoff ? 'auto-handoff' : 'usage guard']] : [])
+                        ].map(([v, l]) => (
+                          <div key={l} style={{ fontSize: 11, textAlign: 'right' }}>
+                            <span style={{ color: m.color, fontWeight: 900 }}>{v}</span>
+                            <span style={{ color: 'var(--text-3)', fontWeight: 600 }}> {l}</span>
+                          </div>
+                        ))}
+                        <div style={{ fontSize: 9.5, color: 'var(--text-4)', fontWeight: 700, marginTop: 4, letterSpacing: 0.4, textTransform: 'uppercase' }}>Click to compare</div>
+                      </div>
                     )}
                   </div>
                 )
@@ -196,12 +212,12 @@ export default function PlansPage({ accent, ent, onDismiss }) {
         )}
 
         {/* Redeem */}
-        <div style={{ marginTop: 34, borderTop: '1px solid var(--border-1)', paddingTop: 22 }}>
-          <div className="flex items-center" style={{ gap: 10, marginBottom: 12 }}>
+        <div style={{ marginTop: 34, borderTop: '1px solid var(--border-1)', paddingTop: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <div className="flex items-center" style={{ gap: 10, marginBottom: 12, justifyContent: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1, color: 'var(--text-3)' }}>OR</span>
             <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>Enter a Sush code</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, maxWidth: 520 }}>
+          <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 520 }}>
             <input
               value={code}
               onChange={e => setCode(e.target.value.toUpperCase())}
@@ -225,7 +241,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
               Your {TIER_META[tier]?.label} code is a trial — it reverts to Free when it expires.
             </div>
           )}
-          <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 12, lineHeight: 1.6, maxWidth: '58ch' }}>
+          <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 12, lineHeight: 1.6, maxWidth: '58ch', textAlign: 'center' }}>
             A code flips the tier locally and works forever offline. Don't have one? Ask the dev.
           </p>
         </div>

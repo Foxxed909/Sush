@@ -691,10 +691,20 @@ body[data-sleeping] *:not(.sush-sleep-breathe) {
 h1, h2, h3 { text-wrap: balance; }
 p { text-wrap: pretty; }
 
-/* Plans fan: the deck animates on GPU only; narrow windows fall back to a
-   plain vertical stack so no card is ever clipped off-screen. */
-.sush-fan-card { transition: transform 0.24s var(--ease-out), box-shadow 0.24s var(--ease-out), border-color 0.2s ease; }
-.sush-fan-card:not([aria-pressed="true"]):hover { transform: translateY(-6px) var(--tw-noop, ) !important; }
+/* Plans fan: each card's fan pose lives in --fan-pose so hover COMPOSES lift
+   on top of the rotation instead of replacing it. GPU transforms only; narrow
+   windows fall back to a plain vertical stack so no card is ever clipped. */
+.sush-fan-card {
+  transform: var(--fan-pose, none);
+  transition: transform 0.22s var(--ease-out), box-shadow 0.22s var(--ease-out), border-color 0.2s ease;
+}
+.sush-fan-card:not([aria-pressed="true"]):hover {
+  transform: var(--fan-pose, none) translateY(-16px);
+  box-shadow: 0 22px 48px rgba(0,0,0,0.55), 0 0 30px var(--tier-glow, rgba(255,255,255,0.1)) !important;
+}
+.sush-fan-card[aria-pressed="true"]:hover {
+  transform: var(--fan-pose, none) translateY(-3px);
+}
 @media (max-width: 760px) {
   .sush-fan { height: auto !important; }
   .sush-fan-card { position: relative !important; transform: none !important; width: 100% !important; height: auto !important; margin-bottom: 10px; }
