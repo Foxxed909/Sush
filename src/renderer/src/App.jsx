@@ -269,7 +269,10 @@ export default function App() {
   const AUTO_SAVER_AT = 20
   const autoSaverActive = settings.autoPowerSaver !== false && battery.hasBattery && !battery.charging && battery.percent <= AUTO_SAVER_AT
   const [quietHoursActive, setQuietHoursActive] = useState(() => quietHoursNow(loadSettings()))
-  const effectiveSaver = !!settings.powerSaver || autoSaverActive || quietHoursActive
+  // Eco mode: power saver plus feature cuts (no orb, no wallpaper-through-
+  // terminals, no agent notifications, motion off). Terminals keep running.
+  const ecoMode = !!settings.ecoMode
+  const effectiveSaver = !!settings.powerSaver || ecoMode || autoSaverActive || quietHoursActive
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartResult, setSmartResult] = useState(null)
@@ -497,7 +500,7 @@ export default function App() {
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
   // Mission Control: live per-session state inferred from the PTY stream.
-  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false, powerSaver: terminalSaver })
+  const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
   const agentStatesRef = useRef(agentStates)
@@ -570,7 +573,7 @@ export default function App() {
   // wallpaper shows behind the text — allowTransparency is always on in
   // useTerminal, so this is just a theme override. Terminal container tiles go
   // transparent too (see grid render). Off → terminals keep their solid theme bg.
-  const wallpaperOnTerminals = !!settings.bgImage && settings.terminalWallpaper === true
+  const wallpaperOnTerminals = !!settings.bgImage && settings.terminalWallpaper === true && !ecoMode
   const termTheme = useCallback((base) => {
     if (!wallpaperOnTerminals || !base?.xterm) return base
     return { ...base, xterm: { ...base.xterm, background: 'rgba(0,0,0,0)' } }
@@ -1638,7 +1641,7 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${settings.reduceMotion ? ' sush-reduce-motion' : ''}`}
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
@@ -1955,12 +1958,12 @@ export default function App() {
           battery={battery}
           saverActive={terminalSaver}
           saverAuto={autoSaverActive || quietHoursActive}
-          saverReason={quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : settings.powerSaver ? 'manual' : zenMode ? 'focus' : ''}
+          saverReason={ecoMode ? 'eco' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : settings.powerSaver ? 'manual' : zenMode ? 'focus' : ''}
           online={online}
         />
       )}
 
-      {!zenMode && (
+      {!zenMode && !ecoMode && (
         <SeduciaOrb
           accent={accent}
           open={seduciaOpen}

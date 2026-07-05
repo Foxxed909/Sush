@@ -16,6 +16,8 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
   useEffect(() => {
     const off = window.sush.onOauthEvent?.((ev) => {
       if (!ev) return
+      // The Claude connect flow shares the event channel but has its own UI.
+      if (ev.provider && !['google', 'github'].includes(ev.provider)) return
       if (ev.phase === 'device-code') {
         setDevice({ userCode: ev.userCode, verificationUri: ev.verificationUri })
         return

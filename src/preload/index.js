@@ -129,6 +129,13 @@ contextBridge.exposeInMainWorld('sush', {
   oauthGitHubCancel: () => ipcRenderer.invoke('sush:oauth-github-cancel'),
   oauthGoogleStart: (payload) => ipcRenderer.invoke('sush:oauth-google-start', payload),
   oauthGoogleCancel: () => ipcRenderer.invoke('sush:oauth-google-cancel'),
+  // Provider account connect (Claude / Codex / Gemini — tokens stay in main)
+  connectStart: (payload) => ipcRenderer.invoke('sush:connect-start', payload),
+  connectFinish: (payload) => ipcRenderer.invoke('sush:connect-finish', payload),
+  connectCancel: () => ipcRenderer.invoke('sush:connect-cancel'),
+  connectStatus: () => ipcRenderer.invoke('sush:connect-status'),
+  connectDisconnect: (payload) => ipcRenderer.invoke('sush:connect-disconnect', payload),
+  connectTest: (payload) => ipcRenderer.invoke('sush:connect-test', payload),
   oauthUnlink: (payload) => ipcRenderer.invoke('sush:oauth-unlink', payload),
   onOauthEvent: (callback) => {
     const listener = (_event, payload) => callback(payload)

@@ -37,6 +37,7 @@ import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
 import { startGoogleFlow, cancelGoogleFlow } from './oauth/google'
+import { startConnectFlow, cancelConnectFlow, finishConnectFlow, connectStatus, disconnectProvider, testProvider } from './oauth/connect'
 import { consumeTicket, peekTicket } from './oauth/tickets'
 import { setOauthEventSender } from './oauth/events'
 import {
@@ -1225,6 +1226,12 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:oauth-github-cancel', () => cancelGitHubFlow())
   ipcMain.handle('sush:oauth-google-start', (event, payload) => startGoogleFlow(payload ?? {}))
   ipcMain.handle('sush:oauth-google-cancel', () => cancelGoogleFlow())
+  ipcMain.handle('sush:connect-start', (event, payload) => startConnectFlow(payload ?? {}))
+  ipcMain.handle('sush:connect-finish', (event, payload) => finishConnectFlow(payload ?? {}))
+  ipcMain.handle('sush:connect-cancel', () => cancelConnectFlow())
+  ipcMain.handle('sush:connect-status', () => connectStatus())
+  ipcMain.handle('sush:connect-disconnect', (event, payload) => disconnectProvider(payload ?? {}))
+  ipcMain.handle('sush:connect-test', (event, payload) => testProvider(payload ?? {}))
   ipcMain.handle('sush:oauth-unlink', (event, { userId, provider } = {}) => {
     const res = unlinkProvider({ id: userId, provider })
     if (res.ok && provider === 'github') {

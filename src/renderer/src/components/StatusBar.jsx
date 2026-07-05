@@ -194,7 +194,9 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       {/* power saver chip */}
       {saverActive && (
         <span style={{ ...segR, color: '#5fd3a8', fontWeight: 800, letterSpacing: 0.3 }} title={
-          saverReason === 'quiet'
+          saverReason === 'eco'
+            ? 'Eco mode on — fewest features, most battery. Settings > Appearance to turn off.'
+            : saverReason === 'quiet'
             ? 'Power saver on for quiet hours.'
             : saverReason === 'battery'
               ? 'Power saver on automatically because the battery is low. Ctrl+Shift+E to override.'
@@ -205,7 +207,7 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
                   : 'Power saver on. Ctrl+Shift+E to toggle.'
         }>
           <Icon name="leaf" size={12} color="#5fd3a8" />
-          SAVER
+          {saverReason === 'eco' ? 'ECO' : 'SAVER'}
         </span>
       )}
 

@@ -7,6 +7,7 @@ import { useEntitlements } from '../hooks/useEntitlements'
 import { useOnline } from '../hooks/useOnline'
 import { formatCredits } from '../lib/dictation'
 import { TIER_META } from './PlansPage'
+import AccountConnect from './AccountConnect'
 
 const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
 const CURSORS = ['block', 'bar', 'underline']
@@ -46,7 +47,8 @@ const SETTINGS_NAV = [
   { label: 'Appearance', sec: 'Appearance', icon: 'palette', group: 'Experience', keywords: 'wallpaper background opacity' },
   { label: 'Theme', sec: 'Theme', icon: 'layout', group: 'Experience', keywords: 'color accent glass' },
   { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText', group: 'System', keywords: 'sushrc config' },
-  { label: 'Window', sec: 'Window', icon: 'layers', group: 'System', keywords: 'notifications startup' }
+  { label: 'Window', sec: 'Window', icon: 'layers', group: 'System', keywords: 'notifications startup' },
+  { label: 'Experiments', sec: 'Experiments', icon: 'sparkles', group: 'System', keywords: 'claude codex chatgpt gemini oauth connect labs beta' }
 ]
 const NAV_GROUPS = ['Account', 'Intelligence', 'Experience', 'System']
 
@@ -1389,6 +1391,21 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {/* Appearance */}
           <Section title="Appearance" accent={accent}>
             <Row>
+              <Label>Eco mode (fewest features, most battery)</Label>
+              <button
+                onClick={() => set('ecoMode', !settings.ecoMode)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 12px', borderRadius: 8, background: settings.ecoMode ? rgba(accent, 0.1) : 'var(--surface-2)', border: `1px solid ${settings.ecoMode ? rgba(accent, 0.4) : 'var(--border-2)'}`, color: settings.ecoMode ? accent : 'var(--text-3)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+              >
+                <Icon name="leaf" size={14} strokeWidth={2} />
+                {settings.ecoMode ? 'Eco mode ON — Sush is running lean' : 'Eco mode off'}
+              </button>
+              <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.4 }}>
+                Everything Power saver does, plus: motion off, Seducia orb hidden,
+                wallpaper-through-terminals off, and agent notifications muted.
+                Terminals and agents keep running — only the extras stop.
+              </div>
+            </Row>
+            <Row>
               <Label>Power saver (max battery)</Label>
               <button
                 onClick={() => set('powerSaver', !settings.powerSaver)}
@@ -1617,6 +1634,13 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
               <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 5, lineHeight: 1.5 }}>
                 No input for this long and Sush dims, freezes animations, and stops every poll - terminals and agents keep running. Any key or click wakes it.
               </div>
+            </Row>
+          </Section>
+
+          {/* Experiments */}
+          <Section title="Experiments" accent={accent}>
+            <Row>
+              <AccountConnect accent={accent} />
             </Row>
           </Section>
           </div>
