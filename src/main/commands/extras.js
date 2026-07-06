@@ -7,7 +7,7 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { homedir } from 'os'
 import { Notification } from 'electron'
-import { ok, err, ansi } from './_helpers'
+import { ok, err, ansi, cancelled, runSignal, wasCancelled } from './_helpers'
 
 const execFileAsync = promisify(execFile)
 
@@ -230,11 +230,13 @@ export const b64 = {
     if (!text) return err('b64: missing text')
     if (sub === 'encode') return ok(Buffer.from(text, 'utf8').toString('base64'))
     if (sub === 'decode') {
-      try {
-        return ok(Buffer.from(text, 'base64').toString('utf8'))
-      } catch {
+      // Buffer.from(_, 'base64') never throws — it silently skips invalid
+      // characters and decodes garbage — so validate the shape ourselves.
+      const clean = text.replace(/\s+/g, '')
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(clean) || clean.length % 4 === 1) {
         return err('b64: invalid base64 input')
       }
+      return ok(Buffer.from(clean, 'base64').toString('utf8'))
     }
     return err('b64: usage: b64 [encode|decode] <text>')
   }
@@ -533,9 +535,10 @@ export const ping = {
     if (!safeHost) return err('ping: invalid hostname')
     try {
       const args = process.platform === 'win32' ? ['-n', '4', safeHost] : ['-c', '4', safeHost]
-      const { stdout, stderr } = await execFileAsync('ping', args, { encoding: 'utf8', timeout: 15000, windowsHide: true })
+      const { stdout, stderr } = await execFileAsync('ping', args, { encoding: 'utf8', timeout: 15000, windowsHide: true, signal: ctx?.signal })
       return ok((stdout + stderr).trim())
     } catch (e) {
+      if (wasCancelled(e, ctx)) return cancelled()
       return err(`ping: ${e.stderr || e.message}`)
     }
   }
@@ -546,11 +549,11 @@ export const fetchCmd = {
   name: 'fetch',
   description: 'Make an HTTP GET request',
   usage: 'fetch <url>',
-  async run([url]) {
+  async run([url], ctx) {
     if (!url) return err('fetch: missing URL')
     if (!/^https?:\/\//i.test(url)) return err('fetch: URL must start with http:// or https://')
     try {
-      const res = await global.fetch(url, { headers: { 'User-Agent': 'Sush/1.0' }, signal: AbortSignal.timeout(10000) })
+      const res = await global.fetch(url, { headers: { 'User-Agent': 'Sush/1.0' }, signal: runSignal(ctx, 10000) })
       const body = await res.text()
       const preview = body.slice(0, 2000)
       return ok([
@@ -560,6 +563,7 @@ export const fetchCmd = {
         preview.length < body.length ? preview + ansi.dim('\n... truncated') : preview
       ].join('\r\n'))
     } catch (e) {
+      if (wasCancelled(e, ctx)) return cancelled()
       return err(`fetch: ${e.message}`)
     }
   }
@@ -570,14 +574,15 @@ export const weather = {
   name: 'weather',
   description: 'Show weather for a city',
   usage: 'weather [city]',
-  async run(args) {
+  async run(args, ctx) {
     const city = args.join('+') || ''
     const url = `https://wttr.in/${city}?format=3`
     try {
-      const res = await global.fetch(url, { headers: { 'User-Agent': 'curl/7.0' }, signal: AbortSignal.timeout(8000) })
+      const res = await global.fetch(url, { headers: { 'User-Agent': 'curl/7.0' }, signal: runSignal(ctx, 8000) })
       const text = await res.text()
       return ok(ansi.cyan(text.trim()))
     } catch (e) {
+      if (wasCancelled(e, ctx)) return cancelled()
       return err(`weather: ${e.message}`)
     }
   }

@@ -215,8 +215,11 @@ function loadSessionLayout(profiles) {
     // Honour the "resume agent sessions on launch" setting (default on).
     const resumeAgents = loadSettings().resumeAgents !== false
 
-    // Cap matches MAX_SESSIONS (was 12 — silently dropped tabs of a full swarm).
-    const tabs = dedupeTabs(saved.tabs.slice(0, 16).map(item => {
+    // Cap matches MAX_SESSIONS — a lower literal here silently dropped tabs
+    // of a full swarm on restart (first at 12, then again at 16 once Max sold
+    // a 25-session grid). Restored tabs are lazy-booted, so a big layout is
+    // cheap until tiles are actually viewed.
+    const tabs = dedupeTabs(saved.tabs.slice(0, MAX_SESSIONS).map(item => {
       const profile = profiles.find(p => p.id === item.profileId) ?? profiles[0]
       return makeTab(profile, {
         label: item.label,
@@ -323,11 +326,36 @@ export default function App() {
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
 
+  // Shared activity clock: when the user last touched the app. Tracked
+  // unconditionally (the listeners are passive and cheap) because BOTH idle
+  // sleep and quiet hours consult it — quiet hours must not force sleep while
+  // someone is deliberately working at night.
+  const lastActivityRef = useRef(Date.now())
   useEffect(() => {
+    const bump = () => { lastActivityRef.current = Date.now() }
+    let lastMove = 0
+    const onMove = () => { const now = Date.now(); if (now - lastMove > 1000) { lastMove = now; bump() } }
+    window.addEventListener('keydown', bump, { passive: true, capture: true })
+    window.addEventListener('pointerdown', bump, { passive: true, capture: true })
+    window.addEventListener('wheel', bump, { passive: true, capture: true })
+    window.addEventListener('pointermove', onMove, { passive: true, capture: true })
+    return () => {
+      window.removeEventListener('keydown', bump, { capture: true })
+      window.removeEventListener('pointerdown', bump, { capture: true })
+      window.removeEventListener('wheel', bump, { capture: true })
+      window.removeEventListener('pointermove', onMove, { capture: true })
+    }
+  }, [])
+
+  useEffect(() => {
+    // Quiet hours only force sleep once the user has actually gone idle —
+    // the previous unconditional setSleeping(true) re-slept the app every
+    // 60s tick, fighting anyone typing mid-quiet-hours.
+    const QUIET_IDLE_MS = 2 * 60_000
     const sync = () => {
       const active = quietHoursNow(settings)
       setQuietHoursActive(active)
-      if (active) setSleeping(true)
+      if (active && Date.now() - lastActivityRef.current >= QUIET_IDLE_MS) setSleeping(true)
     }
     sync()
     const id = setInterval(sync, 60_000)
@@ -347,28 +375,15 @@ export default function App() {
   // No input for idleSleepMinutes → dim the app, freeze animations, and gate
   // every poll (usePolling checks body[data-sleeping]). PTYs and agents keep
   // running untouched — sleep is a renderer/GPU/battery measure, never a
-  // process one. Any key, click, or mouse move wakes it.
-  const lastActivityRef = useRef(Date.now())
+  // process one. Any key, click, or mouse move wakes it. (Activity itself is
+  // tracked by the shared clock above.)
   useEffect(() => {
     const mins = Number(settings.idleSleepMinutes ?? 10)
     if (!mins) return
-    const bump = () => { lastActivityRef.current = Date.now() }
-    let lastMove = 0
-    const onMove = () => { const now = Date.now(); if (now - lastMove > 1000) { lastMove = now; bump() } }
-    window.addEventListener('keydown', bump, { passive: true, capture: true })
-    window.addEventListener('pointerdown', bump, { passive: true, capture: true })
-    window.addEventListener('wheel', bump, { passive: true, capture: true })
-    window.addEventListener('pointermove', onMove, { passive: true, capture: true })
     const timer = setInterval(() => {
       if (Date.now() - lastActivityRef.current >= mins * 60000) setSleeping(true)
     }, 15000)
-    return () => {
-      window.removeEventListener('keydown', bump, { capture: true })
-      window.removeEventListener('pointerdown', bump, { capture: true })
-      window.removeEventListener('wheel', bump, { capture: true })
-      window.removeEventListener('pointermove', onMove, { capture: true })
-      clearInterval(timer)
-    }
+    return () => clearInterval(timer)
   }, [settings.idleSleepMinutes])
 
   useEffect(() => {
@@ -886,8 +901,12 @@ export default function App() {
       .filter(Boolean)
     if (!normalized.length) return
     // Cap the swarm — an AI-misread count must not spawn an unbounded grid.
+    // The working cap is the plan's grid size (Free 4 → Max 25), bounded by
+    // the absolute MAX_SESSIONS ceiling — so the session count a tier sells
+    // is the session count a launch can actually reach, no more.
+    const tierCap = Math.min(MAX_SESSIONS, entitlements.limit('gridCap') || 4)
     const liveCount = tabsRef.current.filter(t => t.status !== 'exited').length
-    const room = Math.max(0, MAX_SESSIONS - liveCount)
+    const room = Math.max(0, tierCap - liveCount)
     let budget = room
     agents = normalized
       .map(a => {
@@ -956,7 +975,7 @@ export default function App() {
     }
     setShowLauncher(false)
     // Seducia stays open so you can keep orchestrating after a launch.
-  }, [openTab, profiles])
+  }, [openTab, profiles, entitlements.limit])
 
   // Settings "Add account" / "Sign in" hands off here: open a session running
   // the CLI's own login so its browser OAuth (Google where supported) starts.
@@ -1733,11 +1752,12 @@ export default function App() {
               // placeholders (the lazy-boot CPU guard extends into the grid).
               (() => {
                 // Grid auto-sizes to the session count: a near-square layout
-                // (2 sessions → 1×2, 3-4 → 2×2, 5-9 → 3×3, 10-16 → 4×4). The live
-                // tile count is capped by the plan tier (Free 4 / Plus 9 / Pro 16)
-                // — also the lazy-boot CPU guard, honest about it via the
-                // "showing X of N" note below — so a weak machine isn't asked to
-                // paint a wall of WebGL terminals at once.
+                // (2 sessions → 1×2, 3-4 → 2×2, 5-9 → 3×3, and so on). The live
+                // tile count is capped by the plan tier's gridCap (Free 4 /
+                // Plus 9 / Pro 12 / Ultra 20 / Max 25) — also the lazy-boot CPU
+                // guard, honest about it via the "showing X of N" note below —
+                // so a weak machine isn't asked to paint a wall of WebGL
+                // terminals at once.
                 // Split (Ctrl+\) is a constrained grid of two: the active
                 // session plus its pinned partner, reusing the same keyed
                 // wrappers so neither terminal remounts.

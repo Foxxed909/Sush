@@ -101,11 +101,11 @@ function buildBootLines(shellLabel, cwd) {
 }
 
 function sendStaggeredBanner(win, tabId, shellLabel, cwd) {
-  if (!win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: WELCOME_ART + '\r\n' })
+  if (win && !win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: WELCOME_ART + '\r\n' })
   const lines = buildBootLines(shellLabel, cwd)
   lines.forEach((line, i) => {
     setTimeout(() => {
-      if (!win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: line + '\r\n' })
+      if (win && !win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: line + '\r\n' })
     }, 60 + i * 55)
   })
 }
@@ -731,7 +731,7 @@ function parseCwdFromOsc7(data) {
 }
 
 function sendPtyState(win, session) {
-  if (win.isDestroyed()) return
+  if (!win || win.isDestroyed()) return
   win.webContents.send('sush:pty-state', {
     tabId: session.tabId,
     label: session.label,
@@ -763,7 +763,11 @@ function writeShellCommands(proc, commands) {
   }
 }
 
-function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand } = {}) {
+// Deliberately reads the module-level `mainWin` (not a captured window ref):
+// on macOS the window can be closed and recreated from the dock while PTYs
+// keep running, and callbacks bound to the old window would silently drop
+// every byte of output for surviving sessions.
+function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand } = {}) {
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
@@ -784,13 +788,13 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
 
   const requestedShell = getDefaultShell(shellId)
   const shellCwd = resolveStartCwd(cwd ?? sushrc.settings.cwd)
-  sendStaggeredBanner(win, tabId, requestedShell.label, shellCwd)
+  sendStaggeredBanner(mainWin, tabId, requestedShell.label, shellCwd)
 
   // Replay persisted scrollback for this workspace, if any.
   if (persistScrollback && scrollback) {
     const restored = scrollback.restoreFor(restoreKey)
-    if (restored && !win.isDestroyed()) {
-      win.webContents.send('sush:pty-data', { tabId, data: buildRestoreBanner(restored) })
+    if (restored && mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('sush:pty-data', { tabId, data: buildRestoreBanner(restored) })
     }
   }
 
@@ -836,7 +840,7 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
   ctx.aliases = { ...sushrc.alias }   // .sushrc aliases feed the smart-command bar
   contexts.set(tabId, ctx)
   if (persistScrollback && scrollback) scrollback.attach(tabId, restoreKey)
-  sendPtyState(win, session)
+  sendPtyState(mainWin, session)
 
   // Run .sushrc [startup] commands once the shell is ready.
   const startupCmds = (sushrc.startup || []).filter(Boolean)
@@ -857,18 +861,18 @@ function startPtySession(win, { tabId, cols, rows, cwd, shellId, profileId, rest
       session.cwd = nextCwd
       session.label = nextCwd.split(/[\\/]/).filter(Boolean).pop() || session.label
       contexts.get(tabId)?.setCwd(nextCwd)
-      sendPtyState(win, session)
+      sendPtyState(mainWin, session)
     }
-    if (!win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data })
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:pty-data', { tabId, data })
   })
 
   proc.onExit(({ exitCode, signal }) => {
     session.status = 'exited'
     session.lastActiveAt = Date.now()
     if (session.persistScrollback && scrollback) scrollback.persist(tabId)
-    sendPtyState(win, session)
+    sendPtyState(mainWin, session)
     ptySessions.delete(tabId)
-    if (!win.isDestroyed()) win.webContents.send('sush:pty-exit', { tabId, exitCode, signal })
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:pty-exit', { tabId, exitCode, signal })
   })
 
   return {
@@ -960,6 +964,10 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
 
   const ac = new AbortController()
   abortControllers.set(tabId, ac)
+  // Hand the cancel signal to the command via its context — before this,
+  // the controller existed but nothing ever observed it, so built-ins were
+  // uncancelable no matter what the renderer asked for.
+  ctx.signal = ac.signal
   try {
     ctx.pushHistory(trimmed)
     const beforeCwd = ctx.cwd
@@ -978,8 +986,12 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
       handled: true
     }
   } catch (err) {
+    if (ac.signal.aborted || err?.name === 'AbortError' || err?.code === 'ABORT_ERR') {
+      return { output: '\x1b[33m^C\x1b[0m', type: 'cancelled', handled: true, cwd: ctx.cwd }
+    }
     return { output: `\x1b[31mError: ${err.message}\x1b[0m`, type: 'error', handled: true, cwd: ctx.cwd }
   } finally {
+    ctx.signal = null
     abortControllers.delete(tabId)
   }
 }
@@ -1054,7 +1066,7 @@ export function registerIpcHandlers(win) {
   if (process.platform === 'win32') ensurePowerShellBootstrap()
 
   ipcMain.handle('sush:pty-start', (event, payload) => {
-    return startPtySession(mainWin, payload)
+    return startPtySession(payload)
   })
 
   ipcMain.on('sush:pty-input', (event, { tabId, data }) => {
@@ -1121,12 +1133,15 @@ export function registerIpcHandlers(win) {
   })
 
   ipcMain.handle('sush:cancel-command', (event, { tabId }) => {
-    const session = ptySessions.get(tabId)
-    if (session) {
-      session.proc.write('\x03')
+    // A registered command can be in flight even while a PTY exists for the
+    // tab (smart-bar built-ins) — abort it first; the old order wrote ^C to
+    // the PTY and left the built-in running to its timeout.
+    const ac = abortControllers.get(tabId)
+    if (ac) {
+      ac.abort()
       return
     }
-    abortControllers.get(tabId)?.abort()
+    ptySessions.get(tabId)?.proc.write('\x03')
   })
 
   ipcMain.handle('sush:get-cwd', (event, { tabId }) => {
@@ -1226,7 +1241,14 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:oauth-github-cancel', () => cancelGitHubFlow())
   ipcMain.handle('sush:oauth-google-start', (event, payload) => startGoogleFlow(payload ?? {}))
   ipcMain.handle('sush:oauth-google-cancel', () => cancelGoogleFlow())
-  ipcMain.handle('sush:connect-start', (event, payload) => startConnectFlow(payload ?? {}))
+  ipcMain.handle('sush:connect-start', (event, payload) => {
+    // Provider Connect is a paid gate (Plus+). Enforced here — start is the
+    // only entry point; finish/cancel require a flow this call created.
+    if (!can('providerConnect')) {
+      return { ok: false, error: 'Connecting provider accounts is a Plus feature. Redeem a code in Settings ▸ Plan.', locked: true }
+    }
+    return startConnectFlow(payload ?? {})
+  })
   ipcMain.handle('sush:connect-finish', (event, payload) => finishConnectFlow(payload ?? {}))
   ipcMain.handle('sush:connect-cancel', () => cancelConnectFlow())
   ipcMain.handle('sush:connect-status', () => connectStatus())

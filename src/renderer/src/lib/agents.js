@@ -88,8 +88,10 @@ export const LOGIN_COMMANDS = {
   opencode: { command: 'opencode auth login', label: 'OpenCode sign-in' }
 }
 
-// Mirrors BridgeSpace: spin up one agent or a whole swarm, capped so the
-// terminal grid stays manageable.
-export const MAX_SESSIONS = 16
+// Hard ceiling on concurrent sessions — must be at least the largest tier's
+// gridCap (Max sells 25 grid sessions; a 16 ceiling silently broke that
+// promise). The per-tier cap is enforced where sessions are created
+// (launchSessions consults the license); this is only the absolute bound.
+export const MAX_SESSIONS = 25
 
 export const agentById = (id) => allAgents().find(a => a.id === id) || null

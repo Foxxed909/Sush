@@ -240,14 +240,17 @@ export function nextAccount(userId, provider) {
   return { ok: true, slotId: next.id, label: next.label }
 }
 
-// What a limit-hit COULD rotate to, without changing anything.
+// What a limit-hit COULD rotate to, without changing anything. Must use the
+// same rested-longest rule as nextAccount — this used to be round-robin, so
+// the 'ask' path could offer the user account B while 'auto' (and an accepted
+// switch) actually landed on account C.
 export function peekNextAccount(userId, provider) {
   if (!userId || !SLOT_PROVIDERS[provider]) return null
   const data = load(userId)
   const st = data.providers?.[provider]
   if (!st || !Array.isArray(st.slots) || st.slots.length < 2) return null
-  const idx = st.slots.findIndex(s => s.id === st.active)
-  const next = st.slots[(idx + 1) % st.slots.length]
+  const others = st.slots.filter(s => s.id !== st.active)
+  const next = [...others].sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
   return next ? { id: next.id, label: next.label } : null
 }
 

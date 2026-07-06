@@ -14,7 +14,10 @@ import { DictationRecorder, dictationSupported, formatCredits } from '../lib/dic
 // backend → `network` error). Capture is MediaRecorder; main does transcription
 // and meters it against the local Quiet Credits bucket.
 
-const MAX_CLIP_MS = 30000   // safety cap: a forgotten-open mic never burns credits
+// Safety cap: a forgotten-open mic stops at 30s and transcribes what it has
+// (spending at most 30s of credits) instead of recording — and billing —
+// indefinitely. It does NOT discard the clip; Esc is the no-cost cancel.
+const MAX_CLIP_MS = 30000
 
 export default function Hush({ accent, enabled = true, autoSend = true, onInsert }) {
   const [state, setState] = useState('idle')   // idle | listening | transcribing | flash | error

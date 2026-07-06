@@ -11,6 +11,7 @@ import { usePolling } from './usePolling'
 export function useUsageGuard({ enabled, thresholdPct, mode, tabsRef, onHandoff }) {
   const [trip, setTrip] = useState(null)          // { pct } while tripped
   const handledRef = useRef(new Set())            // sessions handed off this trip
+  const dismissedRef = useRef(false)              // user dismissed this trip; holds until stand-down
   const modeRef = useRef(mode)
   modeRef.current = mode
   const onHandoffRef = useRef(onHandoff)
@@ -22,11 +23,20 @@ export function useUsageGuard({ enabled, thresholdPct, mode, tabsRef, onHandoff 
       const lim = r?.limits
       const pct = Math.max(lim?.sessionPct ?? -1, lim?.weekPct ?? -1)
       if (pct < 0) return
+      // Hysteresis: only stand down once clearly below the line, so a value
+      // hovering at the threshold doesn't flap the guard on and off. The
+      // stand-down also re-arms a dismissed guard — "dismiss" holds for the
+      // whole trip, not just until the next 45s poll.
+      if (pct < thresholdPct - 5) {
+        handledRef.current.clear()
+        dismissedRef.current = false
+      }
       setTrip(prev => {
-        if (pct >= thresholdPct) return prev ? { ...prev, pct } : { pct }
-        // Hysteresis: only stand down once clearly below the line, so a value
-        // hovering at the threshold doesn't flap the guard on and off.
-        if (prev && pct < thresholdPct - 5) { handledRef.current.clear(); return null }
+        if (pct >= thresholdPct) {
+          if (dismissedRef.current) return prev   // dismissed: stay quiet this trip
+          return prev ? { ...prev, pct } : { pct }
+        }
+        if (prev && pct < thresholdPct - 5) return null
         return prev
       })
     } catch {}
@@ -34,7 +44,7 @@ export function useUsageGuard({ enabled, thresholdPct, mode, tabsRef, onHandoff 
   usePolling(poll, 45000, enabled)
 
   useEffect(() => {
-    if (!enabled) { setTrip(null); handledRef.current.clear() }
+    if (!enabled) { setTrip(null); handledRef.current.clear(); dismissedRef.current = false }
   }, [enabled])
 
   // Trip actions: one notification per trip; hands-free mode hands off each
@@ -52,5 +62,11 @@ export function useUsageGuard({ enabled, thresholdPct, mode, tabsRef, onHandoff 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!trip])
 
-  return { trip, dismiss: useCallback(() => setTrip(null), []), blocked: !!trip && mode === 'block' }
+  return {
+    trip,
+    // Dismissing marks the whole trip as handled, so the pill/notification
+    // can't come back 45 seconds later while utilization is still high.
+    dismiss: useCallback(() => { dismissedRef.current = true; setTrip(null) }, []),
+    blocked: !!trip && mode === 'block'
+  }
 }

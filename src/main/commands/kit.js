@@ -1,7 +1,7 @@
 // Developer text/net toolkit: small, dependency-free commands that answer the
 // "I just need to..." moments without leaving the terminal.
 import { promises as dns } from 'dns'
-import { ok, err, ansi } from './_helpers'
+import { ok, err, ansi, cancelled, runSignal, wasCancelled } from './_helpers'
 
 // ---------- case ----------
 const CASES = ['upper', 'lower', 'title', 'camel', 'snake', 'kebab', 'constant']
@@ -160,14 +160,14 @@ export const headers = {
   name: 'headers',
   description: 'Show the HTTP response headers of a URL (HEAD request)',
   usage: 'headers <url>',
-  async run([url]) {
+  async run([url], ctx) {
     if (!url) return err('headers: missing URL')
     const target = /^https?:\/\//i.test(url) ? url : `https://${url}`
     try {
-      let res = await global.fetch(target, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Sush/1.0' } })
+      let res = await global.fetch(target, { method: 'HEAD', redirect: 'manual', signal: runSignal(ctx, 10000), headers: { 'User-Agent': 'Sush/1.0' } })
       // Some servers reject HEAD — retry with GET but discard the body.
       if (res.status === 405 || res.status === 501) {
-        res = await global.fetch(target, { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'Sush/1.0' } })
+        res = await global.fetch(target, { method: 'GET', redirect: 'manual', signal: runSignal(ctx, 10000), headers: { 'User-Agent': 'Sush/1.0' } })
         try { res.body?.cancel?.() } catch {}
       }
       const rows = [...res.headers.entries()].map(([k, v]) => `  ${ansi.cyan(k.padEnd(28))} ${v.length > 120 ? v.slice(0, 120) + '…' : v}`)
@@ -177,6 +177,7 @@ export const headers = {
         ...rows
       ].join('\r\n'))
     } catch (e) {
+      if (wasCancelled(e, ctx)) return cancelled()
       return err(`headers: ${e.message}`)
     }
   }

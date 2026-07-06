@@ -343,7 +343,12 @@ export function useTerminal({
       fitAddonRef.current = null
       searchAddonRef.current = null
     }
-  }, [containerRef, profile?.id, profile?.shell, resizePty, tabId, transparentBg])
+    // transparentBg / powerSaver are deliberately NOT deps: they only pick the
+    // initial renderer, and the effect below swaps WebGL in/out at runtime.
+    // Listing transparentBg here disposed and recreated the whole xterm on a
+    // wallpaper/eco toggle, wiping every terminal's visible buffer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerRef, profile?.id, profile?.shell, resizePty, tabId])
 
   useEffect(() => {
     if (transparentBg || powerSaver) {
