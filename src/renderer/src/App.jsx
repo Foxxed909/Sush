@@ -33,7 +33,7 @@ import { useAgentActivity } from './hooks/useAgentActivity'
 import { useEntitlements } from './hooks/useEntitlements'
 import { useBattery } from './hooks/useBattery'
 import { useOnline } from './hooks/useOnline'
-import { STATES } from './lib/agentActivity'
+import { STATES, stripAnsi } from './lib/agentActivity'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { useSplitView } from './hooks/useSplitView'
 import { useUsageGuard } from './hooks/useUsageGuard'
@@ -122,9 +122,6 @@ function matchesWorkspace(tab, cwd, options = {}) {
   return true
 }
 
-function stripAnsi(value) {
-  return String(value ?? '').replace(/\x1b\[[0-9;]*m/g, '')
-}
 
 function makeTab(profile, options = {}) {
   const cwd = options.cwd ?? null
@@ -660,6 +657,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', onEsc)
   }, [showMission])
 
+  // NOTE: every chord handled below (and in the session-shortcut effect
+  // further down) must be registered in lib/keymap.js — that's the one list
+  // useTerminal consults to keep these keys out of the PTY.
   useEffect(() => {
     const handler = (e) => {
       const ctrl = e.ctrlKey || e.metaKey

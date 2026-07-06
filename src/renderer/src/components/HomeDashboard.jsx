@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
-
-function stripAnsi(value) {
-  return String(value ?? '').replace(/\x1b\[[0-9;]*m/g, '')
-}
+// One stripAnsi for the whole renderer (this file and App used to carry
+// weaker SGR-only copies).
+import { stripAnsi } from '../lib/agentActivity'
 
 function formatTime(value) {
   if (!value) return ''

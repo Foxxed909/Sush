@@ -35,9 +35,11 @@ export function getClaudeLimits() {
   return { ok: true, limits: lastLimits }
 }
 
-// Active probe: start a minimal run, grab the rate_limit_event, kill the
-// child before it does any real work. Costs (at most) a few tokens.
-export function checkClaudeLimits() {
+// One tiny-prompt stream-json probe: spawn `claude -p`, feed it "ping", wait
+// for the first rate_limit_event, kill the child before it does real work.
+// Costs (at most) a few tokens. Both public probes below are this helper with
+// different env + event handling — they used to be two 40-line clones.
+function probeStreamJson({ env, timeoutMsg, onLine, onClose }) {
   const bin = resolveExecutable('claude')
   if (!bin) return Promise.resolve({ ok: false, error: 'The `claude` CLI was not found on your PATH.' })
   const { file, args } = shimSpawnSpec(bin, ['-p', '--output-format', 'stream-json', '--verbose', '--strict-mcp-config'])
@@ -53,15 +55,14 @@ export function checkClaudeLimits() {
       resolve(result)
     }
     try {
-      child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...activeUserEnv() } })
+      child = spawn(file, args, { windowsHide: true, env })
     } catch (e) {
       return resolve({ ok: false, error: e.message })
     }
-    const timer = setTimeout(() => done({ ok: false, error: 'Timed out checking limits (60s).' }), 60000)
+    const timer = setTimeout(() => done({ ok: false, error: timeoutMsg }), 60000)
     child.stdout.on('data', d => {
-      // Consume complete lines, keep the partial tail — the old version split
-      // the whole accumulated buffer every chunk, re-parsing (and re-sending)
-      // every earlier event each time data arrived.
+      // Consume complete lines, keep the partial tail — splitting the whole
+      // accumulated buffer every chunk re-parsed every earlier event.
       buf += d
       const lines = buf.split('\n')
       buf = lines.pop()
@@ -69,14 +70,27 @@ export function checkClaudeLimits() {
         if (!line.trim()) continue
         try {
           const msg = JSON.parse(line)
-          captureLimits(msg)
-          if (msg.type === 'rate_limit_event') { done({ ok: true, limits: lastLimits }); return }
+          const result = onLine(msg)
+          if (result) { done(result); return }
         } catch {}
       }
     })
     child.on('error', e => done({ ok: false, error: e.message }))
-    child.on('close', () => done(lastLimits ? { ok: true, limits: lastLimits } : { ok: false, error: 'No limit info in the response.' }))
+    child.on('close', () => done(onClose()))
     try { child.stdin.write('ping'); child.stdin.end() } catch (e) { done({ ok: false, error: e.message }) }
+  })
+}
+
+// Active probe for the ACTIVE account; feeds the shared lastLimits snapshot.
+export function checkClaudeLimits() {
+  return probeStreamJson({
+    env: { ...process.env, ...activeUserEnv() },
+    timeoutMsg: 'Timed out checking limits (60s).',
+    onLine: (msg) => {
+      captureLimits(msg)
+      return msg.type === 'rate_limit_event' ? { ok: true, limits: lastLimits } : null
+    },
+    onClose: () => (lastLimits ? { ok: true, limits: lastLimits } : { ok: false, error: 'No limit info in the response.' })
   })
 }
 
@@ -96,48 +110,17 @@ function parseUsageInfo(info) {
 }
 
 // Read a fresh rate-limit snapshot for a SPECIFIC account: the env overlay
-// points the CLI at that slot's config dir. Same one-tiny-prompt trick as
-// checkClaudeLimits, but isolated — it never touches the shared lastLimits, so
-// probing account B can't clobber the panel's live view of account A.
+// points the CLI at that slot's config dir. Isolated — it never touches the
+// shared lastLimits, so probing account B can't clobber the panel's live
+// view of account A.
 export function probeClaudeUsage(envOverlay = {}) {
-  const bin = resolveExecutable('claude')
-  if (!bin) return Promise.resolve({ ok: false, error: 'The `claude` CLI was not found on your PATH.' })
-  const { file, args } = shimSpawnSpec(bin, ['-p', '--output-format', 'stream-json', '--verbose', '--strict-mcp-config'])
-  return new Promise(resolve => {
-    let buf = ''
-    let settled = false
-    let child
-    const done = (result) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      try { child?.kill() } catch {}
-      resolve(result)
-    }
-    try {
-      child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...envOverlay } })
-    } catch (e) {
-      return resolve({ ok: false, error: e.message })
-    }
-    const timer = setTimeout(() => done({ ok: false, error: 'Timed out reading usage (60s).' }), 60000)
-    child.stdout.on('data', d => {
-      buf += d
-      const lines = buf.split('\n')
-      buf = lines.pop()
-      for (const line of lines) {
-        if (!line.trim()) continue
-        try {
-          const msg = JSON.parse(line)
-          if (msg?.type === 'rate_limit_event' && msg.rate_limit_info) {
-            done({ ok: true, usage: parseUsageInfo(msg.rate_limit_info) })
-            return
-          }
-        } catch {}
-      }
-    })
-    child.on('error', e => done({ ok: false, error: e.message }))
-    child.on('close', () => done({ ok: false, error: 'No usage info in the response (is this account signed in?).' }))
-    try { child.stdin.write('ping'); child.stdin.end() } catch (e) { done({ ok: false, error: e.message }) }
+  return probeStreamJson({
+    env: { ...process.env, ...envOverlay },
+    timeoutMsg: 'Timed out reading usage (60s).',
+    onLine: (msg) => (msg?.type === 'rate_limit_event' && msg.rate_limit_info
+      ? { ok: true, usage: parseUsageInfo(msg.rate_limit_info) }
+      : null),
+    onClose: () => ({ ok: false, error: 'No usage info in the response (is this account signed in?).' })
   })
 }
 
