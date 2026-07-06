@@ -1,7 +1,14 @@
 import { app, safeStorage } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'fs'
+import { writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { getCredits, canSpend, consumeCredits } from './credits'
+import { resolveExecutable, shimSpawnSpec } from './exec'
+
+const execFileAsync = promisify(execFile)
 
 // ── Whisper dictation (speech-to-text) ───────────────────────────────────────
 // The renderer's old dictation used the browser Web Speech API, which depends
@@ -14,12 +21,16 @@ import { getCredits, canSpend, consumeCredits } from './credits'
 //     else stored plaintext (the user's own key on their own machine) with a
 //     safeStorage:false flag so the UI can warn.
 //   • The renderer captures mic audio (MediaRecorder) and sends the bytes; main
-//     forwards them to the transcription API and returns text.
+//     forwards them to the transcription engine and returns text.
 //
-// Engine is provider-shaped so a local/offline Whisper can drop in later without
-// touching the renderer or IPC — only this file gains a branch.
-const PROVIDERS = ['openai']
-const DEFAULTS = { openai: { model: 'whisper-1' } }
+// Engine is provider-shaped — and the promised local/offline engine is here:
+// 'local' runs the user's own whisper.cpp binary against a downloaded model.
+// Fully offline, no API key, and it never spends Quiet Credits (those
+// denominate OpenAI's per-minute billing; your own CPU is free). The mic clip
+// arrives as webm/opus, so local mode needs ffmpeg on PATH to convert it to
+// the 16 kHz WAV whisper.cpp reads.
+const PROVIDERS = ['openai', 'local']
+const DEFAULTS = { openai: { model: 'whisper-1' }, local: { model: '' } }
 
 const file = () => join(app.getPath('userData'), 'sush-stt.json')
 
@@ -55,16 +66,21 @@ export function getSttConfigPublic() {
     provider: PROVIDERS.includes(c.provider) ? c.provider : 'openai',
     model: c.model || '',
     hasKey: !!c.key,
+    // Local whisper.cpp settings — plain paths, nothing secret.
+    localBin: c.localBin || '',
+    localModel: c.localModel || '',
     safeStorage: safeStorage.isEncryptionAvailable(),
     defaults: DEFAULTS,
     credits: getCredits()
   }
 }
 
-export function setSttConfig({ provider, model, apiKey } = {}) {
+export function setSttConfig({ provider, model, apiKey, localBin, localModel } = {}) {
   const c = load()
   if (provider !== undefined) c.provider = PROVIDERS.includes(provider) ? provider : 'openai'
   if (model !== undefined) c.model = String(model || '').slice(0, 80)
+  if (localBin !== undefined) c.localBin = String(localBin || '').trim().slice(0, 500)
+  if (localModel !== undefined) c.localModel = String(localModel || '').trim().slice(0, 500)
   if (apiKey !== undefined) {
     const key = String(apiKey || '')
     if (!key) { c.key = ''; c.keyEnc = false }
@@ -77,26 +93,30 @@ export function setSttConfig({ provider, model, apiKey } = {}) {
 
 // Transcribe a captured clip. `audio` is base64, `mime` its container type,
 // `seconds` the recorded duration (the renderer knows it — Whisper's response
-// doesn't reliably include it). Spends Quiet Credits on success.
+// doesn't reliably include it). The OpenAI path spends Quiet Credits on
+// success; the local path is free by design.
 export async function transcribe({ audio, mime, seconds, language } = {}) {
   const c = load()
   const provider = PROVIDERS.includes(c.provider) ? c.provider : 'openai'
   const dur = Math.max(0, Number(seconds) || 0)
-
-  if (!canSpend(dur)) {
-    const credits = getCredits()
-    return { ok: false, error: 'out-of-credits', credits }
-  }
-  const key = decryptKey()
-  if (!key) return { ok: false, error: 'no-key' }
   if (!audio) return { ok: false, error: 'No audio captured.' }
 
   try {
     const bytes = Buffer.from(String(audio), 'base64')
     if (!bytes.length) return { ok: false, error: 'Empty audio clip.' }
-    const text = provider === 'openai'
-      ? await openaiTranscribe(bytes, mime, key, c, language)
-      : null
+
+    if (provider === 'local') {
+      const r = await localTranscribe(bytes, mime, c, language)
+      if (!r.ok) return r
+      return { ok: true, text: r.text, credits: getCredits() }
+    }
+
+    if (!canSpend(dur)) {
+      return { ok: false, error: 'out-of-credits', credits: getCredits() }
+    }
+    const key = decryptKey()
+    if (!key) return { ok: false, error: 'no-key' }
+    const text = await openaiTranscribe(bytes, mime, key, c, language)
     if (text == null) return { ok: false, error: 'Transcription provider unavailable.' }
     // Charge the meter for the audio we actually sent (min 1s so a real clip
     // always costs something), then hand back the fresh balance.
@@ -127,6 +147,54 @@ async function openaiTranscribe(bytes, mime, key, c, language) {
   }
   const data = await res.json().catch(() => ({}))
   return data?.text ?? ''
+}
+
+// ── Local whisper.cpp ────────────────────────────────────────────────────────
+// clip.webm → (ffmpeg) → 16 kHz mono WAV → whisper.cpp → text on stdout.
+// Everything happens in a throwaway temp dir; nothing leaves the machine.
+function resolveWhisperBin(c) {
+  if (c.localBin) return existsSync(c.localBin) ? c.localBin : null
+  // Common whisper.cpp binary names, newest first.
+  for (const name of ['whisper-cli', 'whisper-cpp', 'whisper']) {
+    const hit = resolveExecutable(name)
+    if (hit) return hit
+  }
+  return null
+}
+
+async function localTranscribe(bytes, mime, c, language) {
+  const bin = resolveWhisperBin(c)
+  if (!bin) {
+    return { ok: false, error: c.localBin ? `whisper.cpp binary not found at "${c.localBin}".` : 'whisper.cpp not found — install it (binary `whisper-cli`) or set its path in Settings ▸ Voice & Dictation.' }
+  }
+  if (!c.localModel || !existsSync(c.localModel)) {
+    return { ok: false, error: 'Set the whisper.cpp model path (a downloaded .bin/.gguf, e.g. ggml-base.en.bin) in Settings ▸ Voice & Dictation.' }
+  }
+  const ffmpeg = resolveExecutable('ffmpeg')
+  if (!ffmpeg) {
+    return { ok: false, error: 'ffmpeg not found on PATH — local dictation needs it to convert mic audio to WAV.' }
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'sush-stt-'))
+  const ext = mime && mime.includes('mp4') ? 'mp4' : mime && mime.includes('ogg') ? 'ogg' : 'webm'
+  const clip = join(dir, `clip.${ext}`)
+  const wav = join(dir, 'clip.wav')
+  try {
+    await writeFile(clip, bytes)
+    const ff = shimSpawnSpec(ffmpeg, ['-y', '-i', clip, '-ar', '16000', '-ac', '1', '-f', 'wav', wav])
+    await execFileAsync(ff.file, ff.args, { windowsHide: true, timeout: 30000 })
+
+    const args = ['-m', c.localModel, '-f', wav, '-nt', '-np']
+    if (language) args.push('-l', String(language).slice(0, 8))
+    const wh = shimSpawnSpec(bin, args)
+    const { stdout } = await execFileAsync(wh.file, wh.args, { windowsHide: true, timeout: 120000, maxBuffer: 4 * 1024 * 1024 })
+    return { ok: true, text: String(stdout || '').trim() }
+  } catch (e) {
+    const detail = (e?.stderr || e?.message || '').toString().slice(0, 200)
+    return { ok: false, error: `Local transcription failed: ${detail}` }
+  } finally {
+    try { rmSync(dir, { recursive: true, force: true }) } catch {}
+  }
 }
 
 async function safeText(res) { try { return await res.text() } catch { return '' } }

@@ -35,6 +35,12 @@ and Max, the Usage Guard can do this hands-free.
   `headers`, `title`, `jwt`, `color`, `base`
 - Apple-style pricing page, smoother animations, and a reduce-motion toggle
 
+### 🎧 Offline dictation (local whisper.cpp)
+Dictation can now run **entirely on your machine**: point Sush at a
+whisper.cpp binary and a downloaded model in Settings ▸ Voice & Dictation and
+Hush transcribes with **no API key, no network, and no Quiet Credits spent**.
+The cloud (OpenAI) engine stays available for the best accuracy.
+
 ### 🔗 Connect provider accounts (Plus and up)
 Sign in to **Claude, ChatGPT, or Google** once from Settings ▸ Accounts and
 Sush keeps the connection — encrypted on your machine, main-process only,

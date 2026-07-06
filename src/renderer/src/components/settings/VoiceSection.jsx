@@ -87,6 +87,49 @@ function DictationBlock({ accent, settings, set }) {
           </Row>
 
           <Row>
+            <Label>Transcription engine</Label>
+            <Segment
+              accent={accent}
+              value={stt?.provider || 'openai'}
+              options={[['openai', 'OpenAI cloud'], ['local', 'Local whisper.cpp']]}
+              onChange={(v) => saveCfg({ provider: v })}
+              disabled={busy}
+            />
+            <Hint>
+              {(stt?.provider || 'openai') === 'local'
+                ? 'Runs whisper.cpp on this machine — fully offline, no key, and it never spends Quiet Credits. Needs ffmpeg on PATH to convert mic audio.'
+                : 'Whisper via your own OpenAI key. Metered by Quiet Credits (below).'}
+            </Hint>
+          </Row>
+
+          {stt?.provider === 'local' && (
+            <>
+              <Row>
+                <Label>whisper.cpp binary</Label>
+                <input
+                  className="sush-mono"
+                  defaultValue={stt?.localBin || ''}
+                  onBlur={e => saveCfg({ localBin: e.target.value })}
+                  placeholder="Auto-detect (whisper-cli on PATH) — or paste a full path"
+                  style={inputStyle}
+                />
+              </Row>
+              <Row>
+                <Label>Model file (.bin / .gguf)</Label>
+                <input
+                  className="sush-mono"
+                  defaultValue={stt?.localModel || ''}
+                  onBlur={e => saveCfg({ localModel: e.target.value })}
+                  placeholder="e.g. ~/models/ggml-base.en.bin"
+                  style={inputStyle}
+                />
+                <Hint>Download a ggml model from the whisper.cpp releases (base.en is a good start: fast and ~140 MB). Nothing ever leaves this machine.</Hint>
+              </Row>
+            </>
+          )}
+
+          {stt?.provider !== 'local' && (
+          <Row>
             <Label>Whisper API key (OpenAI)</Label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input
@@ -107,7 +150,9 @@ function DictationBlock({ accent, settings, set }) {
             )}
             <Hint>Get a key at platform.openai.com. The key stays on this machine and never leaves the main process — Sush only sends your audio to OpenAI to transcribe it.</Hint>
           </Row>
+          )}
 
+          {stt?.provider !== 'local' && (
           <Row>
             <Label>Model</Label>
             <select value={stt?.model || ''} onChange={e => saveCfg({ model: e.target.value })} style={inputStyle}>
@@ -115,8 +160,9 @@ function DictationBlock({ accent, settings, set }) {
               {STT_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </Row>
+          )}
 
-          {credits && (
+          {stt?.provider !== 'local' && credits && (
             <Row>
               <Label>Quiet Credits · {stt.credits.tier} plan</Label>
               <div style={{ height: 8, borderRadius: 5, background: 'var(--surface-2)', border: '1px solid var(--border-2)', overflow: 'hidden' }}>

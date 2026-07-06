@@ -20,6 +20,18 @@
   (`buildHandoffCard` + `performHandoff{openNew, agentId}`); the only new
   parts are fallback-CLI probing and the `cliComplete` summary via the
   fallback engine (the limited CLI can't summarize itself).
+- **Local whisper.cpp landed behind the STT provider switch** exactly as the
+  original design promised: only stt.js gained a branch ('local' provider —
+  webm → ffmpeg → 16 kHz WAV → whisper-cli stdout, throwaway temp dir).
+  Deliberately does NOT spend Quiet Credits: they denominate OpenAI's
+  per-minute billing, and the user's own CPU is free. Needs ffmpeg on PATH;
+  binary auto-detected (whisper-cli/whisper-cpp/whisper) or set explicitly.
+- **Debloat cycle**: RightPanel's 13 tab bodies moved to components/panel/
+  (shell keeps strip + routing); one probeStreamJson helper replaced the two
+  40-line Claude probe clones; lib/keymap.js is now THE chord registry for
+  App handlers + useTerminal's PTY filter (two hand-copied tables had
+  drifted twice: dead Ctrl+Shift+H block, Ctrl+Shift+E leaking ^E into
+  terminals); renderer standardizes on agentActivity's full stripAnsi.
 - **Provider Connect graduated (2026-07)**: out of Settings ▸ Experiments,
   into Settings ▸ Accounts as a Plus+ gate (`providerConnect`). Enforced at
   the `connect-start` IPC handler (the only flow entry point); the renderer
