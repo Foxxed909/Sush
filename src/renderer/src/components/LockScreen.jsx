@@ -55,24 +55,83 @@ function Avatar({ user, size = 64, ring = true, dim = false }) {
   )
 }
 
-function PinDots({ length, max = 8, error }) {
+// The dots ARE the PIN display — the actual input is visually hidden behind
+// them (the old screen showed dots AND a password field: two representations
+// of the same four digits). `phase` drives the feel: each typed digit pops,
+// busy pulses the filled dots in a wave, error fills them red and shakes the
+// row (while they're still filled — the old code emptied first, so you
+// watched empty circles wiggle), success flashes them accent.
+function PinDots({ length, max = 8, phase, accent }) {
   const count = Math.max(4, Math.min(max, Math.max(length, 4)))
+  const fillColor = phase === 'error' ? '#ff5370' : phase === 'success' ? (accent || 'var(--text-1)') : 'var(--text-1)'
   return (
-    <div className={error ? 'sush-lock-shake' : undefined} style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+    <div className="sush-pin-row" data-phase={phase} style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
       {Array.from({ length: count }, (_, i) => (
         <span
           key={i}
+          className="sush-pin-dot"
+          data-filled={i < length}
           style={{
+            '--i': i,
             width: 11,
             height: 11,
             borderRadius: '50%',
-            background: i < length ? (error ? '#ff5370' : 'var(--text-1)') : 'rgba(255,255,255,0.14)',
+            background: i < length ? fillColor : 'rgba(255,255,255,0.14)',
             border: `1px solid ${i < length ? 'transparent' : 'rgba(255,255,255,0.22)'}`,
-            transition: 'background .12s ease'
+            boxShadow: phase === 'success' && i < length ? `0 0 10px ${rgba(accent || '#ff6b9d', 0.7)}` : 'none'
           }}
         />
       ))}
     </div>
+  )
+}
+
+// One PIN form shared by the `locked` and `pick` modes (they used to carry
+// two hand-copied variants). The input is offscreen-invisible; clicking the
+// dots refocuses it, and everything the user sees comes from the dots row.
+function PinForm({ pin, setPin, phase, error, accent, inputRef, onSubmit, onTouch, busy }) {
+  // The input is invisible, so focus is everything: grab it on mount, and
+  // take it back whenever it drifts to a non-interactive spot (clicking the
+  // avatar tile used to strand the keyboard with no visual cue).
+  useEffect(() => {
+    inputRef.current?.focus()
+    const reclaim = () => {
+      setTimeout(() => {
+        const el = document.activeElement
+        if (!el || el === document.body || el.tagName === 'DIV') inputRef.current?.focus()
+      }, 0)
+    }
+    window.addEventListener('pointerup', reclaim)
+    return () => window.removeEventListener('pointerup', reclaim)
+  }, [inputRef])
+  return (
+    <form
+      onSubmit={onSubmit}
+      onClick={() => inputRef.current?.focus()}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginTop: 4, width: '100%', cursor: 'text' }}
+    >
+      <PinDots length={pin.length} phase={phase} accent={accent} />
+      <input
+        ref={inputRef}
+        value={pin}
+        onChange={e => {
+          if (busy || phase === 'success') return
+          onTouch?.()
+          setPin(e.target.value.replace(/\D/g, '').slice(0, 8))
+        }}
+        onKeyDown={e => { if (e.key === 'Enter') onSubmit(e) }}
+        type="password"
+        inputMode="numeric"
+        autoComplete="off"
+        aria-label="PIN"
+        // Visually hidden, still focusable: the dots are the display.
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+      />
+      <button type="submit" disabled={pin.length < 4 || busy} style={unlockBtn(accent, pin.length < 4 || busy)}>
+        {busy ? 'Unlocking…' : 'Unlock'}
+      </button>
+      {error && !busy && <div className="sush-fade-up" style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700 }}>{error}</div>}
+    </form>
   )
 }
 
@@ -126,6 +185,8 @@ export default function LockScreen({
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // 'idle' | 'busy' | 'error' | 'success' — drives the PIN dots + card exit.
+  const [phase, setPhase] = useState('idle')
   const [form, setForm] = useState({ name: '', color: USER_COLORS[0], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' })
   const [showAdvanced, setShowAdvanced] = useState(false)
   const pinInputRef = useRef(null)
@@ -162,11 +223,24 @@ export default function LockScreen({
     if (busy || !user) return
     setBusy(true)
     setError('')
-    const res = await onUnlock(user, pinValue)
+    setPhase('busy')
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+    const res = await onUnlock(user, pinValue, {
+      // Success beat: dots flash accent + the card eases out BEFORE the
+      // screen dismisses/reloads — the old flow hard-unmounted next frame.
+      beforeDismiss: () => new Promise(resolve => {
+        setPhase('success')
+        setTimeout(resolve, reduceMotion ? 0 : 300)
+      })
+    })
     if (!res?.ok) {
+      // Wrong PIN: keep the dots FILLED and red while the row shakes, then
+      // drain. The error text stays until the next keystroke.
       setError(res?.error || 'Sign-in failed')
-      setPin('')
-      setTimeout(() => setError(''), 900)
+      setPhase('error')
+      setTimeout(() => { setPin(''); setPhase('idle') }, 430)
+      setBusy(false)
+      return
     }
     setBusy(false)
   }
@@ -175,7 +249,11 @@ export default function LockScreen({
     setSelected(user)
     setPin('')
     setError('')
-    if (!user.hasPin) attemptUnlock(user, '')
+    setPhase('idle')
+    if (!user.hasPin) { attemptUnlock(user, ''); return }
+    // The click landed on the avatar button — hand focus to the (invisible)
+    // PIN input so typing works immediately.
+    setTimeout(() => pinInputRef.current?.focus(), 120)
   }
 
   const submitPin = (e) => {
@@ -186,7 +264,7 @@ export default function LockScreen({
   // Auto-submit on the last digit: the stored PIN length is known, so typing
   // the final digit signs you in without reaching for Enter.
   useEffect(() => {
-    if (!needsPin || busy) return
+    if (!needsPin || busy || phase === 'error' || phase === 'success') return
     const want = selected?.pinLength
     if (want && pin.length === want) attemptUnlock(selected, pin)
   }, [pin]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -274,7 +352,7 @@ export default function LockScreen({
         ))}
       </div>
 
-      <div className="sush-lock-card" style={{ position: 'relative', zIndex: 1, WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 440px)' }}>
+      <div className={`sush-lock-card${phase === 'success' ? ' sush-lock-exit' : ''}`} style={{ position: 'relative', zIndex: 1, WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 440px)' }}>
         {/* Clock header — shared by every mode. The clock is the hero moment:
             heavy figures, a thin AM/PM, the colon in accent with a CSS pulse. */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -296,6 +374,9 @@ export default function LockScreen({
             <span style={{ color: 'var(--text-2)', fontWeight: 800, fontSize: 11.5, letterSpacing: 3 }}>SUSH</span>
           </div>
 
+          {/* keyed on mode so pick → PIN → create cross-fade instead of
+              hard-swapping content inside the glass card */}
+          <div key={mode} className="sush-lock-modeswap">
           {mode === 'create' ? (
             /* ── Create user ──────────────────────────────────────────────── */
             <form onSubmit={submitCreate}>
@@ -461,25 +542,19 @@ export default function LockScreen({
               </div>
 
               {needsPin ? (
-                <form onSubmit={submitPin} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginTop: 22, width: '100%' }}>
-                  <PinDots length={pin.length} error={!!error} />
-                  <input
-                    ref={pinInputRef}
-                    value={pin}
-                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    onKeyDown={e => { if (e.key === 'Enter') submitPin(e) }}
-                    type="password"
-                    inputMode="numeric"
-                    placeholder="PIN"
-                    aria-label="PIN"
-                    className="sush-lock-input"
-                    style={{ width: 190, textAlign: 'center', letterSpacing: 6 }}
+                <div style={{ marginTop: 18, width: '100%' }}>
+                  <PinForm
+                    pin={pin}
+                    setPin={setPin}
+                    phase={phase}
+                    error={error}
+                    accent={accent}
+                    inputRef={pinInputRef}
+                    onSubmit={submitPin}
+                    onTouch={() => { if (error) setError('') }}
+                    busy={busy}
                   />
-                  <button type="submit" disabled={pin.length < 4 || busy} style={unlockBtn(accent, pin.length < 4 || busy)}>
-                    {busy ? 'Unlocking…' : 'Unlock'}
-                  </button>
-                  {error && !busy && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700 }}>{error}</div>}
-                </form>
+                </div>
               ) : (
                 <div style={{ marginTop: 22 }}>
                   <button autoFocus disabled={busy} onClick={() => attemptUnlock(selected, '')} style={unlockBtn(accent, busy)}>
@@ -534,25 +609,19 @@ export default function LockScreen({
               </div>
 
               {needsPin && (
-                <form onSubmit={submitPin} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginBottom: 4 }}>
-                  <PinDots length={pin.length} error={!!error} />
-                  <input
-                    ref={pinInputRef}
-                    value={pin}
-                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    onKeyDown={e => { if (e.key === 'Enter') submitPin(e) }}
-                    type="password"
-                    inputMode="numeric"
-                    placeholder="PIN"
-                    aria-label="PIN"
-                    className="sush-lock-input"
-                    style={{ width: 190, textAlign: 'center', letterSpacing: 6 }}
+                <div style={{ marginBottom: 4 }}>
+                  <PinForm
+                    pin={pin}
+                    setPin={setPin}
+                    phase={phase}
+                    error={error}
+                    accent={accent}
+                    inputRef={pinInputRef}
+                    onSubmit={submitPin}
+                    onTouch={() => { if (error) setError('') }}
+                    busy={busy}
                   />
-                  <button type="submit" disabled={pin.length < 4 || busy} style={unlockBtn(accent, pin.length < 4 || busy)}>
-                    {busy ? 'Unlocking…' : 'Unlock'}
-                  </button>
-                  {error && !busy && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700 }}>{error}</div>}
-                </form>
+                </div>
               )}
 
               {!needsPin && (
@@ -572,6 +641,7 @@ export default function LockScreen({
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
 

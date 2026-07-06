@@ -5,6 +5,7 @@ import { hexToRgb, rgba } from '../src/renderer/src/lib/ui.js'
 import { classify, detectLimit, stripAnsi, summarize } from '../src/renderer/src/lib/agentActivity.js'
 import { parseIntent, runningTargets, agentIdFromToken } from '../src/renderer/src/lib/seducia.js'
 import { formatCredits } from '../src/renderer/src/lib/dictation.js'
+import { perfModeOf, withPerfMode } from '../src/renderer/src/lib/power.js'
 
 describe('ui color helpers', () => {
   it('parses 6-digit hex', () => {
@@ -92,5 +93,28 @@ describe('quiet credits formatting', () => {
   })
   it('clamps negatives to zero', () => {
     expect(formatCredits(-5)).toBe('0s left')
+  })
+})
+
+describe('performance ladder', () => {
+  it('reads an explicit perfMode', () => {
+    expect(perfModeOf({ perfMode: 'saver' })).toBe('saver')
+  })
+  it('maps legacy booleans with the highest rung winning', () => {
+    expect(perfModeOf({ lite: true })).toBe('reduced')
+    expect(perfModeOf({ lite: true, powerSaver: true })).toBe('saver')
+    expect(perfModeOf({ powerSaver: true, ecoMode: true })).toBe('eco')
+    expect(perfModeOf({})).toBe('full')
+  })
+  it('withPerfMode writes the enum and retires legacy keys', () => {
+    const next = withPerfMode({ ecoMode: true, powerSaver: true, lite: true, fontSize: 15 }, 'reduced')
+    expect(next.perfMode).toBe('reduced')
+    expect(next.fontSize).toBe(15)
+    expect('ecoMode' in next).toBe(false)
+    expect('powerSaver' in next).toBe(false)
+    expect('lite' in next).toBe(false)
+  })
+  it('falls back to full on garbage', () => {
+    expect(perfModeOf({ perfMode: 'warp-speed' })).toBe('full')
   })
 })

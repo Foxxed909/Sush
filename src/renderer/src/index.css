@@ -613,12 +613,53 @@ pre, code, kbd, .sush-mono,
 }
 .sush-lock-shake { animation: sush-lock-shake 0.4s ease; }
 
+/* ── PIN dots (the dots ARE the input display) ──────────────────────────────
+   Each digit pops as it lands; busy pulses the filled dots in a stagger wave;
+   error shakes the whole (still-filled, red) row; success flashes accent while
+   the card exits. State feedback stays alive even in saver — it's meaning,
+   not ornament — but prefers-reduced-motion kills all of it below. */
+.sush-pin-dot { transition: background .15s ease, border-color .15s ease, box-shadow .2s ease; }
+
+@keyframes sush-pin-fill {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+.sush-pin-dot[data-filled="true"] { animation: sush-pin-fill .18s var(--ease-out); }
+
+@keyframes sush-pin-busy {
+  0%, 100% { opacity: 0.35; transform: scale(0.88); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+.sush-pin-row[data-phase="busy"] .sush-pin-dot[data-filled="true"] {
+  animation: sush-pin-busy 1s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.12s);
+}
+
+.sush-pin-row[data-phase="error"] { animation: sush-lock-shake 0.4s ease; }
+
+/* Subtle success: the whole clock+card block lifts and fades over ~300ms
+   before the screen dismisses (or the scoped reload kicks in). */
+@keyframes sush-lock-success {
+  to { opacity: 0; transform: translateY(-10px) scale(0.985); }
+}
+.sush-lock-exit { animation: sush-lock-success .3s var(--ease-out) forwards; pointer-events: none; }
+
+/* Mode swap inside the glass card (pick → PIN → create): a short fade-up
+   instead of the old hard content swap. */
+.sush-lock-modeswap { width: 100%; animation: sush-fade-up .22s var(--ease-out) both; }
+
 .sush-lite .sush-lock-blob { animation: none; }
 .sush-lite .sush-lock-colon { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .sush-lock-blob,
   .sush-lock-colon,
-  .sush-lock-user { animation: none; }
+  .sush-lock-user,
+  .sush-pin-dot[data-filled="true"],
+  .sush-pin-row[data-phase="busy"] .sush-pin-dot[data-filled="true"],
+  .sush-pin-row[data-phase="error"],
+  .sush-lock-modeswap { animation: none; }
+  .sush-lock-exit { animation-duration: 0.01s; }
   .sush-lock-root::before { display: none; }
 }
 

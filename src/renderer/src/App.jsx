@@ -38,6 +38,7 @@ import { useAutoAlias } from './hooks/useAutoAlias'
 import { useSplitView } from './hooks/useSplitView'
 import { useUsageGuard } from './hooks/useUsageGuard'
 import { recordCommand } from './lib/commandFrequency'
+import { perfModeOf, withPerfMode } from './lib/power'
 import { cliComplete } from './lib/ai'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
@@ -265,17 +266,21 @@ export default function App() {
   const [settings, setSettings] = useState(loadSettings)
   const entitlements = useEntitlements()
   const online = useOnline()
+  // Performance ladder (lib/power): full < reduced < saver < eco, each rung
+  // including the ones below. Legacy boolean settings map through perfModeOf,
+  // so pre-ladder installs keep their behavior with no migration step.
+  const perfMode = perfModeOf(settings)
+  const ecoMode = perfMode === 'eco'
+  const manualSaver = perfMode === 'saver' || ecoMode
+  const reducedFx = perfMode !== 'full'
   // Auto power-saver: when running on battery below the threshold, conserve even
-  // if the user never flipped the manual toggle. Charging or above threshold,
-  // we respect only the manual setting. On by default — this user has no grid.
-  const battery = useBattery({ saver: !!settings.powerSaver })
+  // if the user never raised the ladder. Charging or above threshold, only the
+  // user's chosen rung applies. On by default — this user has no grid.
+  const battery = useBattery({ saver: manualSaver })
   const AUTO_SAVER_AT = 20
   const autoSaverActive = settings.autoPowerSaver !== false && battery.hasBattery && !battery.charging && battery.percent <= AUTO_SAVER_AT
   const [quietHoursActive, setQuietHoursActive] = useState(() => quietHoursNow(loadSettings()))
-  // Eco mode: power saver plus feature cuts (no orb, no wallpaper-through-
-  // terminals, no agent notifications, motion off). Terminals keep running.
-  const ecoMode = !!settings.ecoMode
-  const effectiveSaver = !!settings.powerSaver || ecoMode || autoSaverActive || quietHoursActive
+  const effectiveSaver = manualSaver || autoSaverActive || quietHoursActive
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartResult, setSmartResult] = useState(null)
@@ -304,7 +309,18 @@ export default function App() {
   const [handoffSource, setHandoffSource] = useState(null)
   const [showSushrc, setShowSushrc] = useState(false)
   const [switcher, setSwitcher] = useState(null)  // { order:[ids], index } when open
-  const [splash, setSplash] = useState(true)
+  // Skip the splash on unlock/user-switch reloads — the user just watched the
+  // lock screen's exit animation; replaying the boot splash on top of it made
+  // unlocking feel like a cold start. (sessionStorage survives reloads.)
+  const [splash, setSplash] = useState(() => {
+    try {
+      if (sessionStorage.getItem('sush-skip-splash')) {
+        sessionStorage.removeItem('sush-skip-splash')
+        return false
+      }
+    } catch {}
+    return true
+  })
   const [mounted, setMounted] = useState(false)
   const [sleeping, setSleeping] = useState(false)
   // Lazy boot: restored tabs are rail entries only until first viewed — their
@@ -671,11 +687,17 @@ export default function App() {
       if (ctrl && e.shiftKey && key === 'm') { e.preventDefault(); setShowMission(prev => !prev) }
       // Ctrl+Shift+S → Hush dictation toggle
       if (ctrl && e.shiftKey && key === 's') { e.preventDefault(); window.dispatchEvent(new CustomEvent('sush:hush-toggle')) }
-      // Ctrl+Shift+E → power saver (energy) toggle. Persist inline (setSettings
-      // alone is lost on restart — same pattern as the lite-mode toggle below).
+      // Ctrl+Shift+E → power saver (energy) toggle: hops the perf ladder
+      // between Saver and Full. Persist inline (setSettings alone is lost on
+      // restart).
       if (ctrl && e.shiftKey && key === 'e') {
         e.preventDefault()
-        setSettings(prev => { const next = { ...prev, powerSaver: !prev.powerSaver }; try { localStorage.setItem('sush-settings', JSON.stringify(next)) } catch {} ; return next })
+        setSettings(prev => {
+          const cur = perfModeOf(prev)
+          const next = withPerfMode(prev, (cur === 'saver' || cur === 'eco') ? 'full' : 'saver')
+          try { localStorage.setItem('sush-settings', JSON.stringify(next)) } catch {}
+          return next
+        })
       }
       // Ctrl+Shift+G → grid layout (all sessions tiled)
       if (ctrl && e.shiftKey && key === 'g') {
@@ -1660,7 +1682,7 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(settings.lite || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
+      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(reducedFx || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
@@ -1978,7 +2000,7 @@ export default function App() {
           battery={battery}
           saverActive={terminalSaver}
           saverAuto={autoSaverActive || quietHoursActive}
-          saverReason={ecoMode ? 'eco' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : settings.powerSaver ? 'manual' : zenMode ? 'focus' : ''}
+          saverReason={ecoMode ? 'eco' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : manualSaver ? 'manual' : zenMode ? 'focus' : ''}
           online={online}
         />
       )}

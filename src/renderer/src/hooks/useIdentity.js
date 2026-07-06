@@ -69,13 +69,19 @@ export function useIdentity() {
     return () => { cancelled = true }
   }, [])
 
-  const unlock = useCallback(async (user, pin) => {
+  const unlock = useCallback(async (user, pin, { beforeDismiss } = {}) => {
     const res = await window.sush.usersActivate({ id: user.id, pin })
     if (!res?.ok) return res
+    // Let the lock screen play its success beat AFTER verification but BEFORE
+    // the screen goes away — a correct PIN used to hard-unmount on the next
+    // frame (or white-flash into a reload + full splash).
+    if (beforeDismiss) { try { await beforeDismiss() } catch {} }
     if (getActiveUserIdRaw() !== user.id) {
       // Different user than the one whose scope this renderer booted with —
-      // rebuild the world under their namespace.
+      // rebuild the world under their namespace. Skip the splash on the way
+      // back in; the unlock animation already covered the transition.
       setActiveUserIdRaw(user.id)
+      try { sessionStorage.setItem('sush-skip-splash', '1') } catch {}
       window.location.reload()
       return { ok: true }
     }
@@ -113,6 +119,7 @@ export function useIdentity() {
     if (!user) return
     if (getActiveUserIdRaw() !== user.id) {
       setActiveUserIdRaw(user.id)
+      try { sessionStorage.setItem('sush-skip-splash', '1') } catch {}
       window.location.reload()
       return
     }
