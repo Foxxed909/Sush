@@ -5,12 +5,14 @@ import { getActiveUser } from '../users'
 import { saveToken, getToken, deleteToken, encryptionAvailable } from './tokenStore'
 import { emitOauthEvent } from './events'
 
-// EXPERIMENTAL: connect AI-provider accounts over loopback-PKCE OAuth — the
-// same shape as "Continue with Google" sign-in, but here the token IS the
-// point: it's kept (safeStorage-encrypted, per identity, main-process only)
-// so Sush can act as your subscription. One registry, one flow; every
+// Provider Connect: connect AI-provider accounts over loopback-PKCE OAuth —
+// the same shape as "Continue with Google" sign-in, but here the token IS
+// the point: it's kept (safeStorage-encrypted, per identity, main-process
+// only) so Sush can act as your subscription. One registry, one flow; every
 // provider is just endpoints + quirks. All client ids are the public
 // installed-app registrations their own CLIs ship — public by design.
+// Graduated from Settings ▸ Experiments (2026-07): now a Plus+ feature,
+// gated at the connect-start IPC handler (`providerConnect`).
 
 const PROVIDERS = {
   claude: {
@@ -146,14 +148,19 @@ export async function startConnectFlow({ provider, manual = false } = {}) {
   return { ok: true, manual }
 }
 
-// Manual paste path (Claude only): the user pastes "code#state" or the code.
+// Manual paste path (Claude only): the user pastes the "code#state" string
+// the callback page shows. The state half is REQUIRED — accepting a bare
+// code would skip the CSRF check the loopback path always performs.
 export async function finishConnectFlow({ code = '' } = {}) {
   const flow = active
   if (!flow) return { ok: false, error: 'No connect in progress. Hit Connect first.' }
   const raw = String(code).trim()
   if (!raw) return { ok: false, error: 'Paste the code shown in the browser.' }
   const [authCode, pastedState] = raw.split('#')
-  if (pastedState && pastedState !== flow.state) {
+  if (!pastedState) {
+    return { ok: false, error: 'Paste the whole string exactly as shown — it looks like code#state.' }
+  }
+  if (pastedState !== flow.state) {
     return { ok: false, error: 'That code came from a different attempt. Hit Connect and try again.' }
   }
   const cfg = PROVIDERS[flow.provider]

@@ -15,7 +15,7 @@ const count = Math.max(1, Math.min(100, Number(process.argv[3]) || 1))
 const expiresArg = process.argv[4] // optional YYYY-MM-DD
 
 if (!TIERS.includes(tier)) {
-  console.error('usage: node tools/mint-code.mjs <plus|pro> [count] [expires YYYY-MM-DD]')
+  console.error(`usage: node tools/mint-code.mjs <${TIERS.join('|')}> [count] [expires YYYY-MM-DD]`)
   process.exit(1)
 }
 

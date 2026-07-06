@@ -38,7 +38,7 @@ function Section({ title, accent, children }) {
 // add a <Section title="..."> in the body + one row here.
 const SETTINGS_NAV = [
   { label: 'Plan', sec: 'Plan', icon: 'star', group: 'Account', keywords: 'tier unlock code upgrade plus pro free license' },
-  { label: 'Accounts', sec: 'Accounts', icon: 'users', group: 'Account', keywords: 'login limit switch claude codex gemini opencode slot' },
+  { label: 'Accounts', sec: 'Accounts', icon: 'users', group: 'Account', keywords: 'login limit switch claude codex gemini opencode slot oauth connect chatgpt subscription' },
   { label: 'Usage', sec: 'Usage', icon: 'activity', group: 'Account', keywords: 'limit quota tokens cost' },
   { label: 'AI & Seducia', sec: 'AI -- Seducia', icon: 'sparkles', group: 'Intelligence', keywords: 'engine orchestrator cli' },
   { label: 'Agents', sec: 'Agents', icon: 'rocket', group: 'Intelligence', keywords: 'custom cli tools' },
@@ -47,8 +47,7 @@ const SETTINGS_NAV = [
   { label: 'Appearance', sec: 'Appearance', icon: 'palette', group: 'Experience', keywords: 'wallpaper background opacity' },
   { label: 'Theme', sec: 'Theme', icon: 'layout', group: 'Experience', keywords: 'color accent glass' },
   { label: 'Sush Profile', sec: 'Sush Profile', icon: 'fileText', group: 'System', keywords: 'sushrc config' },
-  { label: 'Window', sec: 'Window', icon: 'layers', group: 'System', keywords: 'notifications startup' },
-  { label: 'Experiments', sec: 'Experiments', icon: 'sparkles', group: 'System', keywords: 'claude codex chatgpt gemini oauth connect labs beta' }
+  { label: 'Window', sec: 'Window', icon: 'layers', group: 'System', keywords: 'notifications startup' }
 ]
 const NAV_GROUPS = ['Account', 'Intelligence', 'Experience', 'System']
 
@@ -412,6 +411,14 @@ function AccountsSection({ accent }) {
       })}
 
       {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 4 }}>{err}</div>}
+
+      {/* Provider Connect (Plus+) — OAuth tokens as first-class accounts.
+          Lives with the CLI account slots it complements; graduated from
+          the old Experiments section. */}
+      <div style={{ marginTop: 6 }}>
+        <Label>Connect provider accounts (OAuth)</Label>
+        <AccountConnect accent={accent} />
+      </div>
     </Section>
   )
 }
@@ -1637,12 +1644,6 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
             </Row>
           </Section>
 
-          {/* Experiments */}
-          <Section title="Experiments" accent={accent}>
-            <Row>
-              <AccountConnect accent={accent} />
-            </Row>
-          </Section>
           </div>
         </div>
       </div>

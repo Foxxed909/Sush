@@ -34,6 +34,7 @@ const FEATURES = [
   ['Quiet Credits', (t, name) => `${CREDIT_MINUTES[name] ?? 5}m / mo`],
   ['Custom agents', t => t.customAgents],
   ['Cloud voices', t => t.cloudTts],
+  ['Connect accounts (OAuth)', t => !!t.providerConnect],
   ['Usage Guard', t => !!t.usageGuard],
   ['Auto-handoff', t => !!t.autoHandoff]
 ]

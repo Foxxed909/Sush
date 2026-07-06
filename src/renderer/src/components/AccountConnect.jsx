@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
+import { useEntitlements } from '../hooks/useEntitlements'
 
-// EXPERIMENT — connect provider accounts (Claude / ChatGPT / Google) over
-// OAuth, same loopback-PKCE flow as "Continue with Google". Tokens never
+// Provider Connect — connect provider accounts (Claude / ChatGPT / Google)
+// over OAuth, same loopback-PKCE flow as "Continue with Google". Tokens never
 // enter the renderer; these cards only drive the flow and show status.
-// Lives in Settings > Experiments until it earns a real home.
+// A Plus+ feature (graduated from Experiments); main enforces the gate on
+// connect-start, this component mirrors it so the lock reads instantly.
 
 const CARDS = [
   {
@@ -92,7 +94,6 @@ function ConnectCard({ card, status, accent, onChanged }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <Icon name={card.icon} size={14} strokeWidth={2} />
         <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-1)' }}>{card.title}</span>
-        <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: accent, border: `1px solid ${rgba(accent, 0.45)}`, borderRadius: 999, padding: '2px 7px' }}>EXPERIMENT</span>
       </div>
       <div style={{ fontSize: 10.5, color: 'var(--text-4)', lineHeight: 1.5, marginBottom: 12 }}>
         {card.blurb} The token is encrypted on this machine, stays in the main
@@ -158,6 +159,8 @@ function ConnectCard({ card, status, accent, onChanged }) {
 
 export default function AccountConnect({ accent = '#ff6b9d' }) {
   const [status, setStatus] = useState({})
+  const ent = useEntitlements()
+  const locked = !ent.can('providerConnect')
 
   const refresh = async () => {
     try {
@@ -167,6 +170,23 @@ export default function AccountConnect({ accent = '#ff6b9d' }) {
   }
 
   useEffect(() => { refresh() }, [])
+
+  // Tier gate (Plus+). State is written out, per the toggle convention —
+  // main enforces the same gate on connect-start, this is just the honest UI.
+  if (locked) {
+    return (
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent('sush:open-plans'))}
+        style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '12px 14px', borderRadius: 10, background: 'var(--surface-1)', border: '1px solid var(--border-2)', color: 'var(--text-3)', cursor: 'pointer', textAlign: 'left' }}
+      >
+        <Icon name="lock" size={14} strokeWidth={2} />
+        <span style={{ fontSize: 12, fontWeight: 700, flex: 1 }}>
+          Connect provider accounts (OAuth) is a Plus feature — sign in to Claude, ChatGPT, or Google once and Sush rides your subscription.
+        </span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: accent, whiteSpace: 'nowrap' }}>See plans →</span>
+      </button>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

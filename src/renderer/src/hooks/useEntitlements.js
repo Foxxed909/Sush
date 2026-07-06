@@ -4,14 +4,19 @@ import { useCallback, useEffect, useState } from 'react'
 // (license.js); this loads it once and re-syncs whenever a code is redeemed or
 // cleared (main broadcasts `sush:license-changed`). Use `can('cloudTts')` /
 // `limit('gridCap')` to gate UI the same way main gates the features it owns.
+// Pre-load fallback only — mirrors main's TIER_FEATURES (license.js) so the
+// first paint gates like the real license. Keep the two in sync; this copy
+// once drifted (old Pro numbers, missing Ultra/Max) and briefly gated wrong.
 const DEFAULT = {
   tier: 'free',
   expiry: null,
-  features: { slots: 1, gridCap: 4, customAgents: false, cloudTts: false, themes: 'base' },
+  features: { slots: 1, gridCap: 4, customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
   tiers: {
-    free: { slots: 1, gridCap: 4, customAgents: false, cloudTts: false, themes: 'base' },
-    plus: { slots: 4, gridCap: 9, customAgents: true, cloudTts: true, themes: 'all' },
-    pro: { slots: 8, gridCap: 16, customAgents: true, cloudTts: true, themes: 'all' }
+    free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
+    plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  themes: 'all' },
+    pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  themes: 'all' },
+    ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' },
+    max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' }
   }
 }
 

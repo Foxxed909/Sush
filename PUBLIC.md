@@ -35,6 +35,11 @@ and Max, the Usage Guard can do this hands-free.
   `headers`, `title`, `jwt`, `color`, `base`
 - Apple-style pricing page, smoother animations, and a reduce-motion toggle
 
+### 🔗 Connect provider accounts (Plus and up)
+Sign in to **Claude, ChatGPT, or Google** once from Settings ▸ Accounts and
+Sush keeps the connection — encrypted on your machine, main-process only,
+testable and disconnectable any time. Graduated from Experiments.
+
 ## Plans
 
 | | Free | Plus | Pro | Ultra | Max |
@@ -45,6 +50,7 @@ and Max, the Usage Guard can do this hands-free.
 | Quiet Credits | 5m | 60m | 150m | 600m | 1500m |
 | Custom agents | — | ✓ | ✓ | ✓ | ✓ |
 | Cloud voices | — | ✓ | ✓ | ✓ | ✓ |
+| Connect accounts (OAuth) | — | ✓ | ✓ | ✓ | ✓ |
 | Usage Guard | — | — | ✓ | ✓ | ✓ |
 | Auto-handoff | — | — | — | ✓ | ✓ |
 

@@ -14,17 +14,19 @@ import { sign } from './license-secret.mjs'
 // `license-get` so the UI gates the same way.
 // `themes` is reserved for a future gate (no base/premium flag on themes yet),
 // so it's intentionally NOT advertised in the Plan table or enforced — all
-// themes are free for now. The four enforced gates are slots/gridCap/
-// customAgents/cloudTts.
+// themes are free for now. The enforced gates are slots/gridCap/customAgents/
+// cloudTts/providerConnect.
 // Five tiers. Pro was trimmed when Ultra/Max landed above it (slots 8→6,
 // grid 16→12) — the top of the old Pro moved into Ultra. usageGuard gates the
 // Claude quota guard (Pro+); autoHandoff gates its hands-free mode (Ultra+).
+// providerConnect gates the OAuth account-connect flow (Plus+ — graduated
+// from Settings ▸ Experiments 2026-07).
 export const TIER_FEATURES = {
-  free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, themes: 'base' },
-  plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, themes: 'all'  },
-  pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, themes: 'all'  },
-  ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  themes: 'all'  },
-  max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  themes: 'all'  }
+  free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
+  plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  themes: 'all'  },
+  pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  themes: 'all'  },
+  ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  },
+  max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  }
 }
 const RANK = { free: 0, plus: 1, pro: 2, ultra: 3, max: 4 }
 const file = () => join(app.getPath('userData'), 'sush-license.json')
@@ -57,14 +59,19 @@ export function verifyCode(raw) {
 }
 
 // Current license, defaulting to free. A stored dated code that has since
-// expired silently reverts to free (re-verified on each read — it's just an
-// in-memory HMAC, cheap).
+// expired falls back to the permanent code redeemed before it (kept as
+// `previousCode` — see redeemCode), else to free. Re-verified on each read —
+// it's just an in-memory HMAC, cheap.
 export function getLicense() {
   try {
     if (existsSync(file())) {
       const d = JSON.parse(readFileSync(file(), 'utf8'))
       if (d && RANK[d.tier] != null) {
-        if (d.code && !verifyCode(d.code).ok) return { tier: 'free' }
+        if (d.code && !verifyCode(d.code).ok) {
+          const prev = d.previousCode ? verifyCode(d.previousCode) : null
+          if (prev?.ok) return { tier: prev.tier, code: d.previousCode }
+          return { tier: 'free' }
+        }
         return d
       }
     }
@@ -76,7 +83,17 @@ export function redeemCode(raw) {
   const v = verifyCode(raw)
   if (!v.ok) return v
   const data = { tier: v.tier, code: String(raw).trim().toUpperCase(), redeemedAt: Date.now() }
-  if (v.expiry) data.expiry = v.expiry
+  if (v.expiry) {
+    data.expiry = v.expiry
+    // A dated (trial) code must not destroy the tier the user already owns:
+    // keep their permanent code alongside so the lapse falls back to it
+    // instead of dumping them to free. (Trial-over-trial keeps the original.)
+    const current = getLicense()
+    const keeper = current.code && !current.expiry && verifyCode(current.code).ok
+      ? current.code
+      : current.previousCode
+    if (keeper) data.previousCode = keeper
+  }
   try { writeFileSync(file(), JSON.stringify(data, null, 2), 'utf8') } catch (e) { return { ok: false, error: e.message } }
   emitChange()
   return { ok: true, tier: v.tier, features: TIER_FEATURES[v.tier] }
