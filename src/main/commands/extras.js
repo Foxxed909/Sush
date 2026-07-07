@@ -373,15 +373,19 @@ export const todo = {
 }
 
 // ---------- snippet ----------
+// ~/.sush/snippets.json ({ name: command }) is THE snippet store — the
+// `snippet` command, the panel's Snippets tab, and the command palette all
+// read and write this one file (the panel used to keep its own silo in
+// renderer localStorage; the two never saw each other's snippets).
 function getSnippetPath() {
   return join(homedir(), '.sush', 'snippets.json')
 }
 
-function loadSnippets() {
+export function loadSnippets() {
   try { return JSON.parse(readFileSync(getSnippetPath(), 'utf8')) } catch { return {} }
 }
 
-async function saveSnippets(snips) {
+export async function saveSnippets(snips) {
   const dir = join(homedir(), '.sush')
   await mkdir(dir, { recursive: true })
   await writeFile(getSnippetPath(), JSON.stringify(snips, null, 2))

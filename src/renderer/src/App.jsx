@@ -296,9 +296,18 @@ export default function App() {
     window.addEventListener('sush:open-plans', open)
     return () => window.removeEventListener('sush:open-plans', open)
   }, [])
+
   // Command history persists per user (scoped storage) so it survives restarts.
   const [commandHistory, setCommandHistory] = useState(loadCommandHistory)
   const [pinnedProjects, setPinnedProjects] = useState(loadPinnedProjects)
+  // Saved snippets surface in the command palette (they moved out of the
+  // sidebar); loaded from the shared ~/.sush/snippets.json store, refreshed
+  // whenever the palette opens so a just-saved snippet appears.
+  const [snippets, setSnippets] = useState([])
+  useEffect(() => {
+    if (!showPalette) return
+    window.sush?.snippetsList?.().then(r => { if (r?.ok) setSnippets(r.snippets || []) }).catch(() => {})
+  }, [showPalette])
   const [broadcastMode, setBroadcastMode] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
@@ -1613,8 +1622,26 @@ export default function App() {
       icon: 'folder',
       action: `recent:${r.cwd}`
     }))
-    return [...base, ...sessions, ...recents, ...themeEntries]
-  }, [tabs, themeId, recentSessions])
+    // Saved snippets — run the exact command via `run`.
+    const snippetEntries = snippets.map(s => ({
+      id: `snip-${s.name}`,
+      label: `Snippet: ${s.name}`,
+      description: s.command,
+      icon: 'command',
+      run: s.command
+    }))
+    // Recent commands (most-recent first, de-duped) — the History tab, in the
+    // palette where it belongs.
+    const seen = new Set()
+    const historyEntries = []
+    for (let i = commandHistory.length - 1; i >= 0 && historyEntries.length < 15; i--) {
+      const cmd = commandHistory[i]
+      if (!cmd || seen.has(cmd)) continue
+      seen.add(cmd)
+      historyEntries.push({ id: `hist-${historyEntries.length}-${cmd}`, label: cmd, description: 'Recent command', icon: 'clock', run: cmd })
+    }
+    return [...base, ...snippetEntries, ...sessions, ...recents, ...historyEntries, ...themeEntries]
+  }, [tabs, themeId, recentSessions, snippets, commandHistory])
 
   // Power-user session shortcuts (v3.1):
   //   Ctrl+1..8  jump to session N      Ctrl+9            jump to last session

@@ -20,6 +20,19 @@
   (`buildHandoffCard` + `performHandoff{openNew, agentId}`); the only new
   parts are fallback-CLI probing and the `cliComplete` summary via the
   fallback engine (the limited CLI can't summarize itself).
+- **Sidebar redesign**: RightPanel's 16 flat tabs are now four grouped
+  clusters (AI/Project/Web/Ops + a hidden-by-default More) drawn from
+  lib/panelTabs.js — the ONE catalog Settings reads too, so a settings
+  section lists tabs without importing Browser/Seducia/every tab body.
+  Per-user tab visibility (`settings.hiddenPanelTabs`, defaults hide
+  History/Snippets); the tab strip still shows an active-but-hidden tab so
+  the palette can open one. History + Snippets are palette entries now
+  (App.paletteActions, run via the new `run` field on CommandPalette items).
+- **Snippets unified**: ~/.sush/snippets.json is THE store, exposed over
+  snippets-list/set/delete IPC. The panel tab reads it and migrates its old
+  localStorage silo (`sush-snippets`) once, then deletes it. The `snippet`
+  shell command and the palette read the same file — the two silos that
+  never saw each other are now one.
 - **Local whisper.cpp landed behind the STT provider switch** exactly as the
   original design promised: only stt.js gained a branch ('local' provider —
   webm → ffmpeg → 16 kHz WAV → whisper-cli stdout, throwaway temp dir).

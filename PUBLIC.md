@@ -35,6 +35,14 @@ and Max, the Usage Guard can do this hands-free.
   `headers`, `title`, `jwt`, `color`, `base`
 - Apple-style pricing page, smoother animations, and a reduce-motion toggle
 
+### 🗂️ A calmer sidebar
+The right panel's tools are now **grouped** — AI · Project · Web · Ops — with
+a hairline between clusters instead of one long anonymous scroll. **Hide the
+tabs you never use** in Settings ▸ Terminal, and find History and saved
+Snippets in the **command palette** (Ctrl+P) where they belong. Snippets are
+now a single store shared by the panel and the `snippet` command — no more
+two lists that never met.
+
 ### 🎧 Offline dictation (local whisper.cpp)
 Dictation can now run **entirely on your machine**: point Sush at a
 whisper.cpp binary and a downloaded model in Settings ▸ Voice & Dictation and

@@ -50,7 +50,10 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
   })()
 
   const select = useCallback((item) => {
-    if (item.type === 'action') onAction(item.action)
+    // A `run` field (snippets, recent history) runs that exact command text;
+    // otherwise actions dispatch and commands run by name.
+    if (item.run !== undefined) onRun(item.run)
+    else if (item.type === 'action') onAction(item.action)
     else onRun(item.label)
     onClose()
   }, [onAction, onRun, onClose])

@@ -17,29 +17,13 @@ import DockerTab from './panel/DockerTab'
 import EnvManagerTab from './panel/EnvTab'
 import SshTab from './panel/SshTab'
 import MarkdownTab from './panel/MarkdownTab'
+import { TAB_GROUPS, TABS, DEFAULT_HIDDEN_TABS } from '../lib/panelTabs'
 
 // The right panel SHELL: tab strip + routing only. Every tab body lives in
 // ./panel/<Tab>.jsx (shared bits in ./panel/shared.jsx) — this file was a
-// 1,878-line pile of thirteen unrelated tools before the split.
-
-const TABS = [
-  { id: 'agent', label: 'Agent', icon: 'sparkles' },
-  { id: 'claude', label: 'Claude', icon: 'sparkles' },
-  { id: 'browser', label: 'Browser', icon: 'globe' },
-  { id: 'changes', label: 'Changes', icon: 'gitBranch' },
-  { id: 'github', label: 'GitHub', icon: 'github' },
-  { id: 'files', label: 'Files', icon: 'file' },
-  { id: 'tasks', label: 'Tasks', icon: 'check' },
-  { id: 'memory', label: 'Memory', icon: 'book' },
-  { id: 'scripts', label: 'Scripts', icon: 'rocket' },
-  { id: 'history', label: 'History', icon: 'clock' },
-  { id: 'snippets', label: 'Snippets', icon: 'command' },
-  { id: 'ports', label: 'Ports', icon: 'ports' },
-  { id: 'docker', label: 'Docker', icon: 'layers' },
-  { id: 'env', label: 'Env', icon: 'key' },
-  { id: 'ssh', label: 'SSH', icon: 'lock' },
-  { id: 'markdown', label: 'Preview', icon: 'fileText' },
-]
+// 1,878-line pile of thirteen unrelated tools before the split. The tab
+// catalog (groups, default-hidden) lives in lib/panelTabs so Settings can
+// list tabs without importing the whole panel.
 
 export default function RightPanel({
   accent,
@@ -74,7 +58,13 @@ export default function RightPanel({
     }
   }, [onRun, onTab])
 
-  const safeTab = TABS.some(t => t.id === tab) ? tab : 'agent'
+  // Which tabs the user has hidden (defaults hide History/Snippets → palette).
+  const hiddenTabs = Array.isArray(settings.hiddenPanelTabs) ? settings.hiddenPanelTabs : DEFAULT_HIDDEN_TABS
+
+  // If the current tab was hidden while selected, fall back to Agent; any
+  // unknown id also lands on Agent.
+  const known = TABS.some(t => t.id === tab)
+  const safeTab = known ? tab : 'agent'
   useEffect(() => {
     if (safeTab !== tab) onTab(safeTab)
   }, [safeTab, tab, onTab])
@@ -91,8 +81,8 @@ export default function RightPanel({
         borderLeft: `1px solid ${rgba(accent, 0.1)}`
       }}
     >
-      {/* Tab header — single horizontal scrolling strip with a custom scroll indicator */}
-      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} />
+      {/* Tab header — grouped horizontal strip with hairline dividers */}
+      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} hiddenTabs={hiddenTabs} />
 
       {/* Tab body */}
       <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
@@ -142,13 +132,57 @@ export default function RightPanel({
 
 // Horizontal, single-row tab strip. Tabs scroll sideways with a slim accent
 // scrollbar; gradient edges hint that there's more, and the active tab is
-// always scrolled into view. The collapse button is pinned outside the scroller.
-function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0 }) {
+// always scrolled into view. Tabs render in their groups with a hairline
+// divider between clusters. The collapse button is pinned outside the scroller.
+function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = [] }) {
   const scrollerRef = useRef(null)
   const [edges, setEdges] = useState({ left: false, right: false })
   // Compact mode: icon-only tabs for a dense workspace panel.
   const [compact, setCompact] = useState(() => localStorage.getItem('sush-tabs-compact') === '1')
   const toggleCompact = () => setCompact(c => { const n = !c; localStorage.setItem('sush-tabs-compact', n ? '1' : '0'); return n })
+
+  // A tab shows when it isn't hidden, OR when it's the active one (so you can
+  // always navigate away from a tab the palette opened while it's hidden).
+  const hidden = new Set(hiddenTabs)
+  const visibleGroups = TAB_GROUPS
+    .map(g => ({ ...g, tabs: g.tabs.filter(t => !hidden.has(t.id) || t.id === tab) }))
+    .filter(g => g.tabs.length)
+
+  const renderTab = (t) => {
+    const active = tab === t.id
+    return (
+      <button
+        key={t.id}
+        data-tab={t.id}
+        onClick={() => onTab(t.id)}
+        title={compact ? t.label : undefined}
+        className="flex items-center justify-center sush-icon-btn"
+        style={{
+          gap: 6,
+          height: 30,
+          width: compact ? 32 : undefined,
+          padding: compact ? 0 : '0 9px',
+          borderRadius: 8,
+          border: `1px solid ${active ? rgba(accent, 0.45) : 'transparent'}`,
+          background: active ? rgba(accent, 0.12) : 'transparent',
+          color: active ? accent : 'var(--text-3)',
+          fontSize: 12,
+          fontWeight: 800,
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+          flexShrink: 0
+        }}
+      >
+        <Icon name={t.icon} size={13} strokeWidth={2} />
+        {!compact && t.label}
+        {t.id === 'github' && ghNotifCount > 0 && (
+          <span style={{ minWidth: 14, height: 14, padding: '0 4px', borderRadius: 999, background: accent, color: 'var(--surface-0)', fontSize: 9, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+            {ghNotifCount > 99 ? '99+' : ghNotifCount}
+          </span>
+        )}
+      </button>
+    )
+  }
 
   const updateEdges = useCallback(() => {
     const el = scrollerRef.current
@@ -195,40 +229,12 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0 }) {
     <div className="flex items-center" style={{ padding: '8px 8px', gap: 6, borderBottom: '1px solid var(--border-1)' }}>
       <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
         <div ref={scrollerRef} className="sush-htabs" onScroll={updateEdges} onWheel={onWheel} style={{ gap: 4, paddingBottom: 4 }}>
-          {TABS.map(t => {
-            const active = tab === t.id
-            return (
-              <button
-                key={t.id}
-                data-tab={t.id}
-                onClick={() => onTab(t.id)}
-                title={compact ? t.label : undefined}
-                className="flex items-center justify-center sush-icon-btn"
-                style={{
-                  gap: 6,
-                  height: 30,
-                  width: compact ? 32 : undefined,
-                  padding: compact ? 0 : '0 9px',
-                  borderRadius: 8,
-                  border: `1px solid ${active ? rgba(accent, 0.45) : 'transparent'}`,
-                  background: active ? rgba(accent, 0.12) : 'transparent',
-                  color: active ? accent : 'var(--text-3)',
-                  fontSize: 12,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                <Icon name={t.icon} size={13} strokeWidth={2} />
-                {!compact && t.label}
-                {t.id === 'github' && ghNotifCount > 0 && (
-                  <span style={{ minWidth: 14, height: 14, padding: '0 4px', borderRadius: 999, background: accent, color: 'var(--surface-0)', fontSize: 9, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                    {ghNotifCount > 99 ? '99+' : ghNotifCount}
-                  </span>
-                )}
-              </button>
-            )
-          })}
+          {visibleGroups.map((g, gi) => (
+            <React.Fragment key={g.id}>
+              {gi > 0 && <span aria-hidden style={{ flexShrink: 0, width: 1, alignSelf: 'center', height: 16, background: 'var(--border-2)', margin: '0 3px' }} />}
+              {g.tabs.map(renderTab)}
+            </React.Fragment>
+          ))}
         </div>
         <div style={fade('left')} />
         <div style={fade('right')} />

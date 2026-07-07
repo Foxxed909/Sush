@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile)
 import * as pty from 'node-pty'
 import si from 'systeminformation'
 import { registry } from './shell/registry'
-import { clearTabTimer } from './commands/extras'
+import { clearTabTimer, loadSnippets, saveSnippets } from './commands/extras'
 import { parseInput } from './shell/parser'
 import { ShellContext } from './shell/context'
 import { loadSushrc, readSushrcRaw, writeSushrcRaw, sushrcPath } from './shell/sushrc'
@@ -1473,6 +1473,29 @@ export function registerIpcHandlers(win) {
   // ── Scrollback (for session handoff cards) ────────────────────────────────
   ipcMain.handle('sush:get-scrollback', (event, { tabId, chars }) => {
     return { tabId, text: scrollback?.tail(tabId, chars) ?? '' }
+  })
+
+  // ── Snippets (one store: ~/.sush/snippets.json, shared with the `snippet`
+  // shell command — the panel used to keep a private localStorage silo) ─────
+  ipcMain.handle('sush:snippets-list', () => {
+    const snips = loadSnippets()
+    return { ok: true, snippets: Object.entries(snips).map(([name, command]) => ({ name, command: String(command) })) }
+  })
+  ipcMain.handle('sush:snippets-set', async (event, { name, command } = {}) => {
+    const key = String(name ?? '').trim().slice(0, 80)
+    const cmd = String(command ?? '').trim().slice(0, 500)
+    if (!key || !cmd) return { ok: false, error: 'Name and command are required' }
+    const snips = loadSnippets()
+    snips[key] = cmd
+    try { await saveSnippets(snips) } catch (e) { return { ok: false, error: e.message } }
+    return { ok: true }
+  })
+  ipcMain.handle('sush:snippets-delete', async (event, { name } = {}) => {
+    const snips = loadSnippets()
+    if (!(String(name) in snips)) return { ok: true }
+    delete snips[String(name)]
+    try { await saveSnippets(snips) } catch (e) { return { ok: false, error: e.message } }
+    return { ok: true }
   })
 
   // ── .sushrc profile ───────────────────────────────────────────────────────
