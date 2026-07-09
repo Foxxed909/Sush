@@ -23,6 +23,8 @@ import LockScreen from './components/LockScreen'
 import UserManager from './components/UserManager'
 import ProfileViewer from './components/ProfileViewer'
 import PlansPage from './components/PlansPage'
+import ChangelogPage from './components/ChangelogPage'
+import { LATEST_VERSION } from './lib/changelog'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { themes, getTheme } from './themes'
@@ -289,13 +291,31 @@ export default function App() {
   const [showUserManager, setShowUserManager] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showPlans, setShowPlans] = useState(false)   // standalone pricing page
+  const [showChangelog, setShowChangelog] = useState(false)
 
-  // Any surface can open the Plans page (Settings summary, upgrade hints).
+  // Any surface can open the Plans / Changelog pages (Settings, palette, hints).
   useEffect(() => {
-    const open = () => setShowPlans(true)
-    window.addEventListener('sush:open-plans', open)
-    return () => window.removeEventListener('sush:open-plans', open)
+    const openPlans = () => setShowPlans(true)
+    const openChangelog = () => setShowChangelog(true)
+    window.addEventListener('sush:open-plans', openPlans)
+    window.addEventListener('sush:open-changelog', openChangelog)
+    return () => {
+      window.removeEventListener('sush:open-plans', openPlans)
+      window.removeEventListener('sush:open-changelog', openChangelog)
+    }
   }, [])
+
+  // "What's New" once after an update: if the last version this user saw
+  // differs from the current one (and it isn't their first ever launch),
+  // open the changelog a single time, then remember the version. First run
+  // just records the version silently — no release notes for a fresh install.
+  useEffect(() => {
+    if (!identity.ready) return
+    let seen
+    try { seen = localStorage.getItem('sush-last-seen-version') } catch {}
+    if (seen && seen !== LATEST_VERSION) setShowChangelog(true)
+    try { localStorage.setItem('sush-last-seen-version', LATEST_VERSION) } catch {}
+  }, [identity.ready])
 
   // Command history persists per user (scoped storage) so it survives restarts.
   const [commandHistory, setCommandHistory] = useState(loadCommandHistory)
@@ -1554,6 +1574,7 @@ export default function App() {
     else if (action === 'reopen') reopenLastClosed()
     else if (action === 'split') toggleSplit()
     else if (action === 'plans') setShowPlans(true)
+    else if (action === 'changelog') setShowChangelog(true)
     else if (action === 'lock') identity.lock()
     else if (action === 'switch-user') identity.signOut()
     else if (action === 'manage-users') setShowUserManager(true)
@@ -1593,6 +1614,7 @@ export default function App() {
       { id: 'act-reopen', label: 'Reopen Closed Session', description: 'Bring back the last session you closed (Ctrl+Shift+T)', icon: 'clock', action: 'reopen' },
       { id: 'act-split', label: 'Toggle Split View', description: 'Active session + the previous one, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
       { id: 'act-plans', label: 'Plans & Upgrade', description: 'Compare tiers, redeem an unlock code', icon: 'star', action: 'plans' },
+      { id: 'act-changelog', label: 'What’s New', description: 'Recent changes and release notes', icon: 'sparkles', action: 'changelog' },
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
       { id: 'act-switch-user', label: 'Switch User / Sign Out', description: 'Closes your sessions and opens the user picker', icon: 'users', action: 'switch-user' },
       { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
@@ -2093,6 +2115,10 @@ export default function App() {
 
       {showPlans && (
         <PlansPage accent={accent} ent={entitlements} onDismiss={() => setShowPlans(false)} />
+      )}
+
+      {showChangelog && (
+        <ChangelogPage accent={accent} onDismiss={() => setShowChangelog(false)} />
       )}
 
       {showSettings && (

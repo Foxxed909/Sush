@@ -83,6 +83,18 @@ export default function PlanSection({ accent, ent, settings, onChange }) {
         </div>
         <Hint>Compare tiers, redeem an unlock code, or revert to Free — all on the Plans page.</Hint>
       </Row>
+      <Row>
+        <Label>What’s new</Label>
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('sush:open-changelog'))}
+          className="flex items-center"
+          style={{ gap: 9, padding: '9px 12px', borderRadius: 9, background: 'var(--surface-2)', border: `1px solid ${rgba(accent, 0.3)}`, color: 'var(--text-2)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, width: '100%' }}
+        >
+          <Icon name="sparkles" size={14} color={accent} strokeWidth={2} />
+          See what changed in this release
+          <Icon name="arrowRight" size={13} color="var(--text-4)" style={{ marginLeft: 'auto' }} />
+        </button>
+      </Row>
       <BackupRow accent={accent} settings={settings} onChange={onChange} />
     </Section>
   )
