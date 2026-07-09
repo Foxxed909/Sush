@@ -88,7 +88,10 @@ body {
   height: 100vh;
   overflow: hidden;
   user-select: none;
+  /* macOS-crisp text on Windows too: antialiased + grayscale kills the
+     heavier default Win rendering that reads as "not a Mac app". */
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'kern' 1, 'liga' 1;
   letter-spacing: -0.01em;
@@ -122,7 +125,23 @@ pre, code, kbd, .sush-mono,
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); background-clip: padding-box; }
-.sush-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+.sush-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; overscroll-behavior: contain; }
+
+/* Press micro-spring: a subtle scale on active, the Apple sheet curve. Apply
+   to buttons that should feel physical (primary actions, chrome). Deliberately
+   opt-in per element so it never fights a control that manages its own motion.
+   Frozen with the rest of motion in reduce-motion / saver. */
+.sush-press { transition: transform var(--dur-fast) var(--ease-out); }
+.sush-press:active { transform: scale(0.965); }
+.sush-reduce-motion .sush-press, .sush-saver .sush-press { transition: none; }
+.sush-reduce-motion .sush-press:active, .sush-saver .sush-press:active { transform: none; }
+
+/* Window material (Windows 11 Mica/Acrylic): when the OS paints a translucent
+   desktop-tinted backing behind the window, the app's own base surface must be
+   semi-transparent for it to show through. Gated by a root class so the solid
+   theme is untouched by default. Chrome (titlebar, rail, panel) already uses
+   data-glass blur; this only thins the base canvas. */
+:root.sush-material .sush-app-bg { background: rgba(8, 9, 10, 0.72) !important; }
 
 /* ---- Horizontal panel tab strip ---- */
 .sush-htabs {

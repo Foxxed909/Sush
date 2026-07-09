@@ -35,6 +35,12 @@ and Max, the Usage Guard can do this hands-free.
   `headers`, `title`, `jwt`, `color`, `base`
 - Apple-style pricing page, smoother animations, and a reduce-motion toggle
 
+### ✨ Native on Windows, calm like a Mac
+Turn on **Mica or Acrylic** (Settings ▸ Appearance) to let the Windows 11
+desktop tint show behind Sush, like macOS vibrancy — and move the window
+controls to the **left, macOS-style**, if you like. Crisper text and subtle
+press springs everywhere round it out.
+
 ### 🗂️ A calmer sidebar
 The right panel's tools are now **grouped** — AI · Project · Web · Ops — with
 a hairline between clusters instead of one long anonymous scroll. **Hide the

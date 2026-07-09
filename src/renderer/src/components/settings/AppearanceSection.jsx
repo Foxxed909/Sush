@@ -2,7 +2,10 @@ import React, { useRef, useState } from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { themes } from '../../themes'
-import { Section, Row, Label, Hint, Toggle } from './primitives'
+import { Section, Row, Label, Hint, Toggle, Segment } from './primitives'
+
+const isWindows = typeof window !== 'undefined' && window.sush?.platform === 'win32'
+const isMac = typeof window !== 'undefined' && window.sush?.platform === 'darwin'
 
 // Appearance — how Sush looks: theme, wallpaper, window opacity, and the
 // reduce-motion accessibility toggle. Battery/performance concerns moved to
@@ -109,6 +112,30 @@ export default function AppearanceSection({ accent, settings, set }) {
       </Row>
 
       <WallpaperRow accent={accent} settings={settings} set={set} />
+
+      {isWindows && (
+        <Row>
+          <Label>Window material (Windows 11)</Label>
+          <Segment
+            accent={accent}
+            value={['mica', 'acrylic'].includes(settings.windowMaterial) ? settings.windowMaterial : 'solid'}
+            options={[['solid', 'Solid'], ['mica', 'Mica'], ['acrylic', 'Acrylic']]}
+            onChange={(v) => set('windowMaterial', v)}
+          />
+          <Hint>Lets the Windows 11 desktop tint show behind Sush, like macOS vibrancy — Mica is subtle and cheap, Acrylic is stronger and blurrier. Ignored if a wallpaper is set, and on Windows 10. Solid keeps the plain dark canvas.</Hint>
+        </Row>
+      )}
+
+      <Row>
+        <Label>Window controls</Label>
+        <Segment
+          accent={accent}
+          value={settings.trafficLightSide === 'left' ? 'left' : 'right'}
+          options={[['right', 'Right (Windows)'], ['left', 'Left (macOS)']]}
+          onChange={(v) => set('trafficLightSide', v)}
+        />
+        <Hint>{isMac ? 'Your OS already draws the traffic lights on the left.' : 'Put the minimize / maximize / close dots on the left, macOS-style, or keep them right where Windows expects them.'}</Hint>
+      </Row>
 
       <Row>
         <Label>Window opacity</Label>

@@ -183,12 +183,43 @@ function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfil
   )
 }
 
-export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId, onThemeChange, user, onLock, onSignOut, onManageUsers, onViewProfile, minimizeToTray = false }) {
+// macOS-style traffic-light buttons — the symbol shows on group hover. Placed
+// left (macOS convention) or right (Windows) per the user's setting.
+function TrafficLights({ ctrl }) {
+  return (
+    <div
+      className="flex traffic-lights"
+      style={{ gap: 7, WebkitAppRegion: 'no-drag' }}
+      onMouseEnter={e => { e.currentTarget.querySelectorAll('button').forEach(b => { b.style.color = 'rgba(0,0,0,0.6)' }) }}
+      onMouseLeave={e => { e.currentTarget.querySelectorAll('button').forEach(b => { b.style.color = 'transparent' }) }}
+    >
+      {[
+        { action: 'close', symbol: '×', color: '#ff5f57' },
+        { action: 'minimize', symbol: '−', color: '#ffbd2e' },
+        { action: 'maximize', symbol: '⤢', color: '#28ca42' }
+      ].map(({ action, symbol, color }) => (
+        <button
+          key={action}
+          onClick={() => ctrl(action)}
+          title={action}
+          className="sush-press"
+          style={{ width: 12, height: 12, borderRadius: '50%', background: color, border: 'none', cursor: 'pointer', fontSize: 8, lineHeight: 1, color: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color .1s', boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 1px 2px rgba(0,0,0,0.3)' }}
+        >
+          {symbol}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId, onThemeChange, user, onLock, onSignOut, onManageUsers, onViewProfile, minimizeToTray = false, trafficLightSide = 'right' }) {
   // With "minimize to tray" on, the minimize dot hides the window into the
   // tray instead of the taskbar.
   const ctrl = (action) => window.sush.windowControl(
     action === 'minimize' && minimizeToTray ? 'minimize-tray' : action
   )
+  // macOS puts window controls at the far left; Windows expects them right.
+  const lightsLeft = trafficLightSide === 'left'
 
   return (
     <div
@@ -202,8 +233,9 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
         borderBottom: `1px solid ${rgba(accent, 0.1)}`
       }}
     >
-      {/* Brand lockup */}
+      {/* Brand lockup (traffic lights sit before it in macOS mode) */}
       <div className="flex items-center" style={{ gap: 10, WebkitAppRegion: 'no-drag' }}>
+        {lightsLeft && <><TrafficLights ctrl={ctrl} /><span style={{ width: 4 }} /></>}
         <span
           style={{
             width: 17,
@@ -255,46 +287,13 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
           <Icon name="settings" size={15} />
         </button>
 
-        {/* Divider */}
-        <span style={{ width: 1, height: 16, background: rgba(accent, 0.12), margin: '0 8px 0 6px' }} />
-
-        {/* macOS traffic-light buttons — symbols show on group hover */}
-        <div
-          className="flex traffic-lights"
-          style={{ gap: 7 }}
-          onMouseEnter={e => { e.currentTarget.querySelectorAll('button').forEach(b => { b.style.color = 'rgba(0,0,0,0.6)' }) }}
-          onMouseLeave={e => { e.currentTarget.querySelectorAll('button').forEach(b => { b.style.color = 'transparent' }) }}
-        >
-          {[
-            { action: 'minimize', symbol: '−', color: '#ffbd2e' },
-            { action: 'maximize', symbol: '⤢', color: '#28ca42' },
-            { action: 'close', symbol: '×', color: '#ff5f57' }
-          ].map(({ action, symbol, color }) => (
-            <button
-              key={action}
-              onClick={() => ctrl(action)}
-              title={action}
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: '50%',
-                background: color,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 8,
-                lineHeight: 1,
-                color: 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'color .1s',
-                boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 1px 2px rgba(0,0,0,0.3)'
-              }}
-            >
-              {symbol}
-            </button>
-          ))}
-        </div>
+        {/* Traffic lights on the right (Windows convention) unless moved left */}
+        {!lightsLeft && (
+          <>
+            <span style={{ width: 1, height: 16, background: rgba(accent, 0.12), margin: '0 8px 0 6px' }} />
+            <TrafficLights ctrl={ctrl} />
+          </>
+        )}
       </div>
     </div>
   )

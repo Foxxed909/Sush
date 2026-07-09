@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('sush', {
+  // Host platform, so the renderer can gate platform-specific UI (Windows-only
+  // window material, macOS traffic-light conventions) without importing node.
+  platform: process.platform,
   startPty: (payload) => ipcRenderer.invoke('sush:pty-start', payload),
   ptyInput: (payload) => ipcRenderer.send('sush:pty-input', payload),
   ptyResize: (payload) => ipcRenderer.send('sush:pty-resize', payload),
@@ -29,6 +32,7 @@ contextBridge.exposeInMainWorld('sush', {
   cancelCommand: (payload) => ipcRenderer.invoke('sush:cancel-command', payload),
   windowControl: (action) => ipcRenderer.invoke('sush:window-control', action),
   setOpacity: (value) => ipcRenderer.invoke('sush:set-opacity', value),
+  setWindowMaterial: (material) => ipcRenderer.invoke('sush:set-window-material', material),
   appVersion: () => ipcRenderer.invoke('sush:app-version'),
   homeDir: () => ipcRenderer.invoke('sush:home-dir'),
   seduciaCli: (payload) => ipcRenderer.invoke('sush:seducia-cli', payload),

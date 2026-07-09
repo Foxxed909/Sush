@@ -1184,6 +1184,22 @@ export function registerIpcHandlers(win) {
     try { win.setOpacity(v) } catch {}
   })
 
+  // Windows 11 desktop material (Mica / Acrylic) behind the window — the big
+  // "feels like a Mac app" lever on Windows. No-op off Win11; the renderer
+  // thins its base canvas (sush-material class) so the material shows through.
+  ipcMain.handle('sush:set-window-material', (event, material) => {
+    const win = event.sender.getOwnerBrowserWindow()
+    if (!win || process.platform !== 'win32') return { ok: false, supported: false }
+    const m = ['mica', 'acrylic', 'tabbed'].includes(material) ? material : 'none'
+    try {
+      win.setBackgroundColor('#00000000')   // let the material show, not an opaque fill
+      win.setBackgroundMaterial(m)
+      return { ok: true, supported: true }
+    } catch {
+      return { ok: false, supported: false }
+    }
+  })
+
   ipcMain.handle('sush:git-status', (event, { cwd }) => getGitStatus(cwd))
   ipcMain.handle('sush:list-dir', (event, { path }) => listDirectory(path))
   ipcMain.handle('sush:dir-exists', (event, { path }) => ({ path, exists: isDirectory(path) }))

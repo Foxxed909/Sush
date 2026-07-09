@@ -673,6 +673,18 @@ export default function App() {
     window.sush.setOpacity?.((settings.opacity ?? 100) / 100)
   }, [settings.opacity])
 
+  // Windows 11 window material (Mica/Acrylic): when on with no wallpaper, the
+  // base canvas goes translucent (via the .sush-material rule) so the OS
+  // material shows through. Off (default) or with a wallpaper set, the canvas
+  // stays fully painted. Must live with the other hooks — above the identity
+  // gate's early returns — so hook order never changes between renders.
+  const materialActive = window.sush?.platform === 'win32' &&
+    ['mica', 'acrylic'].includes(settings.windowMaterial) && !settings.bgImage
+  useEffect(() => {
+    document.documentElement.classList.toggle('sush-material', !!materialActive)
+    window.sush?.setWindowMaterial?.(materialActive ? settings.windowMaterial : 'none')
+  }, [materialActive, settings.windowMaterial])
+
   const openRight = useCallback((tab) => {
     setRightTab(tab)
     setRightOpen(true)
@@ -1731,12 +1743,16 @@ export default function App() {
 
   return (
     <div
-      className={`flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(reducedFx || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
+      className={`sush-app-bg flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(reducedFx || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
         // Custom wallpaper sits under everything; bgDim is a dark veil baked
         // into the same background stack so terminal text stays readable.
+        // With window material on (and no wallpaper) the canvas is translucent
+        // so Mica/Acrylic shows through — see the .sush-material rule.
+        // When materialActive, the .sush-material rule overrides this with a
+        // translucent surface (via !important) so the OS material shows.
         background: settings.bgImage
           ? `linear-gradient(rgba(2,3,5,${(settings.bgDim ?? 62) / 100}), rgba(2,3,5,${(settings.bgDim ?? 62) / 100})), url(${JSON.stringify(settings.bgImage)}) center / cover no-repeat fixed, ${theme.xterm.background}`
           : theme.xterm.background
@@ -1755,6 +1771,7 @@ export default function App() {
           onManageUsers={() => setShowUserManager(true)}
           onViewProfile={() => setShowProfile(true)}
           minimizeToTray={settings.minimizeToTray === true}
+          trafficLightSide={settings.trafficLightSide === 'left' ? 'left' : 'right'}
         />
       )}
 

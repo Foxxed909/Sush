@@ -8,6 +8,23 @@
 
 export const CHANGELOG = [
   {
+    v: '4.8.0',
+    codename: 'lull',
+    date: '2026-07-09',
+    summary: 'Small, deliberate polish so Sush feels native and calm — especially on Windows.',
+    changes: {
+      new: [
+        'Window material (Windows 11): let the desktop tint show behind Sush like macOS vibrancy — pick Mica or Acrylic in Settings ▸ Appearance.',
+        'Window controls can move to the left, macOS-style, or stay on the right where Windows expects them.'
+      ],
+      improved: [
+        'Crisper text everywhere (grayscale font smoothing) so Sush reads like a native Mac app on Windows too.',
+        'Buttons and window controls have a subtle press spring; scroll areas no longer chain-scroll the whole app.'
+      ],
+      fixed: []
+    }
+  },
+  {
     v: '4.7.0',
     codename: 'murmur',
     date: '2026-07-09',

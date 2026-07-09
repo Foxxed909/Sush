@@ -20,6 +20,21 @@
   (`buildHandoffCard` + `performHandoff{openNew, agentId}`); the only new
   parts are fallback-CLI probing and the `cliComplete` summary via the
   fallback engine (the limited CLI can't summarize itself).
+- **Mac-feel-on-Windows cycle (4.8.0 "lull")**: Win11 Mica/Acrylic via
+  `win.setBackgroundMaterial` (IPC `set-window-material`), opt-in setting,
+  default Solid — the renderer thins its base canvas with the `.sush-material`
+  root class + a translucent `.sush-app-bg` (so the OS material shows without
+  touching the solid-theme default). Traffic lights can move left (macOS) via
+  `settings.trafficLightSide`; TrafficLights extracted in TitleBar.
+  `window.sush.platform` now exposed from preload (renderer has no `process`).
+  Global: grayscale font smoothing, `.sush-press` micro-spring, overscroll
+  containment. NOTE: Mica/Acrylic can't be verified in the CI/headless
+  sandbox — needs a real Win11 smoke test (material shows, text stays legible
+  at 0.72 canvas alpha).
+- **In-app changelog** (lib/changelog.js + ChangelogPage): auto-opens once
+  after a version change (`sush-last-seen-version`), also in the palette and
+  Settings ▸ Plan. Maintained by hand each cycle; bump package.json version +
+  codename alongside a new top entry.
 - **Sidebar redesign**: RightPanel's 16 flat tabs are now four grouped
   clusters (AI/Project/Web/Ops + a hidden-by-default More) drawn from
   lib/panelTabs.js — the ONE catalog Settings reads too, so a settings
