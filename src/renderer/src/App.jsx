@@ -644,7 +644,9 @@ export default function App() {
       zoomTimerRef.current = setTimeout(() => setZoomIndicator(null), 1200)
     }
     const handler = (e) => {
-      if (!e.ctrlKey) return
+      // Cmd on macOS too — lib/keymap already swallows Ctrl/Cmd +/-/0 from the
+      // terminal, so a ctrlKey-only check left Cmd+= a dead chord on Mac.
+      if (!e.ctrlKey && !e.metaKey) return
       if (e.key === '=' || e.key === '+') {
         e.preventDefault()
         const next = Math.min((settings.fontSize ?? 14) + 1, 28)
@@ -1945,7 +1947,9 @@ export default function App() {
                         </div>
                       )
                     })}
-                    {layoutGridMode && tabs.length > GRID_CAP && (
+                    {/* Grid only — split view always shows exactly 2 tiles, so
+                        the "showing X of N" cap note would be wrong there. */}
+                    {gridMode && !zenMode && tabs.length > GRID_CAP && (
                       <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 70, fontSize: 10.5, fontWeight: 700, color: '#8a939c', background: 'rgba(5,7,10,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '4px 12px' }}>
                         showing {GRID_CAP} of {tabs.length} (CPU guard)
                       </div>
@@ -2007,8 +2011,15 @@ export default function App() {
                 </div>
                 {(() => {
                   const raw = stripAnsi(smartResult.output).trim()
-                  const jsonView = smartResult.type !== 'error' && <JsonViewer content={raw} accent={accent} />
-                  return jsonView || (
+                  // A React element is always truthy even when the component
+                  // renders null, so "jsonView || <pre>" never fell through —
+                  // every non-JSON success output showed as an empty box.
+                  // Decide JSON-ness here instead.
+                  let isJson = false
+                  if (smartResult.type !== 'error' && /^[[{]/.test(raw)) {
+                    try { JSON.parse(raw); isJson = true } catch {}
+                  }
+                  return isJson ? <JsonViewer content={raw} accent={accent} /> : (
                     <pre style={{ margin: 0, padding: 12, color: '#d4dbe1', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, lineHeight: 1.5 }}>
                       {raw}
                     </pre>

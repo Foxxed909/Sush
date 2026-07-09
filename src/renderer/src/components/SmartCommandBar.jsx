@@ -90,8 +90,12 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
   }, [activeTab?.cwd])
 
   // Ctrl+L to focus the bar. Ctrl+R to open history search mode.
+  // NEVER while a terminal owns the keyboard: ^L (clear screen) and ^R
+  // (reverse-i-search) are core shell chords — the PTY receives them, so
+  // stealing focus to the omnibar at the same time fought the shell.
   useEffect(() => {
     const handler = (e) => {
+      if (e.target?.closest?.('.xterm')) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
         e.preventDefault()
         inputRef.current?.focus()

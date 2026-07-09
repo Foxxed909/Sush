@@ -18,7 +18,9 @@ export const plan = {
       `${ansi.cyan('Custom agents')} ${features.customAgents ? ansi.green('yes') : ansi.dim('—')}`,
       `${ansi.cyan('Cloud voices')}  ${features.cloudTts ? ansi.green('yes') : ansi.dim('—')}`,
       '',
-      tier === 'pro'
+      // Max is the top of the five-tier ladder — 'pro' was the ceiling before
+      // Ultra/Max landed, and this line never moved with it.
+      tier === 'max'
         ? ansi.dim('You’re on the top tier.')
         : ansi.dim('Have a code? Run:  unlock SUSH-…')
     ]

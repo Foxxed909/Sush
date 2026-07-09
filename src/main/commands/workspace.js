@@ -1,5 +1,5 @@
 import { shell as electronShell } from 'electron'
-import { execFile, execFileSync } from 'child_process'
+import { execFile } from 'child_process'
 import { existsSync, readFileSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { basename, resolve } from 'path'
@@ -34,14 +34,12 @@ function directoryOrError(target, cwd, commandName) {
 function commandPath(tool) {
   const name = String(tool ?? '').trim()
   if (!name) return null
-  try {
-    if (process.platform === 'win32') {
-      return execFileSync('where.exe', [name], { encoding: 'utf8', windowsHide: true }).trim()
-    }
-    return execFileSync('sh', ['-lc', `command -v ${JSON.stringify(name)}`], { encoding: 'utf8' }).trim()
-  } catch {
-    return null
-  }
+  // resolveExecutable runs where.exe/which via execFile — no shell. The old
+  // POSIX branch interpolated the name into `sh -lc "command -v \"<name>\""`,
+  // where JSON.stringify's double quotes still allow $(...)/backtick command
+  // substitution, so `where "$(cmd)"` (or `edit`/`doctor` on such a name)
+  // executed the substitution.
+  return resolveExecutable(name)
 }
 
 function readPackage(cwd) {
