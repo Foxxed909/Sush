@@ -180,6 +180,10 @@ export function useTerminal({
         navigator.clipboard.readText().then(text => { if (text) term.paste(text) }).catch(() => {})
         return false
       }
+      // Ctrl+F is find-in-terminal (Terminal.jsx opens the SearchBar on the
+      // same window event). Without this, the search bar opened AND ^F still
+      // went to the PTY — the exact double-action drift keymap.js warns about.
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && key === 'f') return false
 
       return !isAppChord(e)
     })

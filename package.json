@@ -1,7 +1,7 @@
 {
   "name": "sush",
-  "version": "4.8.0",
-  "codename": "lull",
+  "version": "4.9.0",
+  "codename": "undertow",
   "description": "Sush - the terminal your agents live in",
   "main": "out/main/index.js",
   "scripts": {

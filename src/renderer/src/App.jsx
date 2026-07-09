@@ -27,8 +27,9 @@ import ChangelogPage from './components/ChangelogPage'
 import { LATEST_VERSION } from './lib/changelog'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
-import { themes, getTheme } from './themes'
+import { allThemes, getTheme } from './themes'
 import { agentById, MAX_SESSIONS, LOGIN_COMMANDS } from './lib/agents'
+import { loadCrews, crewToAgents } from './lib/crews'
 import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
 import { useAgentActivity } from './hooks/useAgentActivity'
@@ -644,7 +645,9 @@ export default function App() {
       zoomTimerRef.current = setTimeout(() => setZoomIndicator(null), 1200)
     }
     const handler = (e) => {
-      if (!e.ctrlKey) return
+      // Cmd on macOS too — lib/keymap already swallows Ctrl/Cmd +/-/0 from the
+      // terminal, so a ctrlKey-only check left Cmd+= a dead chord on Mac.
+      if (!e.ctrlKey && !e.metaKey) return
       if (e.key === '=' || e.key === '+') {
         e.preventDefault()
         const next = Math.min((settings.fontSize ?? 14) + 1, 28)
@@ -950,7 +953,7 @@ export default function App() {
     return tab
   }, [profiles, rememberSession])
 
-  const launchSessions = useCallback(({ cwd, agents, groupLabel, prompt, groupId: intoGroupId }) => {
+  const launchSessions = useCallback(({ cwd, agents, groupLabel, prompt, groupId: intoGroupId, worktrees }) => {
     const prof = profiles[0]
     const targetCwd = cwd || null
     // Seducia's AI may emit bare agents ({id, count}) — fill command/label
@@ -990,52 +993,68 @@ export default function App() {
       ? (existing.groupLabel || groupLabel || (targetCwd ? pathLabel(targetCwd) : 'Workspace'))
       : (groupLabel || `${targetCwd ? pathLabel(targetCwd) : 'Workspace'}${total >= 2 ? ` · ${total}` : ''}`)
 
-    const spawned = []
+    // Flatten the crew into one session spec per PTY, so worktree creation and
+    // labeling share the same numbering.
+    const specs = []
     agents.forEach(agent => {
       const count = Math.max(1, agent.count || 1)
       for (let i = 0; i < count; i++) {
         const base = agent.id === 'shell'
           ? (targetCwd ? pathLabel(targetCwd) : prof?.label ?? 'Shell')
           : agent.label
-        const tab = openTab(prof, {
-          cwd: targetCwd,
-          command: agent.command || undefined,
-          agentId: agent.id,
-          tag: `sess-${nextSessionTag++}`,
-          groupId,
-          groupLabel: label,
-          // The custom name lives on the workspace; sessions keep agent names.
-          label: count > 1 ? `${base} ${i + 1}` : base
-        })
-        if (tab) spawned.push(tab)
+        // The custom name lives on the workspace; sessions keep agent names.
+        specs.push({ agent, label: count > 1 ? `${base} ${i + 1}` : base })
       }
     })
 
-    // Seducia "launch and brief them": type the prompt into each spawned
-    // session once its agent TUI has had a beat to boot (the bootCommand
-    // lands first; agent CLIs need a couple seconds before they accept
-    // input). Flattened to one line — TUIs treat Enter as submit.
     const brief = String(prompt ?? '').trim().replace(/\s*\n+\s*/g, ' ')
-    if (brief) {
-      // Type the brief when each agent's TUI actually settles (the activity
-      // classifier reports waiting/idle after boot) instead of the old blind
-      // 4.5s timer — slow machines missed the window, fast ones sat around.
-      // Hard fallback at 12s so a brief is never silently dropped.
-      spawned.forEach((tab, i) => {
-        const startedAt = Date.now()
-        const timer = setInterval(() => {
-          const live = tabsRef.current.find(t => t.id === tab.id)
-          if (!live || live.status === 'exited') { clearInterval(timer); return }
-          const elapsed = Date.now() - startedAt
-          const state = agentStatesRef.current[tab.id]
-          const settled = elapsed >= 2500 + i * 300 && (state === 'waiting' || state === 'idle')
-          if (settled || elapsed >= 12000) {
-            clearInterval(timer)
-            if (live.status === 'running') window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
-          }
-        }, 500)
-      })
+
+    // Type the brief into a session once its agent TUI actually settles (the
+    // activity classifier reports waiting/idle after boot) instead of a blind
+    // timer. Hard fallback at 12s so a brief is never silently dropped.
+    const briefSession = (tab, i) => {
+      if (!brief) return
+      const startedAt = Date.now()
+      const timer = setInterval(() => {
+        const live = tabsRef.current.find(t => t.id === tab.id)
+        if (!live || live.status === 'exited') { clearInterval(timer); return }
+        const elapsed = Date.now() - startedAt
+        const state = agentStatesRef.current[tab.id]
+        const settled = elapsed >= 2500 + i * 300 && (state === 'waiting' || state === 'idle')
+        if (settled || elapsed >= 12000) {
+          clearInterval(timer)
+          if (live.status === 'running') window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
+        }
+      }, 500)
     }
+
+    // Worktree swarms: give each session its own checkout. Creation is async
+    // (one `git worktree add` per session), so the spawn loop awaits per
+    // session; on any failure the session falls back to the shared directory.
+    ;(async () => {
+      let i = 0
+      for (const spec of specs) {
+        let sessionCwd = targetCwd
+        if (worktrees && targetCwd) {
+          try {
+            const r = await window.sush.gitWorktreeAdd?.({ cwd: targetCwd, name: `${spec.label}-${i + 1}` })
+            if (r?.ok && r.path) sessionCwd = r.path
+          } catch {}
+        }
+        const tab = openTab(prof, {
+          cwd: sessionCwd,
+          command: spec.agent.command || undefined,
+          agentId: spec.agent.id,
+          tag: `sess-${nextSessionTag++}`,
+          groupId,
+          groupLabel: label,
+          label: spec.label
+        })
+        if (tab) briefSession(tab, i)
+        i++
+      }
+    })()
+
     setShowLauncher(false)
     // Seducia stays open so you can keep orchestrating after a launch.
   }, [openTab, profiles, entitlements.limit])
@@ -1180,8 +1199,9 @@ export default function App() {
     setTheme: (name) => {
       const q = String(name ?? '').trim().toLowerCase()
       if (!q) return false
-      const entry = Object.values(themes).find(t => t.id === q || (t.label || '').toLowerCase() === q)
-        || Object.values(themes).find(t => (t.label || '').toLowerCase().includes(q))
+      const pool = Object.values(allThemes())
+      const entry = pool.find(t => t.id === q || (t.label || '').toLowerCase() === q)
+        || pool.find(t => (t.label || '').toLowerCase().includes(q))
       if (!entry) return false
       // Persist like Settings does — setSettings alone is lost on restart.
       setSettings(s => {
@@ -1611,7 +1631,19 @@ export default function App() {
       const s = recentSessions.find(r => r.cwd === cwd)
       if (s) openRecentSession(s)
     }
-  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleSplit])
+    else if (action?.startsWith?.('crew:')) {
+      // Relaunch a saved crew straight from the palette — the whole workspace
+      // (agents × counts + cwd + brief) in one action.
+      const id = action.slice('crew:'.length)
+      const crew = loadCrews().find(c => c.id === id)
+      if (crew) launchSessions({
+        cwd: crew.cwd || activeIdRef.current && tabsRef.current.find(t => t.id === activeIdRef.current)?.cwd || null,
+        agents: crewToAgents(crew, agentById),
+        groupLabel: crew.name,
+        prompt: crew.brief || undefined
+      })
+    }
+  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleSplit, launchSessions])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
@@ -1642,7 +1674,7 @@ export default function App() {
       icon: 'terminal',
       action: `session:${t.id}`
     }))
-    const themeEntries = Object.values(themes).map(th => ({
+    const themeEntries = Object.values(allThemes()).map(th => ({
       id: `theme-${th.id}`,
       label: `Theme: ${th.label}`,
       description: th.id === themeId ? 'Active theme' : 'Switch color theme',
@@ -1656,6 +1688,17 @@ export default function App() {
       icon: 'folder',
       action: `recent:${r.cwd}`
     }))
+    // Saved crews — relaunch a whole workspace in one action.
+    const crewEntries = loadCrews().map(c => {
+      const n = Object.values(c.counts).reduce((s, x) => s + x, 0)
+      return {
+        id: `crew-${c.id}`,
+        label: `Launch crew: ${c.name}`,
+        description: `${n} session${n === 1 ? '' : 's'}${c.cwd ? ` · ${c.cwd}` : ''}`,
+        icon: 'layers',
+        action: `crew:${c.id}`
+      }
+    })
     // Saved snippets — run the exact command via `run`.
     const snippetEntries = snippets.map(s => ({
       id: `snip-${s.name}`,
@@ -1674,7 +1717,7 @@ export default function App() {
       seen.add(cmd)
       historyEntries.push({ id: `hist-${historyEntries.length}-${cmd}`, label: cmd, description: 'Recent command', icon: 'clock', run: cmd })
     }
-    return [...base, ...snippetEntries, ...sessions, ...recents, ...historyEntries, ...themeEntries]
+    return [...base, ...crewEntries, ...snippetEntries, ...sessions, ...recents, ...historyEntries, ...themeEntries]
   }, [tabs, themeId, recentSessions, snippets, commandHistory])
 
   // Power-user session shortcuts (v3.1):
@@ -1945,7 +1988,9 @@ export default function App() {
                         </div>
                       )
                     })}
-                    {layoutGridMode && tabs.length > GRID_CAP && (
+                    {/* Grid only — split view always shows exactly 2 tiles, so
+                        the "showing X of N" cap note would be wrong there. */}
+                    {gridMode && !zenMode && tabs.length > GRID_CAP && (
                       <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 70, fontSize: 10.5, fontWeight: 700, color: '#8a939c', background: 'rgba(5,7,10,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '4px 12px' }}>
                         showing {GRID_CAP} of {tabs.length} (CPU guard)
                       </div>
@@ -2007,8 +2052,15 @@ export default function App() {
                 </div>
                 {(() => {
                   const raw = stripAnsi(smartResult.output).trim()
-                  const jsonView = smartResult.type !== 'error' && <JsonViewer content={raw} accent={accent} />
-                  return jsonView || (
+                  // A React element is always truthy even when the component
+                  // renders null, so "jsonView || <pre>" never fell through —
+                  // every non-JSON success output showed as an empty box.
+                  // Decide JSON-ness here instead.
+                  let isJson = false
+                  if (smartResult.type !== 'error' && /^[[{]/.test(raw)) {
+                    try { JSON.parse(raw); isJson = true } catch {}
+                  }
+                  return isJson ? <JsonViewer content={raw} accent={accent} /> : (
                     <pre style={{ margin: 0, padding: 12, color: '#d4dbe1', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, lineHeight: 1.5 }}>
                       {raw}
                     </pre>

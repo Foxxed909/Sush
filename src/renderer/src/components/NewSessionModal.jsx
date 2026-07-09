@@ -4,6 +4,7 @@ import PathField from './PathField'
 import { rgba, accentVars } from '../lib/ui'
 import { allAgents, MAX_SESSIONS } from '../lib/agents'
 import { useCliAvailability } from '../hooks/useCliAvailability'
+import { loadCrews, saveCrew, deleteCrew } from '../lib/crews'
 
 function pathLabel(cwd) {
   if (!cwd) return ''
@@ -35,7 +36,22 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [counts, setCounts] = useState({ shell: 1 })
   const [sessionName, setSessionName] = useState('')
   const [brief, setBrief] = useState('')
+  const [worktrees, setWorktrees] = useState(false)
+  const [crews, setCrews] = useState(() => loadCrews())
   const { avail, rescan, checking } = useCliAvailability()
+
+  const applyCrew = (crew) => {
+    setCounts({ ...crew.counts })
+    setBrief(crew.brief || '')
+    if (crew.name) setSessionName(crew.name)
+    if (crew.cwd) setCwd(crew.cwd)
+  }
+  const saveCurrentCrew = () => {
+    const name = sessionName.trim() || pathLabel(cwd) || 'Crew'
+    const r = saveCrew({ name, cwd: cwd.trim() || null, counts, brief: brief.trim() })
+    if (r.ok) setCrews(r.crews)
+  }
+  const removeCrew = (id) => { const r = deleteCrew(id); setCrews(r.crews) }
 
   // Fall back to the home directory if we don't have an active path yet.
   useEffect(() => {
@@ -102,7 +118,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     const agents = AGENT_LIST
       .filter(a => (counts[a.id] || 0) > 0)
       .map(a => ({ ...a, count: counts[a.id] }))
-    onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined })
+    onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined, worktrees })
   }
 
   useEffect(() => {
@@ -250,6 +266,29 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             })}
           </div>
 
+          {crews.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 1, color: 'var(--text-4)', textTransform: 'uppercase', marginBottom: 7 }}>Saved crews</div>
+              <div className="flex" style={{ gap: 7, flexWrap: 'wrap' }}>
+                {crews.map(crew => {
+                  const n = Object.values(crew.counts).reduce((s, c) => s + c, 0)
+                  return (
+                    <span
+                      key={crew.id}
+                      className="flex items-center"
+                      style={{ gap: 6, fontSize: 11, fontWeight: 800, color: 'var(--text-2)', background: '#11151a', border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 999, padding: '4px 6px 4px 11px' }}
+                    >
+                      <button onClick={() => applyCrew(crew)} title={`${n} session${n === 1 ? '' : 's'}${crew.cwd ? ` · ${pathLabel(crew.cwd)}` : ''}`} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 800, fontSize: 11, padding: 0 }}>
+                        <Icon name="layers" size={11} strokeWidth={2.3} color={accent} /> {crew.name} <span style={{ color: 'var(--text-4)' }}>· {n}</span>
+                      </button>
+                      <button onClick={() => removeCrew(crew.id)} title="Delete crew" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button>
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 11 }}>
             {AGENT_LIST.map(agent => {
               const count = counts[agent.id] || 0
@@ -346,6 +385,25 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               ))}
             </div>
           </div>
+
+          {/* Isolate each session in its own git worktree. No-op when the
+              directory isn't a git repo (the launch falls back to the shared
+              cwd), so it's safe to leave on. */}
+          <div style={{ marginTop: 20 }}>
+            <button
+              onClick={() => setWorktrees(v => !v)}
+              className="flex items-center"
+              style={{ gap: 10, width: '100%', textAlign: 'left', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', background: worktrees ? rgba(accent, 0.08) : '#0f1318', border: `1px solid ${worktrees ? rgba(accent, 0.45) : '#1b2127'}` }}
+            >
+              <span className="flex items-center justify-center" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: rgba(accent, worktrees ? 0.16 : 0.08), border: `1px solid ${rgba(accent, worktrees ? 0.45 : 0.2)}`, color: worktrees ? accent : 'var(--text-3)' }}>
+                <Icon name={worktrees ? 'check' : 'grid'} size={15} strokeWidth={2.3} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: worktrees ? accent : 'var(--text-2)' }}>Isolate each session in its own git worktree</span>
+                <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>Each agent gets a private checkout on a <code style={{ fontFamily: 'monospace' }}>sush/…</code> branch so parallel agents never trample each other. Ignored if the directory isn’t a git repo.</span>
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Footer */}
@@ -364,6 +422,16 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             {remaining <= 4 && <span style={{ color: 'var(--text-3)', fontSize: 11 }}>· max {MAX_SESSIONS}</span>}
           </div>
           <div className="flex items-center" style={{ gap: 10 }}>
+            <button
+              onClick={saveCurrentCrew}
+              disabled={total === 0}
+              title="Save this agent mix as a reusable crew"
+              className="sush-btn flex items-center"
+              style={{ gap: 6, height: 38, padding: '0 14px', border: '1px solid #262d35', borderRadius: 10, background: '#161b21', color: total === 0 ? 'var(--text-4)' : 'var(--text-2)', fontWeight: 800, fontSize: 12.5, cursor: total === 0 ? 'default' : 'pointer' }}
+            >
+              <Icon name="layers" size={14} strokeWidth={2.2} color={total === 0 ? 'var(--text-4)' : accent} />
+              Save crew
+            </button>
             <button
               onClick={onClose}
               className="sush-btn"

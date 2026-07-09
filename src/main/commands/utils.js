@@ -125,18 +125,26 @@ export const hunt = {
     const store = runtime.scrollback
     if (!store) return err('hunt: scrollback store not ready yet')
     const results = store.search(term)
-    if (!results.length) return ok(ansi.dim(`No session output matches "${term}".`))
+    if (!results.length) return ok(ansi.dim(`No session output matches "${term}" (live or saved).`))
     const sessions = runtime.sessions
-    const blocks = results.map(({ tabId, lines }) => {
-      const label = sessions?.get?.(tabId)?.label || tabId
-      const marker = tabId === ctx.tabId ? ansi.dim(' (this session)') : ''
+    // Turn a persisted restoreKey (u:<user>:<profile>:<shell>:<cwd>...) into
+    // something readable — the trailing path segment of its cwd.
+    const savedLabel = (key) => {
+      const seg = String(key || '').split(/[\\/:]/).filter(Boolean).pop()
+      return seg ? `${seg} (saved)` : 'saved session'
+    }
+    const blocks = results.map(({ tabId, key, saved, lines }) => {
+      const label = saved ? savedLabel(key) : (sessions?.get?.(tabId)?.label || tabId)
+      const marker = !saved && tabId === ctx.tabId ? ansi.dim(' (this session)') : ''
       const head = ansi.bold(ansi.pink(`▸ ${label}`)) + marker
       const body = lines.map(l => `  ${ansi.dim(String(l.line).padStart(5))}  ${l.text.replace(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), m => ansi.pink(m))}`)
       return [head, ...body].join('\r\n')
     })
     const total = results.reduce((n, r) => n + r.lines.length, 0)
+    const savedCount = results.filter(r => r.saved).length
+    const note = savedCount ? ansi.dim(`  ·  ${savedCount} from closed sessions`) : ''
     return ok([
-      ansi.dim(`${total} match${total === 1 ? '' : 'es'} across ${results.length} session${results.length === 1 ? '' : 's'}:`),
+      ansi.dim(`${total} match${total === 1 ? '' : 'es'} across ${results.length} session${results.length === 1 ? '' : 's'}:`) + note,
       '',
       ...blocks
     ].join('\r\n'))

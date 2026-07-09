@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
-import { themes, presetThemeIds } from '../themes'
+import { themes, presetThemeIds, buildCustomTheme } from '../themes'
 
 // Compact in-shell theme switcher: a row of accent swatches that writes straight
 // to settings.themeId (the same mechanism Settings + the palette use). Lives in
@@ -17,7 +17,8 @@ function ThemeSwitcher({ accent, themeId, onThemeChange }) {
     return () => window.removeEventListener('mousedown', close)
   }, [open])
 
-  const presets = presetThemeIds.map(id => themes[id]).filter(Boolean)
+  const custom = buildCustomTheme()
+  const presets = [...presetThemeIds.map(id => themes[id]), custom].filter(Boolean)
 
   return (
     <div ref={ref} style={{ position: 'relative', WebkitAppRegion: 'no-drag', display: 'flex', alignItems: 'center' }}>
