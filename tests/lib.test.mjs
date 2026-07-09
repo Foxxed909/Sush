@@ -6,6 +6,8 @@ import { classify, detectLimit, stripAnsi, summarize } from '../src/renderer/src
 import { parseIntent, runningTargets, agentIdFromToken } from '../src/renderer/src/lib/seducia.js'
 import { formatCredits } from '../src/renderer/src/lib/dictation.js'
 import { perfModeOf, withPerfMode } from '../src/renderer/src/lib/power.js'
+import { crewToAgents } from '../src/renderer/src/lib/crews.js'
+import { buildCustomTheme } from '../src/renderer/src/themes/index.js'
 
 describe('ui color helpers', () => {
   it('parses 6-digit hex', () => {
@@ -116,5 +118,33 @@ describe('performance ladder', () => {
   })
   it('falls back to full on garbage', () => {
     expect(perfModeOf({ perfMode: 'warp-speed' })).toBe('full')
+  })
+})
+
+describe('saved crews', () => {
+  const agentById = (id) => ({ claude: { command: 'claude', label: 'Claude Code' }, shell: { command: null, label: 'Terminal' } })[id] || null
+  it('expands a crew counts map into launchable agents', () => {
+    const agents = crewToAgents({ counts: { claude: 2, shell: 1 } }, agentById)
+    expect(agents.find(a => a.id === 'claude')).toMatchObject({ count: 2, command: 'claude' })
+    expect(agents.find(a => a.id === 'shell')).toMatchObject({ count: 1, command: null })
+  })
+  it('falls back to the id as command for unknown agents', () => {
+    const agents = crewToAgents({ counts: { gemini: 1 } }, () => null)
+    expect(agents[0]).toMatchObject({ id: 'gemini', command: 'gemini', count: 1 })
+  })
+})
+
+describe('custom theme builder', () => {
+  it('clones a base preset and overrides accent + background', () => {
+    const t = buildCustomTheme({ name: 'Mine', baseId: 'glassdark', accent: '#123456', bg: '#000000' })
+    expect(t.id).toBe('custom')
+    expect(t.label).toBe('Mine')
+    expect(t.ui.accent).toBe('#123456')
+    expect(t.xterm.background).toBe('#000000')
+    expect(t.custom).toBe(true)
+  })
+  it('keeps the base accent when the override is not a valid hex', () => {
+    const t = buildCustomTheme({ name: 'X', baseId: 'glassdark', accent: 'not-a-hex' })
+    expect(t.ui.accent).toBe('#9aabd4') // glassdark's accent
   })
 })

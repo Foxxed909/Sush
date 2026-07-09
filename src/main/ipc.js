@@ -784,10 +784,11 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   }
 
   // Load the user's .sushrc profile (aliases / env / startup / default cwd).
-  const sushrc = loadSushrc()
-
+  // Resolve the working directory from the home profile first, THEN reload with
+  // any project-local .sushrc (in that directory) layered on top.
   const requestedShell = getDefaultShell(shellId)
-  const shellCwd = resolveStartCwd(cwd ?? sushrc.settings.cwd)
+  const shellCwd = resolveStartCwd(cwd ?? loadSushrc().settings.cwd)
+  const sushrc = loadSushrc(shellCwd)
   sendStaggeredBanner(mainWin, tabId, requestedShell.label, shellCwd)
 
   // Replay persisted scrollback for this workspace, if any.
@@ -926,9 +927,11 @@ function closeAllPtySessions({ sync = false } = {}) {
 function getContext(tabId) {
   const session = ptySessions.get(tabId)
   if (!contexts.has(tabId)) {
-    const ctx = new ShellContext({ cwd: session?.cwd ?? homedir(), tabId })
-    // Populate aliases so alias expansion works even before the PTY session boots.
-    try { ctx.aliases = { ...loadSushrc().alias } } catch {}
+    const cwd = session?.cwd ?? homedir()
+    const ctx = new ShellContext({ cwd, tabId })
+    // Populate aliases so alias expansion works even before the PTY session
+    // boots — including any project-local .sushrc aliases for this cwd.
+    try { ctx.aliases = { ...loadSushrc(cwd).alias } } catch {}
     contexts.set(tabId, ctx)
   }
   const ctx = contexts.get(tabId)
@@ -1792,6 +1795,41 @@ export function registerIpcHandlers(win) {
       return { ok: true, diff: stdout.trim() }
     } catch (e) {
       return { ok: false, diff: '', error: e.message }
+    }
+  })
+
+  // ── Git worktrees (isolated swarms) ───────────────────────────────────────
+  // Give each agent in a swarm its own working copy of the repo so parallel
+  // agents never trample each other's checkout. Creates (or reuses) a worktree
+  // under <repoRoot>/.sush-worktrees/<name> on a dedicated `sush/<name>` branch
+  // and returns its path for the session to spawn in.
+  ipcMain.handle('sush:git-worktree-add', async (event, { cwd, name } = {}) => {
+    const dir = resolveStartCwd(cwd)
+    const safe = String(name ?? '').trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+    if (!safe) return { ok: false, error: 'A worktree name is required' }
+    try {
+      const root = (await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, windowsHide: true, encoding: 'utf8' })).stdout.trim()
+      if (!root) return { ok: false, error: 'Not a git repository' }
+      const wtDir = join(root, '.sush-worktrees', safe)
+      const branch = `sush/${safe}`
+      // Already there (a re-launch of the same crew) → reuse it.
+      if (existsSync(wtDir)) return { ok: true, path: wtDir, branch, reused: true }
+      mkdirSync(join(root, '.sush-worktrees'), { recursive: true })
+
+      // Prefer a fresh branch off HEAD; if it already exists, check it out into
+      // the new worktree instead of failing.
+      try {
+        await execFileAsync('git', ['worktree', 'add', '-b', branch, wtDir, 'HEAD'], { cwd: root, windowsHide: true, encoding: 'utf8', timeout: 60000 })
+      } catch (e) {
+        if (/already (exists|used)/i.test(e.stderr || e.message || '')) {
+          await execFileAsync('git', ['worktree', 'add', wtDir, branch], { cwd: root, windowsHide: true, encoding: 'utf8', timeout: 60000 })
+        } else {
+          throw e
+        }
+      }
+      return { ok: true, path: wtDir, branch }
+    } catch (e) {
+      return { ok: false, error: (e.stderr || e.message || 'git worktree failed').trim().slice(0, 300) }
     }
   })
 

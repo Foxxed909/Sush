@@ -8,6 +8,30 @@
 
 export const CHANGELOG = [
   {
+    v: '4.9.0',
+    codename: 'undertow',
+    date: '2026-07-09',
+    summary: 'Reusable crews, isolated worktree swarms, a theme you make yourself — and a bug sweep.',
+    changes: {
+      new: [
+        'Saved crews: save an agent mix (with its directory and brief) from the launcher and relaunch the whole workspace in one click — or straight from the command palette (Ctrl+P).',
+        'Worktree swarms: tick “isolate each session in its own git worktree” and every agent gets a private checkout on its own sush/… branch, so parallel agents never trample each other’s files.',
+        'Custom theme: build your own from a base preset, an accent colour and a terminal background in Settings ▸ Appearance — it shows up in the switcher, palette and title-bar picker like any preset.',
+        'Project-level .sushrc: drop a .sushrc in a repo and its aliases, env and startup commands layer over your home profile for sessions opened there.'
+      ],
+      improved: [
+        '`hunt` now searches the saved output of sessions you’ve already closed, not just the live ones.'
+      ],
+      fixed: [
+        'Smart-bar output no longer shows an empty box for non-JSON results (help, sysinfo, and friends).',
+        'Ctrl+F opens find-in-terminal without also leaking ^F into the shell; Ctrl+L / Ctrl+R stay with the shell when a terminal is focused.',
+        'Zoom shortcuts (Cmd +/–/0) work on macOS.',
+        'Fixed a shell-quoting hole in tool-path resolution on macOS/Linux.',
+        'The grid’s “showing X of N” note no longer appears in split view, and `plan` no longer calls Pro the top tier.'
+      ]
+    }
+  },
+  {
     v: '4.8.0',
     codename: 'lull',
     date: '2026-07-09',

@@ -1,5 +1,5 @@
 import { homedir } from 'os'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 
 // The .sushrc is Sush's own shell-agnostic profile. It is a small declarative
@@ -90,15 +90,52 @@ export function parseSushrc(text) {
   return profile
 }
 
-// Read + parse the user's .sushrc (returns an empty profile if none exists).
-export function loadSushrc() {
-  const file = sushrcPath()
+function readProfileAt(file) {
   try {
     if (!existsSync(file)) return { ...parseSushrc(''), exists: false, path: file }
     const text = readFileSync(file, 'utf8')
     return { ...parseSushrc(text), exists: true, path: file, raw: text }
   } catch (err) {
     return { ...parseSushrc(''), exists: false, path: file, error: err.message }
+  }
+}
+
+// Merge a project profile OVER a base (home) profile. Aliases/env/settings are
+// key-wise overrides (project wins); startup commands concatenate (home first,
+// then project) so a repo can add boot steps without losing the user's.
+function mergeProfiles(base, over) {
+  return {
+    settings: { ...base.settings, ...over.settings },
+    alias: { ...base.alias, ...over.alias },
+    env: { ...base.env, ...over.env },
+    startup: [...(base.startup || []), ...(over.startup || [])]
+  }
+}
+
+// Read + parse the user's .sushrc (returns an empty profile if none exists).
+// When `cwd` is given and that directory holds its own `.sushrc`, it is layered
+// ON TOP of the home profile — per-project aliases/env/startup, home as the
+// base. The home file stays the one the in-app editor reads and writes.
+export function loadSushrc(cwd) {
+  const home = readProfileAt(sushrcPath())
+  const dir = cwd && String(cwd).trim()
+  if (!dir) return home
+
+  // Never treat the home file as a "project" file when cwd === ~.
+  if (resolve(dir) === resolve(homedir())) return home
+
+  const projectFile = join(dir, '.sushrc')
+  const project = readProfileAt(projectFile)
+  if (!project.exists) return home
+
+  const merged = mergeProfiles(home, project)
+  return {
+    ...merged,
+    exists: true,
+    path: home.path,
+    projectPath: project.path,
+    projectApplied: true,
+    raw: home.raw
   }
 }
 

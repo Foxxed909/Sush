@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { themes } from '../themes'
+import { allThemes } from '../themes'
 
 const SHELL_OPTIONS = [
   { id: 'powershell', label: 'Windows PowerShell' },
@@ -125,7 +125,7 @@ export default function ProfileManager({ profiles, onAdd, onUpdate, onDelete, on
               <label style={{ color: '#888', fontSize: 12 }}>Theme</label>
               <select value={form.themeId} onChange={e => setForm(f => ({ ...f, themeId: e.target.value }))}
                 style={{ background: '#1a1a1a', border: `1px solid ${accent}44`, color: '#eee', borderRadius: 4, padding: '4px 8px', width: '100%', fontSize: 13 }}>
-                {Object.values(themes).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                {Object.values(allThemes()).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
             </div>
             <div className="flex gap-2 mt-2">

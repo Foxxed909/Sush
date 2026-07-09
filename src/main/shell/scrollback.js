@@ -83,24 +83,46 @@ export class ScrollbackStore {
     }, 1500)
   }
 
-  // Search every LIVE session's buffer for a term (case-insensitive, plain
-  // text). Returns [{ tabId, lines: [{ line, text }] }] — line numbers are
+  // Search session buffers for a term (case-insensitive, plain text). Returns
+  // [{ tabId?, key?, saved?, lines: [{ line, text }] }] — line numbers are
   // relative to the kept tail, matches capped so a chatty session can't flood
   // the caller. Powers the `hunt` command.
-  search(term, { maxPerSession = 8 } = {}) {
+  //
+  // Live sessions are always searched. With `includeSaved` (default on), the
+  // persisted per-workspace scrollback of CLOSED sessions is searched too, so
+  // `hunt` can find something a session you already closed printed — those
+  // entries carry `saved: true` and their restoreKey instead of a live tabId.
+  search(term, { maxPerSession = 8, includeSaved = true } = {}) {
     const q = String(term ?? '').trim().toLowerCase()
     if (!q) return []
-    const out = []
-    for (const [tabId, entry] of this.live) {
-      if (!entry?.text) continue
-      const lines = entry.text.split('\n')
+    const scan = (text) => {
+      const lines = String(text).split('\n')
       const hits = []
       for (let i = 0; i < lines.length && hits.length < maxPerSession; i++) {
         if (lines[i].toLowerCase().includes(q)) {
           hits.push({ line: i + 1, text: lines[i].trim().slice(0, 200) })
         }
       }
+      return hits
+    }
+
+    const out = []
+    const liveKeys = new Set()
+    for (const [tabId, entry] of this.live) {
+      if (entry?.key) liveKeys.add(entry.key)
+      if (!entry?.text) continue
+      const hits = scan(entry.text)
       if (hits.length) out.push({ tabId, lines: hits })
+    }
+
+    if (includeSaved) {
+      for (const [key, text] of this.saved) {
+        // Skip a saved buffer whose workspace is currently open live — the live
+        // entry already covers it and is fresher.
+        if (!text || liveKeys.has(key)) continue
+        const hits = scan(text)
+        if (hits.length) out.push({ key, saved: true, lines: hits })
+      }
     }
     return out
   }

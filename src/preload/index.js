@@ -118,6 +118,7 @@ contextBridge.exposeInMainWorld('sush', {
   gitUnstage: (payload) => ipcRenderer.invoke('sush:git-unstage', payload),
   gitCommit: (payload) => ipcRenderer.invoke('sush:git-commit', payload),
   gitDiffStaged: (payload) => ipcRenderer.invoke('sush:git-diff-staged', payload),
+  gitWorktreeAdd: (payload) => ipcRenderer.invoke('sush:git-worktree-add', payload),
   dockerPs: () => ipcRenderer.invoke('sush:docker-ps'),
   dockerStop: (payload) => ipcRenderer.invoke('sush:docker-stop', payload),
   dockerLogs: (payload) => ipcRenderer.invoke('sush:docker-logs', payload),
