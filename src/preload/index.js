@@ -1,9 +1,12 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('sush', {
   // Host platform, so the renderer can gate platform-specific UI (Windows-only
   // window material, macOS traffic-light conventions) without importing node.
   platform: process.platform,
+  // File.path was removed in Electron 32. Resolve dropped files in the
+  // privileged preload instead of relying on a renderer-only legacy field.
+  pathForFile: (file) => webUtils.getPathForFile(file),
   startPty: (payload) => ipcRenderer.invoke('sush:pty-start', payload),
   ptyInput: (payload) => ipcRenderer.send('sush:pty-input', payload),
   ptyResize: (payload) => ipcRenderer.send('sush:pty-resize', payload),
@@ -104,7 +107,6 @@ contextBridge.exposeInMainWorld('sush', {
   // New in v2
   readFile: (payload) => ipcRenderer.invoke('sush:read-file', payload),
   writeFile: (payload) => ipcRenderer.invoke('sush:write-file', payload),
-  deleteFile: (payload) => ipcRenderer.invoke('sush:delete-file', payload),
   openExternal: (payload) => ipcRenderer.invoke('sush:open-external', payload),
   getNpmScripts: (payload) => ipcRenderer.invoke('sush:get-npm-scripts', payload),
   getAllCommands: () => ipcRenderer.invoke('sush:get-all-commands'),
