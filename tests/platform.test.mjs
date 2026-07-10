@@ -1,0 +1,191 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
+vi.mock('electron', () => ({
+  app: { getAppPath: () => process.cwd() },
+  shell: { openPath: vi.fn(async () => '') }
+}))
+
+vi.mock('systeminformation', () => ({ default: {} }))
+
+import { buildToolCommand, toolExtensions } from '../src/main/commands/tools.js'
+import { canLaunchEditorDirectly, doctorToolsForPlatform } from '../src/main/commands/workspace.js'
+import { parseLinuxSs, parseMacLsof, parseWindowsNetstat } from '../src/main/commands/system.js'
+import { detectManagers } from '../src/main/commands/dev.js'
+import { buildCdPassthrough, expandFsPath } from '../src/main/commands/fs.js'
+import { ShellContext } from '../src/main/shell/context.js'
+import { executableFromCommand } from '../src/renderer/src/hooks/useCliAvailability.js'
+import { parseGitPorcelainZ } from '../src/main/git-porcelain.js'
+import {
+  defaultProfilesForPlatform,
+  normalizeProfilesForPlatform,
+  shellOptionsForPlatform
+} from '../src/renderer/src/components/ProfileManager.jsx'
+
+const tempDirs = []
+afterEach(() => {
+  while (tempDirs.length) rmSync(tempDirs.pop(), { recursive: true, force: true })
+})
+
+describe('bundled tool portability', () => {
+  it('offers only platform-runnable script types', () => {
+    expect(toolExtensions('win32')).toEqual(['.py', '.ps1', '.bat', '.exe'])
+    expect(toolExtensions('linux')).toEqual(['.sh', '.py'])
+    expect(toolExtensions('darwin')).toEqual(['.sh', '.py'])
+    expect(toolExtensions('linux')).not.toContain('.bat')
+  })
+
+  it('runs Unix shell tools through sh even when the file is not executable', () => {
+    const cmd = buildToolCommand(
+      { path: '/opt/sush/tools/hello.sh', ext: '.sh' },
+      ['James'],
+      { platform: 'linux', findExecutable: name => name === 'sh' ? '/bin/sh' : null }
+    )
+    expect(cmd).toEqual({ file: '/bin/sh', args: ['/opt/sush/tools/hello.sh', 'James'] })
+  })
+
+  it('prefers python3, falls back to python, and reports a missing runtime', () => {
+    const preferred = buildToolCommand(
+      { path: '/tools/check.py', ext: '.py' },
+      [],
+      { findExecutable: name => name === 'python3' ? '/usr/bin/python3' : null }
+    )
+    expect(preferred.file).toBe('/usr/bin/python3')
+
+    const fallback = buildToolCommand(
+      { path: '/tools/check.py', ext: '.py' },
+      [],
+      { findExecutable: name => name === 'python' ? '/usr/bin/python' : null }
+    )
+    expect(fallback.file).toBe('/usr/bin/python')
+
+    const missing = buildToolCommand(
+      { path: '/tools/check.py', ext: '.py' },
+      [],
+      { findExecutable: () => null }
+    )
+    expect(missing.error).toMatch(/Python 3.*not found/i)
+  })
+})
+
+describe('safe editor launch selection', () => {
+  it('never routes a user path through a Windows command shim', () => {
+    expect(canLaunchEditorDirectly('C:\\Users\\J\\bin\\code.cmd', 'win32')).toBe(false)
+    expect(canLaunchEditorDirectly('C:\\Program Files\\Microsoft VS Code\\Code.exe', 'win32')).toBe(true)
+    expect(canLaunchEditorDirectly('/usr/bin/code', 'linux')).toBe(true)
+  })
+})
+
+describe('listening-port fixtures', () => {
+  it('parses Windows netstat ownership', () => {
+    const rows = parseWindowsNetstat('  TCP    127.0.0.1:5173    0.0.0.0:0    LISTENING    4321\r\n')
+    expect(rows).toEqual([{ port: '5173', address: '127.0.0.1:5173', pid: '4321' }])
+  })
+
+  it('parses Linux ss ownership', () => {
+    const rows = parseLinuxSs('LISTEN 0 511 127.0.0.1:3000 0.0.0.0:* users:(("node",pid=1234,fd=20))\n')
+    expect(rows).toEqual([{ port: '3000', address: '127.0.0.1:3000', pid: '1234' }])
+  })
+
+  it('parses macOS lsof process records, including IPv6 endpoints', () => {
+    const rows = parseMacLsof([
+      'p222',
+      'PTCP',
+      'n127.0.0.1:5173',
+      'p333',
+      'PTCP',
+      'n[::1]:8080'
+    ].join('\n'))
+    expect(rows).toEqual([
+      { port: '5173', address: '127.0.0.1', pid: '222' },
+      { port: '8080', address: '[::1]', pid: '333' }
+    ])
+  })
+})
+
+describe('git porcelain parsing', () => {
+  it('preserves literal paths and consumes rename source records', () => {
+    const output = [
+      ' M file with spaces.txt',
+      '?? quote"and-newline\n.txt',
+      'R  renamed target.txt',
+      'old name.txt',
+      ''
+    ].join('\0')
+    expect(parseGitPorcelainZ(output)).toEqual([
+      { status: 'M', rawStatus: ' M', path: 'file with spaces.txt' },
+      { status: '??', rawStatus: '??', path: 'quote"and-newline\n.txt' },
+      { status: 'R', rawStatus: 'R ', path: 'renamed target.txt' }
+    ])
+  })
+})
+
+describe('package-manager selection', () => {
+  it('does not pretend Chocolatey exists on macOS or Linux', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sush-pkg-'))
+    tempDirs.push(dir)
+    expect(detectManagers(dir, 'linux')).toEqual([])
+    expect(detectManagers(dir, 'darwin')).toEqual([])
+    expect(detectManagers(dir, 'win32')).toEqual(['choco'])
+  })
+
+  it('still detects project-local managers before platform fallbacks', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sush-pkg-'))
+    tempDirs.push(dir)
+    writeFileSync(join(dir, 'package.json'), '{}')
+    expect(detectManagers(dir, 'linux')).toEqual(['npm'])
+  })
+})
+
+describe('shell-aware cd', () => {
+  it('expands home paths consistently', () => {
+    expect(expandFsPath('~', '/work', '/home/james')).toBe('/home/james')
+    expect(expandFsPath('~/sush', '/work', '/home/james')).toBe('/home/james/sush')
+  })
+
+  it('emits syntax for the live shell', () => {
+    expect(buildCdPassthrough('C:\\Users\\James Foxx', 'cmd', 'win32'))
+      .toBe('cd /d "C:\\Users\\James Foxx"')
+    expect(buildCdPassthrough('C:\\Users\\James Foxx', 'powershell', 'win32'))
+      .toBe("Set-Location -LiteralPath 'C:\\Users\\James Foxx'")
+    expect(buildCdPassthrough("/home/james/it's", 'bash', 'linux'))
+      .toBe("cd '/home/james/it'\\''s'")
+  })
+
+  it('keeps the shell id on command contexts', () => {
+    expect(new ShellContext({ cwd: '/tmp', tabId: 't', shellId: 'cmd' }).shellId).toBe('cmd')
+  })
+})
+
+describe('custom-agent executable parsing', () => {
+  it('keeps quoted executable paths intact', () => {
+    expect(executableFromCommand('"C:\\Program Files\\Aider\\aider.exe" --yes'))
+      .toBe('C:\\Program Files\\Aider\\aider.exe')
+    expect(executableFromCommand("'/Applications/My CLI/bin/tool' run"))
+      .toBe('/Applications/My CLI/bin/tool')
+    expect(executableFromCommand('claude --continue')).toBe('claude')
+  })
+})
+
+describe('platform-specific profiles and doctor checks', () => {
+  it('offers native shell choices and defaults per OS', () => {
+    expect(shellOptionsForPlatform('win32').map(x => x.id)).toEqual(['powershell', 'pwsh', 'cmd'])
+    expect(shellOptionsForPlatform('darwin').map(x => x.id)).toEqual(['zsh', 'bash'])
+    expect(shellOptionsForPlatform('linux').map(x => x.id)).toEqual(['bash', 'zsh', 'sh'])
+    expect(defaultProfilesForPlatform('darwin')[0].shell).toBe('zsh')
+    expect(defaultProfilesForPlatform('linux')[0].shell).toBe('bash')
+  })
+
+  it('preserves saved profiles whose shell came from another OS', () => {
+    const saved = [{ id: 'work', label: 'My PowerShell', shell: 'powershell', themeId: 'pink' }]
+    expect(normalizeProfilesForPlatform(saved, 'linux')[0]).toMatchObject(saved[0])
+  })
+
+  it('checks shells that are relevant to the host platform', () => {
+    expect(doctorToolsForPlatform('win32')).toContain('cmd.exe')
+    expect(doctorToolsForPlatform('darwin', '/bin/zsh')).toEqual(expect.arrayContaining(['zsh', 'bash', 'sh']))
+    expect(doctorToolsForPlatform('linux', '/bin/bash')).not.toContain('powershell.exe')
+  })
+})
