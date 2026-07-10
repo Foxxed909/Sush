@@ -1,5 +1,5 @@
 import { shell as electronShell } from 'electron'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { existsSync, readFileSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { basename, resolve } from 'path'
@@ -40,6 +40,43 @@ function commandPath(tool) {
   // substitution, so `where "$(cmd)"` (or `edit`/`doctor` on such a name)
   // executed the substitution.
   return resolveExecutable(name)
+}
+
+export function canLaunchEditorDirectly(executable, platform = process.platform) {
+  if (!executable) return false
+  // cmd.exe reparses .cmd/.bat argv. A user-controlled file path must never be
+  // routed through that shim because characters such as &, | and % gain shell
+  // semantics. Let the OS association open the file instead.
+  return !(platform === 'win32' && /\.(cmd|bat)$/i.test(executable))
+}
+
+function launchDetached(executable, args, options) {
+  return new Promise(resolveLaunch => {
+    let child
+    try {
+      child = spawn(executable, args, { ...options, detached: true, stdio: 'ignore', shell: false })
+    } catch {
+      resolveLaunch(false)
+      return
+    }
+    let settled = false
+    const finish = ok => {
+      if (settled) return
+      settled = true
+      if (ok) child.unref()
+      resolveLaunch(ok)
+    }
+    child.once('spawn', () => finish(true))
+    child.once('error', () => finish(false))
+  })
+}
+
+export function doctorToolsForPlatform(platform = process.platform, shell = process.env.SHELL) {
+  const common = ['node', 'npm', 'git', 'gh']
+  if (platform === 'win32') return ['powershell.exe', 'pwsh.exe', 'cmd.exe', ...common]
+  const current = shell ? basename(shell) : null
+  const shells = platform === 'darwin' ? ['zsh', 'bash', 'sh'] : ['bash', 'zsh', 'sh']
+  return [...new Set([current, ...shells, ...common].filter(Boolean))]
 }
 
 function readPackage(cwd) {
@@ -99,7 +136,7 @@ export const recent = {
 
 export const open = {
   name: 'open',
-  description: 'Open a file or folder with Windows',
+  description: 'Open a file or folder with the default app',
   usage: 'open <path>',
   async run(args, ctx) {
     const target = args.join(' ')
@@ -123,11 +160,19 @@ export const edit = {
     if (!existsSync(path)) return err(`edit: path not found: ${target}`)
 
     const codePath = commandPath('code')
-    if (codePath) {
-      execFile('code', [path], { cwd: ctx.cwd, windowsHide: true }, () => {})
-      return ok(`editing: ${path}`)
+    if (canLaunchEditorDirectly(codePath)) {
+      const launched = await launchDetached(codePath, [path], {
+        cwd: ctx.cwd,
+        windowsHide: true
+      })
+      if (launched) {
+        return ok(`editing: ${path}`)
+      }
     }
 
+    // On Windows VS Code is commonly exposed only as code.cmd. Passing the
+    // user's path through cmd.exe would be unsafe, so use the registered OS
+    // file association in that case (and whenever direct launch fails).
     const message = await electronShell.openPath(path)
     if (message) return err(`edit: ${message}`)
     return ok(`opened: ${path}`)
@@ -220,7 +265,7 @@ export const doctor = {
   description: 'Check the Sush workspace environment',
   usage: 'doctor',
   async run(_, ctx) {
-    const tools = ['powershell.exe', 'cmd.exe', 'node', 'npm', 'git', 'gh']
+    const tools = doctorToolsForPlatform()
     const lines = [
       ansi.bold(ansi.pink('SUSH DOCTOR')),
       `${ansi.cyan('cwd')} ${existsSync(ctx.cwd) ? ctx.cwd : `${ctx.cwd} (missing)`}`
@@ -278,4 +323,3 @@ export const sushrc = {
     return { ...ok('Opening .sushrc'), action: { name: 'open-sushrc' } }
   }
 }
-
