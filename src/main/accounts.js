@@ -33,7 +33,8 @@ export const SLOT_PROVIDERS = {
   }
 }
 
-const MAX_SLOTS = 8
+// Must stay at least as high as the largest advertised tier allowance.
+const MAX_SLOTS = 16
 
 function identityDir(userId) {
   return join(app.getPath('userData'), 'identities', String(userId))
