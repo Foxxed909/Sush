@@ -143,13 +143,21 @@ export function useIdentity() {
     setState(prev => ({
       ...prev,
       users: res?.users ?? prev.users,
-      currentUser: res?.active ?? prev.currentUser
+      currentUser: res && Object.prototype.hasOwnProperty.call(res, 'active') ? res.active : prev.currentUser,
+      locked: res && Object.prototype.hasOwnProperty.call(res, 'active') && !res.active
+        ? (res?.users?.length ?? prev.users.length) > 0
+        : prev.locked
     }))
   }, [])
 
   const removeUser = useCallback(async (id, wipeData) => {
     const res = await window.sush.usersDelete({ id, wipeData })
     if (res?.ok && wipeData) clearUserScope(id)
+    if (res?.ok && res.signedOut) {
+      setActiveUserIdRaw(null)
+      window.location.reload()
+      return res
+    }
     await refresh()
     return res
   }, [refresh])
