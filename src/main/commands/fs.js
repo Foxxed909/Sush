@@ -104,7 +104,7 @@ export const cd = {
   description: 'Change working directory',
   usage: 'cd <path>',
   async run([target], ctx) {
-    const next = target ? resolve(ctx.cwd, target) : homedir()
+    const next = expandFsPath(target, ctx.cwd)
     const label = target ?? next
     if (!existsSync(next)) return err(`cd: no such directory: ${label}`)
     try {
@@ -114,7 +114,7 @@ export const cd = {
     }
     return {
       ...ok(`changing directory: ${next}`),
-      action: { name: 'passthrough', input: buildCdPassthrough(next), cwd: ctx.cwd }
+      action: { name: 'passthrough', input: buildCdPassthrough(next, ctx.shellId), cwd: ctx.cwd }
     }
   }
 }
@@ -164,7 +164,20 @@ function quotePosixPath(path) {
   return `'${String(path).replace(/'/g, "'\\''")}'`
 }
 
-function buildCdPassthrough(next) {
-  if (process.platform === 'win32') return `Set-Location -LiteralPath ${quotePowerShellPath(next)}`
+function quoteCmdPath(path) {
+  return `"${String(path).replace(/"/g, '""')}"`
+}
+
+export function expandFsPath(target, cwd, home = homedir()) {
+  if (!target || target === '~') return home
+  if (target.startsWith('~/') || target.startsWith('~\\')) return resolve(home, target.slice(2))
+  return resolve(cwd, target)
+}
+
+export function buildCdPassthrough(next, shellId, platform = process.platform) {
+  if (platform === 'win32' && String(shellId || '').toLowerCase() === 'cmd') {
+    return `cd /d ${quoteCmdPath(next)}`
+  }
+  if (platform === 'win32') return `Set-Location -LiteralPath ${quotePowerShellPath(next)}`
   return `cd ${quotePosixPath(next)}`
 }
