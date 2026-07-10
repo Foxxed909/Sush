@@ -3,12 +3,13 @@ import { homedir } from 'os'
 const MAX_HISTORY = 500
 
 export class ShellContext {
-  constructor({ cwd, tabId } = {}) {
+  constructor({ cwd, tabId, shellId } = {}) {
     this.cwd = cwd ?? homedir()
     this.env = { ...process.env }
     this.history = []
     this.aliases = {}
     this.tabId = tabId ?? null
+    this.shellId = shellId ?? null
   }
 
   setCwd(newCwd) {
