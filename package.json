@@ -3,6 +3,9 @@
   "version": "4.10.0",
   "codename": "sotto",
   "description": "Sush - the terminal your agents live in",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -11,6 +14,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
+    "shots": "npm run build && node tools/shot.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -27,14 +31,15 @@
     "systeminformation": "^5.23.5"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.20",
-    "electron": "^31.3.1",
-    "electron-builder": "^24.13.3",
-    "electron-vite": "^2.3.0",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "playwright-core": "^1.61.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
-    "vite": "^5.4.8",
+    "vite": "^7.3.6",
     "vitest": "^4.1.9"
   },
   "build": {
