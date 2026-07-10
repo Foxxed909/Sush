@@ -63,6 +63,11 @@ export class ScrollbackStore {
     const entry = this.live.get(tabId)
     this.live.delete(tabId)
     if (!entry || !entry.key || !entry.text.trim()) return
+    // Delete-then-set moves the key to the end of the Map's insertion order,
+    // so the slice(-40) cap in the writers evicts least-recently-USED
+    // workspaces. A plain set() left re-persisted keys at their original
+    // position — heavy users lost their most-used workspace history first.
+    this.saved.delete(entry.key)
     this.saved.set(entry.key, entry.text.slice(-MAX_CHARS))
     this._scheduleWrite()
   }

@@ -3,6 +3,7 @@ import { app, Notification } from 'electron'
 import { ok, err, ansi } from './_helpers'
 import { registry } from '../shell/registry'
 import { getCredits, resetCredits } from '../credits'
+import { getSttConfigPublic } from '../stt'
 import { runtime } from '../shell/runtime'
 
 export const help = {
@@ -103,13 +104,22 @@ export const credits = {
     const bar = ansi.pink('█'.repeat(filled)) + ansi.dim('░'.repeat(width - filled))
     let reset = ''
     try { reset = new Date(c.resetAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) } catch {}
+    // Footer reflects the ACTUAL dictation setup — the old fixed "set a key"
+    // line was wrong once a key existed, and doubly wrong on local whisper.cpp
+    // (which needs no key and spends no credits at all).
+    const stt = getSttConfigPublic()
+    const footer = stt.provider === 'local'
+      ? '  Dictation runs on local whisper.cpp — free, no credits spent.'
+      : stt.hasKey
+        ? '  Whisper key set. Cloud dictation spends this meter.'
+        : '  Set a Whisper key in Settings ▸ Voice to enable dictation.'
     return ok([
       ansi.bold(ansi.pink('Quiet Credits')) + ansi.dim(`  ·  ${c.tier} plan`),
       ansi.dim('─'.repeat(42)),
       `  ${bar}`,
       `  ${ansi.cyan(mins(c.remainingSec))} left of ${mins(c.allowanceSec)} dictation this month`,
       ansi.dim(`  Refills ${reset || 'next month'}. Speak with the mic or Ctrl+Shift+S.`),
-      ansi.dim('  Set a Whisper key in Settings ▸ Voice to enable dictation.')
+      ansi.dim(footer)
     ].join('\r\n'))
   }
 }

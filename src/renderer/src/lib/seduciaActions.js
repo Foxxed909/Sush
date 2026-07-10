@@ -8,12 +8,16 @@ async function resolveLaunchCwd(requested, activeCwd) {
   const p = String(requested ?? '').trim().replace(/^["']|["']$/g, '')
   if (!p) return { ok: true, cwd: null }
   const home = await window.sush.homeDir?.().catch(() => null)
-  const isAbs = /^[a-zA-Z]:[\\/]|^\\\\/.test(p)
+  // Platform-aware: this used to hardcode Windows semantics (drive-letter
+  // absolutes, "\\" joins), so relative launches never resolved on
+  // macOS/Linux — the joined candidate had a literal backslash in it.
+  const sep = window.sush?.platform === 'win32' ? '\\' : '/'
+  const isAbs = /^[a-zA-Z]:[\\/]|^\\\\/.test(p) || p.startsWith('/')
   const candidates = isAbs
     ? [p]
     : [
-        ...(activeCwd ? [`${activeCwd}\\${p}`] : []),
-        ...(home ? [`${home}\\${p}`] : []),
+        ...(activeCwd ? [`${activeCwd}${sep}${p}`] : []),
+        ...(home ? [`${home}${sep}${p}`] : []),
         p
       ]
   for (const c of candidates) {

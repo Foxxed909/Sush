@@ -129,7 +129,7 @@ function SessionRow({ tab, stateId, limited, canSwitch, accent, metric, onFocus,
   )
 }
 
-export default function MissionControl({ accent, tabs, states, limits = {}, summary, metrics = {}, onFocus, onClose, onCloseGroup, onPrompt, onSwitchResume, onLimitHandoff, onDismiss }) {
+export default function MissionControl({ accent, tabs, states, limits = {}, summary, metrics = {}, onFocus, onClose, onCloseGroup, onPrompt, onSwitchResume, onLimitHandoff, onDigest, digestBusy = false, onDismiss }) {
   // Which CLIs have a second account to switch to — so the "Switch & resume"
   // action only appears when it can actually do something. Fetched once on open.
   const [altProviders, setAltProviders] = useState(() => new Set())
@@ -264,6 +264,15 @@ export default function MissionControl({ accent, tabs, states, limits = {}, summ
                   <button title="Prompt all live sessions in this group" onClick={() => setPromptingGroup(group.id || 'solo')}
                     style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.18)}`, borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>
                     Prompt all
+                  </button>
+                )}
+                {onDigest && (
+                  <button
+                    title="Crew report: summarize every session here and save it as Markdown"
+                    disabled={digestBusy}
+                    onClick={() => onDigest(group.id)}
+                    style={{ fontSize: 11, fontWeight: 700, color: digestBusy ? 'var(--text-4)' : '#82aaff', background: rgba('#82aaff', digestBusy ? 0.04 : 0.08), border: `1px solid ${rgba('#82aaff', 0.25)}`, borderRadius: 6, padding: '2px 8px', cursor: digestBusy ? 'default' : 'pointer' }}>
+                    {digestBusy ? 'Digesting…' : 'Digest ↓'}
                   </button>
                 )}
                 {group.id && (

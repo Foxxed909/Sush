@@ -4,7 +4,7 @@ import PathField from './PathField'
 import { rgba, accentVars } from '../lib/ui'
 import { allAgents, MAX_SESSIONS } from '../lib/agents'
 import { useCliAvailability } from '../hooks/useCliAvailability'
-import { loadCrews, saveCrew, deleteCrew } from '../lib/crews'
+import { loadCrews, saveCrew, deleteCrew, parseRepoCrew } from '../lib/crews'
 
 function pathLabel(cwd) {
   if (!cwd) return ''
@@ -38,7 +38,23 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [brief, setBrief] = useState('')
   const [worktrees, setWorktrees] = useState(false)
   const [crews, setCrews] = useState(() => loadCrews())
+  const [repoCrew, setRepoCrew] = useState(null)   // .sush/crew.json in the chosen dir
   const { avail, rescan, checking } = useCliAvailability()
+
+  // Repo crew preset: when the chosen directory ships a .sush/crew.json, offer
+  // it as a first-class chip. Forward slashes are fine on Windows too — main
+  // resolves the path. Debounced a touch so typing a path doesn't spam reads.
+  useEffect(() => {
+    const dir = cwd.trim().replace(/[\\/]+$/, '')
+    if (!dir) { setRepoCrew(null); return }
+    let cancelled = false
+    const t = setTimeout(() => {
+      window.sush?.readFile?.({ path: `${dir}/.sush/crew.json` })
+        .then(r => { if (!cancelled) setRepoCrew(r?.ok ? parseRepoCrew(r.content) : null) })
+        .catch(() => { if (!cancelled) setRepoCrew(null) })
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [cwd])
 
   const applyCrew = (crew) => {
     setCounts({ ...crew.counts })
@@ -241,6 +257,29 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
           </div>
 
           <div className="flex" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+            {repoCrew && (
+              <button
+                onClick={() => {
+                  setCounts({ ...repoCrew.counts })
+                  if (repoCrew.brief) setBrief(repoCrew.brief)
+                  if (repoCrew.name) setSessionName(repoCrew.name)
+                }}
+                title={`This repo ships its own crew (.sush/crew.json)${repoCrew.brief ? ` — “${repoCrew.brief.slice(0, 80)}”` : ''}`}
+                className="sush-mini-btn"
+                style={{
+                  ...miniBtn(accent),
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  color: accent,
+                  background: rgba(accent, 0.1),
+                  border: `1px solid ${rgba(accent, 0.45)}`
+                }}
+              >
+                <Icon name="rocket" size={12} strokeWidth={2.3} color={accent} />
+                Repo crew: {repoCrew.name}
+              </button>
+            )}
             {PRESETS.map(preset => {
               const disabled = Object.entries(preset.counts).every(([id]) => avail[id] === false || !AGENT_LIST.some(a => a.id === id))
               return (
@@ -299,7 +338,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                   key={agent.id}
                   onClick={() => { if (!locked) setCount(agent.id, on ? 0 : 1) }}
                   className="sush-row flex items-center"
-                  title={locked ? `${agent.label} is not installed - install it to unlock this tile` : undefined}
+                  title={locked ? `${agent.label} is not installed - install its CLI to launch it here` : undefined}
                   style={{
                     gap: 12,
                     cursor: locked ? 'default' : 'pointer',
@@ -325,7 +364,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                       border: `1px solid ${rgba(locked ? 'var(--text-4)' : agent.color, 0.4)}`
                     }}
                   >
-                    {locked ? <Icon name="lock" size={15} strokeWidth={2.2} /> : agent.mono}
+                    {agent.mono}
                   </span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: 'var(--text-2)' }}>{agent.label}</span>
@@ -334,8 +373,11 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                     </span>
                   </span>
                   {locked ? (
-                    <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.8, color: 'var(--text-3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '3px 8px' }}>
-                      LOCKED
+                    // "Not installed", not "LOCKED" — the lock vocabulary is
+                    // reserved for tier-gated features (DESIGN.md); a missing
+                    // CLI read as a paid add-on.
+                    <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.8, color: 'var(--text-3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>
+                      NOT INSTALLED
                     </span>
                   ) : (
                     <div className="flex items-center" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>

@@ -3,6 +3,25 @@
 Things this codebase taught (or re-taught) us while building the last cycles.
 Keep appending; newest first.
 
+## Cycle: sotto (hunt overlay, digests, repo crews)
+
+- **A tier gate's vocabulary leaks.** Reusing the "LOCKED" badge for
+  not-installed CLIs made a free tool read as a paid add-on. Reserve each
+  status word for exactly one meaning and grep for reuse before shipping.
+- **A gate added for one provider will bite the next provider.** The Quiet
+  Credits empty-bucket check predated local whisper.cpp; nobody revisited it
+  when the free engine landed, so "out of credits" silenced a mic that costs
+  nothing. When adding a provider, re-audit every gate on the shared path.
+- **JS Maps don't do LRU for you.** `set()` on an existing key keeps its old
+  insertion position, so a `slice(-N)` cap evicts by first-insert, not by
+  recency. Delete-then-set is the one-line LRU.
+- **Path joins in renderer code are platform bugs waiting.** Any string
+  concat with '\\\\' in the renderer is Windows-only behavior that CI on
+  Linux never sees. Route through `window.sush.platform` or let main join.
+- **Two context factories will drift.** `new-tab` and `getContext` both
+  built ShellContexts; only one loaded aliases. If two call sites construct
+  the same object, extract the factory the day you notice.
+
 ## Cycle: voice, guard, tiers
 
 - **Electron has no Web Speech backend.** `window.SpeechRecognition` exists

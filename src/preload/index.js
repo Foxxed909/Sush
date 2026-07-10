@@ -83,6 +83,7 @@ contextBridge.exposeInMainWorld('sush', {
     return () => ipcRenderer.removeListener('sush:power-changed', listener)
   },
   getScrollback: (payload) => ipcRenderer.invoke('sush:get-scrollback', payload),
+  huntSearch: (payload) => ipcRenderer.invoke('sush:hunt-search', payload),
   // Snippets (single ~/.sush/snippets.json store)
   snippetsList: () => ipcRenderer.invoke('sush:snippets-list'),
   snippetsSet: (payload) => ipcRenderer.invoke('sush:snippets-set', payload),

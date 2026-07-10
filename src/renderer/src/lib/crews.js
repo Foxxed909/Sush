@@ -64,6 +64,21 @@ export function deleteCrew(id) {
   return { ok: true, crews: loadCrews() }
 }
 
+// ── Repo crew preset ─────────────────────────────────────────────────────────
+// A repo can ship its own crew: <repo>/.sush/crew.json with
+//   { "name": "Docs crew", "counts": { "claude": 2, "shell": 1 }, "brief": "…" }
+// ("agents" is accepted as an alias for "counts".) The launcher surfaces it as
+// a preset chip when the chosen directory carries one. Same bounded shape as a
+// saved crew, minus id/cwd — the repo directory IS the cwd.
+export function parseRepoCrew(rawText) {
+  let raw
+  try { raw = JSON.parse(String(rawText ?? '')) } catch { return null }
+  if (!raw || typeof raw !== 'object') return null
+  const normalized = normalizeCrew({ ...raw, counts: raw.counts ?? raw.agents })
+  if (!normalized) return null
+  return { name: normalized.name, counts: normalized.counts, brief: normalized.brief }
+}
+
 // Turn a crew's { counts } map into the agents[] array launchSessions expects.
 // `agentById` is passed in so this stays free of the agents module (which reads
 // localStorage) at import time.
