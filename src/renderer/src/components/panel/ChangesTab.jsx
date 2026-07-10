@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { cliComplete } from '../../lib/ai'
+import { isGitFileStaged } from '../../lib/gitStatus'
 import { PanelEmpty, TabHeader, joinPath, statusMeta } from './shared'
 
 // ---------- Changes + Git Commit Helper ----------
@@ -17,87 +18,138 @@ async function aiSuggestCommit(files, cwd) {
 function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [staged, setStaged] = useState(new Set())
   const [commitMsg, setCommitMsg] = useState('')
   const [committing, setCommitting] = useState(false)
   const [commitResult, setCommitResult] = useState(null)
   const [suggesting, setSuggesting] = useState(false)
   const [diff, setDiff] = useState(null)
   const [diffLoading, setDiffLoading] = useState(false)
+  const loadRequestRef = useRef(0)
+  const diffRequestRef = useRef(0)
+  const commitRequestRef = useRef(0)
+  const suggestRequestRef = useRef(0)
+  const loadedCwdRef = useRef(null)
+  const activeCwdRef = useRef(cwd)
+  activeCwdRef.current = cwd || null
+
+  const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current
+    const targetCwd = cwd || null
+    if (loadedCwdRef.current !== targetCwd) loadedCwdRef.current = null
+    if (!targetCwd) {
+      setData({ repo: false, files: [] })
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await window.sush?.gitStatus?.({ cwd: targetCwd })
+      if (requestId !== loadRequestRef.current || activeCwdRef.current !== targetCwd) return
+      loadedCwdRef.current = targetCwd
+      setData(res || { repo: false, files: [] })
+    } catch {
+      if (requestId !== loadRequestRef.current || activeCwdRef.current !== targetCwd) return
+      loadedCwdRef.current = targetCwd
+      setData({ repo: false, files: [] })
+    } finally {
+      if (requestId === loadRequestRef.current && activeCwdRef.current === targetCwd) setLoading(false)
+    }
+  }, [cwd])
+
+  useEffect(() => {
+    diffRequestRef.current += 1
+    commitRequestRef.current += 1
+    suggestRequestRef.current += 1
+    setDiff(null)
+    setDiffLoading(false)
+    setCommitMsg('')
+    setCommitResult(null)
+    setCommitting(false)
+    setSuggesting(false)
+    load()
+  }, [load])
 
   const toggleDiff = async () => {
     if (diff !== null) { setDiff(null); return }
+    const targetCwd = loadedCwdRef.current
+    if (!targetCwd || targetCwd !== cwd) return
+    const requestId = ++diffRequestRef.current
     setDiffLoading(true)
     try {
-      const res = await window.sush?.gitDiffStaged?.({ cwd })
+      const res = await window.sush?.gitDiffStaged?.({ cwd: targetCwd })
+      if (requestId !== diffRequestRef.current || activeCwdRef.current !== targetCwd || loadedCwdRef.current !== targetCwd) return
       setDiff(res?.diff || (res?.ok ? '(nothing staged)' : res?.error || 'Could not read diff'))
     } catch (e) {
-      setDiff(e.message)
+      if (requestId === diffRequestRef.current && activeCwdRef.current === targetCwd && loadedCwdRef.current === targetCwd) {
+        setDiff(e.message)
+      }
     } finally {
-      setDiffLoading(false)
+      if (requestId === diffRequestRef.current && activeCwdRef.current === targetCwd) setDiffLoading(false)
     }
   }
 
-  const load = () => {
-    if (!cwd) { setData({ repo: false, files: [] }); setLoading(false); return }
-    setLoading(true)
-    window.sush?.gitStatus?.({ cwd })
-      .then(res => { setData(res); setLoading(false) })
-      .catch(() => { setData({ repo: false, files: [] }); setLoading(false) })
-  }
-  useEffect(() => { load(); setStaged(new Set()); setCommitMsg(''); setCommitResult(null) }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const toggleStage = async (f) => {
-    const key = f.path
-    const isStaged = staged.has(key)
-    if (isStaged) {
-      await window.sush?.gitUnstage?.({ cwd, file: f.path })
-      setStaged(prev => { const n = new Set(prev); n.delete(key); return n })
-    } else {
-      await window.sush?.gitStage?.({ cwd, file: f.path })
-      setStaged(prev => new Set([...prev, key]))
+  const setFileStaged = async (f, shouldStage) => {
+    const targetCwd = loadedCwdRef.current
+    if (!targetCwd || targetCwd !== cwd) return
+    try {
+      if (shouldStage) await window.sush?.gitStage?.({ cwd: targetCwd, file: f.path })
+      else await window.sush?.gitUnstage?.({ cwd: targetCwd, file: f.path })
+    } finally {
+      if (activeCwdRef.current === targetCwd && loadedCwdRef.current === targetCwd) load()
     }
-    load()
   }
 
   const stageAll = async () => {
-    await window.sush?.gitStage?.({ cwd, file: '.' })
-    setStaged(new Set((data?.files || []).map(f => f.path)))
-    load()
+    const targetCwd = loadedCwdRef.current
+    if (!targetCwd || targetCwd !== cwd) return
+    try {
+      await window.sush?.gitStage?.({ cwd: targetCwd, file: '.' })
+    } finally {
+      if (activeCwdRef.current === targetCwd && loadedCwdRef.current === targetCwd) load()
+    }
   }
 
   const commit = async () => {
     if (!commitMsg.trim()) return
+    const targetCwd = loadedCwdRef.current
+    if (!targetCwd || targetCwd !== cwd) return
+    const requestId = ++commitRequestRef.current
     setCommitting(true)
     setCommitResult(null)
     try {
-      const res = await window.sush?.gitCommit?.({ cwd, message: commitMsg.trim() })
+      const res = await window.sush?.gitCommit?.({ cwd: targetCwd, message: commitMsg.trim() })
+      if (requestId !== commitRequestRef.current || activeCwdRef.current !== targetCwd || loadedCwdRef.current !== targetCwd) return
       setCommitResult(res)
-      if (res?.ok) { setCommitMsg(''); setStaged(new Set()); load() }
+      if (res?.ok) { setCommitMsg(''); load() }
     } catch (e) {
-      setCommitResult({ ok: false, error: e.message })
+      if (requestId === commitRequestRef.current && activeCwdRef.current === targetCwd && loadedCwdRef.current === targetCwd) {
+        setCommitResult({ ok: false, error: e.message })
+      }
     } finally {
-      setCommitting(false)
+      if (requestId === commitRequestRef.current && activeCwdRef.current === targetCwd) setCommitting(false)
     }
   }
 
   const suggestMessage = async () => {
+    const targetCwd = loadedCwdRef.current
+    if (!targetCwd || targetCwd !== cwd) return
+    const requestId = ++suggestRequestRef.current
     setSuggesting(true)
     try {
       const files = data?.files || []
-      const text = await aiSuggestCommit(files, cwd)
+      const text = await aiSuggestCommit(files, targetCwd)
+      if (requestId !== suggestRequestRef.current || activeCwdRef.current !== targetCwd || loadedCwdRef.current !== targetCwd) return
       setCommitMsg(text || 'Could not suggest (is the Claude/Codex CLI installed and signed in?)')
     } catch {}
-    finally { setSuggesting(false) }
+    finally {
+      if (requestId === suggestRequestRef.current && activeCwdRef.current === targetCwd) setSuggesting(false)
+    }
   }
 
-  if (loading) return <PanelEmpty icon="gitBranch" accent={accent}>Reading changes...</PanelEmpty>
+  if (loading || (cwd && loadedCwdRef.current !== cwd)) return <PanelEmpty icon="gitBranch" accent={accent}>Reading changes...</PanelEmpty>
   if (!data?.repo) return <PanelEmpty icon="gitBranch" accent={accent} hint="Open a session inside a git repository to see its working-tree changes here.">Not a git repository</PanelEmpty>
 
-  const stagedFiles = (data.files || []).filter(f => {
-    const rs = f.rawStatus || '  '
-    return rs[0] !== ' ' && rs[0] !== '?'
-  })
+  const stagedFiles = (data.files || []).filter(isGitFileStaged)
   const unstagedFiles = (data.files || []).filter(f => {
     const rs = f.rawStatus || '  '
     return rs === '??' || rs[1] !== ' '
@@ -139,7 +191,7 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
                 <div key={`s-${f.path}`} className="flex items-center" style={{ gap: 6, borderRadius: 8, background: 'rgba(195,232,141,0.06)', padding: '4px 6px', marginBottom: 2 }}>
                   <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
                   <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0, fontWeight: 700 }}>{f.path}</button>
-                  <button onClick={() => toggleStage(f)} title="Unstage" style={{ fontSize: 10, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>−</button>
+                  <button onClick={() => setFileStaged(f, false)} title="Unstage" style={{ fontSize: 10, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>−</button>
                 </div>
               )
             })}
@@ -157,7 +209,7 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
                 <div key={`u-${f.path}`} className="flex items-center" style={{ gap: 6, padding: '4px 6px', marginBottom: 2 }}>
                   <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
                   <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}>{f.path}</button>
-                  <button onClick={() => toggleStage(f)} title="Stage" style={{ fontSize: 10, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0, fontWeight: 800 }}>+</button>
+                  <button onClick={() => setFileStaged(f, true)} title="Stage" style={{ fontSize: 10, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0, fontWeight: 800 }}>+</button>
                 </div>
               )
             })}
