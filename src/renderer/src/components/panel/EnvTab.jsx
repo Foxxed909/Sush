@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
+import { unquoteEnvValue } from '../../lib/env'
 import { PanelEmpty, TabHeader, copyToClipboard } from './shared'
 
 function EnvManagerTab({ accent, cwd }) {
@@ -12,29 +13,59 @@ function EnvManagerTab({ accent, cwd }) {
   const [envPath, setEnvPath] = useState(null)
   // The original file lines, kept so comments and ordering survive a round-trip.
   const rawLinesRef = useRef([])
+  const loadRequestRef = useRef(0)
+  const saveRequestRef = useRef(0)
+  const loadedPathRef = useRef(null)
+  const activeCwdRef = useRef(cwd)
+  activeCwdRef.current = cwd
+
+  const pathForCwd = useCallback((dir) => (
+    dir ? (dir.includes('\\') ? `${dir}\\.env` : `${dir}/.env`) : null
+  ), [])
 
   const load = useCallback(async () => {
-    if (!cwd) return
-    const p = cwd.includes('\\') ? `${cwd}\\.env` : `${cwd}/.env`
+    const requestId = ++loadRequestRef.current
+    saveRequestRef.current += 1
+    loadedPathRef.current = null
+    rawLinesRef.current = []
+    setPairs([])
+    setVisible(new Set())
+    setSaveResult(null)
+    setSaving(false)
+    if (!cwd) {
+      setEnvPath(null)
+      setLoading(false)
+      return
+    }
+    const p = pathForCwd(cwd)
     setEnvPath(p)
     setLoading(true)
     try {
       const res = await window.sush?.readFile?.({ path: p })
+      if (requestId !== loadRequestRef.current || activeCwdRef.current !== cwd) return
+      loadedPathRef.current = p
       if (res?.ok) {
         rawLinesRef.current = res.content.split('\n')
         const parsed = res.content.split('\n').filter(line => line.trim() && !line.trim().startsWith('#')).map((line, i) => {
           const eq = line.indexOf('=')
           if (eq < 0) return { id: i, key: line.trim(), value: '' }
-          return { id: i, key: line.slice(0, eq).trim(), value: unquoteEnv(line.slice(eq + 1)) }
+          return { id: i, key: line.slice(0, eq).trim(), value: unquoteEnvValue(line.slice(eq + 1)) }
         })
         setPairs(parsed)
       } else {
         rawLinesRef.current = []
         setPairs([])
       }
-    } catch {}
-    finally { setLoading(false) }
-  }, [cwd])
+    } catch {
+      if (requestId === loadRequestRef.current && activeCwdRef.current === cwd) {
+        loadedPathRef.current = null
+        rawLinesRef.current = []
+        setPairs([])
+      }
+    } finally {
+      if (requestId === loadRequestRef.current && activeCwdRef.current === cwd) setLoading(false)
+    }
+  }, [cwd, pathForCwd])
 
   useEffect(() => { load() }, [load])
 
@@ -59,18 +90,28 @@ function EnvManagerTab({ accent, cwd }) {
   }
 
   const save = async () => {
-    if (!envPath) return
+    const expectedPath = pathForCwd(cwd)
+    const targetPath = loadedPathRef.current
+    if (!targetPath || targetPath !== expectedPath || envPath !== expectedPath || loading) return
+    const requestId = ++saveRequestRef.current
     setSaving(true); setSaveResult(null)
     const content = serialize()
     try {
-      const res = await window.sush?.writeFile?.({ path: envPath, content })
+      const res = await window.sush?.writeFile?.({ path: targetPath, content })
+      if (requestId !== saveRequestRef.current || loadedPathRef.current !== targetPath || pathForCwd(activeCwdRef.current) !== targetPath) return
       setSaveResult(res?.ok ? 'Saved!' : (res?.error || 'Save failed'))
       if (res?.ok) rawLinesRef.current = content.split('\n')
     } catch (e) {
-      setSaveResult(e.message)
+      if (requestId === saveRequestRef.current && loadedPathRef.current === targetPath && pathForCwd(activeCwdRef.current) === targetPath) {
+        setSaveResult(e.message)
+      }
     } finally {
-      setSaving(false)
-      setTimeout(() => setSaveResult(null), 2000)
+      if (requestId === saveRequestRef.current && loadedPathRef.current === targetPath && pathForCwd(activeCwdRef.current) === targetPath) {
+        setSaving(false)
+        setTimeout(() => {
+          if (saveRequestRef.current === requestId) setSaveResult(null)
+        }, 2000)
+      }
     }
   }
 
@@ -85,6 +126,7 @@ function EnvManagerTab({ accent, cwd }) {
   if (!cwd) return <PanelEmpty icon="key" accent={accent}>No active directory</PanelEmpty>
 
   const isSecret = (key) => /key|secret|token|password|pass|pwd|auth|api_key/i.test(key)
+  const canSave = !loading && !saving && loadedPathRef.current === pathForCwd(cwd) && envPath === pathForCwd(cwd)
 
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
@@ -149,8 +191,8 @@ function EnvManagerTab({ accent, cwd }) {
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 onClick={save}
-                disabled={saving}
-                style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', background: saving ? 'var(--border-1)' : accent, color: saving ? 'var(--text-5)' : '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: saving ? 'default' : 'pointer' }}
+                disabled={!canSave}
+                style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: 'none', background: canSave ? accent : 'var(--border-1)', color: canSave ? '#0a0a0a' : 'var(--text-5)', fontSize: 12, fontWeight: 800, cursor: canSave ? 'pointer' : 'default' }}
               >
                 {saving ? 'Saving...' : 'Save .env'}
               </button>
