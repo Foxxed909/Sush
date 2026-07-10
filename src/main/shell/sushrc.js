@@ -113,16 +113,25 @@ function mergeProfiles(base, over) {
 }
 
 // Read + parse the user's .sushrc (returns an empty profile if none exists).
-// When `cwd` is given and that directory holds its own `.sushrc`, it is layered
-// ON TOP of the home profile — per-project aliases/env/startup, home as the
-// base. The home file stays the one the in-app editor reads and writes.
-export function loadSushrc(cwd) {
+// A project `.sushrc` is untrusted and ignored by default. Hosts can deliberately
+// opt in with SUSH_TRUST_PROJECT_RC=1, at which point it is layered on top of the
+// home profile. The home file stays the one the in-app editor reads and writes.
+export function projectRcTrusted(env = process.env) {
+  return env?.SUSH_TRUST_PROJECT_RC === '1'
+}
+
+export function loadSushrc(cwd, { trustProject = projectRcTrusted() } = {}) {
   const home = readProfileAt(sushrcPath())
   const dir = cwd && String(cwd).trim()
   if (!dir) return home
 
   // Never treat the home file as a "project" file when cwd === ~.
   if (resolve(dir) === resolve(homedir())) return home
+
+  // A repository is untrusted input. Applying its env and startup commands on
+  // open would make cloning + opening a repo equivalent to executing it. Hosts
+  // that deliberately want the legacy behavior can opt in before launching Sush.
+  if (!trustProject) return home
 
   const projectFile = join(dir, '.sushrc')
   const project = readProfileAt(projectFile)
