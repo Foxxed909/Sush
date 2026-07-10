@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { allAgents } from '../lib/agents'
 
+export function executableFromCommand(command) {
+  const value = String(command || '').trim()
+  if (!value) return ''
+  const quote = value[0]
+  if (quote === '"' || quote === "'") {
+    const end = value.indexOf(quote, 1)
+    return end > 1 ? value.slice(1, end) : value.slice(1)
+  }
+  return value.match(/^\S+/)?.[0] || ''
+}
+
 // Which agent CLIs are actually installed: id -> true|false. A missing key
 // means "probe still in flight" — treat it as available so tiles never lock
 // by mistake while we're checking. PATH agents go through one cached
@@ -17,10 +28,10 @@ export function useCliAvailability() {
       for (const a of allAgents()) {
         if (a.id === 'shell') continue
         if (a.probeDir) dirAgents.push(a)
-        else bins.push({ id: a.id, bin: String(a.command || '').split(/\s+/)[0] })
+        else bins.push({ id: a.id, bin: executableFromCommand(a.command) })
       }
       const next = { shell: true }
-      const res = await window.sush.checkClis?.({ names: [...new Set(bins.map(b => b.bin))], refresh })
+      const res = await window.sush.checkClis?.({ names: [...new Set(bins.map(b => b.bin).filter(Boolean))], refresh })
       const found = res?.found || {}
       bins.forEach(({ id, bin }) => { next[id] = found[bin] !== false })
       await Promise.all(dirAgents.map(async (a) => {
