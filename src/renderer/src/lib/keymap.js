@@ -12,8 +12,8 @@ export const APP_CTRL = new Set(['k', 'b', 'p', 't', 'w', ','])
 
 // Ctrl(/Cmd) + Shift + key.
 //   n launcher · t reopen closed · z zen · b broadcast · m mission control
-//   s dictation · g grid · d duplicate · e power saver
-export const APP_CTRL_SHIFT = new Set(['n', 't', 'z', 'b', 'm', 's', 'g', 'd', 'e'])
+//   s dictation · g grid · d duplicate · e power saver · f hunt overlay
+export const APP_CTRL_SHIFT = new Set(['n', 't', 'z', 'b', 'm', 's', 'g', 'd', 'e', 'f'])
 
 // Does the app own this keydown? (Used by the terminal to decide what NOT to
 // forward. Ctrl+Shift+C/V are deliberately absent — the terminal handles

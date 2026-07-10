@@ -16,6 +16,7 @@ import AliasNudge from './components/AliasNudge'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsHelp from './components/ShortcutsHelp'
 import HandoffModal from './components/HandoffModal'
+import HuntOverlay from './components/HuntOverlay'
 import SushrcEditor from './components/SushrcEditor'
 import QuickSwitcher from './components/QuickSwitcher'
 import SplashScreen from './components/SplashScreen'
@@ -43,6 +44,7 @@ import { useUsageGuard } from './hooks/useUsageGuard'
 import { recordCommand } from './lib/commandFrequency'
 import { perfModeOf, withPerfMode } from './lib/power'
 import { cliComplete } from './lib/ai'
+import { buildDigestMarkdown, digestSummaryPrompt } from './lib/digest'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
 
@@ -330,6 +332,11 @@ export default function App() {
     window.sush?.snippetsList?.().then(r => { if (r?.ok) setSnippets(r.snippets || []) }).catch(() => {})
   }, [showPalette])
   const [broadcastMode, setBroadcastMode] = useState(false)
+  // Broadcast scope: 'all' types into every session; 'workspace' fences it to
+  // the active session's workspace (its groupId) so briefing one crew can't
+  // leak keystrokes into another.
+  const [broadcastScope, setBroadcastScope] = useState('all')
+  const [showHunt, setShowHunt] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
   const [renamingId, setRenamingId] = useState(null)
@@ -538,6 +545,14 @@ export default function App() {
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
   const runningSessionCount = tabs.filter(t => t.status === 'running').length
 
+  // Broadcast targets, honouring the scope. Workspace scope with no workspace
+  // on the active session falls back to all (a solo session has no fence).
+  const broadcastTargets = broadcastMode
+    ? (broadcastScope === 'workspace' && activeTab?.groupId
+        ? tabs.filter(t => t.groupId === activeTab.groupId)
+        : tabs).map(t => t.id)
+    : null
+
   // One Seducia, two scopes: on Home she's Main (whole-app control); inside a
   // workspace she's that workspace's Project Seducia — own chat history,
   // actions fenced to its sessions, launches grow the workspace.
@@ -731,6 +746,8 @@ export default function App() {
       if (ctrl && e.shiftKey && key === 'm') { e.preventDefault(); setShowMission(prev => !prev) }
       // Ctrl+Shift+S → Hush dictation toggle
       if (ctrl && e.shiftKey && key === 's') { e.preventDefault(); window.dispatchEvent(new CustomEvent('sush:hush-toggle')) }
+      // Ctrl+Shift+F → Hunt overlay (cross-session output search)
+      if (ctrl && e.shiftKey && key === 'f') { e.preventDefault(); setShowHunt(prev => !prev) }
       // Ctrl+Shift+E → power saver (energy) toggle: hops the perf ladder
       // between Saver and Full. Persist inline (setSettings alone is lost on
       // restart).
@@ -909,6 +926,45 @@ export default function App() {
       await window.sush.copyText(res?.text || '')
     } catch {}
   }, [])
+
+  // ── Workspace digest ───────────────────────────────────────────────────────
+  // One action: read every session in a workspace (or the solo sessions when
+  // groupId is null), have the logged-in CLI summarize the crew's state, and
+  // save a markdown "crew report" — reuses the scrollback tails and the same
+  // download path as the session export. The AI summary is best-effort; the
+  // report still ships with verbatim tails when no CLI is available.
+  const [digestBusy, setDigestBusy] = useState(false)
+  const buildWorkspaceDigest = useCallback(async (groupId) => {
+    if (digestBusy) return
+    const pool = groupId
+      ? tabsRef.current.filter(t => t.groupId === groupId)
+      : tabsRef.current.filter(t => !t.groupId)
+    const members = pool.slice(0, 8)
+    if (!members.length) return
+    setDigestBusy(true)
+    try {
+      const sessions = await Promise.all(members.map(async (t) => {
+        let text = ''
+        try { text = (await window.sush.getScrollback({ tabId: t.id, chars: 4000 }))?.text || '' } catch {}
+        return { label: t.label, agentId: t.agentId || 'shell', text: stripAnsi(text) }
+      }))
+      const label = members[0].groupLabel || (groupId ? 'Workspace' : 'Solo sessions')
+      const cwd = members.find(t => t.cwd)?.cwd || null
+      let summary = null
+      try { summary = await cliComplete(digestSummaryPrompt(label, sessions), { cwd: cwd || undefined }) } catch {}
+      const md = buildDigestMarkdown({ label, cwd, sessions, summary })
+      const blob = new Blob([md], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `sush-digest-${label.replace(/[^\w.-]+/g, '_')}-${Date.now()}.md`
+      a.click()
+      URL.revokeObjectURL(url)
+      window.sush.copyText?.(md).catch(() => {})
+    } finally {
+      setDigestBusy(false)
+    }
+  }, [digestBusy])
 
   // 2-up split (Ctrl+\): state + toggle live in useSplitView.
   const { splitId, setSplitId, toggleSplit } = useSplitView({ tabs, tabsRef, mruRef, activeIdRef, setBootedIds, setView })
@@ -1605,6 +1661,11 @@ export default function App() {
     else if (action === 'copy-output') copySessionOutput()
     else if (action === 'reopen') reopenLastClosed()
     else if (action === 'split') toggleSplit()
+    else if (action === 'hunt') setShowHunt(true)
+    else if (action === 'digest') {
+      const active = tabsRef.current.find(t => t.id === activeIdRef.current)
+      buildWorkspaceDigest(active?.groupId ?? null)
+    }
     else if (action === 'plans') setShowPlans(true)
     else if (action === 'changelog') setShowChangelog(true)
     else if (action === 'lock') identity.lock()
@@ -1643,7 +1704,7 @@ export default function App() {
         prompt: crew.brief || undefined
       })
     }
-  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleSplit, launchSessions])
+  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleSplit, launchSessions, buildWorkspaceDigest])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
@@ -1656,6 +1717,8 @@ export default function App() {
       { id: 'act-export-md', label: 'Export Session as Markdown', description: 'Transcript with metadata + fenced output, ready for an issue or PR', icon: 'fileText', action: 'export-md' },
       { id: 'act-copy-output', label: 'Copy Session Output', description: 'Copy this session\'s recent output to the clipboard', icon: 'fileText', action: 'copy-output' },
       { id: 'act-reopen', label: 'Reopen Closed Session', description: 'Bring back the last session you closed (Ctrl+Shift+T)', icon: 'clock', action: 'reopen' },
+      { id: 'act-hunt', label: 'Hunt Session Output', description: 'Search every session\'s output, live and saved (Ctrl+Shift+F)', icon: 'search', action: 'hunt' },
+      { id: 'act-digest', label: 'Workspace Digest', description: 'AI crew report of this workspace\'s sessions, saved as Markdown', icon: 'fileText', action: 'digest' },
       { id: 'act-split', label: 'Toggle Split View', description: 'Active session + the previous one, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
       { id: 'act-plans', label: 'Plans & Upgrade', description: 'Compare tiers, redeem an unlock code', icon: 'star', action: 'plans' },
       { id: 'act-changelog', label: 'What’s New', description: 'Recent changes and release notes', icon: 'sparkles', action: 'changelog' },
@@ -1862,6 +1925,9 @@ export default function App() {
             busy={smartBusy}
             broadcastMode={broadcastMode}
             onToggleBroadcast={() => setBroadcastMode(prev => !prev)}
+            broadcastScope={broadcastScope}
+            onToggleBroadcastScope={() => setBroadcastScope(prev => prev === 'all' ? 'workspace' : 'all')}
+            broadcastCount={broadcastTargets?.length ?? 0}
             gridMode={gridMode}
             onToggleGrid={() => {
               setGridMode(prev => {
@@ -1940,7 +2006,7 @@ export default function App() {
                               fontSize={layoutGridMode ? Math.max(10, fontSize - 2) : fontSize}
                               fontFamily={fontFamily}
                               cursorStyle={cursorStyle}
-                              broadcastTabIds={broadcastMode ? tabs.map(t => t.id) : null}
+                              broadcastTabIds={broadcastTargets}
                               restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
                               persistScrollback={settings.persistScrollback !== false}
                               transparentBg={wallpaperOnTerminals}
@@ -1949,7 +2015,12 @@ export default function App() {
                               onSessionState={(state) => handleSessionState(tab.id, state)}
                               onReady={(state) => handleTerminalReady(tab.id, state)}
                               onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
-                              onCommand={(cmd) => { if (cmd) setCommandHistory(prev => prev.includes(cmd) ? prev : [...prev.slice(-499), cmd]) }}
+                              onCommand={(cmd) => {
+                                // Move a repeated command to the end so the
+                                // palette's "recent" list reflects real recency
+                                // (includes()-dedupe froze old commands in place).
+                                if (cmd) setCommandHistory(prev => [...prev.filter(c => c !== cmd).slice(-499), cmd])
+                              }}
                               onExport={() => exportSessionOutput(tab.id)}
                             />
                           ) : (
@@ -2241,7 +2312,18 @@ export default function App() {
           onPrompt={promptSession}
           onSwitchResume={switchAndResume}
           onLimitHandoff={(id) => performLimitHandoff(id)}
+          onDigest={buildWorkspaceDigest}
+          digestBusy={digestBusy}
           onDismiss={() => setShowMission(false)}
+        />
+      )}
+
+      {showHunt && (
+        <HuntOverlay
+          accent={accent}
+          tabs={tabs}
+          onJump={(id) => { setActiveId(id); setView('terminal') }}
+          onClose={() => setShowHunt(false)}
         />
       )}
 

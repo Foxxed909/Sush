@@ -4,6 +4,30 @@
 
 ## Latest release highlights
 
+### 🔍 Hunt, with a face
+`Ctrl+Shift+F` opens the **Hunt overlay**: type once and watch matches from
+*every* session's output — live terminals and the saved scrollback of sessions
+you already closed — then hit Enter to jump straight to the one that said it.
+
+### 📋 Crew reports
+One click in Mission Control (**Digest ↓**) reads every session in a
+workspace, has your logged-in CLI write an honest status summary, and saves
+the whole thing as a Markdown report — verbatim output tails included.
+
+### 🧑‍🤝‍🧑 Repos that bring their own crew
+Drop a `.sush/crew.json` in a repo (`{ "name": "Docs crew", "counts":
+{ "claude": 2 }, "brief": "…" }`) and the launcher offers **Repo crew** as a
+one-click preset whenever anyone opens that directory.
+
+### 📻 Broadcast, fenced
+Broadcast mode can now target **just the active workspace** — the scope chip
+next to the toggle shows exactly how many sessions are listening before you
+type a single key.
+
+### 🎧 Dictation that never locks you out
+Running out of Quiet Credits no longer blocks **local whisper.cpp** dictation
+— your own CPU was always free, and now the mic knows it.
+
 ### 🎙️ Voice that actually works
 Dictation (Hush) and talking to Seducia now run on **Whisper** with your own
 OpenAI key — the key is encrypted on your machine and never leaves the main

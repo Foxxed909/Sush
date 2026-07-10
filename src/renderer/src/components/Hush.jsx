@@ -23,6 +23,9 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
   const [state, setState] = useState('idle')   // idle | listening | transcribing | flash | error
   const [errMsg, setErrMsg] = useState('')
   const [credits, setCredits] = useState(null)   // { remainingSec, allowanceSec, resetAt } | null
+  // Local whisper.cpp never spends Quiet Credits (it's the user's own CPU),
+  // so the empty-bucket gate and the credits line only apply to cloud STT.
+  const [localStt, setLocalStt] = useState(false)
   const recRef = useRef(null)
   const timersRef = useRef([])
   const capTimerRef = useRef(null)
@@ -41,6 +44,14 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
   }, [])
 
   useEffect(() => { refreshCredits() }, [refreshCredits])
+
+  useEffect(() => {
+    let live = true
+    window.sush?.sttConfigGet?.()
+      .then(c => { if (live && c) setLocalStt(c.provider === 'local') })
+      .catch(() => {})
+    return () => { live = false }
+  }, [])
 
   const fail = useCallback((msg) => {
     if (!msg) { setState('idle'); return }
@@ -84,10 +95,17 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
     if (stateRef.current === 'listening' || stateRef.current === 'transcribing') return
     // Refuse early when the bucket is empty so the mic never opens for nothing.
     // Fetch FRESH first — the mounted snapshot could predate a monthly rollover
-    // and would otherwise keep blocking dictation after the bucket refilled.
+    // (or a provider switch in Settings) and would otherwise keep blocking
+    // dictation after the bucket refilled. Local whisper.cpp is exempt: it
+    // never spends credits, so an empty bucket must not silence a free engine.
+    let isLocal = localStt
+    try {
+      const cfg = await window.sush?.sttConfigGet?.()
+      if (cfg) { isLocal = cfg.provider === 'local'; setLocalStt(isLocal) }
+    } catch {}
     let live = credits
     try { const c = await window.sush?.creditsGet?.(); if (c) { live = c; setCredits(c) } } catch {}
-    if (live && live.remainingSec <= 0) {
+    if (!isLocal && live && live.remainingSec <= 0) {
       fail('Out of Quiet Credits this month — they refill on the 1st, or upgrade your plan.')
       return
     }
@@ -104,7 +122,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
     setErrMsg('')
     setState('listening')
     capTimerRef.current = setTimeout(() => { if (stateRef.current === 'listening') finish() }, MAX_CLIP_MS)
-  }, [credits, fail, finish])
+  }, [credits, localStt, fail, finish])
 
   const toggle = useCallback(() => {
     if (stateRef.current === 'listening') finish()
@@ -195,11 +213,15 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
               : listening ? 'Speak now — tap again to send, Esc to cancel.'
               : 'Done.'}
           </div>
-          {credits && !errored && (
+          {localStt ? (!errored && (
+            <div style={{ fontSize: 9.5, marginTop: 3, color: 'var(--text-4)', fontWeight: 600 }}>
+              Local whisper.cpp · free
+            </div>
+          )) : (credits && !errored && (
             <div style={{ fontSize: 9.5, marginTop: 3, color: lowCredits ? '#ffb74d' : 'var(--text-4)', fontWeight: 600 }}>
               Quiet Credits · {formatCredits(credits.remainingSec)}
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>

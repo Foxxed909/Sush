@@ -1153,7 +1153,12 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:new-tab', (event, { tabId, cwd }) => {
     const initialCwd = cwd || homedir()
-    contexts.set(tabId, new ShellContext({ cwd: initialCwd, tabId }))
+    const ctx = new ShellContext({ cwd: initialCwd, tabId })
+    // Load .sushrc aliases (home + project) like getContext does — without
+    // this, alias expansion silently failed in a fresh tab until its PTY
+    // booted and replaced the context.
+    try { ctx.aliases = { ...loadSushrc(initialCwd).alias } } catch {}
+    contexts.set(tabId, ctx)
     return { cwd: initialCwd }
   })
 
@@ -1492,6 +1497,22 @@ export function registerIpcHandlers(win) {
   // ── Scrollback (for session handoff cards) ────────────────────────────────
   ipcMain.handle('sush:get-scrollback', (event, { tabId, chars }) => {
     return { tabId, text: scrollback?.tail(tabId, chars) ?? '' }
+  })
+
+  // Cross-session output search for the Hunt overlay (Ctrl+Shift+F) — the
+  // `hunt` command's engine with labels resolved, so the renderer can paint
+  // rows and jump to a live session without re-implementing the search.
+  ipcMain.handle('sush:hunt-search', (event, { term } = {}) => {
+    if (!scrollback) return { ok: true, results: [] }
+    const savedLabel = (key) => {
+      const seg = String(key || '').split(/[\\/:]/).filter(Boolean).pop()
+      return seg || 'saved session'
+    }
+    const results = scrollback.search(term).map(r => ({
+      ...r,
+      label: r.saved ? savedLabel(r.key) : (ptySessions.get(r.tabId)?.label || r.tabId)
+    }))
+    return { ok: true, results }
   })
 
   // ── Snippets (one store: ~/.sush/snippets.json, shared with the `snippet`

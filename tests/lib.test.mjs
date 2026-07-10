@@ -6,8 +6,13 @@ import { classify, detectLimit, stripAnsi, summarize } from '../src/renderer/src
 import { parseIntent, runningTargets, agentIdFromToken } from '../src/renderer/src/lib/seducia.js'
 import { formatCredits } from '../src/renderer/src/lib/dictation.js'
 import { perfModeOf, withPerfMode } from '../src/renderer/src/lib/power.js'
-import { crewToAgents } from '../src/renderer/src/lib/crews.js'
+import { crewToAgents, parseRepoCrew } from '../src/renderer/src/lib/crews.js'
 import { buildCustomTheme } from '../src/renderer/src/themes/index.js'
+import { buildDigestMarkdown, digestSummaryPrompt } from '../src/renderer/src/lib/digest.js'
+import { ScrollbackStore } from '../src/main/shell/scrollback.js'
+import { mkdtempSync, readFileSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 
 describe('ui color helpers', () => {
   it('parses 6-digit hex', () => {
@@ -131,6 +136,84 @@ describe('saved crews', () => {
   it('falls back to the id as command for unknown agents', () => {
     const agents = crewToAgents({ counts: { gemini: 1 } }, () => null)
     expect(agents[0]).toMatchObject({ id: 'gemini', command: 'gemini', count: 1 })
+  })
+})
+
+describe('repo crew preset (.sush/crew.json)', () => {
+  it('parses a valid crew file', () => {
+    const crew = parseRepoCrew('{"name":"Docs crew","counts":{"claude":2,"shell":1},"brief":"Write the docs."}')
+    expect(crew).toMatchObject({ name: 'Docs crew', counts: { claude: 2, shell: 1 }, brief: 'Write the docs.' })
+  })
+  it('accepts "agents" as an alias for "counts"', () => {
+    const crew = parseRepoCrew('{"name":"X","agents":{"codex":1}}')
+    expect(crew?.counts).toEqual({ codex: 1 })
+  })
+  it('rejects garbage, empty crews, and non-JSON', () => {
+    expect(parseRepoCrew('not json')).toBeNull()
+    expect(parseRepoCrew('{"name":"empty","counts":{}}')).toBeNull()
+    expect(parseRepoCrew('{"counts":{"claude":0}}')).toBeNull()
+  })
+  it('bounds counts and name length', () => {
+    const crew = parseRepoCrew(`{"name":"${'x'.repeat(99)}","counts":{"claude":500}}`)
+    expect(crew.counts.claude).toBe(99)
+    expect(crew.name.length).toBeLessThanOrEqual(40)
+  })
+})
+
+describe('workspace digest', () => {
+  it('assembles the report with an AI summary section', () => {
+    const md = buildDigestMarkdown({
+      label: 'sush · 3',
+      cwd: '/home/t/sush',
+      sessions: [{ label: 'Builder', agentId: 'claude', text: 'did things' }],
+      summary: 'Everything is fine.',
+      generatedAt: new Date(0)
+    })
+    expect(md).toContain('# Crew report — sush · 3')
+    expect(md).toContain('## Summary (AI-inferred)')
+    expect(md).toContain('Everything is fine.')
+    expect(md).toContain('## Builder (claude)')
+    expect(md).toContain('did things')
+  })
+  it('omits the summary section when no AI answered, and softens fences', () => {
+    const md = buildDigestMarkdown({ label: 'W', sessions: [{ label: 's', text: '```danger```' }] })
+    expect(md).not.toContain('AI-inferred')
+    expect(md).not.toMatch(/^```danger/m)
+  })
+  it('builds a bounded summary prompt', () => {
+    const p = digestSummaryPrompt('W', [{ label: 'a', agentId: 'claude', text: 'x'.repeat(9000) }])
+    expect(p).toContain('workspace "W"')
+    expect(p.length).toBeLessThan(3000)
+  })
+})
+
+describe('scrollback store LRU', () => {
+  it('evicts the least-recently-persisted workspace, not the first-inserted', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sush-test-'))
+    try {
+      const store = new ScrollbackStore(dir)
+      // Fill to the 40-key cap: key-0 … key-39.
+      for (let i = 0; i < 40; i++) {
+        store.attach(`tab-${i}`, `key-${i}`)
+        store.append(`tab-${i}`, `output ${i}`)
+        store.persist(`tab-${i}`)
+      }
+      // Re-persist key-0 (a reopened workspace) — it must become most-recent.
+      store.attach('tab-0b', 'key-0')
+      store.append('tab-0b', 'fresh output')
+      store.persist('tab-0b')
+      // One more key pushes the store over the cap.
+      store.attach('tab-40', 'key-40')
+      store.append('tab-40', 'output 40')
+      store.persist('tab-40')
+      store.flush()
+      const onDisk = JSON.parse(readFileSync(join(dir, 'sush-scrollback.json'), 'utf8'))
+      expect(onDisk['key-0']).toContain('fresh output')   // refreshed key survived
+      expect(onDisk['key-40']).toBeDefined()
+      expect(onDisk['key-1']).toBeUndefined()             // true oldest evicted
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

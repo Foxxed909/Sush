@@ -8,6 +8,31 @@
 
 export const CHANGELOG = [
   {
+    v: '4.10.0',
+    codename: 'sotto',
+    date: '2026-07-10',
+    summary: 'Hunt with a face, crew reports, repo-owned crews — and dictation that never locks you out.',
+    changes: {
+      new: [
+        'Hunt overlay (Ctrl+Shift+F): search the output of every session — live and saved — as you type, and jump straight to the hit.',
+        'Workspace digest: one click in Mission Control (or “Workspace Digest” in the palette) reads every session in a workspace, has your CLI summarize the crew’s state, and saves a Markdown report.',
+        'Repo crews: a repo can ship .sush/crew.json (agents × counts + brief); the launcher offers “Repo crew” as a one-click preset when you pick that directory.',
+        'Broadcast can now be fenced to the active workspace — the scope chip next to the broadcast toggle shows exactly how many sessions are listening.'
+      ],
+      improved: [
+        'The launcher marks missing CLIs “not installed” instead of “locked” — the lock now always means a plan gate.',
+        'The palette’s recent commands reflect real recency: re-running an old command moves it back to the top.',
+        '`credits` tells the truth about your dictation setup — including that local whisper.cpp is free.'
+      ],
+      fixed: [
+        'Running out of Quiet Credits no longer blocks local whisper.cpp dictation (it never spends credits).',
+        'Seducia can resolve relative launch directories on macOS and Linux, not just Windows.',
+        'Saved scrollback now evicts the least-recently-used workspace when the cap is hit, instead of your most-used one.',
+        'Aliases from .sushrc work in the smart bar as soon as a tab opens, not only after its shell boots.'
+      ]
+    }
+  },
+  {
     v: '4.9.0',
     codename: 'undertow',
     date: '2026-07-09',

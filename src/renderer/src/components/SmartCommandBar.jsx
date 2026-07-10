@@ -57,7 +57,7 @@ function usePathSuggestions(input) {
   return { suggestions, complete, hasToken: !!token }
 }
 
-export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, onTogglePanel, rightOpen, busy, broadcastMode, onToggleBroadcast, gridMode, onToggleGrid, settings = {} }) {
+export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, onTogglePanel, rightOpen, busy, broadcastMode, onToggleBroadcast, broadcastScope = 'all', onToggleBroadcastScope, broadcastCount = 0, gridMode, onToggleGrid, settings = {} }) {
   const [value, setValue] = useState('')
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -290,12 +290,29 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
         {onToggleBroadcast && (
           <button
             type="button"
-            title={broadcastMode ? 'Broadcast ON -- input goes to all tabs (Ctrl+Shift+B)' : 'Broadcast mode off (Ctrl+Shift+B)'}
+            title={broadcastMode ? `Broadcast ON -- input goes to ${broadcastScope === 'workspace' ? 'this workspace' : 'all sessions'} (Ctrl+Shift+B)` : 'Broadcast mode off (Ctrl+Shift+B)'}
             onClick={onToggleBroadcast}
             className="sush-icon-btn flex items-center justify-center"
             style={{ width: 34, height: 34, borderRadius: 'var(--r-btn)', border: `1px solid ${broadcastMode ? 'rgba(255,83,112,0.5)' : 'var(--border-2)'}`, background: broadcastMode ? 'rgba(255,83,112,0.12)' : 'var(--surface-2)', color: broadcastMode ? '#ff5370' : 'var(--text-3)', cursor: 'pointer', flexShrink: 0 }}
           >
             <Icon name="radio" size={14} />
+          </button>
+        )}
+
+        {/* Broadcast scope — only meaningful while broadcast is live. State is
+            written out ("All · 5" / "Workspace · 3") per the toggle rule in
+            DESIGN.md: never a bare switch. */}
+        {broadcastMode && onToggleBroadcastScope && (
+          <button
+            type="button"
+            title={broadcastScope === 'workspace'
+              ? 'Broadcast is fenced to the active workspace — click for all sessions'
+              : 'Broadcast reaches every session — click to fence it to the active workspace'}
+            onClick={onToggleBroadcastScope}
+            className="sush-btn flex items-center"
+            style={{ gap: 5, height: 34, padding: '0 10px', borderRadius: 'var(--r-btn)', border: '1px solid rgba(255,83,112,0.4)', background: 'rgba(255,83,112,0.08)', color: '#ff8296', fontWeight: 800, fontSize: 10.5, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+          >
+            {broadcastScope === 'workspace' ? 'Workspace' : 'All'} · {broadcastCount}
           </button>
         )}
 

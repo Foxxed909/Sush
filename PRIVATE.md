@@ -2,6 +2,26 @@
 
 ## Architecture decisions this cycle
 
+- **4.10.0 "sotto" review cycle**: Hunt overlay reuses ScrollbackStore.search
+  via one new IPC (`sush:hunt-search`) that resolves labels main-side — the
+  renderer never re-implements the search. Digest is renderer-orchestrated
+  (getScrollback tails → one `cliComplete` summary → lib/digest.js pure
+  markdown assembly) so the report still ships without any CLI installed.
+  Repo crews parse through the same `normalizeCrew` bounds as saved crews
+  (`parseRepoCrew`), read over the existing guarded `read-file` IPC — no new
+  fs surface. Broadcast scope is renderer state only; the fence is computed
+  where broadcastTabIds always was.
+- **Scrollback eviction is now LRU**: persist() delete-then-sets its key so
+  the Map's insertion order tracks recency; the slice(-40) writers were
+  silently evicting the most-used workspace for heavy users.
+- **Hush credits gate is provider-aware**: the renderer refreshes
+  sttConfigGet in begin() and skips the empty-bucket refusal for the local
+  provider (main never charged local anyway — the gate was renderer-only).
+- **`tools/shot.mjs` restored** (the watchlist said it existed; it didn't).
+  Serves out/renderer over localhost, stubs `window.sush` with a Proxy +
+  explicit answers, drives the main screens headless. Update the stub when
+  preload grows or screens render empty.
+
 - **STT mirrors TTS exactly** (`main/stt.js` ↔ `main/tts.js`): key held in
   main, safeStorage-encrypted, renderer sends bytes and receives text. A local
   offline Whisper engine can drop in behind the same provider switch without
