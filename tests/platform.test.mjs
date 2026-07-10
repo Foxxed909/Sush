@@ -141,8 +141,10 @@ describe('package-manager selection', () => {
 
 describe('shell-aware cd', () => {
   it('expands home paths consistently', () => {
-    expect(expandFsPath('~', '/work', '/home/james')).toBe('/home/james')
-    expect(expandFsPath('~/sush', '/work', '/home/james')).toBe('/home/james/sush')
+    const home = join(tmpdir(), 'james')
+    const cwd = join(tmpdir(), 'work')
+    expect(expandFsPath('~', cwd, home)).toBe(home)
+    expect(expandFsPath('~/sush', cwd, home)).toBe(join(home, 'sush'))
   })
 
   it('emits syntax for the live shell', () => {
