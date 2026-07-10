@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'fs'
-import { sign } from './license-secret.mjs'
+import { resolveStoredLicense, verifySignedCode } from './license-core.mjs'
 
 // Offline tier gating. The user redeems a code I mint (tools/mint-code.mjs); the
 // app verifies it locally — no server, no payment. Verification is HMAC-based,
@@ -28,7 +28,6 @@ export const TIER_FEATURES = {
   ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  },
   max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  }
 }
-const RANK = { free: 0, plus: 1, pro: 2, ultra: 3, max: 4 }
 const file = () => join(app.getPath('userData'), 'sush-license.json')
 
 // Set by main so any path that changes the license (IPC redeem OR the `unlock`
@@ -41,21 +40,7 @@ function emitChange() { try { _emit?.(licensePublic()) } catch {} }
 // (SUSH-TIER-NONCE-SIG) or a dated/trial code (SUSH-TIER-YYYYMMDD-NONCE-SIG)
 // that stops working after its date.
 export function verifyCode(raw) {
-  const code = String(raw || '').trim().toUpperCase()
-  const plain = code.match(/^SUSH-(PLUS|PRO|ULTRA|MAX)-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
-  const dated = code.match(/^SUSH-(PLUS|PRO|ULTRA|MAX)-(\d{8})-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
-  let tier, nonce, s, expiry = null
-  if (plain) { ;[, tier, nonce, s] = plain }
-  else if (dated) { ;[, tier, expiry, nonce, s] = dated }
-  else return { ok: false, error: 'That code doesn’t look right.' }
-  tier = tier.toLowerCase()
-  if (s !== sign(tier, nonce, expiry)) return { ok: false, error: 'That code isn’t valid.' }
-  if (expiry) {
-    const y = +expiry.slice(0, 4), mo = +expiry.slice(4, 6), d = +expiry.slice(6, 8)
-    const exp = Date.UTC(y, mo - 1, d, 23, 59, 59)
-    if (Date.now() > exp) return { ok: false, error: 'This code has expired.' }
-  }
-  return { ok: true, tier, expiry }
+  return verifySignedCode(raw)
 }
 
 // Current license, defaulting to free. A stored dated code that has since
@@ -66,14 +51,7 @@ export function getLicense() {
   try {
     if (existsSync(file())) {
       const d = JSON.parse(readFileSync(file(), 'utf8'))
-      if (d && RANK[d.tier] != null) {
-        if (d.code && !verifyCode(d.code).ok) {
-          const prev = d.previousCode ? verifyCode(d.previousCode) : null
-          if (prev?.ok) return { tier: prev.tier, code: d.previousCode }
-          return { tier: 'free' }
-        }
-        return d
-      }
+      return resolveStoredLicense(d)
     }
   } catch {}
   return { tier: 'free' }
