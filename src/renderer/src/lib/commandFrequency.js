@@ -6,6 +6,8 @@
 // Storage lives in localStorage (renderer-only): the table churns on every
 // command, and routing that through IPC + electron-store would be wasteful.
 
+import { isSensitiveCommand } from './commandPrivacy'
+
 const STORE_KEY = 'sush.cmdfreq.v1'
 const DISMISS_KEY = 'sush.cmdfreq.dismissed.v1'
 
@@ -28,7 +30,20 @@ function isAliasable(cmd) {
 }
 
 function load(key) {
-  try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || 'null')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+    let changed = false
+    for (const command of Object.keys(value)) {
+      if (!isSensitiveCommand(command)) continue
+      delete value[command]
+      changed = true
+    }
+    // Scrub values written by older Sush versions as soon as either table is
+    // read. Sensitive commands should not survive as dismissed entries either.
+    if (changed) save(key, value)
+    return value
+  } catch { return null }
 }
 function save(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)) } catch { /* quota — ignore */ }
@@ -49,6 +64,10 @@ function prune(table, now) {
 // Record one command line. No-op for things not worth aliasing.
 export function recordCommand(raw, now = Date.now()) {
   const cmd = normalize(raw)
+  // Never persist secret values in the alias-frequency table. `secrets set`
+  // intentionally accepts the value as an argument, so recording the full
+  // command would turn an encrypted secret into plaintext localStorage.
+  if (isSensitiveCommand(cmd)) return
   if (!isAliasable(cmd)) return
   const table = load(STORE_KEY) || {}
   const entry = table[cmd] || { count: 0, last: now }
@@ -62,7 +81,7 @@ export function recordCommand(raw, now = Date.now()) {
 // Mark a command as "never suggest" — survives restarts.
 export function dismissCommand(raw) {
   const cmd = normalize(raw)
-  if (!cmd) return
+  if (!cmd || isSensitiveCommand(cmd)) return
   const d = load(DISMISS_KEY) || {}
   d[cmd] = true
   save(DISMISS_KEY, d)
