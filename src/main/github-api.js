@@ -22,6 +22,7 @@ export function clearGitHubCache() {
   tokenCache = null
   ghMissAt.clear()
   etagCache.clear()
+  inflight.clear()
 }
 
 function ghCliToken() {
@@ -115,7 +116,11 @@ async function ghFetch(path, { etagKey } = {}) {
 
 function singleFlight(key, fn) {
   if (inflight.has(key)) return inflight.get(key)
-  const p = fn().finally(() => inflight.delete(key))
+  const p = fn().finally(() => {
+    // A user switch can clear the map and start a new request with the same
+    // logical key before this older request settles. Never delete the newer one.
+    if (inflight.get(key) === p) inflight.delete(key)
+  })
   inflight.set(key, p)
   return p
 }
