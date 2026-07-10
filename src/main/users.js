@@ -1,8 +1,9 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
 import { randomBytes, scryptSync, timingSafeEqual, randomUUID } from 'crypto'
 import { accountSlotEnv } from './accounts'
+import { atomicWriteJson, identityDirectoryPath, identityStoragePath, validIdentityId } from './secure-storage'
 
 // ── Sush Identities ──────────────────────────────────────────────────────────
 // Multiple people can share one Sush install without their CLI logins mixing.
@@ -18,17 +19,30 @@ import { accountSlotEnv } from './accounts'
 // The PIN is a convenience lock against casual access on a shared machine —
 // it is NOT encryption. Credentials on disk are as readable as they ever were.
 
-const STORE_VERSION = 1
+const STORE_VERSION = 2
 
 let storeFile = null
-let store = { version: STORE_VERSION, users: [], activeId: null, lastUserId: null }
+let store = {
+  version: STORE_VERSION,
+  users: [],
+  activeId: null,
+  lastUserId: null,
+  legacyOwnerId: null,
+  legacyOwnershipEstablished: false
+}
+let identityTransitionHandler = null
 
-function identitiesRoot() {
-  return join(app.getPath('userData'), 'identities')
+// Main owns process/session cleanup, while this module owns every activation
+// path (PIN and OAuth). A callback keeps those responsibilities separated and
+// guarantees provider sign-in cannot bypass the same identity transition.
+export function setIdentityTransitionHandler(fn) {
+  identityTransitionHandler = typeof fn === 'function' ? fn : null
 }
 
 export function userHomeDir(userId) {
-  return join(identitiesRoot(), String(userId), 'home')
+  const home = identityStoragePath(app.getPath('userData'), userId, 'home')
+  if (!home) throw new Error('Invalid identity id')
+  return home
 }
 
 function load() {
@@ -37,20 +51,46 @@ function load() {
     if (existsSync(storeFile)) {
       const data = JSON.parse(readFileSync(storeFile, 'utf8'))
       if (data && Array.isArray(data.users)) {
-        store = { version: STORE_VERSION, users: data.users, activeId: null, lastUserId: data.lastUserId ?? null }
+        const seen = new Set()
+        const users = data.users.filter(user => {
+          const id = validIdentityId(user?.id)
+          if (!id || seen.has(id) || !identityDirectoryPath(app.getPath('userData'), id)) return false
+          seen.add(id)
+          return true
+        })
+        const lastUserId = validIdentityId(data.lastUserId)
+        const hasStoredLegacyOwner = data.legacyOwnershipEstablished === true || Object.hasOwn(data, 'legacyOwnerId')
+        // Older stores predate explicit ownership. Bind their legacy data to
+        // the first surviving identity once, then never reassign it on delete.
+        const legacyOwnerId = hasStoredLegacyOwner
+          ? validIdentityId(data.legacyOwnerId)
+          : (users[0]?.id || null)
+        store = {
+          version: STORE_VERSION,
+          users,
+          activeId: null,
+          lastUserId: lastUserId && seen.has(lastUserId) ? lastUserId : null,
+          legacyOwnerId,
+          legacyOwnershipEstablished: hasStoredLegacyOwner || !!legacyOwnerId
+        }
       }
     }
   } catch {}
 }
 
 function save() {
-  if (!storeFile) return
+  if (!storeFile) return false
   try {
     // activeId is runtime-only (a fresh launch starts signed out / auto-resumes
     // via lastUserId) — persist everything else.
     const { activeId, ...rest } = store
-    writeFileSync(storeFile, JSON.stringify(rest, null, 2), 'utf8')
-  } catch {}
+    atomicWriteJson(storeFile, rest)
+    return true
+  } catch { return false }
+}
+
+function snapshotStore() {
+  return JSON.parse(JSON.stringify(store))
 }
 
 function hashPin(pin, salt) {
@@ -104,7 +144,16 @@ export function getLastUserId() {
   return store.lastUserId
 }
 
+export function getLegacyOwnerId() {
+  return store.legacyOwnershipEstablished ? store.legacyOwnerId : null
+}
+
+export function isLegacyOwnershipEstablished() {
+  return store.legacyOwnershipEstablished
+}
+
 export function createUser({ name, color, avatar, avatarUrl, pin, isolation } = {}) {
+  const previous = snapshotStore()
   const trimmed = String(name ?? '').trim()
   if (!trimmed) return { ok: false, error: 'Name is required' }
   if (store.users.some(u => u.name.toLowerCase() === trimmed.toLowerCase())) {
@@ -132,12 +181,20 @@ export function createUser({ name, color, avatar, avatarUrl, pin, isolation } = 
     user.pinLength = pinValue.length
   }
   store.users.push(user)
+  if (!store.legacyOwnershipEstablished) {
+    store.legacyOwnerId = user.id
+    store.legacyOwnershipEstablished = true
+  }
   ensureUserDirs(user)
-  save()
+  if (!save()) {
+    store = previous
+    return { ok: false, error: 'Could not save identity' }
+  }
   return { ok: true, user: publicUser(user) }
 }
 
 export function updateUser({ id, patch = {}, newPin } = {}) {
+  const previous = snapshotStore()
   const user = findUser(id)
   if (!user) return { ok: false, error: 'User not found' }
   if (typeof patch.name === 'string' && patch.name.trim()) {
@@ -169,20 +226,34 @@ export function updateUser({ id, patch = {}, newPin } = {}) {
       user.pinLength = pinValue.length
     }
   }
-  save()
+  if (!save()) {
+    store = previous
+    return { ok: false, error: 'Could not save identity' }
+  }
   return { ok: true, user: publicUser(user) }
 }
 
 export function deleteUser({ id, wipeData } = {}) {
+  const previous = snapshotStore()
   const user = findUser(id)
   if (!user) return { ok: false, error: 'User not found' }
+  if (wipeData) {
+    try {
+      const dir = identityDirectoryPath(app.getPath('userData'), id)
+      if (!dir) return { ok: false, error: 'Invalid identity data path' }
+      rmSync(dir, { recursive: true, force: true })
+      if (existsSync(dir)) return { ok: false, error: 'Could not fully wipe identity data; identity was not removed.' }
+    } catch {
+      return { ok: false, error: 'Could not fully wipe identity data; identity was not removed.' }
+    }
+  }
   store.users = store.users.filter(u => u.id !== id)
   if (store.activeId === id) store.activeId = null
   if (store.lastUserId === id) store.lastUserId = null
-  if (wipeData) {
-    try { rmSync(join(identitiesRoot(), String(id)), { recursive: true, force: true }) } catch {}
+  if (!save()) {
+    store = previous
+    return { ok: false, error: 'Could not save identity' }
   }
-  save()
   return { ok: true }
 }
 
@@ -196,12 +267,20 @@ export function verifyPin(user, pin) {
   }
 }
 
-function doActivate(user) {
+function doActivate(user, source = 'pin') {
+  const previous = snapshotStore()
+  const previousUserId = store.activeId
   store.activeId = user.id
   store.lastUserId = user.id
   user.lastUsedAt = Date.now()
   ensureUserDirs(user)
-  save()
+  if (!save()) {
+    store = previous
+    return null
+  }
+  if (previousUserId && previousUserId !== user.id) {
+    try { identityTransitionHandler?.({ previousUserId, nextUserId: user.id, source }) } catch {}
+  }
   return publicUser(user)
 }
 
@@ -211,7 +290,8 @@ export function activateUser({ id, pin } = {}) {
   const user = findUser(id)
   if (!user) return { ok: false, error: 'User not found' }
   if (!verifyPin(user, pin)) return { ok: false, error: 'Wrong PIN' }
-  return { ok: true, user: doActivate(user) }
+  const activated = doActivate(user)
+  return activated ? { ok: true, user: activated } : { ok: false, error: 'Could not save identity' }
 }
 
 // ── Provider links (Google / GitHub sign-in) ─────────────────────────────────
@@ -231,6 +311,7 @@ export function findUserByProvider(provider, subject) {
 }
 
 export function linkProvider({ id, provider, profile } = {}) {
+  const previous = snapshotStore()
   const user = findUser(id)
   if (!user) return { ok: false, error: 'User not found' }
   if (provider !== 'google' && provider !== 'github') return { ok: false, error: 'Unknown provider' }
@@ -246,11 +327,15 @@ export function linkProvider({ id, provider, profile } = {}) {
   user.providers = { ...(user.providers || {}), [provider]: record }
   const picture = provider === 'google' ? record.picture : record.avatarUrl
   if (!user.avatarUrl && picture) user.avatarUrl = picture
-  save()
+  if (!save()) {
+    store = previous
+    return { ok: false, error: 'Could not save identity' }
+  }
   return { ok: true, user: publicUser(user) }
 }
 
 export function unlinkProvider({ id, provider } = {}) {
+  const previous = snapshotStore()
   const user = findUser(id)
   if (!user) return { ok: false, error: 'User not found' }
   const record = user.providers?.[provider]
@@ -259,7 +344,10 @@ export function unlinkProvider({ id, provider } = {}) {
   if (user.avatarUrl && user.avatarUrl === picture) delete user.avatarUrl
   delete user.providers[provider]
   if (!Object.keys(user.providers).length) delete user.providers
-  save()
+  if (!save()) {
+    store = previous
+    return { ok: false, error: 'Could not save identity' }
+  }
   return { ok: true, user: publicUser(user) }
 }
 
@@ -269,7 +357,8 @@ export function unlinkProvider({ id, provider } = {}) {
 export function activateUserViaProvider({ provider, subject } = {}) {
   const user = findUserByProvider(provider, subject)
   if (!user) return { ok: false, error: 'no-match' }
-  return { ok: true, user: doActivate(user) }
+  const activated = doActivate(user, `provider:${provider}`)
+  return activated ? { ok: true, user: activated } : { ok: false, error: 'Could not save identity' }
 }
 
 export function signOut() {
