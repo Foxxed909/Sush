@@ -20,7 +20,7 @@ function stripAnsi(value) {
 export class ScrollbackStore {
   constructor(userDataDir) {
     this.file = join(userDataDir, 'sush-scrollback.json')
-    this.live = new Map()   // tabId -> { key, text }
+    this.live = new Map()   // tabId -> { key, text, persist }
     this.saved = new Map()  // restoreKey -> text
     this._writeTimer = null
     try {
@@ -32,8 +32,8 @@ export class ScrollbackStore {
     } catch {}
   }
 
-  attach(tabId, restoreKey) {
-    this.live.set(tabId, { key: restoreKey || null, text: '' })
+  attach(tabId, restoreKey, { persist = true } = {}) {
+    this.live.set(tabId, { key: restoreKey || null, text: '', persist: persist !== false })
   }
 
   append(tabId, data) {
@@ -62,7 +62,7 @@ export class ScrollbackStore {
   persist(tabId) {
     const entry = this.live.get(tabId)
     this.live.delete(tabId)
-    if (!entry || !entry.key || !entry.text.trim()) return
+    if (!entry || !entry.persist || !entry.key || !entry.text.trim()) return
     // Delete-then-set moves the key to the end of the Map's insertion order,
     // so the slice(-40) cap in the writers evicts least-recently-USED
     // workspaces. A plain set() left re-persisted keys at their original
@@ -97,7 +97,7 @@ export class ScrollbackStore {
   // persisted per-workspace scrollback of CLOSED sessions is searched too, so
   // `hunt` can find something a session you already closed printed — those
   // entries carry `saved: true` and their restoreKey instead of a live tabId.
-  search(term, { maxPerSession = 8, includeSaved = true } = {}) {
+  search(term, { maxPerSession = 8, includeSaved = true, savedKeyPrefix = null } = {}) {
     const q = String(term ?? '').trim().toLowerCase()
     if (!q) return []
     const scan = (text) => {
@@ -114,6 +114,7 @@ export class ScrollbackStore {
     const out = []
     const liveKeys = new Set()
     for (const [tabId, entry] of this.live) {
+      if (savedKeyPrefix && entry?.key && !String(entry.key).startsWith(savedKeyPrefix)) continue
       if (entry?.key) liveKeys.add(entry.key)
       if (!entry?.text) continue
       const hits = scan(entry.text)
@@ -122,6 +123,7 @@ export class ScrollbackStore {
 
     if (includeSaved) {
       for (const [key, text] of this.saved) {
+        if (savedKeyPrefix && !String(key).startsWith(savedKeyPrefix)) continue
         // Skip a saved buffer whose workspace is currently open live — the live
         // entry already covers it and is fresher.
         if (!text || liveKeys.has(key)) continue
