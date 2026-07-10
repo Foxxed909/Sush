@@ -45,6 +45,9 @@ import { recordCommand } from './lib/commandFrequency'
 import { perfModeOf, withPerfMode } from './lib/power'
 import { cliComplete } from './lib/ai'
 import { buildDigestMarkdown, digestSummaryPrompt } from './lib/digest'
+import { countersAfterTabs } from './lib/sessionIds'
+import { canHandleGlobalShortcut } from './lib/shortcutGuard'
+import { isSensitiveCommand } from './lib/commandPrivacy'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
 
@@ -59,7 +62,9 @@ const MAX_RECENT_SESSIONS = 8
 function loadCommandHistory() {
   try {
     const saved = JSON.parse(localStorage.getItem(COMMAND_HISTORY_KEY) ?? '[]')
-    return Array.isArray(saved) ? saved.filter(x => typeof x === 'string').slice(-500) : []
+    return Array.isArray(saved)
+      ? saved.filter(x => typeof x === 'string' && !isSensitiveCommand(x)).slice(-500)
+      : []
   } catch {
     return []
   }
@@ -241,6 +246,10 @@ function loadSessionLayout(profiles) {
         lastActiveAt: item.lastActiveAt
       })
     }))
+    const counters = countersAfterTabs(tabs)
+    nextTabId = Math.max(nextTabId, counters.tab)
+    nextSessionTag = Math.max(nextSessionTag, counters.sessionTag)
+    nextGroupId = Math.max(nextGroupId, counters.group)
     return {
       tabs,
       activeId: tabs.find(tab => tabKey(tab) === saved.activeKey)?.id ?? tabs[0].id
@@ -254,7 +263,8 @@ function loadSessionLayout(profiles) {
 export default function App() {
   const identity = useIdentity()
   const { profiles, addProfile, updateProfile, deleteProfile } = useProfiles()
-  const initialLayout = useRef(loadSessionLayout(profiles))
+  const initialLayout = useRef(null)
+  if (initialLayout.current === null) initialLayout.current = loadSessionLayout(profiles)
   const [tabs, setTabs] = useState(initialLayout.current.tabs)
   const [activeId, setActiveId] = useState(initialLayout.current.activeId)
   const [view, setView] = useState('home')
@@ -357,6 +367,11 @@ export default function App() {
   })
   const [mounted, setMounted] = useState(false)
   const [sleeping, setSleeping] = useState(false)
+  const blockingShortcutSurface = Boolean(
+    showProfiles || showSettings || showLauncher || showPalette || showShortcuts ||
+    showMission || showUserManager || showProfile || showPlans || showChangelog ||
+    showHunt || handoffSource || showSushrc || splash || sleeping
+  )
   // Lazy boot: restored tabs are rail entries only until first viewed — their
   // PTY (and agent resume command) spawns on demand. Opening the app no
   // longer ignites the whole saved swarm at once (CPU killer on weak boxes),
@@ -660,6 +675,7 @@ export default function App() {
       zoomTimerRef.current = setTimeout(() => setZoomIndicator(null), 1200)
     }
     const handler = (e) => {
+      if (!canHandleGlobalShortcut(identity.ready, blockingShortcutSurface)) return
       // Cmd on macOS too — lib/keymap already swallows Ctrl/Cmd +/-/0 from the
       // terminal, so a ctrlKey-only check left Cmd+= a dead chord on Mac.
       if (!e.ctrlKey && !e.metaKey) return
@@ -683,7 +699,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handler)
     return () => { window.removeEventListener('keydown', handler); clearTimeout(zoomTimerRef.current) }
-  }, [settings])
+  }, [settings, identity.ready, blockingShortcutSurface])
 
   // Window opacity is an OS-level window property (main calls setOpacity), not
   // a CSS opacity on the root — the latter faded the terminal text itself.
@@ -721,6 +737,7 @@ export default function App() {
   // useTerminal consults to keep these keys out of the PTY.
   useEffect(() => {
     const handler = (e) => {
+      if (!canHandleGlobalShortcut(identity.ready, blockingShortcutSurface)) return
       const ctrl = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
       // Ctrl/Cmd+K → summon Seducia. Ctrl/Cmd+B → toggle panel.
@@ -780,11 +797,12 @@ export default function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [rightTab, profiles])
+  }, [rightTab, profiles, identity.ready, blockingShortcutSurface])
 
   // F2 → rename active session. Ctrl+Tab → MRU quick switcher (hold Ctrl, tap Tab).
   useEffect(() => {
     const onKeyDown = (e) => {
+      if (!canHandleGlobalShortcut(identity.ready, blockingShortcutSurface)) return
       if (e.key === 'F2') {
         e.preventDefault()
         if (activeIdRef.current) { setView('terminal'); setRenamingId(activeIdRef.current) }
@@ -803,6 +821,7 @@ export default function App() {
       }
     }
     const onKeyUp = (e) => {
+      if (!canHandleGlobalShortcut(identity.ready, blockingShortcutSurface)) return
       if ((e.key === 'Control' || e.key === 'Meta') && switcherRef.current) {
         const s = switcherRef.current
         const id = s.order[s.index]
@@ -813,7 +832,7 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
-  }, [])
+  }, [identity.ready, blockingShortcutSurface])
 
   useEffect(() => { localStorage.setItem('sush-right-open', rightOpen ? '1' : '0') }, [rightOpen])
   useEffect(() => { localStorage.setItem('sush-right-tab', rightTab) }, [rightTab])
@@ -1003,7 +1022,7 @@ export default function App() {
     setActiveId(tab.id)
     setView('terminal')
     if (tab.cwd) rememberSession(tab)
-    window.sush.newTab({ tabId: tab.id, cwd: tab.cwd }).catch((error) => {
+    window.sush.newTab({ tabId: tab.id, cwd: tab.cwd, shellId: tab.shell }).catch((error) => {
       console.error('Failed to initialize tab context', error)
     })
     return tab
@@ -1215,7 +1234,7 @@ export default function App() {
       cwd,
       groupId: block.id,
       groupLabel: block.label,
-      tag: 'group-add'
+      tag: `sess-${nextSessionTag++}`
     })
   }, [openTab, profiles])
 
@@ -1630,11 +1649,17 @@ export default function App() {
     try {
       const target = tabsRef.current.find(tab => tab.id === activeId) ?? tabsRef.current[0]
       const result = await window.sush.runSmartInput({ tabId: target?.id, input: command })
-      const nextResult = { input: command, type: result?.type ?? 'success', output: result?.output ?? '', action: result?.action }
+      const sensitive = result?.sensitive === true
+      const nextResult = {
+        input: sensitive ? '[sensitive command redacted]' : command,
+        type: result?.type ?? 'success',
+        output: result?.output ?? '',
+        action: result?.action
+      }
       setSmartResult(nextResult)
       applySmartAction(result?.action, nextResult)
       // Feed the alias miner real commands only (skip failures/typos).
-      if (nextResult.type !== 'error') { recordCommand(command); setNudgeHidden(false); setCmdTick(t => t + 1) }
+      if (!sensitive && nextResult.type !== 'error') { recordCommand(command); setNudgeHidden(false); setCmdTick(t => t + 1) }
     } catch (error) {
       setSmartResult({ input: command, type: 'error', output: error.message })
     } finally {
@@ -1790,6 +1815,7 @@ export default function App() {
   //   Ctrl+Shift+T  reopen last closed  Ctrl+Shift+Home   go to Home screen
   useEffect(() => {
     const handler = (e) => {
+      if (!canHandleGlobalShortcut(identity.ready, blockingShortcutSurface)) return
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl) return
       const list = tabsRef.current
@@ -1823,7 +1849,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [selectTab, reopenLastClosed])
+  }, [selectTab, reopenLastClosed, identity.ready, blockingShortcutSurface])
 
   // ── Identity gate ─────────────────────────────────────────────────────
   // Nothing below may render until main knows whose session this is — a
@@ -1999,6 +2025,7 @@ export default function App() {
                               tabId={tab.id}
                               theme={t}
                               profile={prof}
+                              shellId={tab.shell}
                               active={focused}
                               splitVisible={layoutGridMode}
                               initialCwd={tab.cwd}
@@ -2019,7 +2046,9 @@ export default function App() {
                                 // Move a repeated command to the end so the
                                 // palette's "recent" list reflects real recency
                                 // (includes()-dedupe froze old commands in place).
-                                if (cmd) setCommandHistory(prev => [...prev.filter(c => c !== cmd).slice(-499), cmd])
+                                if (cmd && !isSensitiveCommand(cmd)) {
+                                  setCommandHistory(prev => [...prev.filter(c => c !== cmd).slice(-499), cmd])
+                                }
                               }}
                               onExport={() => exportSessionOutput(tab.id)}
                             />
