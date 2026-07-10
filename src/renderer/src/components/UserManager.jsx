@@ -141,17 +141,21 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
                       {user.isolation === 'full' ? 'Full home isolation' : 'CLI isolation (claude · codex · gh · XDG)'}
                     </span>
                   </span>
-                  <button onClick={() => editingId === user.id ? (setEditingId(null), setForm(null)) : startEdit(user)} style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>
-                    {editingId === user.id ? 'close' : 'edit'}
-                  </button>
-                  <button
-                    onClick={() => { setConfirmDelete(user); setWipe(true); setError('') }}
-                    disabled={users.length <= 1}
-                    title={users.length <= 1 ? 'The last user cannot be deleted' : 'Delete user'}
-                    style={{ background: 'none', border: 'none', color: users.length <= 1 ? 'var(--text-5)' : '#ff5370', cursor: users.length <= 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 800 }}
-                  >
-                    delete
-                  </button>
+                  {user.id === currentUser?.id && (
+                    <>
+                      <button onClick={() => editingId === user.id ? (setEditingId(null), setForm(null)) : startEdit(user)} style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>
+                        {editingId === user.id ? 'close' : 'edit'}
+                      </button>
+                      <button
+                        onClick={() => { setConfirmDelete(user); setWipe(true); setError('') }}
+                        disabled={users.length <= 1}
+                        title={users.length <= 1 ? 'The last user cannot be deleted' : 'Delete your active identity'}
+                        style={{ background: 'none', border: 'none', color: users.length <= 1 ? 'var(--text-5)' : '#ff5370', cursor: users.length <= 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 800 }}
+                      >
+                        delete
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {editingId === user.id && form && (
@@ -232,7 +236,7 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
             ))}
 
             <div style={{ fontSize: 10.5, color: 'var(--text-4)', lineHeight: 1.6, marginTop: 4 }}>
-              Each identity's CLI logins live in their own folder — <code style={{ color: 'var(--text-3)' }}>identities/&lt;id&gt;/home</code> under Sush's data dir. Signing out closes all sessions so the next user never inherits a logged-in terminal.
+              Each identity manages its own PIN and connected accounts after signing in. CLI logins live in <code style={{ color: 'var(--text-3)' }}>identities/&lt;id&gt;/home</code>, and signing out closes that identity's sessions.
             </div>
           </div>
         )}
