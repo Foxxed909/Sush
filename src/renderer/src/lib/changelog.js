@@ -42,7 +42,7 @@ export const CHANGELOG = [
         'Saved crews: save an agent mix (with its directory and brief) from the launcher and relaunch the whole workspace in one click — or straight from the command palette (Ctrl+P).',
         'Worktree swarms: tick “isolate each session in its own git worktree” and every agent gets a private checkout on its own sush/… branch, so parallel agents never trample each other’s files.',
         'Custom theme: build your own from a base preset, an accent colour and a terminal background in Settings ▸ Appearance — it shows up in the switcher, palette and title-bar picker like any preset.',
-        'Project-level .sushrc: drop a .sushrc in a repo and its aliases, env and startup commands layer over your home profile for sessions opened there.'
+        'Project-level .sushrc can layer aliases, env and startup commands over your home profile when SUSH_TRUST_PROJECT_RC=1 is explicitly enabled.'
       ],
       improved: [
         '`hunt` now searches the saved output of sessions you’ve already closed, not just the live ones.'
