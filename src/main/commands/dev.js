@@ -103,12 +103,15 @@ export const pkg = {
   }
 }
 
-function detectManagers(cwd) {
+export function detectManagers(cwd, platform = process.platform) {
   const mgrs = []
   if (existsSync(join(cwd, 'package.json'))) mgrs.push('npm')
   if (existsSync(join(cwd, 'requirements.txt')) || existsSync(join(cwd, 'setup.py'))) mgrs.push('pip')
   if (existsSync(join(cwd, 'Cargo.toml'))) mgrs.push('cargo')
-  if (!mgrs.length) mgrs.push('choco')
+  // Chocolatey is a Windows machine package manager, not a universal fallback.
+  // On macOS/Linux an unrecognized directory should report that honestly rather
+  // than trying to spawn a command that normally cannot exist there.
+  if (!mgrs.length && platform === 'win32') mgrs.push('choco')
   return mgrs
 }
 

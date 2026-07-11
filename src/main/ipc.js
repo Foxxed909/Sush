@@ -18,7 +18,8 @@ import { runtime } from './shell/runtime'
 import { homedir } from 'os'
 import {
   initUsers, listUsers, getActiveUser, getLastUserId, createUser, updateUser,
-  deleteUser, activateUser, signOut, activeUserEnv, linkProvider, unlinkProvider
+  deleteUser, activateUser, signOut, activeUserEnv, linkProvider, unlinkProvider,
+  setIdentityTransitionHandler
 } from './users'
 import {
   listAccounts, addAccount, switchAccount, removeAccount, renameAccount, nextAccount, peekNextAccount, markLimitHit,
@@ -33,6 +34,7 @@ import { getSttConfigPublic, setSttConfig, transcribe } from './stt'
 import { getCredits, resetCredits } from './credits'
 import { licensePublic, redeemCode, clearLicense, featuresOf, can, setLicenseChangeSender } from './license'
 import { resolveExecutable, shimSpawnSpec } from './exec'
+import { parseGitPorcelainZ } from './git-porcelain'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
@@ -47,10 +49,12 @@ import {
 
 const contexts = new Map()
 const abortControllers = new Map()
+const cliEngineChildren = new Set()
 const ptySessions = new Map()
 const fileWatchers = new Map()
 const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
+let identityRuntimeGeneration = 0
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
 const SAFE_EXTERNAL_URL = /^https?:\/\//i
 
@@ -120,6 +124,27 @@ function commandExists(file) {
   }
 }
 
+function launchDetached(file, args, options = {}) {
+  return new Promise(resolveLaunch => {
+    let child
+    try {
+      child = spawn(file, args, { ...options, detached: true, stdio: 'ignore' })
+    } catch (error) {
+      resolveLaunch({ ok: false, error: error.message })
+      return
+    }
+    let settled = false
+    const finish = result => {
+      if (settled) return
+      settled = true
+      if (result.ok) child.unref()
+      resolveLaunch(result)
+    }
+    child.once('spawn', () => finish({ ok: true }))
+    child.once('error', error => finish({ ok: false, error: error.message }))
+  })
+}
+
 // Non-interactive AI engines for Seducia. The entire prompt goes over STDIN
 // so no untrusted text ever lands on the command line (no shell, and for
 // .cmd shims cmd.exe re-parses argv — stdin is the only safe channel). Each
@@ -164,7 +189,10 @@ function cleanCliOutput(engine, raw) {
 // shows up, rotating to another account slot may unblock the engine.
 const LIMIT_RE = /(session|usage|rate)\s*limit|limit\s+(reached|exceeded)|too many requests|quota exceeded|429/i
 
-function runCliEngine(engine, { prompt, cwd }) {
+function runCliEngine(engine, { prompt, cwd }, generation = identityRuntimeGeneration) {
+  if (generation !== identityRuntimeGeneration) {
+    return Promise.resolve({ ok: false, engine, error: 'Identity changed; request cancelled.' })
+  }
   const spec = SEDUCIA_ENGINES[engine]
   if (!spec) return Promise.resolve({ ok: false, engine, error: `Unknown AI engine: ${engine}` })
   const bin = resolveExecutable(engine)
@@ -175,12 +203,20 @@ function runCliEngine(engine, { prompt, cwd }) {
 
   return new Promise(resolve => {
     let stdout = '', stderr = '', settled = false
-    const done = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve(result) } }
     let child
+    const done = (result) => {
+      if (!settled) {
+        settled = true
+        if (child) cliEngineChildren.delete(child)
+        clearTimeout(timer)
+        resolve(result)
+      }
+    }
     try {
       // Identity env LAST so the active user's CLI login (CLAUDE_CONFIG_DIR,
       // CODEX_HOME, ...) wins over the host's — same rule as PTY spawns.
       child = spawn(file, args, { cwd: dir, windowsHide: true, env: { ...process.env, ...activeUserEnv() } })
+      cliEngineChildren.add(child)
     } catch (e) {
       return resolve({ ok: false, engine, error: e.message })
     }
@@ -203,7 +239,11 @@ function runCliEngine(engine, { prompt, cwd }) {
 // the next account slot and retries once; 'ask' reports the available slot so
 // the renderer can offer the switch; 'never' just reports the failure.
 async function runCliEngineWithAccounts(engine, opts, policy = 'ask') {
-  const first = await runCliEngine(engine, opts)
+  const generation = identityRuntimeGeneration
+  const first = await runCliEngine(engine, opts, generation)
+  if (generation !== identityRuntimeGeneration) {
+    return { ok: false, engine, error: 'Identity changed; request cancelled.' }
+  }
   if (first.ok || !first.limitHit) return first
   const user = getActiveUser()
   if (!user) return first
@@ -214,7 +254,7 @@ async function runCliEngineWithAccounts(engine, opts, policy = 'ask') {
   if (policy === 'auto') {
     const rotated = nextAccount(user.id, engine)
     if (!rotated.ok) return first
-    const retry = await runCliEngine(engine, opts)
+    const retry = await runCliEngine(engine, opts, generation)
     return retry.ok
       ? { ...retry, switchedTo: rotated.label }
       : { ...retry, switchedTo: rotated.label, limitHit: retry.limitHit ?? false }
@@ -353,10 +393,12 @@ function getDefaultShell(shellId = 'powershell') {
     }
   }
 
-  // macOS / Linux: honour $SHELL (zsh default on macOS), spawn as a login
-  // shell so the user's rc files (PATH, nvm, etc.) load — agent CLIs are
-  // almost always installed via a PATH set up there.
-  const file = process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash')
+  // macOS / Linux: honour an explicit profile shell when it is installed,
+  // otherwise fall back to $SHELL (zsh by default on macOS). Spawn as a login
+  // shell so the user's rc files (PATH, nvm, etc.) load.
+  const allowed = new Set(['bash', 'zsh', 'sh'])
+  const selected = allowed.has(shellId) ? resolveExecutable(shellId) : null
+  const file = selected || process.env.SHELL || (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash')
   const name = file.split('/').pop()
   return {
     id: name,
@@ -483,6 +525,12 @@ function resolveStartCwd(cwd) {
   return home
 }
 
+function existingDirectory(cwd) {
+  const candidate = cwd && resolve(String(cwd).trim())
+  if (!candidate) return null
+  try { return existsSync(candidate) && statSync(candidate).isDirectory() ? candidate : null } catch { return null }
+}
+
 // Spawn a PTY robustly on every platform.
 //
 // The "Cannot create process, error code: 267" failures on Windows came from the
@@ -524,21 +572,18 @@ function spawnPty(shell, { cols, rows, cwd, env }) {
 }
 
 async function getGitStatus(cwd) {
-  const dir = resolveStartCwd(cwd)
+  const dir = existingDirectory(cwd)
+  if (!dir) return { repo: false, dir: String(cwd || ''), files: [], error: 'Working directory does not exist' }
   try {
     const branch = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, windowsHide: true, encoding: 'utf8' })
       .then(r => r.stdout.trim())
       .catch(() => null)
     if (!branch) return { repo: false, dir, files: [] }
 
-    const { stdout } = await execFileAsync('git', ['-c', 'core.quotepath=false', 'status', '--porcelain', '--untracked-files=all'], {
+    const { stdout } = await execFileAsync('git', ['-c', 'core.quotepath=false', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], {
       cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 1024 * 1024 * 4
     })
-    const files = stdout.split('\n').filter(Boolean).map(line => ({
-      status: (line.slice(0, 2).trim() || '??'),
-      rawStatus: line.slice(0, 2),
-      path: line.slice(3).replace(/^"|"$/g, '')
-    }))
+    const files = parseGitPorcelainZ(stdout)
     return { repo: true, dir, branch, files }
   } catch (err) {
     return { repo: false, dir, files: [], error: err.message }
@@ -771,6 +816,14 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
+    // Locking the app unmounts xterm but deliberately leaves the identity's PTY
+    // alive. Rehydrate the new xterm instance from the in-memory tail so unlock
+    // does not produce a blank terminal or hide output produced while locked.
+    const liveTail = scrollback?.tail(tabId, 6000)
+    if (liveTail && mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('sush:pty-data', { tabId, data: buildRestoreBanner(liveTail) })
+    }
+    sendPtyState(mainWin, existing)
     return {
       pid: existing.pid,
       shell: existing.shell,
@@ -784,8 +837,8 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   }
 
   // Load the user's .sushrc profile (aliases / env / startup / default cwd).
-  // Resolve the working directory from the home profile first, THEN reload with
-  // any project-local .sushrc (in that directory) layered on top.
+  // Resolve the working directory from the home profile first, then load an
+  // explicitly trusted project .sushrc when SUSH_TRUST_PROJECT_RC=1.
   const requestedShell = getDefaultShell(shellId)
   const shellCwd = resolveStartCwd(cwd ?? loadSushrc().settings.cwd)
   const sushrc = loadSushrc(shellCwd)
@@ -837,10 +890,12 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   session.restoreKey = restoreKey || null
   session.persistScrollback = !!persistScrollback
   ptySessions.set(tabId, session)
-  const ctx = new ShellContext({ cwd: shellCwd, tabId })
+  const ctx = new ShellContext({ cwd: shellCwd, tabId, shellId: shell.id })
   ctx.aliases = { ...sushrc.alias }   // .sushrc aliases feed the smart-command bar
   contexts.set(tabId, ctx)
-  if (persistScrollback && scrollback) scrollback.attach(tabId, restoreKey)
+  // Always keep a volatile tail for lock/unlock, handoff, and export. The
+  // setting controls disk persistence only.
+  if (scrollback) scrollback.attach(tabId, restoreKey, { persist: !!persistScrollback })
   sendPtyState(mainWin, session)
 
   // Run .sushrc [startup] commands once the shell is ready.
@@ -855,8 +910,12 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   }
 
   proc.onData((data) => {
+    // An explicit identity/session teardown removes this exact session from the
+    // map before its process fully exits. Drop late bytes so they cannot land in
+    // a new profile that reuses the same renderer tab id.
+    if (ptySessions.get(tabId) !== session) return
     session.lastActiveAt = Date.now()
-    if (session.persistScrollback && scrollback) scrollback.append(tabId, data)
+    if (scrollback) scrollback.append(tabId, data)
     const nextCwd = parseCwdFromOsc7(data)
     if (nextCwd && nextCwd !== session.cwd) {
       session.cwd = nextCwd
@@ -868,9 +927,10 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   })
 
   proc.onExit(({ exitCode, signal }) => {
+    if (ptySessions.get(tabId) !== session) return
     session.status = 'exited'
     session.lastActiveAt = Date.now()
-    if (session.persistScrollback && scrollback) scrollback.persist(tabId)
+    if (scrollback) scrollback.persist(tabId)
     sendPtyState(mainWin, session)
     ptySessions.delete(tabId)
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:pty-exit', { tabId, exitCode, signal })
@@ -891,7 +951,7 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
 function closePtySession(tabId, { sync = false } = {}) {
   const session = ptySessions.get(tabId)
   if (!session) return
-  if (session.persistScrollback && scrollback) scrollback.persist(tabId)
+  if (scrollback) scrollback.persist(tabId)
   clearTabTimer(tabId)   // Bug fix: clean up any pending timer for this session
   ptySessions.delete(tabId)
   if (process.platform === 'win32' && session.pid) {
@@ -923,20 +983,62 @@ function closeAllPtySessions({ sync = false } = {}) {
   for (const tabId of [...ptySessions.keys()]) closePtySession(tabId, { sync })
 }
 
+function stopIdentityRuntime({ sync = false, preserveOauthProvider = null } = {}) {
+  identityRuntimeGeneration += 1
+  for (const controller of abortControllers.values()) {
+    try { controller.abort() } catch {}
+  }
+  abortControllers.clear()
+  for (const child of cliEngineChildren) {
+    try { child.kill() } catch {}
+  }
+  cliEngineChildren.clear()
+  stopAllClaudePanelRuns()
+  closeAllFileWatchers()
+  closeAllPtySessions({ sync })
+  contexts.clear()
+  tabMeta.clear()
+  clearGitHubCache()
+  cancelConnectFlow()
+  if (preserveOauthProvider !== 'github') cancelGitHubFlow()
+  if (preserveOauthProvider !== 'google') cancelGoogleFlow()
+}
+
+function activeIdentityTarget(payload, key = 'id') {
+  const active = getActiveUser()
+  if (!active) return { ok: false, error: 'no-user' }
+  if (String(payload?.[key] ?? '') !== active.id) {
+    return { ok: false, error: 'You can only change the active identity.' }
+  }
+  return { ok: true, active }
+}
+
+function oauthStartPayload(payload = {}) {
+  const mode = payload?.mode ?? 'link'
+  if (mode !== 'link' && mode !== 'signin') {
+    return { ok: false, error: 'Unknown OAuth mode.' }
+  }
+  if (mode === 'signin') return { ok: true, payload: { ...payload, mode } }
+  const target = activeIdentityTarget(payload, 'userId')
+  if (!target.ok) return target
+  return { ok: true, payload: { ...payload, mode, userId: target.active.id } }
+}
+
 
 function getContext(tabId) {
   const session = ptySessions.get(tabId)
   if (!contexts.has(tabId)) {
     const cwd = session?.cwd ?? homedir()
-    const ctx = new ShellContext({ cwd, tabId })
-    // Populate aliases so alias expansion works even before the PTY session
-    // boots — including any project-local .sushrc aliases for this cwd.
+    const ctx = new ShellContext({ cwd, tabId, shellId: session?.shellId })
+    // Populate aliases so expansion works before PTY boot, including an
+    // explicitly trusted project profile for this cwd.
     try { ctx.aliases = { ...loadSushrc(cwd).alias } } catch {}
     contexts.set(tabId, ctx)
   }
   const ctx = contexts.get(tabId)
   if (ctx.tabId !== tabId) ctx.tabId = tabId
   if (session?.cwd && ctx.cwd !== session.cwd) ctx.setCwd(session.cwd)
+  if (session?.shellId) ctx.shellId = session.shellId
   ctx.registry = registry
   ctx.parseInput = parseInput
   return ctx
@@ -952,6 +1054,7 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
 
   const { cmd, args } = parsed
   const command = registry.get(cmd)
+  const sensitive = (cmd === 'secrets' && String(args[0] || '').toLowerCase() === 'set') || cmd === 'jwt'
 
   if (!command) {
     if (passthroughUnknown) {
@@ -972,7 +1075,7 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
   // uncancelable no matter what the renderer asked for.
   ctx.signal = ac.signal
   try {
-    ctx.pushHistory(trimmed)
+    if (!sensitive) ctx.pushHistory(trimmed)
     const beforeCwd = ctx.cwd
     const result = await command.run(args, ctx)
     const session = ptySessions.get(tabId)
@@ -986,13 +1089,14 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
       output: result?.output ?? '',
       action: result?.action,
       cwd: result?.cwd ?? ctx.cwd,
-      handled: true
+      handled: true,
+      sensitive
     }
   } catch (err) {
     if (ac.signal.aborted || err?.name === 'AbortError' || err?.code === 'ABORT_ERR') {
-      return { output: '\x1b[33m^C\x1b[0m', type: 'cancelled', handled: true, cwd: ctx.cwd }
+      return { output: '\x1b[33m^C\x1b[0m', type: 'cancelled', handled: true, cwd: ctx.cwd, sensitive }
     }
-    return { output: `\x1b[31mError: ${err.message}\x1b[0m`, type: 'error', handled: true, cwd: ctx.cwd }
+    return { output: `\x1b[31mError: ${err.message}\x1b[0m`, type: 'error', handled: true, cwd: ctx.cwd, sensitive }
   } finally {
     ctx.signal = null
     abortControllers.delete(tabId)
@@ -1057,18 +1161,21 @@ export function registerIpcHandlers(win) {
   runtime.scrollback = scrollback
   runtime.sessions = ptySessions
   initUsers()
+  setIdentityTransitionHandler(({ source }) => {
+    const provider = String(source || '').startsWith('provider:')
+      ? String(source).slice('provider:'.length)
+      : null
+    stopIdentityRuntime({ preserveOauthProvider: provider })
+  })
   app.once('before-quit', () => {
     scrollback?.flush()
-    closeAllFileWatchers()
-    closeAllPtySessions({ sync: true })
-    cancelGitHubFlow()
-    cancelGoogleFlow()
-    stopAllClaudePanelRuns()
+    stopIdentityRuntime({ sync: true })
     try { tray?.destroy() } catch {}
   })
   if (process.platform === 'win32') ensurePowerShellBootstrap()
 
   ipcMain.handle('sush:pty-start', (event, payload) => {
+    if (!getActiveUser()) throw new Error('Sign in to an identity before starting a terminal.')
     return startPtySession(payload)
   })
 
@@ -1094,10 +1201,12 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:read-clipboard', () => clipboard.readText())
 
   ipcMain.handle('sush:run-smart-input', async (event, { tabId, input }) => {
+    if (!getActiveUser()) return { type: 'error', output: 'Sign in to an identity first.', handled: true }
     return runRegisteredCommand({ tabId, input, passthroughUnknown: true })
   })
 
   ipcMain.handle('sush:run-command', async (event, { tabId, input, profileId }) => {
+    if (!getActiveUser()) return { type: 'error', output: 'Sign in to an identity first.' }
     const ctx = getContext(tabId)
     // Expand aliases before parsing so alias commands route correctly.
     const expanded = ctx.expandAliases(String(input ?? '').trim())
@@ -1151,10 +1260,11 @@ export function registerIpcHandlers(win) {
     return ptySessions.get(tabId)?.cwd ?? contexts.get(tabId)?.cwd ?? homedir()
   })
 
-  ipcMain.handle('sush:new-tab', (event, { tabId, cwd }) => {
+  ipcMain.handle('sush:new-tab', (event, { tabId, cwd, shellId }) => {
+    if (!getActiveUser()) return { ok: false, error: 'no-user' }
     const initialCwd = cwd || homedir()
-    const ctx = new ShellContext({ cwd: initialCwd, tabId })
-    // Load .sushrc aliases (home + project) like getContext does — without
+    const ctx = new ShellContext({ cwd: initialCwd, tabId, shellId })
+    // Load home aliases plus any explicitly trusted project aliases — without
     // this, alias expansion silently failed in a fresh tab until its PTY
     // booted and replaced the context.
     try { ctx.aliases = { ...loadSushrc(initialCwd).alias } } catch {}
@@ -1208,7 +1318,7 @@ export function registerIpcHandlers(win) {
     }
   })
 
-  ipcMain.handle('sush:git-status', (event, { cwd }) => getGitStatus(cwd))
+  ipcMain.handle('sush:git-status', (event, { cwd } = {}) => getGitStatus(cwd))
   ipcMain.handle('sush:list-dir', (event, { path }) => listDirectory(path))
   ipcMain.handle('sush:dir-exists', (event, { path }) => ({ path, exists: isDirectory(path) }))
   ipcMain.handle('sush:memory-list', (event, { cwd }) => listMemoryNotes(cwd))
@@ -1241,17 +1351,25 @@ export function registerIpcHandlers(win) {
     }
     return { ok: true, user: linked.ok ? linked.user : created.user }
   })
-  ipcMain.handle('sush:users-update', (event, payload) => updateUser(payload ?? {}))
-  ipcMain.handle('sush:users-delete', (event, payload) => deleteUser(payload ?? {}))
-  ipcMain.handle('sush:users-activate', (event, payload) => {
-    clearGitHubCache()
-    return activateUser(payload ?? {})
+  ipcMain.handle('sush:users-update', (event, payload = {}) => {
+    const target = activeIdentityTarget(payload)
+    return target.ok ? updateUser({ ...payload, id: target.active.id }) : target
   })
+  ipcMain.handle('sush:users-delete', (event, payload = {}) => {
+    const target = activeIdentityTarget(payload)
+    if (!target.ok) return target
+    if (listUsers().length <= 1) return { ok: false, error: 'The last identity cannot be deleted.' }
+    // Closing first is important on Windows: the identity home can contain CLI
+    // files held open by its PTYs, and wipeData must not silently race them.
+    stopIdentityRuntime({ sync: true })
+    const deleted = deleteUser({ ...payload, id: target.active.id })
+    return deleted.ok ? { ...deleted, signedOut: true } : deleted
+  })
+  ipcMain.handle('sush:users-activate', (event, payload) => activateUser(payload ?? {}))
   ipcMain.handle('sush:users-signout', () => {
     // Sessions belong to the signed-in identity — never leave them running
     // for the next person.
-    closeAllPtySessions()
-    clearGitHubCache()
+    stopIdentityRuntime()
     return signOut()
   })
 
@@ -1261,9 +1379,15 @@ export function registerIpcHandlers(win) {
   })
   ipcMain.handle('sush:oauth-config-get', () => ({ ...publicOauthConfig(), safeStorage: encryptionAvailable() }))
   ipcMain.handle('sush:oauth-config-set', (event, payload) => setOauthConfig(payload ?? {}))
-  ipcMain.handle('sush:oauth-github-start', (event, payload) => startGitHubFlow(payload ?? {}))
+  ipcMain.handle('sush:oauth-github-start', (event, payload) => {
+    const checked = oauthStartPayload(payload)
+    return checked.ok ? startGitHubFlow(checked.payload) : checked
+  })
   ipcMain.handle('sush:oauth-github-cancel', () => cancelGitHubFlow())
-  ipcMain.handle('sush:oauth-google-start', (event, payload) => startGoogleFlow(payload ?? {}))
+  ipcMain.handle('sush:oauth-google-start', (event, payload) => {
+    const checked = oauthStartPayload(payload)
+    return checked.ok ? startGoogleFlow(checked.payload) : checked
+  })
   ipcMain.handle('sush:oauth-google-cancel', () => cancelGoogleFlow())
   ipcMain.handle('sush:connect-start', (event, payload) => {
     // Provider Connect is a paid gate (Plus+). Enforced here — start is the
@@ -1279,9 +1403,11 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:connect-disconnect', (event, payload) => disconnectProvider(payload ?? {}))
   ipcMain.handle('sush:connect-test', (event, payload) => testProvider(payload ?? {}))
   ipcMain.handle('sush:oauth-unlink', (event, { userId, provider } = {}) => {
-    const res = unlinkProvider({ id: userId, provider })
+    const target = activeIdentityTarget({ userId }, 'userId')
+    if (!target.ok) return target
+    const res = unlinkProvider({ id: target.active.id, provider })
     if (res.ok && provider === 'github') {
-      deleteToken(userId, 'github')
+      deleteToken(target.active.id, 'github')
       clearGitHubCache()
     }
     return res
@@ -1302,22 +1428,17 @@ export function registerIpcHandlers(win) {
     return result ? { ok: false, error: result } : { ok: true }
   })
 
-  ipcMain.handle('sush:open-in-editor', (event, { cwd }) => {
+  ipcMain.handle('sush:open-in-editor', async (event, { cwd }) => {
     const dir = resolveStartCwd(cwd)
     const bin = resolveExecutable('code')
     if (!bin) return { ok: false, error: 'VS Code (`code`) not found on PATH' }
     const { file, args } = shimSpawnSpec(bin, ['.'])
-    try {
-      const child = spawn(file, args, { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true })
-      child.unref()
-      return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e.message }
-    }
+    return launchDetached(file, args, { cwd: dir, windowsHide: true })
   })
 
   // ── Seducia via local agent CLIs (no API key) ─────────────────────────────
   ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd, engine, limitPolicy }) => {
+    if (!getActiveUser()) return { ok: false, engine, error: 'Sign in to an identity first.' }
     // A specific-but-unsupported engine (e.g. 'opencode', which has no stdin
     // mode) must NOT silently fall back to claude — that would answer as the
     // wrong model under the user's nose. Only an unset/empty engine defaults
@@ -1371,10 +1492,13 @@ export function registerIpcHandlers(win) {
   setClaudePanelSender((payload) => {
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:claude-panel-event', payload)
   })
-  ipcMain.handle('sush:claude-panel-start', (event, payload) => startClaudePanelRun(payload ?? {}))
+  ipcMain.handle('sush:claude-panel-start', (event, payload) => {
+    if (!getActiveUser()) return { ok: false, error: 'no-user' }
+    return startClaudePanelRun(payload ?? {})
+  })
   ipcMain.handle('sush:claude-panel-stop', (event, payload) => stopClaudePanelRun(payload ?? {}))
   ipcMain.handle('sush:claude-limits-get', () => getClaudeLimits())
-  ipcMain.handle('sush:claude-limits-check', () => checkClaudeLimits())
+  ipcMain.handle('sush:claude-limits-check', () => getActiveUser() ? checkClaudeLimits() : { ok: false, error: 'no-user' })
 
   // ── Cloud TTS (Seducia's voice) ───────────────────────────────────────────
   // The user's own OpenAI/ElevenLabs key lives here and never reaches the
@@ -1504,11 +1628,13 @@ export function registerIpcHandlers(win) {
   // rows and jump to a live session without re-implementing the search.
   ipcMain.handle('sush:hunt-search', (event, { term } = {}) => {
     if (!scrollback) return { ok: true, results: [] }
+    const active = getActiveUser()
+    const savedKeyPrefix = `u:${active?.id ?? 'solo'}:`
     const savedLabel = (key) => {
       const seg = String(key || '').split(/[\\/:]/).filter(Boolean).pop()
       return seg || 'saved session'
     }
-    const results = scrollback.search(term).map(r => ({
+    const results = scrollback.search(term, { savedKeyPrefix }).map(r => ({
       ...r,
       label: r.saved ? savedLabel(r.key) : (ptySessions.get(r.tabId)?.label || r.tabId)
     }))
@@ -1574,21 +1700,6 @@ export function registerIpcHandlers(win) {
       await wf(target.path, String(content ?? ''), 'utf8')
       return { ok: true }
     } catch (e) {
-      return { ok: false, error: e.message }
-    }
-  })
-
-  ipcMain.handle('sush:delete-file', async (event, payload = {}) => {
-    const { path: filePath } = payload || {}
-    const target = guardedFsTarget(filePath, { blockHome: true })
-    if (!target.ok) return target
-    const { rm: rmf, stat } = await import('fs/promises')
-    try {
-      await stat(target.path)
-      await rmf(target.path, { recursive: true, force: false })
-      return { ok: true }
-    } catch (e) {
-      if (e?.code === 'ENOENT') return { ok: false, error: 'Path not found' }
       return { ok: false, error: e.message }
     }
   })
@@ -1771,8 +1882,10 @@ export function registerIpcHandlers(win) {
   })
 
   // ── Git Commit Helpers ────────────────────────────────────────────────────
-  ipcMain.handle('sush:git-stage', async (event, { cwd, file }) => {
-    const dir = resolveStartCwd(cwd)
+  ipcMain.handle('sush:git-stage', async (event, { cwd, file } = {}) => {
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, error: 'Working directory does not exist' }
+    if (typeof file !== 'string' || !file || file.includes('\0')) return { ok: false, error: 'A valid file path is required' }
     try {
       await execFileAsync('git', ['-c', 'core.quotepath=false', 'add', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
       return { ok: true }
@@ -1781,8 +1894,10 @@ export function registerIpcHandlers(win) {
     }
   })
 
-  ipcMain.handle('sush:git-unstage', async (event, { cwd, file }) => {
-    const dir = resolveStartCwd(cwd)
+  ipcMain.handle('sush:git-unstage', async (event, { cwd, file } = {}) => {
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, error: 'Working directory does not exist' }
+    if (typeof file !== 'string' || !file || file.includes('\0')) return { ok: false, error: 'A valid file path is required' }
     try {
       await execFileAsync('git', ['-c', 'core.quotepath=false', 'restore', '--staged', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
       return { ok: true }
@@ -1796,9 +1911,10 @@ export function registerIpcHandlers(win) {
     }
   })
 
-  ipcMain.handle('sush:git-commit', async (event, { cwd, message }) => {
-    const dir = resolveStartCwd(cwd)
-    const msg = String(message || '').trim()
+  ipcMain.handle('sush:git-commit', async (event, { cwd, message } = {}) => {
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, error: 'Working directory does not exist' }
+    const msg = String(message || '').trim().slice(0, 10000)
     if (!msg) return { ok: false, error: 'Empty commit message' }
     try {
       const { stdout } = await execFileAsync('git', ['commit', '-m', msg], { cwd: dir, windowsHide: true, encoding: 'utf8' })
@@ -1809,8 +1925,9 @@ export function registerIpcHandlers(win) {
     }
   })
 
-  ipcMain.handle('sush:git-diff-staged', async (event, { cwd }) => {
-    const dir = resolveStartCwd(cwd)
+  ipcMain.handle('sush:git-diff-staged', async (event, { cwd } = {}) => {
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, diff: '', error: 'Working directory does not exist' }
     try {
       const { stdout } = await execFileAsync('git', ['diff', '--cached', '--stat'], { cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 1024 * 1024 })
       return { ok: true, diff: stdout.trim() }
@@ -1825,9 +1942,10 @@ export function registerIpcHandlers(win) {
   // under <repoRoot>/.sush-worktrees/<name> on a dedicated `sush/<name>` branch
   // and returns its path for the session to spawn in.
   ipcMain.handle('sush:git-worktree-add', async (event, { cwd, name } = {}) => {
-    const dir = resolveStartCwd(cwd)
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, error: 'Working directory does not exist' }
     const safe = String(name ?? '').trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
-    if (!safe) return { ok: false, error: 'A worktree name is required' }
+    if (!safe || safe === '.' || safe === '..') return { ok: false, error: 'A valid worktree name is required' }
     try {
       const root = (await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, windowsHide: true, encoding: 'utf8' })).stdout.trim()
       if (!root) return { ok: false, error: 'Not a git repository' }
@@ -1914,4 +2032,3 @@ export function registerIpcHandlers(win) {
     return { ok: true }
   })
 }
-

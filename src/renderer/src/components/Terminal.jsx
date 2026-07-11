@@ -2,11 +2,13 @@ import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { useTerminal } from '../hooks/useTerminal'
 import ContextMenu from './ContextMenu'
 import SearchBar from './SearchBar'
+import { quoteShellPath } from '../lib/shellQuote'
 
 export default function Terminal({
   tabId,
   theme,
   profile,
+  shellId,
   active,
   splitVisible,
   initialCwd,
@@ -99,8 +101,8 @@ export default function Terminal({
     pasteText(text)
   }, [pasteText])
 
-  // Drag a file/folder from Explorer onto the terminal → its path lands at the
-  // cursor, quoted if it contains spaces. dragDepthRef counts enter/leave pairs
+  // Drag a file/folder onto the terminal → its path lands at the cursor using
+  // literal quoting for the live shell. dragDepthRef counts enter/leave pairs
   // because dragleave also fires when crossing into child elements.
   const handleDragEnter = useCallback((e) => {
     if (!e.dataTransfer?.types?.includes('Files')) return
@@ -124,14 +126,21 @@ export default function Terminal({
     e.preventDefault()
     dragDepthRef.current = 0
     setDragOver(false)
-    const paths = Array.from(e.dataTransfer?.files ?? []).map(f => f.path).filter(Boolean)
+    const paths = Array.from(e.dataTransfer?.files ?? [])
+      .map(file => {
+        try { return window.sush?.pathForFile?.(file) || '' } catch { return '' }
+      })
+      .filter(Boolean)
     if (paths.length) {
-      pasteText(paths.map(p => (/\s/.test(p) ? `"${p}"` : p)).join(' ') + ' ')
+      pasteText(paths.map(path => quoteShellPath(path, {
+        platform: window.sush?.platform,
+        shellId: shellId || profile?.shell
+      })).join(' ') + ' ')
       return
     }
     const text = e.dataTransfer?.getData('text')
     if (text) pasteText(text)
-  }, [pasteText])
+  }, [pasteText, profile?.shell, shellId])
 
   return (
     <div

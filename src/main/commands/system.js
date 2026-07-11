@@ -129,46 +129,67 @@ export function normalizePort(port) {
   return String(value)
 }
 
+export function parseWindowsNetstat(raw) {
+  return String(raw || '').split('\n').map(line => {
+    if (!line.includes('LISTENING')) return null
+    const parts = line.trim().split(/\s+/)
+    const address = parts[1]
+    const port = address?.match(/:(\d+)$/)?.[1]
+    const pid = parts[4]
+    if (!port || !/^\d+$/.test(pid ?? '')) return null
+    return { port, address, pid }
+  }).filter(Boolean)
+}
+
+export function parseLinuxSs(raw) {
+  return String(raw || '').split('\n').map(line => {
+    const parts = line.trim().split(/\s+/)
+    if (parts.length < 4) return null
+    const address = parts[3]
+    const port = address?.match(/:(\d+)$/)?.[1]
+    const pid = line.match(/pid=(\d+)/)?.[1] ?? ''
+    if (!port) return null
+    return { port, address, pid }
+  }).filter(Boolean)
+}
+
+// `lsof -F` emits one field per line. A `p` line starts a process record and
+// each following `n` line is a listening endpoint owned by that PID.
+export function parseMacLsof(raw) {
+  const out = []
+  let pid = ''
+  for (const line of String(raw || '').split(/\r?\n/)) {
+    if (line.startsWith('p') && /^p\d+$/.test(line)) {
+      pid = line.slice(1)
+      continue
+    }
+    if (!pid || !line.startsWith('n')) continue
+    const endpoint = line.slice(1)
+    const match = endpoint.match(/:(\d+)(?:\s|$)/)
+    if (!match) continue
+    const port = match[1]
+    const address = endpoint.slice(0, match.index) || '*'
+    out.push({ port, address, pid })
+  }
+  return out
+}
+
 // Returns [{ port, address, pid }] for all listening TCP ports, cross-platform.
 export function getListeningPorts() {
-  if (process.platform === 'win32') {
-    const raw = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8', windowsHide: true })
-    return raw.split('\n').map(line => {
-      if (!line.includes('LISTENING')) return null
-      const parts = line.trim().split(/\s+/)
-      const address = parts[1]
-      const port = address?.match(/:(\d+)$/)?.[1]
-      const pid = parts[4]
-      if (!port || !/^\d+$/.test(pid ?? '')) return null
-      return { port, address, pid }
-    }).filter(Boolean)
-  }
-
-  // macOS / Linux: use ss (Linux) or netstat (macOS)
   try {
+    if (process.platform === 'win32') {
+      const raw = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8', windowsHide: true })
+      return parseWindowsNetstat(raw)
+    }
     if (process.platform === 'linux') {
       const raw = execFileSync('ss', ['-tlnpH'], { encoding: 'utf8' })
-      return raw.split('\n').map(line => {
-        const parts = line.trim().split(/\s+/)
-        if (parts.length < 4) return null
-        const address = parts[3]
-        const port = address?.match(/:(\d+)$/)?.[1] || address?.match(/\*:(\d+)$/)?.[1]
-        const pidMatch = line.match(/pid=(\d+)/)
-        const pid = pidMatch?.[1] ?? ''
-        if (!port) return null
-        return { port, address, pid }
-      }).filter(Boolean)
+      return parseLinuxSs(raw)
     }
-    // macOS
-    const raw = execFileSync('netstat', ['-an', '-p', 'tcp'], { encoding: 'utf8' })
-    return raw.split('\n').map(line => {
-      if (!line.includes('LISTEN')) return null
-      const parts = line.trim().split(/\s+/)
-      const address = parts[3]
-      const port = address?.match(/[.:](\d+)$/)?.[1]
-      if (!port) return null
-      return { port, address, pid: '' }
-    }).filter(Boolean)
+    if (process.platform === 'darwin') {
+      const raw = execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-F', 'pPn'], { encoding: 'utf8' })
+      return parseMacLsof(raw)
+    }
+    return []
   } catch {
     return []
   }

@@ -1,12 +1,22 @@
 import { app, safeStorage } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, rmSync } from 'fs'
 import { writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { getCredits, canSpend, consumeCredits } from './credits'
 import { resolveExecutable, shimSpawnSpec } from './exec'
+import { getActiveUser, getLegacyOwnerId, isLegacyOwnershipEstablished, listUsers } from './users'
+import {
+  atomicWriteJson,
+  migrateLegacyOnce,
+  migrationMarkerPath,
+  protectConfigKey,
+  readJsonObject,
+  resolveIdentityStorage,
+  safeStorageState
+} from './secure-storage'
 
 const execFileAsync = promisify(execFile)
 
@@ -32,36 +42,98 @@ const execFileAsync = promisify(execFile)
 const PROVIDERS = ['openai', 'local']
 const DEFAULTS = { openai: { model: 'whisper-1' }, local: { model: '' } }
 
-const file = () => join(app.getPath('userData'), 'sush-stt.json')
+const legacyFile = () => join(app.getPath('userData'), 'sush-stt.json')
+const emptyConfig = () => ({ provider: 'openai', model: '', key: '', keyEnc: false, localBin: '', localModel: '' })
 
-let cache = null
+function storageScope() {
+  const userData = app.getPath('userData')
+  return resolveIdentityStorage({
+    userData,
+    activeUser: getActiveUser(),
+    users: listUsers(),
+    legacyOwnerId: getLegacyOwnerId(),
+    legacyOwnershipEstablished: isLegacyOwnershipEstablished(),
+    fileName: 'sush-stt.json',
+    legacyPath: legacyFile()
+  })
+}
+
+// Keep a distinct in-memory config for every identity. A single module-level
+// object survived user switches and let the next profile use the prior
+// profile's transcription key.
+const caches = new Map()
 function load() {
-  if (cache) return cache
-  try {
-    if (existsSync(file())) {
-      const data = JSON.parse(readFileSync(file(), 'utf8'))
-      if (data && typeof data === 'object') cache = data
+  const scope = storageScope()
+  if (!scope.ok) return scope
+  if (caches.has(scope.target)) return secureLoadedConfig(scope, caches.get(scope.target))
+
+  if (existsSync(scope.target)) {
+    try {
+      return secureLoadedConfig(scope, normalizeConfig(readJsonObject(scope.target)))
+    } catch {
+      return { ok: false, error: 'config-invalid' }
     }
-  } catch {}
-  if (!cache) cache = { provider: 'openai', model: '', key: '', keyEnc: false }
-  return cache
+  }
+
+  if (scope.kind === 'identity' && scope.ownsLegacy && existsSync(scope.legacyPath)) {
+    return migrateLegacyConfig(scope)
+  }
+  return secureLoadedConfig(scope, emptyConfig())
 }
 
-function persist() {
-  try { writeFileSync(file(), JSON.stringify(cache, null, 2), 'utf8'); return true } catch { return false }
+function migrateLegacyConfig(scope) {
+  const status = safeStorageState(safeStorage)
+  const migrated = migrateLegacyOnce({
+    marker: migrationMarkerPath(app.getPath('userData'), 'stt-config'),
+    identityId: scope.identityId,
+    target: scope.target,
+    transform: () => {
+      const protectedConfig = protectConfigKey(normalizeConfig(readJsonObject(scope.legacyPath)), safeStorage, status)
+      if (!protectedConfig.ok) throw new Error(protectedConfig.error)
+      return protectedConfig.config
+    }
+  })
+
+  if (!migrated.ok && migrated.error === 'legacy-claimed') {
+    return secureLoadedConfig(scope, emptyConfig())
+  }
+  if (!migrated.ok) return { ok: false, error: migrated.cause?.message || migrated.error }
+  caches.set(scope.target, migrated.value)
+  return { ok: true, config: migrated.value, target: scope.target, security: status }
 }
 
-function decryptKey() {
-  const c = load()
+function secureLoadedConfig(scope, config) {
+  const status = safeStorageState(safeStorage)
+  const protectedConfig = protectConfigKey(config, safeStorage, status)
+  if (!protectedConfig.ok) return { ok: false, error: protectedConfig.error }
+  try {
+    if (protectedConfig.changed) atomicWriteJson(scope.target, protectedConfig.config)
+  } catch {
+    return { ok: false, error: 'persist-failed' }
+  }
+  caches.set(scope.target, protectedConfig.config)
+  return { ok: true, config: protectedConfig.config, target: scope.target, security: status }
+}
+
+function normalizeConfig(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('config-invalid')
+  return {
+    provider: typeof data.provider === 'string' ? data.provider : 'openai',
+    model: typeof data.model === 'string' ? data.model.slice(0, 80) : '',
+    key: typeof data.key === 'string' ? data.key.slice(0, 4096) : '',
+    keyEnc: data.keyEnc === true,
+    localBin: typeof data.localBin === 'string' ? data.localBin.slice(0, 500) : '',
+    localModel: typeof data.localModel === 'string' ? data.localModel.slice(0, 500) : ''
+  }
+}
+
+function decryptKey(c) {
   if (!c.key) return ''
   if (!c.keyEnc) return c.key
   try { return safeStorage.decryptString(Buffer.from(c.key, 'base64')) } catch { return '' }
 }
 
-// Renderer-safe view: never the key itself, just whether one is set + config.
-// Credits ride along so the dictation UI can show the remaining allowance.
-export function getSttConfigPublic() {
-  const c = load()
+function publicConfig(c, status = safeStorageState(safeStorage)) {
   return {
     provider: PROVIDERS.includes(c.provider) ? c.provider : 'openai',
     model: c.model || '',
@@ -69,14 +141,25 @@ export function getSttConfigPublic() {
     // Local whisper.cpp settings — plain paths, nothing secret.
     localBin: c.localBin || '',
     localModel: c.localModel || '',
-    safeStorage: safeStorage.isEncryptionAvailable(),
+    safeStorage: status.secure,
+    safeStorageBackend: status.backend,
     defaults: DEFAULTS,
     credits: getCredits()
   }
 }
 
+// Renderer-safe view: never the key itself, just whether one is set + config.
+// Credits ride along so the dictation UI can show the remaining allowance.
+export function getSttConfigPublic() {
+  const loaded = load()
+  if (!loaded.ok) return { ok: false, error: loaded.error, ...publicConfig(emptyConfig()) }
+  return publicConfig(loaded.config, loaded.security)
+}
+
 export function setSttConfig({ provider, model, apiKey, localBin, localModel } = {}) {
-  const c = load()
+  const loaded = load()
+  if (!loaded.ok) return { ok: false, error: loaded.error }
+  const c = { ...loaded.config }
   if (provider !== undefined) c.provider = PROVIDERS.includes(provider) ? provider : 'openai'
   if (model !== undefined) c.model = String(model || '').slice(0, 80)
   if (localBin !== undefined) c.localBin = String(localBin || '').trim().slice(0, 500)
@@ -84,11 +167,14 @@ export function setSttConfig({ provider, model, apiKey, localBin, localModel } =
   if (apiKey !== undefined) {
     const key = String(apiKey || '')
     if (!key) { c.key = ''; c.keyEnc = false }
-    else if (safeStorage.isEncryptionAvailable()) { c.key = safeStorage.encryptString(key).toString('base64'); c.keyEnc = true }
+    else if (loaded.security.secure) {
+      try { c.key = safeStorage.encryptString(key).toString('base64'); c.keyEnc = true } catch { return { ok: false, error: 'key-encryption-failed' } }
+    }
     else { c.key = key; c.keyEnc = false }
   }
-  persist()
-  return { ok: true, ...getSttConfigPublic() }
+  try { atomicWriteJson(loaded.target, c) } catch { return { ok: false, error: 'persist-failed' } }
+  caches.set(loaded.target, c)
+  return { ok: true, ...publicConfig(c, loaded.security) }
 }
 
 // Transcribe a captured clip. `audio` is base64, `mime` its container type,
@@ -96,7 +182,9 @@ export function setSttConfig({ provider, model, apiKey, localBin, localModel } =
 // doesn't reliably include it). The OpenAI path spends Quiet Credits on
 // success; the local path is free by design.
 export async function transcribe({ audio, mime, seconds, language } = {}) {
-  const c = load()
+  const loaded = load()
+  if (!loaded.ok) return { ok: false, error: loaded.error }
+  const c = loaded.config
   const provider = PROVIDERS.includes(c.provider) ? c.provider : 'openai'
   const dur = Math.max(0, Number(seconds) || 0)
   if (!audio) return { ok: false, error: 'No audio captured.' }
@@ -114,7 +202,7 @@ export async function transcribe({ audio, mime, seconds, language } = {}) {
     if (!canSpend(dur)) {
       return { ok: false, error: 'out-of-credits', credits: getCredits() }
     }
-    const key = decryptKey()
+    const key = decryptKey(c)
     if (!key) return { ok: false, error: 'no-key' }
     const text = await openaiTranscribe(bytes, mime, key, c, language)
     if (text == null) return { ok: false, error: 'Transcription provider unavailable.' }

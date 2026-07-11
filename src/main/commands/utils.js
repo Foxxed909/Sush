@@ -5,6 +5,7 @@ import { registry } from '../shell/registry'
 import { getCredits, resetCredits } from '../credits'
 import { getSttConfigPublic } from '../stt'
 import { runtime } from '../shell/runtime'
+import { getActiveUser } from '../users'
 
 export const help = {
   name: 'help',
@@ -134,7 +135,8 @@ export const hunt = {
     if (!term) return err('hunt: what am I looking for? usage: hunt <text>')
     const store = runtime.scrollback
     if (!store) return err('hunt: scrollback store not ready yet')
-    const results = store.search(term)
+    const active = getActiveUser()
+    const results = store.search(term, { savedKeyPrefix: `u:${active?.id ?? 'solo'}:` })
     if (!results.length) return ok(ansi.dim(`No session output matches "${term}" (live or saved).`))
     const sessions = runtime.sessions
     // Turn a persisted restoreKey (u:<user>:<profile>:<shell>:<cwd>...) into

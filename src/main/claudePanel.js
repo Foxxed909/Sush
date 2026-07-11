@@ -12,7 +12,9 @@ import { activeUserEnv } from './users'
 // the session id we hand back to the renderer.
 
 const runs = new Map()   // panelId -> { child, buf }
+const probes = new Set()
 let send = null          // (payload) => renderer, set by ipc.js
+let identityGeneration = 0
 
 export function setClaudePanelSender(fn) { send = fn }
 
@@ -44,23 +46,27 @@ function probeStreamJson({ env, timeoutMsg, onLine, onClose }) {
   if (!bin) return Promise.resolve({ ok: false, error: 'The `claude` CLI was not found on your PATH.' })
   const { file, args } = shimSpawnSpec(bin, ['-p', '--output-format', 'stream-json', '--verbose', '--strict-mcp-config'])
   return new Promise(resolve => {
+    const generation = identityGeneration
     let buf = ''
     let settled = false
     let child
     const done = (result) => {
       if (settled) return
       settled = true
+      if (child) probes.delete(child)
       clearTimeout(timer)
       try { child?.kill() } catch {}
       resolve(result)
     }
     try {
       child = spawn(file, args, { windowsHide: true, env })
+      probes.add(child)
     } catch (e) {
       return resolve({ ok: false, error: e.message })
     }
     const timer = setTimeout(() => done({ ok: false, error: timeoutMsg }), 60000)
     child.stdout.on('data', d => {
+      if (generation !== identityGeneration) return
       // Consume complete lines, keep the partial tail — splitting the whole
       // accumulated buffer every chunk re-parsed every earlier event.
       buf += d
@@ -205,10 +211,11 @@ export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissio
     return { ok: false, error: e.message }
   }
 
-  const run = { child, buf: '' }
+  const run = { child, buf: '', generation: identityGeneration }
   runs.set(panelId, run)
 
   const handleLine = (line) => {
+    if (run.generation !== identityGeneration) return
     const trimmed = line.trim()
     if (!trimmed) return
     let msg
@@ -226,6 +233,7 @@ export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissio
   }
 
   child.stdout.on('data', (d) => {
+    if (run.generation !== identityGeneration) return
     run.buf += d
     const lines = run.buf.split('\n')
     run.buf = lines.pop()
@@ -235,11 +243,11 @@ export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissio
   child.stderr.on('data', (d) => { stderr = (stderr + d).slice(-2000) })
   child.on('error', (e) => {
     runs.delete(panelId)
-    emit(panelId, { kind: 'done', ok: false, error: e.message })
+    if (run.generation === identityGeneration) emit(panelId, { kind: 'done', ok: false, error: e.message })
   })
   child.on('close', (code) => {
     if (run.buf.trim()) handleLine(run.buf)
-    if (runs.delete(panelId) && code !== 0) {
+    if (runs.delete(panelId) && code !== 0 && run.generation === identityGeneration) {
       emit(panelId, { kind: 'done', ok: false, error: (stderr.trim() || `claude exited with code ${code}`).slice(0, 500) })
     }
   })
@@ -265,6 +273,12 @@ export function stopClaudePanelRun({ panelId }) {
 }
 
 export function stopAllClaudePanelRuns() {
+  identityGeneration += 1
+  lastLimits = null
+  for (const child of probes) {
+    try { child.kill() } catch {}
+  }
+  probes.clear()
   for (const [panelId, run] of runs) {
     try { run.child.kill() } catch {}
     runs.delete(panelId)

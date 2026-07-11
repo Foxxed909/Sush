@@ -10,18 +10,13 @@
 // otherwise the Proxy answers `{ ok: true }` and the screen renders empty.
 import { createServer } from 'http'
 import { readFileSync, mkdirSync, existsSync } from 'fs'
-import { join, extname, resolve } from 'path'
+import { extname, isAbsolute, join, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
-const require2 = (await import('module')).createRequire(import.meta.url)
-let chromium
-try {
-  ({ chromium } = require2('playwright'))
-} catch {
-  ({ chromium } = await import('playwright'))
-}
+import { chromium } from 'playwright-core'
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
+const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 const dist = join(root, 'out', 'renderer')
 const outDir = resolve(process.argv[2] || join(root, 'shots'))
 mkdirSync(outDir, { recursive: true })
@@ -33,10 +28,14 @@ if (!existsSync(join(dist, 'index.html'))) {
 // ── Tiny static server (ES modules don't load over file://) ────────────────
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' }
 const server = createServer((req, res) => {
-  const path = req.url === '/' ? '/index.html' : req.url.split('?')[0]
   try {
-    const body = readFileSync(join(dist, path))
-    res.writeHead(200, { 'Content-Type': MIME[extname(path)] || 'application/octet-stream' })
+    const pathname = new URL(req.url || '/', 'http://127.0.0.1').pathname
+    const requested = decodeURIComponent(pathname === '/' ? '/index.html' : pathname)
+    const file = resolve(dist, `.${requested}`)
+    const inside = relative(dist, file)
+    if (inside.startsWith('..') || isAbsolute(inside)) throw new Error('outside renderer root')
+    const body = readFileSync(file)
+    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' })
     res.end(body)
   } catch {
     res.writeHead(404); res.end()
@@ -56,9 +55,9 @@ const stub = `
   const stateListeners = []
   const DEMO = [
     '\\u001b[38;2;255;107;157m\\u001b[1m   _____ _    _  _____ _    _\\r\\n  / ____| |  | |/ ____| |  | |\\r\\n | (___ | |  | | (___ | |__| |\\r\\n  \\\\___ \\\\| |  | |\\\\___ \\\\|  __  |\\r\\n  ____) | |__| |____) | |  | |\\r\\n |_____/ \\\\____/|_____/|_|  |_|\\u001b[0m\\r\\n',
-    '\\u001b[2m  v4.9.0 · Helm  ·  bash · sush\\u001b[0m\\r\\n\\r\\n',
+    '\\u001b[2m  v${appVersion} · Helm  ·  bash · sush\\u001b[0m\\r\\n\\r\\n',
     '\\u001b[38;2;255;107;157m@ sush $ \\u001b[0mnpm test\\r\\n',
-    '\\r\\n\\u001b[32m✓\\u001b[0m 28 tests passed \\u001b[2m(357ms)\\u001b[0m\\r\\n',
+    '\\r\\n\\u001b[32m✓\\u001b[0m test suite passed\\r\\n',
     '\\r\\n\\u001b[38;2;255;107;157m@ sush $ \\u001b[0mclaude\\r\\n',
     '\\u001b[2m╭──────────────────────────────────────╮\\u001b[0m\\r\\n\\u001b[2m│\\u001b[0m  \\u001b[38;2;217;119;87mClaude Code\\u001b[0m — ready in ~/sush      \\u001b[2m│\\u001b[0m\\r\\n\\u001b[2m╰──────────────────────────────────────╯\\u001b[0m\\r\\n',
     '\\u001b[2m│\\u001b[0m > working on: fix the flaky scrollback test…\\r\\n'
@@ -91,7 +90,7 @@ const stub = `
       }, 250)
       return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: '/home/taylor/sush', profileId: 'powershell', status: 'running', lastActiveAt: now }
     },
-    getScrollback: async () => ({ text: 'npm test\\n28 passed\\n' }),
+    getScrollback: async () => ({ text: 'npm test\\ntest suite passed\\n' }),
     snippetsList: async () => ({ ok: true, snippets: [ { name: 'deploy', command: 'npm run deploy' }, { name: 'wtree', command: 'git worktree list' } ] }),
     checkClis: async ({ names } = {}) => ({ found: Object.fromEntries((names || []).map(n => [n, n === 'claude' || n === 'codex'])) }),
     accountsList: async () => ({ ok: true, providers: {
@@ -117,7 +116,7 @@ const stub = `
       { name: 'jwt', description: 'Decode a JSON Web Token', usage: 'jwt <token>', aliases: [] }
     ]),
     sushrcRead: async () => ({ ok: true, path: '~/.sushrc', exists: true, content: '# ~/.sushrc\\nprompt = pink\\n\\n[alias]\\ngs = git status\\ndev = npm run dev\\n' }),
-    appVersion: async () => '4.9.0',
+    appVersion: async () => '${appVersion}',
     homeDir: async () => '/home/taylor',
     listDir: async ({ path } = {}) => ({ path: path || '', entries: [ { name: 'sush', dir: true }, { name: 'notes.md', dir: false } ], exists: true }),
     sessionStats: async () => ({ sessions: 1, uptime: 4210, memoryMB: 182 }),
@@ -135,7 +134,7 @@ const stub = `
       ? { ok: true, content: JSON.stringify({ name: 'Sush dev crew', counts: { claude: 2, shell: 1 }, brief: 'Fix the flaky scrollback test, then run the suite.' }) }
       : { ok: false, error: 'not found' },
     huntSearch: async ({ term } = {}) => ({ ok: true, results: term && term.length >= 2 ? [
-      { tabId: 'tab-1', label: 'sush', lines: [ { line: 12, text: '✓ 28 tests passed (357ms) — ' + term + ' ok' }, { line: 31, text: 'claude: searching for ' + term + ' in src/' } ] },
+      { tabId: 'tab-1', label: 'sush', lines: [ { line: 12, text: '✓ test suite passed — ' + term + ' ok' }, { line: 31, text: 'claude: searching for ' + term + ' in src/' } ] },
       { key: 'u:u1:powershell:powershell:c:/users/taylor/docs', saved: true, label: 'docs', lines: [ { line: 3, text: 'npm ERR! ' + term + ' script missing' } ] }
     ] : [] }),
     onPtyData: (fn) => { ptyListeners.push(fn); return () => {} },
@@ -151,13 +150,28 @@ const stub = `
   try {
     sessionStorage.setItem('sush-skip-splash', '1')
     localStorage.setItem('sush-active-user', 'u1')
-    localStorage.setItem('u:u1::sush-last-seen-version', '${JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version}')
+    localStorage.setItem('u:u1::sush-last-seen-version', '${appVersion}')
   } catch {}
 })()
 `
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium/chrome-linux/chrome' })
-  .catch(() => chromium.launch())
+const browserCandidates = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+  chromium.executablePath(),
+  '/opt/pw-browsers/chromium/chrome-linux/chrome',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  process.env.PROGRAMFILES && join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe')
+].filter(Boolean)
+const browserPath = browserCandidates.find(existsSync)
+if (!browserPath) {
+  server.close()
+  console.error('Chromium not found. Set PLAYWRIGHT_CHROMIUM_EXECUTABLE or run `npx playwright-core install chromium`.')
+  process.exit(1)
+}
+const browser = await chromium.launch({ executablePath: browserPath })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
 await page.addInitScript(stub)
 page.on('pageerror', e => console.error('[pageerror]', e.message))
