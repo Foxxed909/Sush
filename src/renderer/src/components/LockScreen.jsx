@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import ProviderButtons from './ProviderButtons'
+import Starfield from './Starfield'
 import { fileToAvatarDataUrl } from './ProfileViewer'
 import { rgba } from '../lib/ui'
 
@@ -302,6 +303,21 @@ export default function LockScreen({
 
   const visibleUsers = mode === 'locked' ? [lockedUser].filter(Boolean) : users
 
+  // One PIN form for both the locked and pick layouts — same props everywhere.
+  const pinFormEl = (
+    <PinForm
+      pin={pin}
+      setPin={setPin}
+      phase={phase}
+      error={error}
+      accent={accent}
+      inputRef={pinInputRef}
+      onSubmit={submitPin}
+      onTouch={() => { if (error) setError('') }}
+      busy={busy}
+    />
+  )
+
   return (
     <div
       className="sush-lock-root"
@@ -318,6 +334,11 @@ export default function LockScreen({
         WebkitAppRegion: 'drag'
       }}
     >
+      {/* Night sky under the aurora — same ambient layer as the app shell.
+          Slightly denser here: the lock screen is a hero surface with no
+          terminals to stay out of the way of. */}
+      <Starfield accent={accent} density={1.3} />
+
       {/* Aurora backdrop tinted by user accents */}
       {blobs.map((b, i) => (
         <span
@@ -543,17 +564,7 @@ export default function LockScreen({
 
               {needsPin ? (
                 <div style={{ marginTop: 18, width: '100%' }}>
-                  <PinForm
-                    pin={pin}
-                    setPin={setPin}
-                    phase={phase}
-                    error={error}
-                    accent={accent}
-                    inputRef={pinInputRef}
-                    onSubmit={submitPin}
-                    onTouch={() => { if (error) setError('') }}
-                    busy={busy}
-                  />
+                  {pinFormEl}
                 </div>
               ) : (
                 <div style={{ marginTop: 22 }}>
@@ -610,17 +621,7 @@ export default function LockScreen({
 
               {needsPin && (
                 <div style={{ marginBottom: 4 }}>
-                  <PinForm
-                    pin={pin}
-                    setPin={setPin}
-                    phase={phase}
-                    error={error}
-                    accent={accent}
-                    inputRef={pinInputRef}
-                    onSubmit={submitPin}
-                    onTouch={() => { if (error) setError('') }}
-                    busy={busy}
-                  />
+                  {pinFormEl}
                 </div>
               )}
 

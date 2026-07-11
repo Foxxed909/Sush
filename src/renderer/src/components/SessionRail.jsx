@@ -49,60 +49,25 @@ function buildBlocks(tabs) {
   return blocks
 }
 
-// Workspace in-place rename: double-click the block header label to edit.
-function WorkspaceLabel({ id, label, onRenameGroup }) {
+// In-place rename shared by workspace headers and session rows: double-click
+// the label to edit; sessions can also trigger it via the context menu / F2
+// (editRequested), which the parent drives through renamingId.
+function InlineRenameLabel({ label, onCommit, editRequested, onEditDone, fontSize, color, title, spanStyle }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(label)
   const inputRef = useRef(null)
+
   useEffect(() => { setVal(label) }, [label])
-  useEffect(() => { if (editing) { inputRef.current?.select(); inputRef.current?.focus() } }, [editing])
-  const commit = () => {
-    setEditing(false)
-    const trimmed = val.trim()
-    if (trimmed && trimmed !== label) onRenameGroup?.(id, trimmed)
-    else setVal(label)
-  }
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        value={val}
-        onChange={e => setVal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(label) } }}
-        onClick={e => e.stopPropagation()}
-        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 11.5, fontWeight: 800, fontFamily: 'inherit' }}
-      />
-    )
-  }
-  return (
-    <span
-      style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 800, color: 'var(--text-2)' }}
-      onDoubleClick={e => { e.stopPropagation(); setEditing(true) }}
-      title="Double-click to rename workspace"
-    >
-      {label}
-    </span>
-  )
-}
-
-// Per-session in-place rename: double-click the label to edit, or trigger via the
-// context menu / F2 (editRequested), which the parent drives through renamingId.
-function SessionLabel({ tab, onRename, editRequested, onEditDone }) {
-  const [editing, setEditing] = useState(false)
-  const [val, setVal] = useState(tab.label)
-  const inputRef = useRef(null)
-
-  useEffect(() => { setVal(tab.label) }, [tab.label])
   useEffect(() => { if (editing) { inputRef.current?.select(); inputRef.current?.focus() } }, [editing])
   useEffect(() => { if (editRequested) setEditing(true) }, [editRequested])
 
+  const cancel = () => { setEditing(false); setVal(label); onEditDone?.() }
   const commit = () => {
     setEditing(false)
     onEditDone?.()
     const trimmed = val.trim()
-    if (trimmed && trimmed !== tab.label) onRename(tab.id, trimmed)
-    else setVal(tab.label)
+    if (trimmed && trimmed !== label) onCommit(trimmed)
+    else setVal(label)
   }
 
   if (editing) {
@@ -112,20 +77,20 @@ function SessionLabel({ tab, onRename, editRequested, onEditDone }) {
         value={val}
         onChange={e => setVal(e.target.value)}
         onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setEditing(false); setVal(tab.label); onEditDone?.() } }}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel() }}
         onClick={e => e.stopPropagation()}
-        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit' }}
+        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize, fontWeight: 800, fontFamily: 'inherit' }}
       />
     )
   }
 
   return (
     <span
-      style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: 800 }}
+      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize, fontWeight: 800, color, ...spanStyle }}
       onDoubleClick={e => { e.stopPropagation(); setEditing(true) }}
-      title="Double-click to rename"
+      title={title}
     >
-      {tab.label}
+      {label}
     </span>
   )
 }
@@ -195,7 +160,15 @@ function SessionItem({ tab, active, over, accent, indented, dragHandlers, onSele
           style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, boxShadow: exited ? 'none' : `0 0 7px ${rgba(dotColor, 0.8)}`, flexShrink: 0, '--pulse': rgba(dotColor, 0.6) }}
         />
         <span style={{ minWidth: 0 }}>
-          <SessionLabel tab={tab} onRename={onRename} editRequested={editRequested} onEditDone={onEditDone} />
+          <InlineRenameLabel
+            label={tab.label}
+            onCommit={(name) => onRename(tab.id, name)}
+            editRequested={editRequested}
+            onEditDone={onEditDone}
+            fontSize={12.5}
+            title="Double-click to rename"
+            spanStyle={{ display: 'block' }}
+          />
           <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--fs-xs)', color: activity === 'waiting' ? '#ffcb6b' : activity === 'error' ? '#ff8aa0' : 'var(--text-3)', marginTop: 3 }}>
             {exited ? 'exited' : activity === 'waiting' ? 'needs you' : activity === 'error' ? 'error surfaced' : shortPath(tab.cwd) || tab.shellLabel || tab.shell}
           </span>
@@ -356,6 +329,30 @@ export default function SessionRail({
     )
   }
 
+  // One SessionItem recipe for both layouts (solo rows and grouped rows) so
+  // the prop plumbing can't drift between them.
+  const renderSessionItem = (tab) => (
+    <SessionItem
+      key={tab.id}
+      tab={tab}
+      active={view === 'terminal' && tab.id === activeId}
+      over={dragOver === tab.id}
+      accent={accent}
+      dragHandlers={dragHandlersFor(tab.id)}
+      onSelect={onSelect}
+      onClose={onClose}
+      onRename={onRename}
+      onDuplicate={onDuplicate}
+      onPin={togglePin}
+      pinned={pinned.has(tab.id)}
+      editRequested={renamingId === tab.id}
+      onEditDone={onRenameEnd}
+      onRenameStart={onRenameStart}
+      onHandoff={onHandoff}
+      activity={activity?.[tab.id]}
+    />
+  )
+
   return (
     <aside
       className="shrink-0 flex flex-col"
@@ -436,28 +433,7 @@ export default function SessionRail({
         <div className="flex flex-col" style={{ gap: 8 }}>
           {blocks.map(block => {
             if (block.type === 'solo') {
-              const tab = block.tab
-              return (
-                <SessionItem
-                  key={tab.id}
-                  tab={tab}
-                  active={view === 'terminal' && tab.id === activeId}
-                  over={dragOver === tab.id}
-                  accent={accent}
-                  dragHandlers={dragHandlersFor(tab.id)}
-                  onSelect={onSelect}
-                  onClose={onClose}
-                  onRename={onRename}
-                  onDuplicate={onDuplicate}
-                  onPin={togglePin}
-                  pinned={pinned.has(tab.id)}
-                  editRequested={renamingId === tab.id}
-                  onEditDone={onRenameEnd}
-                  onRenameStart={onRenameStart}
-                  onHandoff={onHandoff}
-                  activity={activity?.[tab.id]}
-                />
-              )
+              return renderSessionItem(block.tab)
             }
 
             const isCollapsed = collapsed.has(block.id)
@@ -476,7 +452,14 @@ export default function SessionRail({
                 >
                   <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={13} color="var(--text-3)" strokeWidth={2.4} />
                   <Icon name="users" size={13} color={accent} strokeWidth={2} />
-                  <WorkspaceLabel id={block.id} label={block.label} onRenameGroup={onRenameGroup} />
+                  <InlineRenameLabel
+                    label={block.label}
+                    onCommit={(name) => onRenameGroup?.(block.id, name)}
+                    fontSize={11.5}
+                    color="var(--text-2)"
+                    title="Double-click to rename workspace"
+                    spanStyle={{ flex: 1, minWidth: 0 }}
+                  />
                   <span style={{ fontSize: 9.5, fontWeight: 800, color: accent, background: rgba(accent, 0.14), borderRadius: 999, padding: '1px 7px' }}>
                     {running}/{block.tabs.length}
                   </span>
@@ -505,27 +488,7 @@ export default function SessionRail({
                 </div>
                 {!isCollapsed && (
                   <div className="flex flex-col" style={{ gap: 7 }}>
-                    {block.tabs.map(tab => (
-                      <SessionItem
-                        key={tab.id}
-                        tab={tab}
-                        active={view === 'terminal' && tab.id === activeId}
-                        over={dragOver === tab.id}
-                        accent={accent}
-                        dragHandlers={dragHandlersFor(tab.id)}
-                        onSelect={onSelect}
-                        onClose={onClose}
-                        onRename={onRename}
-                        onDuplicate={onDuplicate}
-                        onPin={togglePin}
-                        pinned={pinned.has(tab.id)}
-                        editRequested={renamingId === tab.id}
-                        onEditDone={onRenameEnd}
-                        onRenameStart={onRenameStart}
-                        onHandoff={onHandoff}
-                        activity={activity?.[tab.id]}
-                      />
-                    ))}
+                    {block.tabs.map(renderSessionItem)}
                   </div>
                 )}
               </div>

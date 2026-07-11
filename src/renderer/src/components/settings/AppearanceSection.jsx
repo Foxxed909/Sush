@@ -240,6 +240,24 @@ export default function AppearanceSection({ accent, settings, set }) {
       </Row>
 
       <Row>
+        <Label>Ambient starfield</Label>
+        <Toggle
+          accent={accent}
+          icon="sparkles"
+          on={settings.ambientStars !== false}
+          onText="Night sky on — stars drift behind the chrome"
+          offText="Night sky off — plain dark canvas"
+          onClick={() => set('ambientStars', settings.ambientStars === false)}
+        />
+        <Hint>
+          A sparse field of drifting, twinkling stars behind everything (most
+          visible on Home, the lock screen and glass themes — terminals stay
+          solid). Battery-honest: it pauses when the window is unfocused and
+          switches off entirely in Lite/Saver/Eco and reduce-motion.
+        </Hint>
+      </Row>
+
+      <Row>
         <Label>Reduce motion</Label>
         <Toggle
           accent={accent}

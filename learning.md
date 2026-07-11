@@ -3,6 +3,28 @@
 Things this codebase taught (or re-taught) us while building the last cycles.
 Keep appending; newest first.
 
+## Cycle: nocturne (starfield, dedup)
+
+- **CSS kill switches can't reach a canvas.** `.sush-saver` freezes CSS
+  animations, but a `requestAnimationFrame` loop sails right through it. For
+  JS-driven ambience, gate the MOUNT from the same flags — an unmounted
+  component is the only off-switch that's provably off.
+- **A mirrored table across the process boundary WILL drift** — the
+  entitlements fallback drifted once and gated wrong even with a "keep in
+  sync" comment on both copies. Comments don't sync files; imports do
+  (`src/shared/` works for main and renderer in electron-vite).
+- **z-index −1 needs a stacking context you own.** A negative-z background
+  layer paints behind its parent's background unless the parent creates a
+  stacking context (`position: relative; z-index: 0`). Without it the layer
+  simply vanishes — no error, just no stars.
+- **Anything hardcoded next to a version number is stale by v+2.** The splash
+  showed codename "Ember" four releases later; the changelog's top entry was
+  the source of truth all along. Render from data or don't render it.
+- **Twin modules are a factory asking to exist.** stt.js/tts.js shared ~90
+  lines of security-critical config scaffold; the drift risk was worst
+  exactly where correctness mattered most (key encryption, identity
+  migration). Same-shape modules deserve one parameterized store.
+
 ## Cycle: sotto (hunt overlay, digests, repo crews)
 
 - **A tier gate's vocabulary leaks.** Reusing the "LOCKED" badge for

@@ -8,6 +8,24 @@
 
 export const CHANGELOG = [
   {
+    v: '4.11.0',
+    codename: 'nocturne',
+    date: '2026-07-11',
+    summary: 'The night sky arrives — an ambient starfield behind everything — plus a quiet round of dedup and polish.',
+    changes: {
+      new: [
+        'Ambient starfield: a sparse field of drifting, twinkling stars now lives behind the chrome — most visible on Home, the lock screen, the splash and glass themes. Battery-honest: it pauses when the window loses focus and switches off entirely in Lite/Saver/Eco and reduce-motion. Off-switch in Settings ▸ Appearance.'
+      ],
+      improved: [
+        'The command palette and the Hunt overlay now share one search-sheet recipe, so the two can never drift apart visually.',
+        'Your profile picture renders identically everywhere it appears — title bar, profile card, and user manager.'
+      ],
+      fixed: [
+        'The splash screen showed the codename "Ember" forever — it now always shows the current release.'
+      ]
+    }
+  },
+  {
     v: '4.10.0',
     codename: 'sotto',
     date: '2026-07-10',

@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { resolveStoredLicense, verifySignedCode } from './license-core.mjs'
+import { TIER_FEATURES } from '../shared/tiers'
 
 // Offline tier gating. The user redeems a code I mint (tools/mint-code.mjs); the
 // app verifies it locally — no server, no payment. Verification is HMAC-based,
@@ -9,25 +10,11 @@ import { resolveStoredLicense, verifySignedCode } from './license-core.mjs'
 // hint, they don't fight the user. See license-secret.mjs for why a leaked
 // secret isn't a breach here.
 //
-// One source of truth for what each tier unlocks. Main reads it directly for
-// the things it owns (account slots, cloud TTS); the renderer mirrors it via
-// `license-get` so the UI gates the same way.
-// `themes` is reserved for a future gate (no base/premium flag on themes yet),
-// so it's intentionally NOT advertised in the Plan table or enforced — all
-// themes are free for now. The enforced gates are slots/gridCap/customAgents/
-// cloudTts/providerConnect.
-// Five tiers. Pro was trimmed when Ultra/Max landed above it (slots 8→6,
-// grid 16→12) — the top of the old Pro moved into Ultra. usageGuard gates the
-// Claude quota guard (Pro+); autoHandoff gates its hands-free mode (Ultra+).
-// providerConnect gates the OAuth account-connect flow (Plus+ — graduated
-// from Settings ▸ Experiments 2026-07).
-export const TIER_FEATURES = {
-  free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
-  plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  themes: 'all'  },
-  pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  themes: 'all'  },
-  ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  },
-  max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  }
-}
+// The tier table lives in src/shared/tiers.js — shared with the renderer's
+// useEntitlements pre-load fallback so the two can never drift again. Main
+// reads it directly for the things it owns (account slots, cloud TTS); the
+// renderer mirrors it via `license-get` so the UI gates the same way.
+export { TIER_FEATURES }
 const file = () => join(app.getPath('userData'), 'sush-license.json')
 
 // Set by main so any path that changes the license (IPC redeem OR the `unlock`

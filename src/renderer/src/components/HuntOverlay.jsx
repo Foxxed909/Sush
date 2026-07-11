@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
+import SearchOverlay from './SearchOverlay'
 import { rgba } from '../lib/ui'
 
 // Hunt overlay (Ctrl+Shift+F) — the `hunt` command with a face: search the
@@ -78,30 +79,19 @@ export default function HuntOverlay({ accent, tabs = [], onJump, onClose }) {
   }
 
   return (
-    <div
-      className="sush-backdrop"
-      style={{ position: 'fixed', inset: 0, zIndex: 450, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', paddingTop: '14vh' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    <SearchOverlay
+      accent={accent}
+      onClose={onClose}
+      zIndex={450}
+      maxWidth={640}
+      maxHeight={380}
+      inputRef={inputRef}
+      query={query}
+      onQueryChange={setQuery}
+      onKeyDown={handleKey}
+      placeholder="Hunt across every session's output..."
+      hints={[['↑↓', 'hits'], ['↵', 'jump to session'], ['Esc', 'close']]}
     >
-      <div
-        className="sush-pop"
-        style={{ width: '100%', maxWidth: 640, background: '#0d1015', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 'var(--r-xl)', boxShadow: `0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px ${rgba(accent, 0.1)}`, overflow: 'hidden' }}
-      >
-        <div className="flex items-center" style={{ gap: 10, padding: '12px 16px', borderBottom: `1px solid ${rgba(accent, 0.12)}` }}>
-          <Icon name="search" size={16} color={accent} strokeWidth={2} />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Hunt across every session's output..."
-            spellCheck={false}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-          />
-          <kbd style={{ fontSize: 10, color: 'var(--text-4)', background: '#1a2128', border: '1px solid #2a333c', borderRadius: 5, padding: '2px 6px' }}>ESC</kbd>
-        </div>
-
-        <div style={{ maxHeight: 380, overflowY: 'auto' }} className="sush-scroll">
           {query.trim().length < 2 && (
             <div style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-4)', fontSize: 12.5 }}>
               Type at least 2 characters — live sessions and saved scrollback are both searched.
@@ -138,16 +128,6 @@ export default function HuntOverlay({ accent, tabs = [], onJump, onClose }) {
               )}
             </button>
           ))}
-        </div>
-
-        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-5)' }}>
-          <span><kbd style={kbd}>↑↓</kbd> hits</span>
-          <span><kbd style={kbd}>↵</kbd> jump to session</span>
-          <span><kbd style={kbd}>Esc</kbd> close</span>
-        </div>
-      </div>
-    </div>
+    </SearchOverlay>
   )
 }
-
-const kbd = { background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }

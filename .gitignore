@@ -34,4 +34,7 @@ release/
 
 # MCP / tooling artifacts
 .playwright-mcp/
-.claude/
+# Local Claude Code state stays out, but committed skills (.claude/skills —
+# impeccable et al.) ship with the repo so every session has them.
+.claude/*
+!.claude/skills/

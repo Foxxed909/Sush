@@ -1,7 +1,7 @@
 {
   "name": "sush",
-  "version": "4.10.0",
-  "codename": "sotto",
+  "version": "4.11.0",
+  "codename": "nocturne",
   "description": "Sush - the terminal your agents live in",
   "engines": {
     "node": ">=22.12.0"

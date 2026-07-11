@@ -4,6 +4,14 @@
 
 ## Latest release highlights
 
+### 🌌 The night sky arrives
+"Wireframes in moonlight" finally gets its moonlit sky: a sparse field of
+**drifting, twinkling stars** now lives behind the chrome — most visible on
+Home, the lock screen, the splash and glass themes (terminals stay solid).
+Battery-honest like everything else: it pauses when the window loses focus
+and switches off entirely in Lite/Saver/Eco and reduce-motion. Off-switch in
+**Settings ▸ Appearance**.
+
 ### 🔍 Hunt, with a face
 `Ctrl+Shift+F` opens the **Hunt overlay**: type once and watch matches from
 *every* session's output — live terminals and the saved scrollback of sessions

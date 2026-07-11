@@ -26,22 +26,22 @@ const TTS_ENGINES = [['system', 'System'], ['openai', 'OpenAI'], ['elevenlabs', 
 const OPENAI_VOICES = ['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']
 const STT_MODELS = ['whisper-1', 'gpt-4o-mini-transcribe', 'gpt-4o-transcribe']
 
-// Dictation (Hush): speak into the focused terminal. Runs Whisper over the
-// user's own key — held in main, never round-tripped here — and is metered by
-// the local Quiet Credits bucket (shown live below).
-function DictationBlock({ accent, settings, set }) {
-  const [stt, setStt] = useState(null)     // public config + credits from main
+// STT and TTS expose the same config shape over IPC (get → public config,
+// set → patched public config or { error }); this hook is the one client for
+// both: load-on-mount, patch-and-swap, and the buffered key input.
+function useProviderConfig(getConfig, setConfig) {
+  const [cfg, setCfg] = useState(null)
   const [keyInput, setKeyInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const refresh = () => window.sush?.sttConfigGet?.().then(c => { if (c) setStt(c) }).catch(() => {})
+  const refresh = () => getConfig?.()?.then(c => { if (c) setCfg(c) }).catch(() => {})
   useEffect(() => { refresh() }, [])
 
   const saveCfg = async (patch) => {
     setBusy(true); setErr('')
-    const r = await window.sush?.sttConfigSet?.(patch)
-    if (r?.ok) setStt(r); else if (r?.error) setErr(r.error)
+    const r = await setConfig?.(patch)
+    if (r?.ok) setCfg(r); else if (r?.error) setErr(r.error)
     setBusy(false)
     return r
   }
@@ -50,6 +50,17 @@ function DictationBlock({ accent, settings, set }) {
     const r = await saveCfg({ apiKey: keyInput.trim() })
     if (r?.ok) setKeyInput('')
   }
+
+  return { cfg, setCfg, keyInput, setKeyInput, busy, err, setErr, refresh, saveCfg, saveKey }
+}
+
+// Dictation (Hush): speak into the focused terminal. Runs Whisper over the
+// user's own key — held in main, never round-tripped here — and is metered by
+// the local Quiet Credits bucket (shown live below).
+function DictationBlock({ accent, settings, set }) {
+  // Public config + credits from main.
+  const { cfg: stt, keyInput, setKeyInput, busy, err, saveCfg, saveKey } =
+    useProviderConfig(() => window.sush?.sttConfigGet?.(), (p) => window.sush?.sttConfigSet?.(p))
 
   const enabled = settings.hushEnabled !== false
   const autoSend = settings.hushAutoSend !== false
@@ -187,32 +198,12 @@ function DictationBlock({ accent, settings, set }) {
 // one is set. "Test" plays a sample through whichever engine is selected.
 export default function VoiceSection({ accent, settings, set, voices, ent }) {
   const cloudLocked = !ent.can('cloudTts')
-  const [tts, setTts] = useState(null)      // public cloud config from main
-  const [keyInput, setKeyInput] = useState('')
-  const [busy, setBusy] = useState(false)
+  // Public cloud config from main.
+  const { cfg: tts, setCfg: setTts, keyInput, setKeyInput, busy, err, setErr, saveCfg, saveKey } =
+    useProviderConfig(() => window.sush?.ttsConfigGet?.(), (p) => window.sush?.ttsConfigSet?.(p))
   const [testing, setTesting] = useState(false)
-  const [err, setErr] = useState('')
-
-  useEffect(() => {
-    window.sush?.ttsConfigGet?.().then(c => { if (c) setTts(c) }).catch(() => {})
-  }, [])
 
   const provider = tts?.provider || 'system'
-
-  const saveCfg = async (patch) => {
-    setBusy(true); setErr('')
-    const r = await window.sush?.ttsConfigSet?.(patch)
-    if (r?.ok) setTts(r)
-    else if (r?.error) setErr(r.error)
-    setBusy(false)
-    return r
-  }
-
-  const saveKey = async () => {
-    if (!keyInput.trim()) return
-    const r = await saveCfg({ apiKey: keyInput.trim() })
-    if (r?.ok) setKeyInput('')
-  }
 
   const testVoice = async () => {
     setTesting(true); setErr('')

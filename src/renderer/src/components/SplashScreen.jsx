@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
+import Starfield from './Starfield'
 import { rgba } from '../lib/ui'
+import { CHANGELOG } from '../lib/changelog'
 
 const LETTERS = ['S', 'U', 'S', 'H']
 const TIPS = [
@@ -107,6 +109,9 @@ export default function SplashScreen({ accent = '#ff6b9d', onDone }) {
       className={exiting ? 'sush-splash-out' : ''}
       style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-0)', gap: 26 }}
     >
+      {/* Night sky behind the choreography (static under reduced motion). */}
+      <Starfield accent={accent} density={1.2} />
+
       {/* Stage holds both beats stacked in the same centre. */}
       <div style={{ position: 'relative', width: 220, height: 132, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {/* Beat 1 — shush (skipped entirely under reduced motion) */}
@@ -143,7 +148,9 @@ export default function SplashScreen({ accent = '#ff6b9d', onDone }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-4)', fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
           <span>{version}</span>
           <span style={{ color: 'var(--text-5)' }}>·</span>
-          <span>Ember</span>
+          {/* Codename rides the changelog's top entry — it was hardcoded once
+              ("Ember") and quietly went four releases stale. */}
+          <span style={{ textTransform: 'capitalize' }}>{CHANGELOG[0].codename}</span>
         </div>
         <div style={{ color: 'var(--text-5)', fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tip}</div>
         <div className="sush-progress" style={{ width: 140, marginTop: 10, '--accent': accent }} />

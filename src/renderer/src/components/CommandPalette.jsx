@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import Icon from './Icons'
+import SearchOverlay from './SearchOverlay'
 import { rgba } from '../lib/ui'
 
 function fuzzyScore(query, target) {
@@ -68,76 +69,55 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
   }
 
   return (
-    <div
-      className="sush-backdrop"
-      style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', paddingTop: '14vh' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    <SearchOverlay
+      accent={accent}
+      onClose={onClose}
+      zIndex={500}
+      maxWidth={580}
+      maxHeight={400}
+      inputRef={inputRef}
+      query={query}
+      onQueryChange={setQuery}
+      onKeyDown={handleKey}
+      placeholder="Search commands and actions..."
+      hints={[['↑↓', 'navigate'], ['↵', 'select'], ['Esc', 'close']]}
     >
-      <div
-        className="sush-pop"
-        style={{ width: '100%', maxWidth: 580, background: '#0d1015', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 'var(--r-xl)', boxShadow: `0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px ${rgba(accent, 0.1)}`, overflow: 'hidden' }}
-      >
-        {/* Search input */}
-        <div className="flex items-center" style={{ gap: 10, padding: '12px 16px', borderBottom: `1px solid ${rgba(accent, 0.12)}` }}>
-          <Icon name="search" size={16} color={accent} strokeWidth={2} />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Search commands and actions..."
-            spellCheck={false}
-            style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: 15, outline: 'none', fontFamily: 'inherit' }}
-          />
-          <kbd style={{ fontSize: 10, color: 'var(--text-4)', background: '#1a2128', border: '1px solid #2a333c', borderRadius: 5, padding: '2px 6px' }}>ESC</kbd>
-        </div>
-
-        {/* Results */}
-        <div style={{ maxHeight: 400, overflowY: 'auto' }} className="sush-scroll">
-          {items.length === 0 && (
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-4)', fontSize: 13 }}>No results</div>
+      {items.length === 0 && (
+        <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-4)', fontSize: 13 }}>No results</div>
+      )}
+      {items.map((item, i) => (
+        <button
+          key={item.id}
+          onClick={() => select(item)}
+          onMouseEnter={() => setIdx(i)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            width: '100%',
+            padding: '10px 16px',
+            border: 'none',
+            background: i === idx ? rgba(accent, 0.1) : 'transparent',
+            color: 'var(--text-2)',
+            cursor: 'pointer',
+            textAlign: 'left'
+          }}
+        >
+          <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: i === idx ? rgba(accent, 0.2) : '#141a20', border: `1px solid ${i === idx ? rgba(accent, 0.4) : '#1d242b'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: i === idx ? accent : 'var(--text-3)' }}>
+            <Icon name={item.icon} size={15} strokeWidth={2} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: i === idx ? 'var(--text-1)' : 'var(--text-2)' }}>{item.label}</span>
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--text-4)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {item.usage ? <span style={{ color: rgba(accent, 0.7), marginRight: 6, fontFamily: 'monospace' }}>{item.usage}</span> : null}
+              {item.description}
+            </span>
+          </span>
+          {item.type === 'command' && (
+            <span style={{ fontSize: 10, color: 'var(--text-5)', background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>cmd</span>
           )}
-          {items.map((item, i) => (
-            <button
-              key={item.id}
-              onClick={() => select(item)}
-              onMouseEnter={() => setIdx(i)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                padding: '10px 16px',
-                border: 'none',
-                background: i === idx ? rgba(accent, 0.1) : 'transparent',
-                color: 'var(--text-2)',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: i === idx ? rgba(accent, 0.2) : '#141a20', border: `1px solid ${i === idx ? rgba(accent, 0.4) : '#1d242b'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: i === idx ? accent : 'var(--text-3)' }}>
-                <Icon name={item.icon} size={15} strokeWidth={2} />
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: i === idx ? 'var(--text-1)' : 'var(--text-2)' }}>{item.label}</span>
-                <span style={{ display: 'block', fontSize: 11, color: 'var(--text-4)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {item.usage ? <span style={{ color: rgba(accent, 0.7), marginRight: 6, fontFamily: 'monospace' }}>{item.usage}</span> : null}
-                  {item.description}
-                </span>
-              </span>
-              {item.type === 'command' && (
-                <span style={{ fontSize: 10, color: 'var(--text-5)', background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>cmd</span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-5)' }}>
-          <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>↑↓</kbd> navigate</span>
-          <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>↵</kbd> select</span>
-          <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>Esc</kbd> close</span>
-        </div>
-      </div>
-    </div>
+        </button>
+      ))}
+    </SearchOverlay>
   )
 }

@@ -1,25 +1,10 @@
-import { app, safeStorage } from 'electron'
-import { join } from 'path'
-import { existsSync } from 'fs'
-import { getActiveUser, getLegacyOwnerId, isLegacyOwnershipEstablished, listUsers } from './users'
-import {
-  atomicWriteJson,
-  migrateLegacyOnce,
-  migrationMarkerPath,
-  protectConfigKey,
-  readJsonObject,
-  resolveIdentityStorage,
-  safeStorageState
-} from './secure-storage'
+import { createSecureConfigStore } from './provider-config'
 
 // Cloud text-to-speech for Seducia — the user's OWN OpenAI/ElevenLabs key, used
 // to swap the robotic system (Windows SAPI) voice for a real neural one.
-//
-// Security: the API key is read and used ONLY here in main. It never crosses
-// IPC to the renderer — the renderer sends text and gets back audio bytes. The
-// key is encrypted at rest with the OS keychain (safeStorage) when available;
-// if not, it's stored plaintext (it's the user's own key on their own machine,
-// not an identity credential) and we flag safeStorage:false so the UI can warn.
+// Storage/key rules live in provider-config.js: the key never crosses IPC —
+// the renderer sends text and gets back audio bytes — and it's keychain-
+// encrypted at rest when possible.
 
 const PROVIDERS = ['system', 'openai', 'elevenlabs']
 const DEFAULTS = {
@@ -27,75 +12,7 @@ const DEFAULTS = {
   elevenlabs: { model: 'eleven_turbo_v2_5', voice: '21m00Tcm4TlvDq8ikWAM' } // "Rachel"
 }
 
-const legacyFile = () => join(app.getPath('userData'), 'sush-tts.json')
 const emptyConfig = () => ({ provider: 'system', voice: '', model: '', key: '', keyEnc: false })
-
-function storageScope() {
-  const userData = app.getPath('userData')
-  return resolveIdentityStorage({
-    userData,
-    activeUser: getActiveUser(),
-    users: listUsers(),
-    legacyOwnerId: getLegacyOwnerId(),
-    legacyOwnershipEstablished: isLegacyOwnershipEstablished(),
-    fileName: 'sush-tts.json',
-    legacyPath: legacyFile()
-  })
-}
-
-const caches = new Map()
-function load() {
-  const scope = storageScope()
-  if (!scope.ok) return scope
-  if (caches.has(scope.target)) return secureLoadedConfig(scope, caches.get(scope.target))
-
-  if (existsSync(scope.target)) {
-    try {
-      return secureLoadedConfig(scope, normalizeConfig(readJsonObject(scope.target)))
-    } catch {
-      return { ok: false, error: 'config-invalid' }
-    }
-  }
-
-  if (scope.kind === 'identity' && scope.ownsLegacy && existsSync(scope.legacyPath)) {
-    return migrateLegacyConfig(scope)
-  }
-  return secureLoadedConfig(scope, emptyConfig())
-}
-
-function migrateLegacyConfig(scope) {
-  const status = safeStorageState(safeStorage)
-  const migrated = migrateLegacyOnce({
-    marker: migrationMarkerPath(app.getPath('userData'), 'tts-config'),
-    identityId: scope.identityId,
-    target: scope.target,
-    transform: () => {
-      const protectedConfig = protectConfigKey(normalizeConfig(readJsonObject(scope.legacyPath)), safeStorage, status)
-      if (!protectedConfig.ok) throw new Error(protectedConfig.error)
-      return protectedConfig.config
-    }
-  })
-
-  if (!migrated.ok && migrated.error === 'legacy-claimed') {
-    return secureLoadedConfig(scope, emptyConfig())
-  }
-  if (!migrated.ok) return { ok: false, error: migrated.cause?.message || migrated.error }
-  caches.set(scope.target, migrated.value)
-  return { ok: true, config: migrated.value, target: scope.target, security: status }
-}
-
-function secureLoadedConfig(scope, config) {
-  const status = safeStorageState(safeStorage)
-  const protectedConfig = protectConfigKey(config, safeStorage, status)
-  if (!protectedConfig.ok) return { ok: false, error: protectedConfig.error }
-  try {
-    if (protectedConfig.changed) atomicWriteJson(scope.target, protectedConfig.config)
-  } catch {
-    return { ok: false, error: 'persist-failed' }
-  }
-  caches.set(scope.target, protectedConfig.config)
-  return { ok: true, config: protectedConfig.config, target: scope.target, security: status }
-}
 
 function normalizeConfig(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('config-invalid')
@@ -108,13 +25,14 @@ function normalizeConfig(data) {
   }
 }
 
-function decryptKey(c) {
-  if (!c.key) return ''
-  if (!c.keyEnc) return c.key
-  try { return safeStorage.decryptString(Buffer.from(c.key, 'base64')) } catch { return '' }
-}
+const store = createSecureConfigStore({
+  fileName: 'sush-tts.json',
+  migrationMarker: 'tts-config',
+  emptyConfig,
+  normalize: normalizeConfig
+})
 
-function publicConfig(c, status = safeStorageState(safeStorage)) {
+function publicConfig(c, status = store.securityState()) {
   return {
     provider: PROVIDERS.includes(c.provider) ? c.provider : 'system',
     voice: c.voice || '',
@@ -129,28 +47,24 @@ function publicConfig(c, status = safeStorageState(safeStorage)) {
 // What the renderer is allowed to see: never the key itself, just whether one
 // is set, plus the provider/voice/model and the keychain availability.
 export function getTtsConfigPublic() {
-  const loaded = load()
+  const loaded = store.load()
   if (!loaded.ok) return { ok: false, error: loaded.error, ...publicConfig(emptyConfig()) }
   return publicConfig(loaded.config, loaded.security)
 }
 
 export function setTtsConfig({ provider, voice, model, apiKey } = {}) {
-  const loaded = load()
+  const loaded = store.load()
   if (!loaded.ok) return { ok: false, error: loaded.error }
   const c = { ...loaded.config }
   if (provider !== undefined) c.provider = PROVIDERS.includes(provider) ? provider : 'system'
   if (voice !== undefined) c.voice = String(voice || '').slice(0, 120)
   if (model !== undefined) c.model = String(model || '').slice(0, 80)
   if (apiKey !== undefined) {
-    const key = String(apiKey || '')
-    if (!key) { c.key = ''; c.keyEnc = false }
-    else if (loaded.security.secure) {
-      try { c.key = safeStorage.encryptString(key).toString('base64'); c.keyEnc = true } catch { return { ok: false, error: 'key-encryption-failed' } }
-    }
-    else { c.key = key; c.keyEnc = false }
+    const keyed = store.applyKey(c, apiKey, loaded.security)
+    if (!keyed.ok) return keyed
   }
-  try { atomicWriteJson(loaded.target, c) } catch { return { ok: false, error: 'persist-failed' } }
-  caches.set(loaded.target, c)
+  const saved = store.persist(loaded, c)
+  if (!saved.ok) return saved
   return { ok: true, ...publicConfig(c, loaded.security) }
 }
 
@@ -159,12 +73,12 @@ export function setTtsConfig({ provider, voice, model, apiKey } = {}) {
 // voice (provider is 'system' or no key), or { ok:false, error } on a real
 // failure (the renderer still falls back to the system voice, but shows this).
 export async function synthesizeTts({ text, rate } = {}) {
-  const loaded = load()
+  const loaded = store.load()
   if (!loaded.ok) return { ok: false, error: loaded.error }
   const c = loaded.config
   const provider = PROVIDERS.includes(c.provider) ? c.provider : 'system'
   if (provider === 'system') return { ok: false, fallback: true }
-  const key = decryptKey(c)
+  const key = store.decryptKey(c)
   if (!key) return { ok: false, error: `No API key set for ${provider}.`, fallback: true }
   const clean = String(text || '').slice(0, 4000)
   if (!clean) return { ok: false, error: 'Empty text' }

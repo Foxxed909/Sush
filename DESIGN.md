@@ -49,6 +49,17 @@ One spring for the whole app: `--ease-spring cubic-bezier(0.32,0.72,0,1)`
 switches: OS reduced-motion, `.sush-reduce-motion` (user toggle),
 `.sush-saver` (battery). Ambient loops (orb breathing) pause in all three.
 
+### Ambient starfield
+
+The one sanctioned ambient scene (`Starfield.jsx`): sparse drifting/twinkling
+stars on a canvas at z −1 — above the app background, below all content, so
+terminals (opaque) hide it and glass chrome shows a faint wash. Moonlight
+grays with ~16% accent-tinted stars. It is canvas JS, so the CSS kill
+switches can't reach it: the App gates the MOUNT instead (off under
+lite/saver/eco/reduce-motion or its Appearance toggle), OS reduced-motion
+renders one static frame, and the loop pauses on blur/hidden/idle-sleep.
+30fps cap, DPR cap 1.5, star count cap 220.
+
 ## Components
 
 - **Buttons**: pill or `--r-sm` rects; active = accent fill with near-black

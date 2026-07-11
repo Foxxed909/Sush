@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
+import UserAvatar from './UserAvatar'
 import { rgba } from '../lib/ui'
 import { themes, presetThemeIds, buildCustomTheme } from '../themes'
 
@@ -66,28 +67,6 @@ function ThemeSwitcher({ accent, themeId, onThemeChange }) {
   )
 }
 
-// Letter avatar with the provider picture layered on top when present (the
-// letter shows through if the image fails to load).
-function ChipAvatar({ user, color, size, fontSize, radius }) {
-  return (
-    <span
-      className="flex items-center justify-center"
-      style={{ position: 'relative', overflow: 'hidden', width: size, height: size, borderRadius: radius, background: `linear-gradient(150deg, ${rgba(color, 0.9)}, ${rgba(color, 0.4)})`, color: '#0a0a0c', fontWeight: 900, fontSize }}
-    >
-      {user.avatar || user.name[0]?.toUpperCase()}
-      {user.avatarUrl && (
-        <img
-          src={user.avatarUrl}
-          alt=""
-          draggable={false}
-          onError={e => { e.target.style.display = 'none' }}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-      )}
-    </span>
-  )
-}
-
 // Identity chip: who is signed in, with profile / lock / switch / sign-out.
 function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfile }) {
   const [open, setOpen] = useState(false)
@@ -127,7 +106,7 @@ function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfil
           transition: 'background .15s, border-color .15s'
         }}
       >
-        <ChipAvatar user={user} color={color} size={20} fontSize={10.5} radius="32%" />
+        <UserAvatar user={user} color={color} size={20} fontSize={10.5} radius="32%" />
         <span style={{ color: 'var(--text-2)', fontSize: 11, fontWeight: 800, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {user.name}
         </span>
@@ -156,7 +135,7 @@ function UserChip({ user, accent, onLock, onSignOut, onManageUsers, onViewProfil
             title="View profile"
             style={{ gap: 9, padding: '8px 10px 10px', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: 5, cursor: 'pointer' }}
           >
-            <ChipAvatar user={user} color={color} size={28} fontSize={13} radius="30%" />
+            <UserAvatar user={user} color={color} size={28} fontSize={13} radius="30%" />
             <span style={{ minWidth: 0 }}>
               <span style={{ display: 'block', color: 'var(--text-1)', fontWeight: 800, fontSize: 12.5 }}>{user.name}</span>
               <span style={{ display: 'block', color: 'var(--text-3)', fontSize: 10, marginTop: 1 }}>

@@ -1,23 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
+import { TIER_FEATURES } from '../../../shared/tiers'
 
 // Renderer-side mirror of the tier the user has unlocked. Main owns the truth
 // (license.js); this loads it once and re-syncs whenever a code is redeemed or
 // cleared (main broadcasts `sush:license-changed`). Use `can('cloudTts')` /
 // `limit('gridCap')` to gate UI the same way main gates the features it owns.
-// Pre-load fallback only — mirrors main's TIER_FEATURES (license.js) so the
-// first paint gates like the real license. Keep the two in sync; this copy
-// once drifted (old Pro numbers, missing Ultra/Max) and briefly gated wrong.
+// Pre-load fallback only — the SAME shared tier table main enforces
+// (src/shared/tiers.js), so the first paint gates like the real license.
+// This used to be a hand-mirrored copy and once drifted; never again.
 const DEFAULT = {
   tier: 'free',
   expiry: null,
-  features: { slots: 1, gridCap: 4, customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
-  tiers: {
-    free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
-    plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  themes: 'all' },
-    pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  themes: 'all' },
-    ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' },
-    max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' }
-  }
+  features: TIER_FEATURES.free,
+  tiers: TIER_FEATURES
 }
 
 export function useEntitlements() {

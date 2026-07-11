@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import Icon from './Icons'
+import UserAvatar from './UserAvatar'
 import { rgba } from '../lib/ui'
 
 // Downscale + center-crop a picked image to a small square JPEG data URL so
@@ -102,22 +103,13 @@ export default function ProfileViewer({ user, accent, onClose, onChanged, onLock
           className="flex items-center justify-center"
           style={{
             position: 'relative', width: 96, height: 96, margin: '0 auto', borderRadius: '30%', overflow: 'hidden',
-            background: `linear-gradient(150deg, ${rgba(color, 0.9)}, ${rgba(color, 0.4)})`,
+            background: 'none',
             border: `1px solid ${rgba(color, 0.65)}`,
             boxShadow: `0 14px 40px ${rgba(color, 0.35)}`,
-            color: '#0a0a0c', fontWeight: 900, fontSize: 38, cursor: 'pointer', padding: 0
+            cursor: 'pointer', padding: 0
           }}
         >
-          {user.avatar || user.name?.[0]?.toUpperCase()}
-          {user.avatarUrl && (
-            <img
-              src={user.avatarUrl}
-              alt=""
-              draggable={false}
-              onError={e => { e.target.style.display = 'none' }}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          )}
+          <UserAvatar user={user} color={color} size="100%" fontSize={38} radius={0} />
           {(hover || busy) && (
             <span className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, background: 'rgba(5,7,10,0.55)', color: 'var(--text-1)' }}>
               <Icon name="edit" size={20} strokeWidth={2.2} />

@@ -20,6 +20,7 @@ import HuntOverlay from './components/HuntOverlay'
 import SushrcEditor from './components/SushrcEditor'
 import QuickSwitcher from './components/QuickSwitcher'
 import SplashScreen from './components/SplashScreen'
+import Starfield from './components/Starfield'
 import LockScreen from './components/LockScreen'
 import UserManager from './components/UserManager'
 import ProfileViewer from './components/ProfileViewer'
@@ -298,6 +299,10 @@ export default function App() {
   const [smartResult, setSmartResult] = useState(null)
   const [zenMode, setZenMode] = useState(false)
   const terminalSaver = effectiveSaver || zenMode
+  // Ambient starfield (canvas — JS animation, so the CSS kill switches can't
+  // freeze it; gating the mount IS its kill switch): on by default, off under
+  // any Power-ladder rung above full, reduce-motion, or its own toggle.
+  const ambientOn = settings.ambientStars !== false && !reducedFx && !terminalSaver && !ecoMode && !settings.reduceMotion
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMission, setShowMission] = useState(false)
@@ -1879,6 +1884,10 @@ export default function App() {
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
+        // Anchor + stacking context for the ambient starfield: the canvas sits
+        // at z -1, above this div's own background but below every child.
+        position: 'relative',
+        zIndex: 0,
         // Custom wallpaper sits under everything; bgDim is a dark veil baked
         // into the same background stack so terminal text stays readable.
         // With window material on (and no wallpaper) the canvas is translucent
@@ -1890,6 +1899,7 @@ export default function App() {
           : theme.xterm.background
       }}
     >
+      {ambientOn && <Starfield accent={accent} />}
       {!zenMode && (
         <TitleBar
           accent={accent}

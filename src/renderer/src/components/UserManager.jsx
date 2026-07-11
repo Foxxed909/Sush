@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import Icon from './Icons'
 import ProviderButtons from './ProviderButtons'
+import UserAvatar from './UserAvatar'
 import { rgba } from '../lib/ui'
 
 const USER_COLORS = ['#ff6b9d', '#a78bfa', '#5fd3a8', '#ffcb6b', '#60a5fa', '#f97316', '#38bdf8', '#ef4444']
@@ -114,21 +115,7 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
             {users.map(user => (
               <div key={user.id} style={{ border: `1px solid ${editingId === user.id ? rgba(user.color, 0.5) : 'rgba(255,255,255,0.08)'}`, borderRadius: 12, background: 'rgba(255,255,255,0.025)', padding: 12 }}>
                 <div className="flex items-center" style={{ gap: 11 }}>
-                  <span
-                    className="flex items-center justify-center"
-                    style={{ position: 'relative', overflow: 'hidden', width: 36, height: 36, borderRadius: '28%', background: `linear-gradient(150deg, ${rgba(user.color, 0.85)}, ${rgba(user.color, 0.35)})`, color: '#0a0a0c', fontWeight: 900, fontSize: 15 }}
-                  >
-                    {user.avatar || user.name[0]?.toUpperCase()}
-                    {user.avatarUrl && (
-                      <img
-                        src={user.avatarUrl}
-                        alt=""
-                        draggable={false}
-                        onError={e => { e.target.style.display = 'none' }}
-                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    )}
-                  </span>
+                  <UserAvatar user={user} size={36} fontSize={15} radius="28%" gradient={[0.85, 0.35]} />
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span className="flex items-center" style={{ gap: 7 }}>
                       <span style={{ color: 'var(--text-1)', fontWeight: 800, fontSize: 13.5 }}>{user.name}</span>
