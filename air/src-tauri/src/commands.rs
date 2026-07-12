@@ -257,6 +257,28 @@ pub struct TaskEvent {
 fn safe_task(v: &str) -> bool {
     v.len()<=16_000&&!Regex::new(r"(?i)(?:curl|wget|invoke-webrequest)[^\n]*(?:\||;|&&)\s*(?:sh|bash|zsh|pwsh|powershell)|(?:^|[;&|]\s*)(?:mkfs|diskpart|shutdown|reboot)").unwrap().is_match(v)
 }
+fn stream_task<R: Read + Send + 'static>(stream: Option<R>, app: &AppHandle, event: String) {
+    if let Some(stream) = stream {
+        let handle = app.clone();
+        thread::spawn(move || {
+            let mut total = 0;
+            for line in BufReader::new(stream).lines().map_while(Result::ok) {
+                total += line.len();
+                if total > 2 * 1024 * 1024 {
+                    break;
+                }
+                let _ = handle.emit(
+                    &event,
+                    TaskEvent {
+                        kind: "output".into(),
+                        data: Some(format!("{line}\n")),
+                        code: None,
+                    },
+                );
+            }
+        });
+    }
+}
 #[tauri::command]
 pub fn task_run(
     app: AppHandle,
@@ -296,8 +318,8 @@ pub fn task_run(
         });
     }
     let mut child = command.spawn().map_err(|e| e.to_string())?;
-    let mut stdout = child.stdout.take();
-    let mut stderr = child.stderr.take();
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
     let pid = child.id();
     let shared = Arc::new(parking_lot::Mutex::new(child));
     state.tasks.lock().insert(
@@ -307,29 +329,8 @@ pub fn task_run(
             pid,
         },
     );
-    for stream in [&mut stdout, &mut stderr] {
-        if let Some(s) = stream.take() {
-            let handle = app.clone();
-            let event = format!("air://task/{}", input.id);
-            thread::spawn(move || {
-                let mut total = 0;
-                for line in BufReader::new(s).lines().map_while(Result::ok) {
-                    total += line.len();
-                    if total > 2 * 1024 * 1024 {
-                        break;
-                    }
-                    let _ = handle.emit(
-                        &event,
-                        TaskEvent {
-                            kind: "output".into(),
-                            data: Some(format!("{line}\n")),
-                            code: None,
-                        },
-                    );
-                }
-            })
-        }
-    }
+    stream_task(stdout, &app, format!("air://task/{}", input.id));
+    stream_task(stderr, &app, format!("air://task/{}", input.id));
     let handle = app.clone();
     let event = format!("air://task/{}", input.id);
     let id = input.id;

@@ -76,7 +76,7 @@ struct Usage {
     day: String,
     count: u32,
 }
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DropDecision {
     pub allowed: bool,
