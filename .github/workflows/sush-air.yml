@@ -1,0 +1,44 @@
+name: Sush Air
+on:
+  pull_request:
+    paths: ["air/**", ".github/workflows/sush-air.yml"]
+  push:
+    branches: [main]
+    paths: ["air/**", ".github/workflows/sush-air.yml"]
+concurrency: { group: "sush-air-${{ github.ref }}", cancel-in-progress: true }
+permissions: { contents: read }
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: air } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: air/package-lock.json }
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, bundle: nsis, extensions: .exe }
+          - { os: macos-latest, bundle: dmg, extensions: .dmg }
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { working-directory: air } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: air/package-lock.json }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: rustfmt, clippy }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: air/src-tauri }
+      - run: npm ci
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --all-targets
+      - run: npm run tauri:build -- --ci --no-sign --bundles ${{ matrix.bundle }}
+      - run: node scripts/check-artifact-size.mjs src-tauri/target/release/bundle 36700160 ${{ matrix.extensions }}

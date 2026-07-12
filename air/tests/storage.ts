@@ -1,0 +1,2 @@
+export class MemoryStorage implements Storage{private v=new Map<string,string>();get length(){return this.v.size}clear(){this.v.clear()}getItem(k:string){return this.v.get(k)??null}key(i:number){return[...this.v.keys()][i]??null}removeItem(k:string){this.v.delete(k)}setItem(k:string,v:string){this.v.set(String(k),String(v))}}
+export function storage(){const value=new MemoryStorage();Object.defineProperty(globalThis,'localStorage',{configurable:true,value});return value}

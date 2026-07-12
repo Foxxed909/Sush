@@ -1,0 +1,1 @@
+{"bundle":{"createUpdaterArtifacts":true},"plugins":{"updater":{"pubkey":"REPLACE_WITH_PRODUCTION_TAURI_UPDATER_PUBLIC_KEY","endpoints":["https://updates.sush.dev/air/{{target}}/{{arch}}/{{current_version}}"]}}}

@@ -1,0 +1,2 @@
+import type{ApprovalRequest}from'../lib/types'
+export default function ApprovalDialog({request,onDecision}:{request:ApprovalRequest;onDecision(v:boolean):void}){return <div className="modal"><div className="card"><small>One-time approval · {request.risk}</small><h2>{request.title}</h2><code>{request.action}</code><p>{request.detail}</p><div className="row"><button onClick={()=>onDecision(false)}>Deny</button><button className="primary" onClick={()=>onDecision(true)}>Allow once</button></div></div></div>}

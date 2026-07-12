@@ -1,0 +1,16 @@
+[[permission]]
+identifier="allow-air-terminal"
+description="Approved local terminal sessions and task lanes."
+commands.allow=["terminal_spawn","terminal_write","terminal_resize","terminal_kill","task_run","task_stop"]
+[[permission]]
+identifier="allow-air-projects"
+description="Bounded local project, Git, port, resource, agent and worktree operations."
+commands.allow=["project_inspect","git_pulse","port_list","resource_snapshot","power_status","agent_detect","context_pack","worktree_create","worktree_remove","worktree_list"]
+[[permission]]
+identifier="allow-air-runtime"
+description="Runtime information, Drop, and tray state."
+commands.allow=["runtime_info","drop_toggle","drop_status","drop_set_pinned","tray_set_workspaces"]
+[[permission]]
+identifier="allow-air-license"
+description="Verify asymmetrically signed Sush Air entitlements."
+commands.allow=["license_verify"]

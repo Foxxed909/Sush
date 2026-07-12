@@ -1,0 +1,2 @@
+import {isPermissionGranted,requestPermission,sendNotification} from '@tauri-apps/plugin-notification'
+export async function notifyCompletion(label:string,success:boolean){try{if(window.__TAURI_INTERNALS__){let granted=await isPermissionGranted();if(!granted)granted=(await requestPermission())==='granted';if(granted)sendNotification({title:success?'Sush Air task completed':'Sush Air task failed',body:`${label.slice(0,100)} ${success?'finished successfully.':'needs attention.'}`})}}catch{}}
