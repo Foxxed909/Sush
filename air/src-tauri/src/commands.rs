@@ -157,12 +157,14 @@ pub fn git_pulse(cwd: String) -> Result<GitPulse, String> {
     let mut conflicts = 0;
     let mut ahead = 0;
     let mut behind = 0;
+    let ahead_pattern = Regex::new(r"ahead (\d+)").unwrap();
+    let behind_pattern = Regex::new(r"behind (\d+)").unwrap();
     for line in status.lines() {
         if line.starts_with("##") {
-            if let Some(x) = Regex::new(r"ahead (\d+)").unwrap().captures(line) {
+            if let Some(x) = ahead_pattern.captures(line) {
                 ahead = x[1].parse().unwrap_or(0)
             }
-            if let Some(x) = Regex::new(r"behind (\d+)").unwrap().captures(line) {
+            if let Some(x) = behind_pattern.captures(line) {
                 behind = x[1].parse().unwrap_or(0)
             }
             continue;
@@ -285,9 +287,11 @@ pub fn task_run(
     state: State<'_, AirState>,
     input: TaskInput,
 ) -> Result<(), String> {
-    if !Regex::new(r"^[A-Za-z0-9_-]{8,80}$")
-        .unwrap()
-        .is_match(&input.id)
+    if input.label.trim().is_empty()
+        || input.label.len() > 100
+        || !Regex::new(r"^[A-Za-z0-9_-]{8,80}$")
+            .unwrap()
+            .is_match(&input.id)
         || !safe_task(&input.command)
     {
         return Err("Task refused by native guard".into());
