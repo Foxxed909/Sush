@@ -12,10 +12,17 @@
   Dropped deps: execa, electron-store (zero imports). Deliberately NOT done:
   localStorage-parse consolidation (all 12 sites already guarded — pure
   churn), tilde-expansion dedup, tts/stt shared-lines extraction.
-- **Sush Air is composition, not a mode**: `withAir()` in lib/power.js writes
-  perfMode 'eco' + reduceMotion + solid material and stashes the prior three
-  keys in `airRestore`; nothing downstream knows Air exists. Hand-picking a
-  ladder rung while Air is on exits Air first so the choice sticks.
+- **Feather mode is composition, not a mode**: `withFeather()` in lib/power.js
+  writes perfMode 'eco' + reduceMotion + solid material and stashes the prior
+  three keys in `featherRestore`; nothing downstream knows Feather exists.
+  Hand-picking a ladder rung while Feather is on exits it first so the choice
+  sticks. (Originally shipped one commit as "Sush Air" before that name went
+  to the Tauri app in air/ — the settings keys were renamed in the same cycle,
+  safe because no release went out between.)
+- **Sush Air = Tauri companion app in air/**: same repo, own package.json.
+  PTY via portable-pty in Rust, xterm.js frontend, renderer-side command
+  interception (no Node command layer to reuse). Feature subset only:
+  sessions, agent launch, palette, themes, core commands.
 
 - **4.10.0 "sotto" review cycle**: Hunt overlay reuses ScrollbackStore.search
   via one new IPC (`sush:hunt-search`) that resolves labels main-side — the

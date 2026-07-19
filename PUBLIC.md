@@ -4,11 +4,16 @@
 
 ## Latest release highlights
 
-### 🪶 Sush Air
-One switch for the whole light profile. Flip **Sush Air** in Settings → Power
-(or from the command palette) and Sush drops to eco rendering, freezes all
-motion, and goes to a solid window — then puts *exactly* your old setup back
-when you turn it off.
+### 🪶 Feather mode
+One switch for the whole light profile. Flip **Feather mode** in Settings →
+Power (or from the command palette) and Sush drops to eco rendering, freezes
+all motion, and goes to a solid window — then puts *exactly* your old setup
+back when you turn it off.
+
+### 💨 Sush Air (new app)
+A separate, far lighter desktop app built on Tauri — the Sush essentials
+(terminal sessions, agent launching, palette, themes, core commands) with a
+fraction of Electron's footprint. Lives in `air/` in the repo.
 
 ### 🧰 Review cycle 4.11.0
 A deep pass over the whole app: safer command handling on Windows (`.bat`

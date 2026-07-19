@@ -43,7 +43,7 @@ import { useAutoAlias } from './hooks/useAutoAlias'
 import { useSplitView } from './hooks/useSplitView'
 import { useUsageGuard } from './hooks/useUsageGuard'
 import { recordCommand } from './lib/commandFrequency'
-import { perfModeOf, withPerfMode, isAir, withAir } from './lib/power'
+import { perfModeOf, withPerfMode, isFeather, withFeather } from './lib/power'
 import { cliComplete } from './lib/ai'
 import { buildDigestMarkdown, digestSummaryPrompt } from './lib/digest'
 import { countersAfterTabs } from './lib/sessionIds'
@@ -1698,7 +1698,7 @@ export default function App() {
     else if (action === 'switch-user') identity.signOut()
     else if (action === 'manage-users') setShowUserManager(true)
     else if (action === 'broadcast') setBroadcastMode(prev => !prev)
-    else if (action === 'air') saveSettings(withAir(settings, !isAir(settings)))
+    else if (action === 'feather') saveSettings(withFeather(settings, !isFeather(settings)))
     else if (action === 'grid') {
       setGridMode(prev => {
         if (!prev && tabsRef.current.length < 2) return prev
@@ -1752,7 +1752,7 @@ export default function App() {
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
       { id: 'act-switch-user', label: 'Switch User / Sign Out', description: 'Closes your sessions and opens the user picker', icon: 'users', action: 'switch-user' },
       { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
-      { id: 'act-air', label: isAir(settings) ? 'Sush Air: Off' : 'Sush Air: On', description: 'One-click light profile — eco rendering, no motion, solid window', icon: 'feather', action: 'air' },
+      { id: 'act-feather', label: isFeather(settings) ? 'Feather Mode: Off' : 'Feather Mode: On', description: 'One-click light profile — eco rendering, no motion, solid window', icon: 'feather', action: 'feather' },
     ]
     base.push(
       { id: 'act-grid', label: 'Toggle Grid Layout', description: 'Tile every session in an auto-sized grid (Ctrl+Shift+G)', icon: 'grid', action: 'grid' },

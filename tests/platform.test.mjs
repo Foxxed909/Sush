@@ -225,29 +225,29 @@ describe('localized netstat parsing', () => {
   })
 })
 
-describe('Sush Air profile', () => {
+describe('Feather mode profile', () => {
   it('composes eco + no motion + solid material, and restores exactly', async () => {
-    const { isAir, withAir, perfModeOf } = await import('../src/renderer/src/lib/power.js')
+    const { isFeather, withFeather, perfModeOf } = await import('../src/renderer/src/lib/power.js')
     const before = { perfMode: 'reduced', reduceMotion: false, windowMaterial: 'mica', themeId: 'pink' }
-    const on = withAir(before, true)
-    expect(isAir(on)).toBe(true)
+    const on = withFeather(before, true)
+    expect(isFeather(on)).toBe(true)
     expect(perfModeOf(on)).toBe('eco')
     expect(on.reduceMotion).toBe(true)
     expect(on.windowMaterial).toBe('solid')
-    const off = withAir(on, false)
-    expect(isAir(off)).toBe(false)
+    const off = withFeather(on, false)
+    expect(isFeather(off)).toBe(false)
     expect(perfModeOf(off)).toBe('reduced')
     expect(off.reduceMotion).toBe(false)
     expect(off.windowMaterial).toBe('mica')
     expect(off.themeId).toBe('pink')
-    expect(off.airRestore).toBeUndefined()
+    expect(off.featherRestore).toBeUndefined()
   })
 
   it('is idempotent and safe without a stored restore', async () => {
-    const { withAir, perfModeOf } = await import('../src/renderer/src/lib/power.js')
-    const on = withAir(withAir({}, true), true)
-    expect(on.airRestore.perfMode).toBe('full')
-    const off = withAir({ sushAir: true }, false)
+    const { withFeather, perfModeOf } = await import('../src/renderer/src/lib/power.js')
+    const on = withFeather(withFeather({}, true), true)
+    expect(on.featherRestore.perfMode).toBe('full')
+    const off = withFeather({ featherMode: true }, false)
     expect(perfModeOf(off)).toBe('full')
   })
 })

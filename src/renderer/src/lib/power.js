@@ -25,20 +25,21 @@ export function withPerfMode(settings, mode) {
   return next
 }
 
-// ── Sush Air ─────────────────────────────────────────────────────────────────
+// ── Feather mode ─────────────────────────────────────────────────────────────
 // One-click light profile: the eco rung plus reduced motion and a solid window
 // material, as a single named toggle. It composes existing settings rather than
 // adding a parallel rendering path — turning it off restores exactly what the
-// user had before (kept in `airRestore`).
+// user had before (kept in `featherRestore`). ("Sush Air" is the separate
+// Tauri app in air/ — this is just a rendering profile.)
 
-export function isAir(settings = {}) {
-  return settings.sushAir === true
+export function isFeather(settings = {}) {
+  return settings.featherMode === true
 }
 
-export function withAir(settings, on) {
+export function withFeather(settings, on) {
   if (on) {
-    if (isAir(settings)) return settings
-    const airRestore = {
+    if (isFeather(settings)) return settings
+    const featherRestore = {
       perfMode: perfModeOf(settings),
       reduceMotion: settings.reduceMotion === true,
       windowMaterial: settings.windowMaterial ?? 'solid'
@@ -47,16 +48,16 @@ export function withAir(settings, on) {
       ...withPerfMode(settings, 'eco'),
       reduceMotion: true,
       windowMaterial: 'solid',
-      sushAir: true,
-      airRestore
+      featherMode: true,
+      featherRestore
     }
   }
-  if (!isAir(settings)) return settings
-  const r = settings.airRestore || {}
+  if (!isFeather(settings)) return settings
+  const r = settings.featherRestore || {}
   const next = withPerfMode(settings, PERF_MODES.includes(r.perfMode) ? r.perfMode : 'full')
   next.reduceMotion = r.reduceMotion === true
   next.windowMaterial = r.windowMaterial ?? 'solid'
-  delete next.sushAir
-  delete next.airRestore
+  delete next.featherMode
+  delete next.featherRestore
   return next
 }

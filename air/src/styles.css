@@ -1,0 +1,7 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #root { height: 100%; overflow: hidden; }
+body { font-family: "Segoe UI", system-ui, sans-serif; background: #0b0d10; }
+.xterm { height: 100%; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(128, 140, 152, 0.35); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
