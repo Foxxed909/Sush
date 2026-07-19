@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { tierOf } from './license'
+import { atomicWriteJson } from './secure-storage'
 
 // ── Quiet Credits ────────────────────────────────────────────────────────────
 // A local, offline usage meter for voice dictation ("Quiet" = the Hush/whisper
@@ -55,7 +56,7 @@ function load() {
 }
 
 function persist() {
-  try { writeFileSync(file(), JSON.stringify(cache, null, 2), 'utf8'); return true } catch { return false }
+  try { atomicWriteJson(file(), cache); return true } catch { return false }
 }
 
 // Roll the bucket over to the current month if the stored period is stale.

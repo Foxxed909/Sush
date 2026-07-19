@@ -5,6 +5,8 @@ import { canHandleGlobalShortcut } from '../src/renderer/src/lib/shortcutGuard.j
 import { isSensitiveCommand, redactSensitiveCommand } from '../src/renderer/src/lib/commandPrivacy.js'
 import { dismissCommand, pickCandidate, recordCommand } from '../src/renderer/src/lib/commandFrequency.js'
 import { quoteShellPath } from '../src/renderer/src/lib/shellQuote.js'
+import { buildSshCommand, normalizeSshPort, normalizeSshProfiles } from '../src/renderer/src/lib/ssh.js'
+import { parseStoredObject } from '../src/renderer/src/lib/storage.js'
 import { unquoteEnvValue } from '../src/renderer/src/lib/env.js'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -78,6 +80,23 @@ describe('command privacy', () => {
     expect(combined).not.toContain('header.payload.signature')
     expect(combined).not.toContain('another.token.value')
   })
+
+  it('recovers when the frequency store contains valid non-object JSON', () => {
+    const values = new Map([
+      ['sush.cmdfreq.v1', '"corrupt"'],
+      ['sush.cmdfreq.dismissed.v1', '[]']
+    ])
+    vi.stubGlobal('localStorage', {
+      getItem: key => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, String(value))
+    })
+
+    expect(() => recordCommand('git status --short')).not.toThrow()
+    expect(() => dismissCommand('npm run build')).not.toThrow()
+    expect(JSON.parse(values.get('sush.cmdfreq.v1'))).toMatchObject({
+      'git status --short': { count: 1 }
+    })
+  })
 })
 
 describe('dropped path quoting', () => {
@@ -93,6 +112,43 @@ describe('dropped path quoting', () => {
       .toBe("'C:\\Users\\O''Brien\\a & b'")
     expect(quoteShellPath('C:\\a & b', { platform: 'win32', shellId: 'cmd' }))
       .toBe('"C:\\a & b"')
+  })
+})
+
+describe('SSH quick-connect commands', () => {
+  it('quotes every user-controlled argument for the launch shell', () => {
+    const profile = {
+      user: 'dev',
+      host: 'example.com; Write-Output owned',
+      port: '2222',
+      keyPath: "C:\\Users\\O'Brien\\my key"
+    }
+    expect(buildSshCommand(profile, { platform: 'win32', shellId: 'powershell' }))
+      .toBe("ssh -p 2222 -i 'C:\\Users\\O''Brien\\my key' -- 'dev@example.com; Write-Output owned'")
+    expect(buildSshCommand({ host: 'example.com & calc' }, { platform: 'win32', shellId: 'cmd' }))
+      .toBe('ssh -- "example.com & calc"')
+    expect(buildSshCommand({ host: 'example.com" & calc & "' }, { platform: 'win32', shellId: 'cmd' }))
+      .toBeNull()
+    expect(buildSshCommand({ host: '$(touch owned)' }, { platform: 'linux', shellId: 'bash' }))
+      .toBe("ssh -- '$(touch owned)'")
+  })
+
+  it('rejects invalid ports and non-array persisted data', () => {
+    expect(normalizeSshPort('2222; calc')).toBeNull()
+    expect(normalizeSshPort('65536')).toBeNull()
+    expect(buildSshCommand({ host: 'example.com', port: '22; calc' })).toBeNull()
+    expect(normalizeSshProfiles({ host: 'example.com' })).toEqual([])
+    expect(normalizeSshProfiles([null, {}, { host: 'bad.example', port: '22; calc' }, { host: 'example.com', port: '' }]))
+      .toEqual([expect.objectContaining({ host: 'example.com', port: '22' })])
+  })
+})
+
+describe('object-backed local storage', () => {
+  it('rejects valid JSON values that cannot safely hold settings or sessions', () => {
+    expect(parseStoredObject('{"themeId":"pink"}')).toEqual({ themeId: 'pink' })
+    expect(parseStoredObject('null')).toEqual({})
+    expect(parseStoredObject('[]')).toEqual({})
+    expect(parseStoredObject('not json')).toEqual({})
   })
 })
 

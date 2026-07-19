@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 const DEFAULT = {
   tier: 'free',
   expiry: null,
+  fallbackTier: null,
   features: { slots: 1, gridCap: 4, customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
   tiers: {
     free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
@@ -43,6 +44,7 @@ export function useEntitlements() {
       ...prev,
       tier: r.tier,
       expiry: r.expiry ?? null,
+      fallbackTier: r.fallbackTier ?? null,
       features: r.features || prev.features,
       tiers: r.tiers || prev.tiers
     }))
@@ -51,7 +53,7 @@ export function useEntitlements() {
 
   const clear = useCallback(async () => {
     const r = await window.sush?.licenseClear?.()
-    if (r) setLic(prev => ({ ...prev, tier: 'free', expiry: null, features: r.features || prev.features, tiers: r.tiers || prev.tiers }))
+    if (r?.ok) setLic(prev => ({ ...prev, tier: 'free', expiry: null, fallbackTier: null, features: r.features || prev.features, tiers: r.tiers || prev.tiers }))
     return r
   }, [])
 

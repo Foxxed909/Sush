@@ -10,7 +10,9 @@ export function parseInput(input) {
     if (ch === '"' || ch === "'") {
       if (inQuote === ch) {
         inQuote = null
-      } else if (!inQuote) {
+      } else if (!inQuote && current === '') {
+        // A quote only opens at the start of a token — a mid-word apostrophe
+        // (`it's`) is a literal character, not a quote that swallows the line.
         inQuote = ch
       } else {
         current += ch

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { renderMarkdown } from '../lib/markdown'
+import { parseStoredObject } from '../lib/storage'
 
 // Claude Code panel — a mini-ADE: prompt Claude Code on the active directory
 // and watch the work happen. Live streamed markdown, every tool call (file
@@ -13,7 +14,7 @@ const PANEL_ID = 'right-panel'
 const SESSIONS_KEY = 'sush-claude-panel-sessions'   // cwd -> sessionId
 
 function loadSessions() {
-  try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '{}') } catch { return {} }
+  return parseStoredObject(localStorage.getItem(SESSIONS_KEY))
 }
 function saveSession(cwd, sessionId) {
   if (!cwd || !sessionId) return
@@ -122,7 +123,7 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
           }
           const id = idRef.current++
           liveTextRef.current = id
-          return [...prev, { id, role: 'claude', text: ev.text }]
+          return [...prev.slice(-300), { id, role: 'claude', text: ev.text }]
         })
       } else if (ev.kind === 'text') {
         // Authoritative full block: replace the delta-accumulated text.
@@ -131,7 +132,7 @@ export default function ClaudePanel({ accent, activeCwd, visible = true }) {
           liveTextRef.current = null
           if (liveId != null) return prev.map(e => e.id === liveId ? { ...e, text: ev.text } : e)
           const id = idRef.current++
-          return [...prev, { id, role: 'claude', text: ev.text }]
+          return [...prev.slice(-300), { id, role: 'claude', text: ev.text }]
         })
       } else if (ev.kind === 'tool') {
         liveTextRef.current = null

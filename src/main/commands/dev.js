@@ -40,6 +40,8 @@ export const launch = {
   usage: 'launch <app>',
   async run([app]) {
     if (!app) return err('launch: missing app name or path')
+    // The name reaches cmd.exe's parser via `start` — refuse its metacharacters.
+    if (/[&|<>^"%]/.test(app)) return err('launch: app name contains unsupported characters')
     try {
       if (process.platform === 'win32') {
         await execFileAsync('cmd', ['/c', 'start', '', app], { windowsHide: true })
@@ -93,8 +95,17 @@ export const pkg = {
     }
     const cmdArgs = cmds[mgr]?.[sub]
     if (!cmdArgs) return err(`pkg: unknown subcommand '${sub}'`)
+    if (pkgName && !/^[@a-zA-Z0-9._/ =~^<>-]+$/.test(pkgName)) {
+      return err(`pkg ${sub}: package name contains unsupported characters`)
+    }
     try {
-      const [file, ...args] = cmdArgs.filter(Boolean)
+      let [file, ...args] = cmdArgs.filter(Boolean)
+      // npm is npm.cmd on Windows; execFile can't spawn a .cmd without a
+      // shell, so route it through `cmd /c` (pkgName is validated above).
+      if (file === 'npm' && process.platform === 'win32') {
+        args = ['/c', 'npm', ...args]
+        file = 'cmd'
+      }
       const { stdout, stderr } = await execFileAsync(file, args, { encoding: 'utf8', cwd: ctx.cwd, windowsHide: true })
       return ok(`${ansi.dim(`[${mgr}]`)} ${(stdout + stderr).trimEnd()}`)
     } catch (e) {
@@ -124,8 +135,14 @@ async function nodeScaffold(dest, name) {
 }
 
 async function reactScaffold(dest, name) {
+  if (/[&|<>^%"]/.test(dest)) throw new Error('project path contains unsupported characters')
   await mkdir(dest, { recursive: true })
-  await execFileAsync('npm', ['create', 'vite@latest', dest, '--', '--template', 'react'], { windowsHide: true })
+  const npmArgs = ['create', 'vite@latest', dest, '--', '--template', 'react']
+  // npm is npm.cmd on Windows — execFile can't spawn a .cmd without a shell.
+  const [file, args] = process.platform === 'win32'
+    ? ['cmd', ['/c', 'npm', ...npmArgs]]
+    : ['npm', npmArgs]
+  await execFileAsync(file, args, { windowsHide: true })
 }
 
 async function pythonScaffold(dest, name) {

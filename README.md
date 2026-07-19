@@ -39,7 +39,7 @@ tips, and an honest pros/cons list.
 
 ## Stack
 
-Electron 31 (main + preload + renderer) · React 18 · a hand-rolled CSS design
+Electron 43 (main + preload + renderer) · React 18 · a hand-rolled CSS design
 system (no UI framework) · xterm.js · node-pty · Vitest.
 
 ## Getting started
@@ -59,7 +59,7 @@ npm run usage       # tools/claude-usage.mjs — CLI usage probe
 npm run mint         # tools/mint-code.mjs — mint an offline unlock code
 ```
 
-Requires Node 20+. Packaging targets NSIS (Windows), dmg (macOS), and
+Requires Node 22.12+. Packaging targets NSIS (Windows), dmg (macOS), and
 AppImage (Linux) via `electron-builder`.
 
 ## Plans

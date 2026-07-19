@@ -41,6 +41,7 @@ export default function RightPanel({
   onOpenLauncher,
   onClose,
   onNewTab,
+  sshShellId,
   settings = {},
   commandHistory = [],
   ghNotifCount = 0,
@@ -123,7 +124,7 @@ export default function RightPanel({
         {safeTab === 'ports' && <PortsTab accent={accent} onRun={onRun} />}
         {safeTab === 'docker' && <DockerTab accent={accent} onRun={onRun} />}
         {safeTab === 'env' && <EnvManagerTab accent={accent} cwd={activeCwd} />}
-        {safeTab === 'ssh' && <SshTab accent={accent} onNewTab={onNewTab} onRun={onRun} />}
+        {safeTab === 'ssh' && <SshTab accent={accent} onNewTab={onNewTab} onRun={onRun} shellId={sshShellId} />}
         {safeTab === 'markdown' && <MarkdownTab accent={accent} cwd={activeCwd} initialPath={mdPath} />}
       </div>
     </aside>

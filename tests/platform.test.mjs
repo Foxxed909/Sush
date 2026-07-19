@@ -191,3 +191,75 @@ describe('platform-specific profiles and doctor checks', () => {
     expect(doctorToolsForPlatform('linux', '/bin/bash')).not.toContain('powershell.exe')
   })
 })
+
+// ── Review-cycle regressions (4.11.0) ────────────────────────────────────────
+import { parseInput } from '../src/main/shell/parser.js'
+
+describe('parser quoting regressions', () => {
+  it('treats a mid-word apostrophe as a literal character', () => {
+    expect(parseInput("note it's done")).toEqual({ cmd: 'note', args: ["it's", 'done'] })
+  })
+
+  it('still honours quotes that open at token start', () => {
+    expect(parseInput('note "a  b" c')).toEqual({ cmd: 'note', args: ['a  b', 'c'] })
+  })
+})
+
+describe('alias expansion preserves the argument tail verbatim', () => {
+  it('does not collapse spacing inside quoted args', () => {
+    const ctx = new ShellContext({ cwd: 'C:\\', tabId: 't1' })
+    ctx.aliases = { n: 'note' }
+    expect(ctx.expandAliases('n "a  b"')).toBe('note "a  b"')
+  })
+})
+
+describe('localized netstat parsing', () => {
+  it('finds listeners without the English LISTENING word', () => {
+    const rows = parseWindowsNetstat('  TCP    0.0.0.0:5173    0.0.0.0:0    ABHOEREN    4321\r\n')
+    expect(rows).toEqual([{ port: '5173', address: '0.0.0.0:5173', pid: '4321' }])
+  })
+
+  it('skips established connections', () => {
+    const rows = parseWindowsNetstat('  TCP    127.0.0.1:5173    127.0.0.1:60000    HERGESTELLT    4321\r\n')
+    expect(rows).toEqual([])
+  })
+})
+
+describe('Sush Air profile', () => {
+  it('composes eco + no motion + solid material, and restores exactly', async () => {
+    const { isAir, withAir, perfModeOf } = await import('../src/renderer/src/lib/power.js')
+    const before = { perfMode: 'reduced', reduceMotion: false, windowMaterial: 'mica', themeId: 'pink' }
+    const on = withAir(before, true)
+    expect(isAir(on)).toBe(true)
+    expect(perfModeOf(on)).toBe('eco')
+    expect(on.reduceMotion).toBe(true)
+    expect(on.windowMaterial).toBe('solid')
+    const off = withAir(on, false)
+    expect(isAir(off)).toBe(false)
+    expect(perfModeOf(off)).toBe('reduced')
+    expect(off.reduceMotion).toBe(false)
+    expect(off.windowMaterial).toBe('mica')
+    expect(off.themeId).toBe('pink')
+    expect(off.airRestore).toBeUndefined()
+  })
+
+  it('is idempotent and safe without a stored restore', async () => {
+    const { withAir, perfModeOf } = await import('../src/renderer/src/lib/power.js')
+    const on = withAir(withAir({}, true), true)
+    expect(on.airRestore.perfMode).toBe('full')
+    const off = withAir({ sushAir: true }, false)
+    expect(perfModeOf(off)).toBe('full')
+  })
+})
+
+describe('.bat tool hardening', () => {
+  it('refuses cmd metacharacters in .bat args', () => {
+    const cmd = buildToolCommand({ path: 'C:\\TOOLS\\x.bat', ext: '.bat' }, ['a&calc'], { platform: 'win32' })
+    expect(cmd.error).toBeTruthy()
+  })
+
+  it('routes clean .bat runs through cmd /c without a shell', () => {
+    const cmd = buildToolCommand({ path: 'C:\\TOOLS\\x.bat', ext: '.bat' }, ['ok'], { platform: 'win32' })
+    expect(cmd).toEqual({ file: 'cmd', args: ['/c', 'C:\\TOOLS\\x.bat', 'ok'] })
+  })
+})

@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
+import { atomicWriteJson } from '../secure-storage'
 
 // Global (not per-identity) OAuth client config. It must be readable before
 // anyone signs in — the lock screen needs it — so it lives next to
@@ -59,7 +60,7 @@ export function setOauthConfig(patch = {}) {
     if (typeof patch.google.clientId === 'string') s.google.clientId = patch.google.clientId.trim()
     if (typeof patch.google.clientSecret === 'string') s.google.clientSecret = patch.google.clientSecret.trim()
   }
-  try { writeFileSync(configFile(), JSON.stringify(s, null, 2), 'utf8') } catch (e) {
+  try { atomicWriteJson(configFile(), s) } catch (e) {
     return { ok: false, error: e.message }
   }
   return { ok: true }

@@ -35,3 +35,6 @@ release/
 # MCP / tooling artifacts
 .playwright-mcp/
 .claude/
+
+.meetroom/
+electron.vite.config.*.mjs

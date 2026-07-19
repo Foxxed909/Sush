@@ -227,6 +227,8 @@ export default function TitleBar({ accent, onSettings, sessionCount = 0, themeId
       data-glass
       className="flex items-center justify-between shrink-0"
       style={{
+        position: 'relative',
+        zIndex: 1000,
         background: 'rgba(10,11,13,0.6)',
         height: 40,
         padding: '0 14px',

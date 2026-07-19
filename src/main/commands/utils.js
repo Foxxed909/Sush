@@ -76,7 +76,7 @@ export const notify = {
       }
       // Fallback for headless / unsupported environments.
       if (process.platform === 'darwin') {
-        execFileSync('osascript', ['-e', `display notification "${msg.replace(/"/g, '\\"')}" with title "Sush"`])
+        execFileSync('osascript', ['-e', `display notification "${msg.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" with title "Sush"`])
       } else if (process.platform === 'linux') {
         execFileSync('notify-send', ['Sush', msg])
       } else {

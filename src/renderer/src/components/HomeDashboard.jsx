@@ -454,10 +454,14 @@ function NpmScriptsSection({ accent, cwd, onRun }) {
   const [scripts, setScripts] = useState(null)
 
   useEffect(() => {
+    // Stale-resolve guard — a slow read for the previous cwd must not paint
+    // (and run) another project's scripts.
+    let ignore = false
     if (!cwd) { setScripts(null); return }
     window.sush?.getNpmScripts?.({ cwd })
-      .then(res => { if (res?.ok && Object.keys(res.scripts || {}).length) { setScripts(res.scripts) } else { setScripts(null) } })
-      .catch(() => setScripts(null))
+      .then(res => { if (!ignore) setScripts(res?.ok && Object.keys(res.scripts || {}).length ? res.scripts : null) })
+      .catch(() => { if (!ignore) setScripts(null) })
+    return () => { ignore = true }
   }, [cwd])
 
   if (!scripts) return null

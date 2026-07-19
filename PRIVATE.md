@@ -2,6 +2,21 @@
 
 ## Architecture decisions this cycle
 
+- **4.11.0 review cycle**: ~20 confirmed fixes from a four-agent audit (main,
+  renderer, shell/commands, dupes). Windows spawn hardening pattern is now
+  `cmd /c` + metachar rejection (`/[&|<>^%"]/`) — used in tools.js `.bat`,
+  dev.js npm wrapping, claudePanel.js `--resume` sessionId validation. Atomic
+  JSON writes (secure-storage `atomicWriteJson`) adopted in credits.js and
+  oauth/config.js. Renderer stale-async guards standardized on the `reqId`
+  ref pattern (Scripts/Tasks/Memory tabs) and `let ignore` (HomeDashboard).
+  Dropped deps: execa, electron-store (zero imports). Deliberately NOT done:
+  localStorage-parse consolidation (all 12 sites already guarded — pure
+  churn), tilde-expansion dedup, tts/stt shared-lines extraction.
+- **Sush Air is composition, not a mode**: `withAir()` in lib/power.js writes
+  perfMode 'eco' + reduceMotion + solid material and stashes the prior three
+  keys in `airRestore`; nothing downstream knows Air exists. Hand-picking a
+  ladder rung while Air is on exits Air first so the choice sticks.
+
 - **4.10.0 "sotto" review cycle**: Hunt overlay reuses ScrollbackStore.search
   via one new IPC (`sush:hunt-search`) that resolves labels main-side — the
   renderer never re-implements the search. Digest is renderer-orchestrated

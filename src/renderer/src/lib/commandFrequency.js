@@ -32,7 +32,7 @@ function isAliasable(cmd) {
 function load(key) {
   try {
     const value = JSON.parse(localStorage.getItem(key) || 'null')
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     let changed = false
     for (const command of Object.keys(value)) {
       if (!isSensitiveCommand(command)) continue

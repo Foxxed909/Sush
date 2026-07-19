@@ -1,7 +1,7 @@
 import React from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
-import { PERF_MODES, perfModeOf, withPerfMode } from '../../lib/power'
+import { PERF_MODES, perfModeOf, withPerfMode, isAir, withAir } from '../../lib/power'
 import { Section, Row, Label, Hint, Toggle } from './primitives'
 
 // Power — everything battery/CPU shaped in one place. The headline is the
@@ -21,10 +21,26 @@ const SLEEP_MINUTES = [0, 5, 10, 20, 30]
 
 export default function PowerSection({ accent, settings, set, onChange }) {
   const mode = perfModeOf(settings)
-  const setMode = (m) => onChange(withPerfMode(settings, m))
+  const air = isAir(settings)
+  // Picking a rung by hand ends Air first, so the choice sticks instead of
+  // being silently owned by the preset.
+  const setMode = (m) => onChange(withPerfMode(air ? withAir(settings, false) : settings, m))
 
   return (
     <Section id="Power" icon="leaf" label="Power" accent={accent}>
+      <Row>
+        <Label>Sush Air</Label>
+        <Toggle
+          accent={accent}
+          icon="feather"
+          on={air}
+          onText="On — eco rendering, no motion, solid window"
+          offText="Off — your own ladder and appearance apply"
+          onClick={() => onChange(withAir(settings, !air))}
+        />
+        <Hint>The whole light profile in one switch: Eco mode plus reduced motion and a solid window material. Turning it off puts back exactly what you had before.</Hint>
+      </Row>
+
       <Row>
         <Label>Performance mode</Label>
         {/* The ladder: rungs light up cumulatively so "Saver includes Reduced"

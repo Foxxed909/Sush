@@ -162,6 +162,14 @@ export function useIdentity() {
     return res
   }, [refresh])
 
+  const factoryReset = useCallback(async ({ confirmation, keepLicense = false } = {}) => {
+    try {
+      return await window.sush.factoryReset({ confirmation, keepLicense })
+    } catch (error) {
+      return { ok: false, error: error?.message || 'Factory reset failed' }
+    }
+  }, [])
+
   return {
     ...state,
     ready: !state.loading && !state.locked,
@@ -171,6 +179,7 @@ export function useIdentity() {
     lock,
     signOut,
     refresh,
-    removeUser
+    removeUser,
+    factoryReset
   }
 }

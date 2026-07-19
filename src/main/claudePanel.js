@@ -193,6 +193,11 @@ export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissio
   if (!bin) return { ok: false, error: 'The `claude` CLI was not found on your PATH.' }
 
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages']
+  // sessionId lands on argv, and on Windows the .cmd shim goes through
+  // cmd.exe which re-parses argv — only a UUID shape is allowed through.
+  if (sessionId && !/^[0-9a-fA-F-]{1,64}$/.test(String(sessionId))) {
+    return { ok: false, error: 'Invalid session id' }
+  }
   if (sessionId) args.push('--resume', String(sessionId))
   // Panel default: plan-free editing inside the chosen workspace dir, still
   // gated by Claude Code's own permission config. 'acceptEdits' keeps file

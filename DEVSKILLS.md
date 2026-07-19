@@ -2,10 +2,10 @@
 
 ## Stack
 - Languages: JavaScript (ESM), JSX, CSS
-- Runtime: Electron 31 (main + preload + renderer), Node.js
-- Frontend: React 18, hand-rolled CSS design system (no Tailwind in the renderer UI), xterm.js (+ fit/search/web-links/webgl addons)
-- Build: electron-vite 2 / Vite 5, electron-builder (NSIS / dmg / AppImage)
-- Storage: electron-store (main), localStorage (renderer settings), safeStorage-encrypted API keys
+- Runtime: Electron 43 (main + preload + renderer), Node.js 22.12+
+- Frontend: React 18, tokenized CSS design system + Tailwind utilities for layout, xterm.js (+ fit/search/web-links/webgl addons)
+- Build: electron-vite 5 / Vite 7, electron-builder (NSIS / dmg / AppImage)
+- Storage: hand-rolled JSON files in main (secure-storage.js), localStorage (renderer settings), safeStorage-encrypted API keys
 - Terminals: node-pty
 - Testing: Vitest
 

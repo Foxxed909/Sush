@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync, rmSync } from 'fs'
+import { existsSync, readFileSync, rmSync } from 'fs'
 import { resolveStoredLicense, verifySignedCode } from './license-core.mjs'
+import { atomicWriteJson } from './secure-storage'
 
 // Offline tier gating. The user redeems a code I mint (tools/mint-code.mjs); the
 // app verifies it locally — no server, no payment. Verification is HMAC-based,
@@ -72,14 +73,19 @@ export function redeemCode(raw) {
       : current.previousCode
     if (keeper) data.previousCode = keeper
   }
-  try { writeFileSync(file(), JSON.stringify(data, null, 2), 'utf8') } catch (e) { return { ok: false, error: e.message } }
+  try { atomicWriteJson(file(), data) } catch (e) { return { ok: false, error: e.message } }
   emitChange()
   return { ok: true, tier: v.tier, features: TIER_FEATURES[v.tier] }
 }
 
 // Revert to free (dev/testing, and a user-facing "remove code").
 export function clearLicense() {
-  try { if (existsSync(file())) rmSync(file()) } catch {}
+  try {
+    if (existsSync(file())) rmSync(file())
+    if (existsSync(file())) return { ok: false, error: 'Could not remove the saved license.' }
+  } catch (error) {
+    return { ok: false, error: error?.message || 'Could not remove the saved license.' }
+  }
   emitChange()
   return { ok: true, tier: 'free', features: TIER_FEATURES.free }
 }
@@ -93,5 +99,12 @@ export function limitOf(feature) { return featuresOf()[feature] }
 // and the whole tier table (so the Plan screen can show what each unlocks).
 export function licensePublic() {
   const lic = getLicense()
-  return { tier: lic.tier, expiry: lic.expiry || null, features: featuresOf(lic.tier), tiers: TIER_FEATURES }
+  const fallback = lic.expiry && lic.previousCode ? verifyCode(lic.previousCode) : null
+  return {
+    tier: lic.tier,
+    expiry: lic.expiry || null,
+    fallbackTier: fallback?.ok && !fallback.expiry ? fallback.tier : null,
+    features: featuresOf(lic.tier),
+    tiers: TIER_FEATURES
+  }
 }

@@ -83,7 +83,13 @@ export default function PlansPage({ accent, ent, onDismiss }) {
     if (r?.ok) { setMsg({ ok: true, text: `Unlocked ${TIER_META[r.tier]?.label || r.tier}. Enjoy.` }); setCode('') }
     else setMsg({ ok: false, text: r?.error || 'Could not redeem that code.' })
   }
-  const revert = async () => { await ent.clear(); setMsg({ ok: true, text: 'Reverted to Free.' }); setCode('') }
+  const revert = async () => {
+    const result = await ent.clear()
+    setMsg(result?.ok
+      ? { ok: true, text: 'Reverted to Free.' }
+      : { ok: false, text: result?.error || 'Could not remove the saved code.' })
+    if (result?.ok) setCode('')
+  }
 
   return (
     <div className="sush-page-in sush-scroll" style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'var(--surface-0)', overflowY: 'auto' }}>
@@ -243,7 +249,8 @@ export default function PlansPage({ accent, ent, onDismiss }) {
           {msg && <div style={{ marginTop: 9, fontSize: 11.5, fontWeight: 700, color: msg.ok ? '#7fd6a0' : '#ff8aa0' }}>{msg.text}</div>}
           {ent.expiry && (
             <div style={{ marginTop: 9, fontSize: 11.5, fontWeight: 700, color: TIER_META[tier]?.color }}>
-              Your {TIER_META[tier]?.label} code is a trial — it reverts to Free when it expires.
+              Your {TIER_META[tier]?.label} code expires on {`${ent.expiry.slice(0, 4)}-${ent.expiry.slice(4, 6)}-${ent.expiry.slice(6, 8)}`}
+              {' '}and reverts to {TIER_META[ent.fallbackTier]?.label || 'Free'}.
             </div>
           )}
           <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 12, lineHeight: 1.6, maxWidth: '58ch', textAlign: 'center' }}>

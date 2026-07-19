@@ -1,6 +1,6 @@
 import { app } from 'electron'
-import { join } from 'path'
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import { dirname, join } from 'path'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'fs'
 import { randomBytes, scryptSync, timingSafeEqual, randomUUID } from 'crypto'
 import { accountSlotEnv } from './accounts'
 import { atomicWriteJson, identityDirectoryPath, identityStoragePath, validIdentityId } from './secure-storage'
@@ -21,15 +21,19 @@ import { atomicWriteJson, identityDirectoryPath, identityStoragePath, validIdent
 
 const STORE_VERSION = 2
 
-let storeFile = null
-let store = {
-  version: STORE_VERSION,
-  users: [],
-  activeId: null,
-  lastUserId: null,
-  legacyOwnerId: null,
-  legacyOwnershipEstablished: false
+function emptyStore() {
+  return {
+    version: STORE_VERSION,
+    users: [],
+    activeId: null,
+    lastUserId: null,
+    legacyOwnerId: null,
+    legacyOwnershipEstablished: false
+  }
 }
+
+let storeFile = null
+let store = emptyStore()
 let identityTransitionHandler = null
 
 // Main owns process/session cleanup, while this module owns every activation
@@ -47,6 +51,7 @@ export function userHomeDir(userId) {
 
 function load() {
   storeFile = join(app.getPath('userData'), 'sush-users.json')
+  store = emptyStore()
   try {
     if (existsSync(storeFile)) {
       const data = JSON.parse(readFileSync(storeFile, 'utf8'))
@@ -185,9 +190,14 @@ export function createUser({ name, color, avatar, avatarUrl, pin, isolation } = 
     store.legacyOwnerId = user.id
     store.legacyOwnershipEstablished = true
   }
+  const identityDir = identityDirectoryPath(app.getPath('userData'), user.id)
+  const createdIdentityDir = !!identityDir && !existsSync(identityDir)
   ensureUserDirs(user)
   if (!save()) {
     store = previous
+    if (createdIdentityDir) {
+      try { rmSync(identityDir, { recursive: true, force: true }) } catch {}
+    }
     return { ok: false, error: 'Could not save identity' }
   }
   return { ok: true, user: publicUser(user) }
@@ -237,12 +247,16 @@ export function deleteUser({ id, wipeData } = {}) {
   const previous = snapshotStore()
   const user = findUser(id)
   if (!user) return { ok: false, error: 'User not found' }
+  let stagedDir = null
+  let originalDir = null
   if (wipeData) {
     try {
-      const dir = identityDirectoryPath(app.getPath('userData'), id)
-      if (!dir) return { ok: false, error: 'Invalid identity data path' }
-      rmSync(dir, { recursive: true, force: true })
-      if (existsSync(dir)) return { ok: false, error: 'Could not fully wipe identity data; identity was not removed.' }
+      originalDir = identityDirectoryPath(app.getPath('userData'), id)
+      if (!originalDir) return { ok: false, error: 'Invalid identity data path' }
+      if (existsSync(originalDir)) {
+        stagedDir = join(dirname(originalDir), `.deleting-${id}-${randomBytes(4).toString('hex')}`)
+        renameSync(originalDir, stagedDir)
+      }
     } catch {
       return { ok: false, error: 'Could not fully wipe identity data; identity was not removed.' }
     }
@@ -252,9 +266,23 @@ export function deleteUser({ id, wipeData } = {}) {
   if (store.lastUserId === id) store.lastUserId = null
   if (!save()) {
     store = previous
+    if (stagedDir && originalDir) {
+      try { renameSync(stagedDir, originalDir) } catch {
+        return { ok: false, error: 'Could not save identity, and its data could not be restored automatically.' }
+      }
+    }
     return { ok: false, error: 'Could not save identity' }
   }
-  return { ok: true }
+  let warning = null
+  if (stagedDir) {
+    try {
+      rmSync(stagedDir, { recursive: true, force: true })
+      if (existsSync(stagedDir)) warning = 'Identity removed, but some quarantined data could not be erased.'
+    } catch {
+      warning = 'Identity removed, but some quarantined data could not be erased.'
+    }
+  }
+  return warning ? { ok: true, warning } : { ok: true }
 }
 
 export function verifyPin(user, pin) {

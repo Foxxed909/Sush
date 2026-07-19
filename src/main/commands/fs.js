@@ -112,9 +112,14 @@ export const cd = {
     } catch {
       return err(`cd: cannot access: ${label}`)
     }
+    // Update the built-in shell's cwd directly — shells without an OSC7 prompt
+    // hook (cmd.exe, stock PowerShell) never report their cwd back, which left
+    // built-ins operating on the old directory after a cd.
+    const prevCwd = ctx.cwd
+    ctx.setCwd(next)
     return {
       ...ok(`changing directory: ${next}`),
-      action: { name: 'passthrough', input: buildCdPassthrough(next, ctx.shellId), cwd: ctx.cwd }
+      action: { name: 'passthrough', input: buildCdPassthrough(next, ctx.shellId), cwd: prevCwd }
     }
   }
 }

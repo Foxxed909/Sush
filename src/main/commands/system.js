@@ -131,8 +131,12 @@ export function normalizePort(port) {
 
 export function parseWindowsNetstat(raw) {
   return String(raw || '').split('\n').map(line => {
-    if (!line.includes('LISTENING')) return null
     const parts = line.trim().split(/\s+/)
+    // Match the row shape instead of the state word — netstat localizes
+    // "LISTENING" ("ABHÖREN", ...). A listening TCP row has the wildcard
+    // foreign address `0.0.0.0:0` / `[::]:0`.
+    if (parts[0] !== 'TCP' && parts[0] !== 'TCPv6') return null
+    if (!/:0$/.test(parts[2] ?? '')) return null
     const address = parts[1]
     const port = address?.match(/:(\d+)$/)?.[1]
     const pid = parts[4]

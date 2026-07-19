@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
+import { buildSshCommand, normalizeSshPort, normalizeSshProfiles } from '../../lib/ssh'
 import { PanelEmpty, TabHeader } from './shared'
 
 // ---------- SSH Quick-Connect ----------
 const SSH_PROFILES_KEY = 'sush-ssh-profiles'
 function loadSshProfiles() {
-  try { return JSON.parse(localStorage.getItem(SSH_PROFILES_KEY) ?? '[]') } catch { return [] }
+  try { return normalizeSshProfiles(JSON.parse(localStorage.getItem(SSH_PROFILES_KEY) ?? '[]')) } catch { return [] }
 }
 
-function SshTab({ accent, onNewTab, onRun }) {
+function SshTab({ accent, onNewTab, onRun, shellId = 'powershell' }) {
   const [profiles, setProfiles] = useState(loadSshProfiles)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ label: '', user: '', host: '', port: '22', keyPath: '' })
@@ -24,13 +25,14 @@ function SshTab({ accent, onNewTab, onRun }) {
 
   const save = () => {
     const { label, user, host } = form
-    if (!host.trim()) return
+    const port = normalizeSshPort(form.port)
+    if (!host.trim() || !port) return
     const entry = {
       id: `ssh-${Date.now()}`,
       label: label.trim() || `${user ? user + '@' : ''}${host}`,
       user: user.trim(),
       host: host.trim(),
-      port: form.port.trim() || '22',
+      port,
       keyPath: form.keyPath.trim()
     }
     persist([...profiles, entry])
@@ -41,12 +43,8 @@ function SshTab({ accent, onNewTab, onRun }) {
   const del = (id) => persist(profiles.filter(p => p.id !== id))
 
   const connect = (p) => {
-    const parts = ['ssh']
-    if (p.user) parts.push(`${p.user}@${p.host}`)
-    else parts.push(p.host)
-    if (p.port && p.port !== '22') parts.push('-p', p.port)
-    if (p.keyPath) parts.push('-i', p.keyPath)
-    const cmd = parts.join(' ')
+    const cmd = buildSshCommand(p, { platform: window.sush?.platform || 'win32', shellId })
+    if (!cmd) return
     if (onNewTab) onNewTab({ command: cmd })
     else onRun?.(cmd)
   }
@@ -87,7 +85,7 @@ function SshTab({ accent, onNewTab, onRun }) {
           ))}
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
             <button onClick={() => setCreating(false)} style={{ padding: '4px 11px', borderRadius: 6, border: '1px solid var(--border-2)', background: 'transparent', color: 'var(--text-3)', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={save} disabled={!form.host.trim()} style={{ padding: '4px 11px', borderRadius: 6, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.12), color: accent, fontSize: 11, fontWeight: 700, cursor: form.host.trim() ? 'pointer' : 'default', opacity: form.host.trim() ? 1 : 0.5 }}>Save</button>
+            <button onClick={save} disabled={!form.host.trim() || !normalizeSshPort(form.port)} style={{ padding: '4px 11px', borderRadius: 6, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.12), color: accent, fontSize: 11, fontWeight: 700, cursor: form.host.trim() && normalizeSshPort(form.port) ? 'pointer' : 'default', opacity: form.host.trim() && normalizeSshPort(form.port) ? 1 : 0.5 }}>Save</button>
           </div>
         </div>
       )}

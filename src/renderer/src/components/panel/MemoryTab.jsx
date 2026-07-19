@@ -29,15 +29,20 @@ function MemoryTab({ accent, cwd }) {
   const [newName, setNewName] = useState('')
   const createRef = useRef(null)
 
+  const reqId = useRef(0)
   const refresh = () => {
+    // Stale-resolve guard — notes from the previous workspace must not land
+    // after a fast cwd switch.
+    const id = ++reqId.current
     if (!cwd) { setNotes([]); return }
-    window.sush?.memoryList?.({ cwd }).then(res => setNotes(res.notes || [])).catch(() => setNotes([]))
+    window.sush?.memoryList?.({ cwd }).then(res => { if (id === reqId.current) setNotes(res.notes || []) }).catch(() => { if (id === reqId.current) setNotes([]) })
   }
   useEffect(() => { refresh(); setSelected(null) }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (creating) createRef.current?.focus() }, [creating])
 
   const openNote = (name) => {
-    window.sush?.memoryRead?.({ cwd, name }).then(res => setSelected(res)).catch(() => {})
+    const id = reqId.current
+    window.sush?.memoryRead?.({ cwd, name }).then(res => { if (id === reqId.current) setSelected(res) }).catch(() => {})
   }
   const createNote = (name) => {
     const safe = String(name || '').trim()

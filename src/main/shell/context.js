@@ -25,8 +25,11 @@ export class ShellContext {
 
   // Expand aliases in input before dispatch.
   expandAliases(input) {
-    const [first, ...rest] = input.trim().split(/\s+/)
-    if (this.aliases[first]) return `${this.aliases[first]} ${rest.join(' ')}`.trimEnd()
+    const trimmed = input.trim()
+    const first = trimmed.split(/\s+/, 1)[0]
+    // Only the alias word is replaced; the rest of the line stays verbatim so
+    // quoting and internal spacing in arguments survive expansion.
+    if (this.aliases[first]) return `${this.aliases[first]}${trimmed.slice(first.length)}`.trimEnd()
     return input
   }
 }

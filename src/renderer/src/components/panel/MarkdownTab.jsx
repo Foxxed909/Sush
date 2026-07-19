@@ -10,6 +10,8 @@ function MarkdownTab({ accent, cwd, initialPath }) {
   const [content, setContent] = useState(null)
   const [loading, setLoading] = useState(false)
   const [mdError, setMdError] = useState(null)
+  const aliveRef = useRef(true)
+  useEffect(() => () => { aliveRef.current = false }, [])
 
   const load = useCallback(async (p) => {
     const target = (p ?? path).trim()
@@ -17,10 +19,11 @@ function MarkdownTab({ accent, cwd, initialPath }) {
     setLoading(true); setMdError(null)
     try {
       const res = await window.sush?.readFile?.({ path: target })
+      if (!aliveRef.current) return
       if (res?.ok) { setContent(res.content); setPath(target) }
       else setMdError(res?.error || 'Could not read file')
-    } catch (e) { setMdError(e.message) }
-    finally { setLoading(false) }
+    } catch (e) { if (aliveRef.current) setMdError(e.message) }
+    finally { if (aliveRef.current) setLoading(false) }
   }, [path])
 
   // Auto-load when initialPath changes (e.g. clicking a .md file in Files tab)

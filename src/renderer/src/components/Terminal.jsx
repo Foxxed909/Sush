@@ -72,7 +72,9 @@ export default function Terminal({
   }, [])
 
   useEffect(() => {
-    if (active) setTimeout(() => { fit(); focus() }, 10)
+    if (!active) return
+    const t = setTimeout(() => { fit(); focus() }, 10)
+    return () => clearTimeout(t)
   }, [active, fit, focus])
 
   // Ctrl+F to open search

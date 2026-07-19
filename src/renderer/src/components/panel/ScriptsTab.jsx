@@ -5,12 +5,16 @@ import { PanelEmpty, TabHeader } from './shared'
 // ---------- Scripts (npm/package.json) ----------
 function ScriptsTab({ accent, cwd, onRun }) {
   const [data, setData] = useState(null)
+  const reqId = useRef(0)
 
   const load = () => {
+    // Guard against a stale resolve after a fast session switch — an old
+    // project's scripts must not render (and run) under the new cwd.
+    const id = ++reqId.current
     if (!cwd) { setData({ scripts: {} }); return }
     window.sush?.getNpmScripts?.({ cwd })
-      .then(res => setData(res))
-      .catch(() => setData({ scripts: {} }))
+      .then(res => { if (id === reqId.current) setData(res) })
+      .catch(() => { if (id === reqId.current) setData({ scripts: {} }) })
   }
 
   useEffect(() => { load() }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps

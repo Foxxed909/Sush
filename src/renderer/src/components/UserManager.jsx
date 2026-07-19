@@ -7,12 +7,16 @@ const USER_COLORS = ['#ff6b9d', '#a78bfa', '#5fd3a8', '#ffcb6b', '#60a5fa', '#f9
 
 // Manage Sush identities: rename, recolor, change PIN, isolation level,
 // delete (optionally wiping the identity's data directory + stored state).
-export default function UserManager({ users, currentUser, accent, onClose, onChanged, onRemove }) {
+export default function UserManager({ users, currentUser, accent, onClose, onChanged, onRemove, onFactoryReset }) {
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)  // user object
   const [wipe, setWipe] = useState(true)
   const [error, setError] = useState('')
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [resetPhrase, setResetPhrase] = useState('')
+  const [keepLicense, setKeepLicense] = useState(false)
+  const [resetBusy, setResetBusy] = useState(false)
 
   const startEdit = (user) => {
     setEditingId(user.id)
@@ -39,6 +43,17 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
     const res = await onRemove?.(confirmDelete.id, wipe)
     if (res && !res.ok) { setError(res.error || 'Delete failed'); return }
     setConfirmDelete(null)
+  }
+
+  const doFactoryReset = async () => {
+    if (resetPhrase !== 'RESET SUSH' || resetBusy) return
+    setError('')
+    setResetBusy(true)
+    const res = await onFactoryReset?.({ confirmation: resetPhrase, keepLicense })
+    if (!res?.ok) {
+      setResetBusy(false)
+      setError(res?.error || 'Factory reset failed')
+    }
   }
 
   const unlink = async (userId, provider) => {
@@ -86,7 +101,36 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
         </div>
 
-        {confirmDelete ? (
+        {confirmReset ? (
+          <div style={{ padding: '6px 2px' }}>
+            <div style={{ color: 'var(--text-1)', fontWeight: 900, fontSize: 15, marginBottom: 8 }}>Start Sush completely fresh?</div>
+            <div style={{ color: 'var(--text-3)', fontSize: 12.5, lineHeight: 1.65, marginBottom: 14 }}>
+              This erases {users.length} identit{users.length === 1 ? 'y' : 'ies'}, their CLI logins and provider tokens, terminal profiles, settings, saved sessions, scrollback, voice configuration, and Quiet Credits. Sush then restarts at onboarding. Project files and <code>.sushrc</code> stay untouched.
+            </div>
+            <label className="flex items-center" style={{ gap: 8, color: 'var(--text-2)', fontSize: 12.5, marginBottom: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={keepLicense} onChange={e => setKeepLicense(e.target.checked)} />
+              Keep the current offline plan code
+            </label>
+            <div style={{ color: 'var(--text-3)', fontSize: 11.5, marginBottom: 7 }}>Type <b style={{ color: 'var(--text-1)' }}>RESET SUSH</b> to confirm.</div>
+            <input
+              autoFocus
+              value={resetPhrase}
+              onChange={e => setResetPhrase(e.target.value.toUpperCase())}
+              placeholder="RESET SUSH"
+              className="sush-mono"
+              style={{ ...field, marginBottom: 12 }}
+            />
+            {error && <div style={{ color: '#ff8aa0', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+            <div className="flex" style={{ gap: 8 }}>
+              <button disabled={resetPhrase !== 'RESET SUSH' || resetBusy} onClick={doFactoryReset} style={{ padding: '8px 16px', borderRadius: 9, border: 'none', background: '#ff5370', color: '#0a0a0c', fontWeight: 900, fontSize: 12.5, cursor: resetPhrase === 'RESET SUSH' && !resetBusy ? 'pointer' : 'default', opacity: resetPhrase === 'RESET SUSH' && !resetBusy ? 1 : 0.45 }}>
+                {resetBusy ? 'Resetting and restarting…' : 'Erase everything and restart'}
+              </button>
+              <button disabled={resetBusy} onClick={() => { setConfirmReset(false); setResetPhrase(''); setError('') }} style={{ padding: '8px 16px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: 'var(--text-2)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : confirmDelete ? (
           <div style={{ padding: '6px 2px' }}>
             <div style={{ color: 'var(--text-1)', fontWeight: 800, fontSize: 14, marginBottom: 8 }}>
               Delete “{confirmDelete.name}”?
@@ -94,6 +138,7 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
             <div style={{ color: 'var(--text-3)', fontSize: 12.5, lineHeight: 1.6, marginBottom: 14 }}>
               This removes the identity from Sush.
               {confirmDelete.id === currentUser?.id && ' You are deleting the signed-in user — you will be signed out.'}
+              {users.length === 1 && ' This is the final identity, so Sush will return to onboarding.'}
             </div>
             <label className="flex items-center" style={{ gap: 8, color: 'var(--text-2)', fontSize: 12.5, marginBottom: 16, cursor: 'pointer' }}>
               <input type="checkbox" checked={wipe} onChange={e => setWipe(e.target.checked)} />
@@ -148,9 +193,8 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
                       </button>
                       <button
                         onClick={() => { setConfirmDelete(user); setWipe(true); setError('') }}
-                        disabled={users.length <= 1}
-                        title={users.length <= 1 ? 'The last user cannot be deleted' : 'Delete your active identity'}
-                        style={{ background: 'none', border: 'none', color: users.length <= 1 ? 'var(--text-5)' : '#ff5370', cursor: users.length <= 1 ? 'default' : 'pointer', fontSize: 12, fontWeight: 800 }}
+                        title={users.length <= 1 ? 'Delete the final identity and return to onboarding' : 'Delete your active identity'}
+                        style={{ background: 'none', border: 'none', color: '#ff5370', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}
                       >
                         delete
                       </button>
@@ -237,6 +281,13 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
 
             <div style={{ fontSize: 10.5, color: 'var(--text-4)', lineHeight: 1.6, marginTop: 4 }}>
               Each identity manages its own PIN and connected accounts after signing in. CLI logins live in <code style={{ color: 'var(--text-3)' }}>identities/&lt;id&gt;/home</code>, and signing out closes that identity's sessions.
+            </div>
+            <div style={{ marginTop: 8, padding: 12, borderRadius: 11, border: '1px solid rgba(255,83,112,0.22)', background: 'rgba(255,83,112,0.045)' }}>
+              <div style={{ color: 'var(--text-1)', fontSize: 12.5, fontWeight: 850, marginBottom: 4 }}>Fresh start</div>
+              <div style={{ color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.5, marginBottom: 9 }}>Erase every Sush identity and local app state in one verified reset.</div>
+              <button onClick={() => { setConfirmReset(true); setResetPhrase(''); setError('') }} style={{ padding: '7px 13px', borderRadius: 8, border: '1px solid rgba(255,83,112,0.35)', background: 'rgba(255,83,112,0.08)', color: '#ff8aa0', fontSize: 11.5, fontWeight: 850, cursor: 'pointer' }}>
+                Start fresh…
+              </button>
             </div>
           </div>
         )}

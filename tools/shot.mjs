@@ -243,6 +243,14 @@ await page.waitForTimeout(600)
 await shot('10-hunt')
 await page.keyboard.press('Escape')
 
+// 11-12 — Identity manager + destructive Fresh Start confirmation. Keep these
+// in the visual walk so reset controls cannot silently regress off-screen.
+await page.locator('[title="Signed in as Taylor"]').click()
+await page.getByText('Manage users…', { exact: true }).click()
+await shot('11-users')
+await page.getByText('Start fresh…', { exact: true }).click()
+await shot('12-fresh-start')
+
 await browser.close()
 server.close()
 console.log('done →', outDir)

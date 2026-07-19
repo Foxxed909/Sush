@@ -123,7 +123,12 @@ export const base = {
     const fromBase = from ? parseInt(from, 10) : null
     const { radix, digits } = fromBase ? { radix: fromBase, digits: value } : detectRadix(value)
     if (radix < 2 || radix > 36) return err('base: fromBase must be between 2 and 36')
-    const n = parseInt(digits, radix)
+    // parseInt stops at the first invalid char (`base 123xyz` → 123) —
+    // require every digit to be legal for the radix.
+    const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'.slice(0, radix)
+    const body = digits.replace(/^-/, '')
+    const valid = body.length > 0 && [...body.toLowerCase()].every(c => alphabet.includes(c))
+    const n = valid ? parseInt(digits, radix) : NaN
     if (Number.isNaN(n)) return err(`base: "${value}" is not a valid base-${radix} integer`)
 
     if (to) {

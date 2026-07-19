@@ -4,6 +4,20 @@
 
 ## Latest release highlights
 
+### 🪶 Sush Air
+One switch for the whole light profile. Flip **Sush Air** in Settings → Power
+(or from the command palette) and Sush drops to eco rendering, freezes all
+motion, and goes to a solid window — then puts *exactly* your old setup back
+when you turn it off.
+
+### 🧰 Review cycle 4.11.0
+A deep pass over the whole app: safer command handling on Windows (`.bat`
+tools, package installs, app launching), quoting that respects apostrophes,
+port listings that work on non-English Windows, history search you can see
+while you cycle (Ctrl+R), and a stack of small leak and race fixes across the
+panels. Two unused dependencies removed — Sush is lighter before Air even
+kicks in.
+
 ### 🔍 Hunt, with a face
 `Ctrl+Shift+F` opens the **Hunt overlay**: type once and watch matches from
 *every* session's output — live terminals and the saved scrollback of sessions

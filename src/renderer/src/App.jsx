@@ -29,6 +29,7 @@ import { LATEST_VERSION } from './lib/changelog'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { allThemes, getTheme } from './themes'
+import { parseStoredObject } from './lib/storage'
 import { agentById, MAX_SESSIONS, LOGIN_COMMANDS } from './lib/agents'
 import { loadCrews, crewToAgents } from './lib/crews'
 import { runningTargets as seduciaTargets } from './lib/seducia'
@@ -42,7 +43,7 @@ import { useAutoAlias } from './hooks/useAutoAlias'
 import { useSplitView } from './hooks/useSplitView'
 import { useUsageGuard } from './hooks/useUsageGuard'
 import { recordCommand } from './lib/commandFrequency'
-import { perfModeOf, withPerfMode } from './lib/power'
+import { perfModeOf, withPerfMode, isAir, withAir } from './lib/power'
 import { cliComplete } from './lib/ai'
 import { buildDigestMarkdown, digestSummaryPrompt } from './lib/digest'
 import { countersAfterTabs } from './lib/sessionIds'
@@ -159,7 +160,7 @@ function makeTab(profile, options = {}) {
 }
 
 function loadSettings() {
-  try { return JSON.parse(localStorage.getItem('sush-settings') ?? '{}') } catch { return {} }
+  return parseStoredObject(localStorage.getItem('sush-settings'))
 }
 
 function minutesOfDay(value, fallback) {
@@ -1697,6 +1698,7 @@ export default function App() {
     else if (action === 'switch-user') identity.signOut()
     else if (action === 'manage-users') setShowUserManager(true)
     else if (action === 'broadcast') setBroadcastMode(prev => !prev)
+    else if (action === 'air') saveSettings(withAir(settings, !isAir(settings)))
     else if (action === 'grid') {
       setGridMode(prev => {
         if (!prev && tabsRef.current.length < 2) return prev
@@ -1750,6 +1752,7 @@ export default function App() {
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
       { id: 'act-switch-user', label: 'Switch User / Sign Out', description: 'Closes your sessions and opens the user picker', icon: 'users', action: 'switch-user' },
       { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
+      { id: 'act-air', label: isAir(settings) ? 'Sush Air: Off' : 'Sush Air: On', description: 'One-click light profile — eco rendering, no motion, solid window', icon: 'feather', action: 'air' },
     ]
     base.push(
       { id: 'act-grid', label: 'Toggle Grid Layout', description: 'Tile every session in an auto-sized grid (Ctrl+Shift+G)', icon: 'grid', action: 'grid' },
@@ -1806,7 +1809,7 @@ export default function App() {
       historyEntries.push({ id: `hist-${historyEntries.length}-${cmd}`, label: cmd, description: 'Recent command', icon: 'clock', run: cmd })
     }
     return [...base, ...crewEntries, ...snippetEntries, ...sessions, ...recents, ...historyEntries, ...themeEntries]
-  }, [tabs, themeId, recentSessions, snippets, commandHistory])
+  }, [tabs, themeId, recentSessions, snippets, commandHistory, settings])
 
   // Power-user session shortcuts (v3.1):
   //   Ctrl+1..8  jump to session N      Ctrl+9            jump to last session
@@ -2194,6 +2197,7 @@ export default function App() {
               onOpenLauncher={() => setShowLauncher(true)}
               onClose={() => setRightOpen(false)}
               onNewTab={(options) => openTab(profiles[0], options)}
+              sshShellId={profileShell(profiles[0])}
               settings={settings}
               commandHistory={commandHistory}
               ghNotifCount={ghNotifCount}
@@ -2420,6 +2424,7 @@ export default function App() {
           onClose={() => setShowUserManager(false)}
           onChanged={identity.refresh}
           onRemove={identity.removeUser}
+          onFactoryReset={identity.factoryReset}
         />
       )}
 
@@ -2435,8 +2440,9 @@ export default function App() {
           onDeleteAccount={async (id) => {
             // Deleting the signed-in account: remove it, then sign out to the
             // picker (the session belonged to an identity that no longer exists).
-            await identity.removeUser(id, false)
-            identity.signOut()
+            const result = await identity.removeUser(id, false)
+            if (!result?.ok) return result
+            return result
           }}
         />
       )}

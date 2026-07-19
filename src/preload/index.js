@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld('sush', {
   usersCreate: (payload) => ipcRenderer.invoke('sush:users-create', payload),
   usersUpdate: (payload) => ipcRenderer.invoke('sush:users-update', payload),
   usersDelete: (payload) => ipcRenderer.invoke('sush:users-delete', payload),
+  factoryReset: (payload) => ipcRenderer.invoke('sush:factory-reset', payload),
   usersActivate: (payload) => ipcRenderer.invoke('sush:users-activate', payload),
   usersSignOut: () => ipcRenderer.invoke('sush:users-signout'),
   // OAuth providers (Google / GitHub sign-in)

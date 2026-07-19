@@ -24,3 +24,39 @@ export function withPerfMode(settings, mode) {
   delete next.lite
   return next
 }
+
+// ── Sush Air ─────────────────────────────────────────────────────────────────
+// One-click light profile: the eco rung plus reduced motion and a solid window
+// material, as a single named toggle. It composes existing settings rather than
+// adding a parallel rendering path — turning it off restores exactly what the
+// user had before (kept in `airRestore`).
+
+export function isAir(settings = {}) {
+  return settings.sushAir === true
+}
+
+export function withAir(settings, on) {
+  if (on) {
+    if (isAir(settings)) return settings
+    const airRestore = {
+      perfMode: perfModeOf(settings),
+      reduceMotion: settings.reduceMotion === true,
+      windowMaterial: settings.windowMaterial ?? 'solid'
+    }
+    return {
+      ...withPerfMode(settings, 'eco'),
+      reduceMotion: true,
+      windowMaterial: 'solid',
+      sushAir: true,
+      airRestore
+    }
+  }
+  if (!isAir(settings)) return settings
+  const r = settings.airRestore || {}
+  const next = withPerfMode(settings, PERF_MODES.includes(r.perfMode) ? r.perfMode : 'full')
+  next.reduceMotion = r.reduceMotion === true
+  next.windowMaterial = r.windowMaterial ?? 'solid'
+  delete next.sushAir
+  delete next.airRestore
+  return next
+}

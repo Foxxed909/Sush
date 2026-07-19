@@ -40,11 +40,15 @@ function TasksTab({ accent, cwd, onRun }) {
   const [evidenceDrafts, setEvidenceDrafts] = useState({})
   const [busy, setBusy] = useState(false)
 
+  const reqId = useRef(0)
   const load = useCallback(() => {
+    // Stale-resolve guard: a slow read for the previous cwd must not
+    // overwrite the ledger of the workspace now on screen.
+    const id = ++reqId.current
     if (!cwd) { setLedger({ ok: true, tasks: [] }); return }
     window.sush?.tasksRead?.({ cwd })
-      .then(res => setLedger(res || { ok: false, tasks: [], error: 'Task ledger unavailable' }))
-      .catch(e => setLedger({ ok: false, tasks: [], error: e.message }))
+      .then(res => { if (id === reqId.current) setLedger(res || { ok: false, tasks: [], error: 'Task ledger unavailable' }) })
+      .catch(e => { if (id === reqId.current) setLedger({ ok: false, tasks: [], error: e.message }) })
   }, [cwd])
 
   useEffect(() => { load(); setEvidenceDrafts({}) }, [load])

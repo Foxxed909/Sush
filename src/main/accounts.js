@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
 import { randomBytes } from 'crypto'
+import { accountSlotDirectoryPath, atomicWriteJson, identityDirectoryPath, identityStoragePath } from './secure-storage'
 
 // Per-identity CLI account slots: one Sush identity can hold several agent CLI
 // logins and hop between them when a session limit bites, without
@@ -37,21 +38,22 @@ export const SLOT_PROVIDERS = {
 const MAX_SLOTS = 16
 
 function identityDir(userId) {
-  return join(app.getPath('userData'), 'identities', String(userId))
+  return identityDirectoryPath(app.getPath('userData'), userId)
 }
 
 function accountsFile(userId) {
-  return join(identityDir(userId), 'accounts.json')
+  return identityStoragePath(app.getPath('userData'), userId, 'accounts.json')
 }
 
 function slotDir(userId, provider, slotId) {
-  return join(identityDir(userId), 'accounts', provider, slotId)
+  return accountSlotDirectoryPath(app.getPath('userData'), userId, provider, slotId)
 }
 
 function envForSlot(userId, provider, slotId) {
   const spec = SLOT_PROVIDERS[provider]
   if (!userId || !spec || !slotId || slotId === 'default') return {}
   const root = slotDir(userId, provider, slotId)
+  if (!root) return {}
   if (typeof spec.env === 'string') return { [spec.env]: root }
   const env = {}
   for (const [key, subPath] of Object.entries(spec.env || {})) {
@@ -62,6 +64,7 @@ function envForSlot(userId, provider, slotId) {
 
 function ensureSlotDirs(userId, provider, slotId) {
   const root = slotDir(userId, provider, slotId)
+  if (!root) throw new Error('Invalid account slot path')
   mkdirSync(root, { recursive: true })
   for (const dir of Object.values(envForSlot(userId, provider, slotId))) {
     mkdirSync(dir, { recursive: true })
@@ -70,8 +73,9 @@ function ensureSlotDirs(userId, provider, slotId) {
 
 function load(userId) {
   try {
-    if (existsSync(accountsFile(userId))) {
-      const data = JSON.parse(readFileSync(accountsFile(userId), 'utf8'))
+    const file = accountsFile(userId)
+    if (file && existsSync(file)) {
+      const data = JSON.parse(readFileSync(file, 'utf8'))
       if (data && typeof data === 'object' && data.providers) return data
     }
   } catch {}
@@ -80,8 +84,11 @@ function load(userId) {
 
 function save(userId, data) {
   try {
-    mkdirSync(identityDir(userId), { recursive: true })
-    writeFileSync(accountsFile(userId), JSON.stringify(data, null, 2), 'utf8')
+    const dir = identityDir(userId)
+    const file = accountsFile(userId)
+    if (!dir || !file) return false
+    mkdirSync(dir, { recursive: true })
+    atomicWriteJson(file, data)
     return true
   } catch {
     return false
@@ -265,7 +272,10 @@ export function removeAccount(userId, provider, slotId) {
   st.slots.splice(idx, 1)
   if (st.active === slotId) st.active = 'default'
   if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
-  try { rmSync(slotDir(userId, provider, slotId), { recursive: true, force: true }) } catch {}
+  const dir = slotDir(userId, provider, slotId)
+  if (dir) {
+    try { rmSync(dir, { recursive: true, force: true }) } catch {}
+  }
   return { ok: true, ...listAccounts(userId) }
 }
 

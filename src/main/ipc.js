@@ -42,6 +42,7 @@ import { startGoogleFlow, cancelGoogleFlow } from './oauth/google'
 import { startConnectFlow, cancelConnectFlow, finishConnectFlow, connectStatus, disconnectProvider, testProvider } from './oauth/connect'
 import { consumeTicket, peekTicket } from './oauth/tickets'
 import { setOauthEventSender } from './oauth/events'
+import { resetSushUserData } from './factory-reset'
 import {
   getGitHubStatus, listRepos, getWork, getNotifications,
   markNotificationRead, clearGitHubCache
@@ -1358,12 +1359,34 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:users-delete', (event, payload = {}) => {
     const target = activeIdentityTarget(payload)
     if (!target.ok) return target
-    if (listUsers().length <= 1) return { ok: false, error: 'The last identity cannot be deleted.' }
     // Closing first is important on Windows: the identity home can contain CLI
     // files held open by its PTYs, and wipeData must not silently race them.
     stopIdentityRuntime({ sync: true })
     const deleted = deleteUser({ ...payload, id: target.active.id })
     return deleted.ok ? { ...deleted, signedOut: true } : deleted
+  })
+  ipcMain.handle('sush:factory-reset', async (event, payload = {}) => {
+    if (payload.confirmation !== 'RESET SUSH') return { ok: false, error: 'Type RESET SUSH to confirm.' }
+    stopIdentityRuntime({ sync: true })
+    try {
+      await event.sender.session.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'cachestorage', 'serviceworkers']
+      })
+      await event.sender.session.clearCache()
+    } catch (error) {
+      return { ok: false, error: error?.message || 'Could not clear browser storage.' }
+    }
+    const result = resetSushUserData({
+      userData: app.getPath('userData'),
+      keepLicense: payload.keepLicense === true,
+      confirmation: payload.confirmation
+    })
+    if (!result.ok) return result
+    setTimeout(() => {
+      try { app.relaunch() } catch {}
+      app.exit(0)
+    }, 750)
+    return { ...result, restarting: true }
   })
   ipcMain.handle('sush:users-activate', (event, payload) => activateUser(payload ?? {}))
   ipcMain.handle('sush:users-signout', () => {
@@ -2009,6 +2032,10 @@ export function registerIpcHandlers(win) {
   // ── File Watcher ──────────────────────────────────────────────────────────
   ipcMain.handle('sush:watch-path', (event, { watchId, path: watchPath }) => {
     if (!watchId || !watchPath) return { ok: false, error: 'Missing watchId or path' }
+    // Renderer bugs must not leak OS watcher handles forever.
+    if (!fileWatchers.has(watchId) && fileWatchers.size >= 64) {
+      return { ok: false, error: 'Too many active file watchers' }
+    }
     if (fileWatchers.has(watchId)) {
       try { fileWatchers.get(watchId).close() } catch {}
       fileWatchers.delete(watchId)

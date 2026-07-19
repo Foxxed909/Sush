@@ -17,6 +17,8 @@ import { dirname, isAbsolute, join, relative, resolve } from 'path'
 // UUID. Keeping that canonical shape avoids case-folding collisions on Windows
 // and default macOS filesystems as well as every path-segment edge case.
 const IDENTITY_ID = /^[0-9a-f]{8}$/
+const ACCOUNT_PROVIDER = /^[a-z][a-z0-9-]{0,31}$/
+const ACCOUNT_SLOT_ID = /^acct-[0-9a-f]{8}$/
 const STORAGE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/
 const MIGRATION_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 const LINUX_SECURE_BACKENDS = new Set(['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'])
@@ -42,6 +44,16 @@ export function identityStoragePath(userData, identityId, fileName) {
   if (!identityDir || !STORAGE_FILE.test(String(fileName || ''))) return null
   const target = resolve(identityDir, fileName)
   const inside = relative(identityDir, target)
+  if (!inside || inside.startsWith('..') || isAbsolute(inside)) return null
+  return target
+}
+
+export function accountSlotDirectoryPath(userData, identityId, provider, slotId) {
+  const identityDir = identityDirectoryPath(userData, identityId)
+  if (!identityDir || !ACCOUNT_PROVIDER.test(String(provider || '')) || !ACCOUNT_SLOT_ID.test(String(slotId || ''))) return null
+  const accountsDir = resolve(identityDir, 'accounts')
+  const target = resolve(accountsDir, provider, slotId)
+  const inside = relative(accountsDir, target)
   if (!inside || inside.startsWith('..') || isAbsolute(inside)) return null
   return target
 }

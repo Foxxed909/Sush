@@ -66,6 +66,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
   const [gitBranch, setGitBranch] = useState(null)
   const [historySearch, setHistorySearch] = useState(false)
   const [historyQuery, setHistoryQuery] = useState('')
+  const [historyMatchIdx, setHistoryMatchIdx] = useState(0)
   const inputRef = useRef(null)
   const listRef = useRef(null)
   const blurTimer = useRef(null)
@@ -105,6 +106,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
         e.preventDefault()
         setHistorySearch(prev => !prev)
         setHistoryQuery('')
+        setHistoryMatchIdx(0)
         setTimeout(() => inputRef.current?.focus(), 50)
       }
     }
@@ -127,7 +129,7 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
 
   const handleChange = (e) => {
     const v = e.target.value
-    if (historySearch) { setHistoryQuery(v); return }
+    if (historySearch) { setHistoryQuery(v); setHistoryMatchIdx(0); return }
     setValue(v)
     setHistoryIndex(-1)
     setShowSuggestions(true)
@@ -137,18 +139,21 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
     // History search mode (Ctrl+R)
     if (historySearch) {
       if (e.key === 'Escape') { e.preventDefault(); setHistorySearch(false); setHistoryQuery(''); return }
+      const matches = history.filter(h => h.toLowerCase().includes(historyQuery.toLowerCase()))
       if (e.key === 'Enter') {
         e.preventDefault()
-        const matches = history.filter(h => h.toLowerCase().includes(historyQuery.toLowerCase()))
-        if (matches[0]) { setValue(matches[0]); setHistorySearch(false); setHistoryQuery('') }
+        const pick = matches[historyMatchIdx] ?? matches[0]
+        if (pick) { setValue(pick); setHistorySearch(false); setHistoryQuery('') }
         return
       }
-      if (e.key === 'ArrowUp') {
+      if (e.key === 'ArrowUp' && matches.length) {
         e.preventDefault()
-        const matches = history.filter(h => h.toLowerCase().includes(historyQuery.toLowerCase()))
-        const idx = matches.indexOf(value)
-        const next = idx < matches.length - 1 ? matches[idx + 1] : matches[0]
-        if (next) setValue(next)
+        setHistoryMatchIdx(i => (i + 1) % matches.length)
+        return
+      }
+      if (e.key === 'ArrowDown' && matches.length) {
+        e.preventDefault()
+        setHistoryMatchIdx(i => (i - 1 + matches.length) % matches.length)
         return
       }
       return
@@ -220,15 +225,20 @@ export default function SmartCommandBar({ activeTab, accent, onRun, onSeducia, o
           <div style={{ flex: 1, minWidth: 0, position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
             <input
               ref={inputRef}
-              value={value}
+              value={historySearch ? historyQuery : value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               onFocus={openSuggestions}
               onBlur={closeSuggestions}
-              placeholder="Smart command, path, or shell..."
+              placeholder={historySearch ? 'search history (↑/↓ cycle, Enter select, Esc cancel)' : 'Smart command, path, or shell...'}
               spellCheck={false}
               style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13 }}
             />
+            {historySearch && (
+              <span style={{ position: 'absolute', right: 8, zIndex: 1, color: 'var(--text-4)', fontSize: 12, pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: '55%' }}>
+                {history.filter(h => h.toLowerCase().includes(historyQuery.toLowerCase()))[historyMatchIdx] ?? '(no match)'}
+              </span>
+            )}
           </div>
           {!value && (
             <span className="flex items-center" style={{ gap: 3, color: 'var(--text-5)', fontSize: 10, fontWeight: 700, flexShrink: 0, userSelect: 'none' }}>

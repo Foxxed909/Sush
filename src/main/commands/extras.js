@@ -579,7 +579,7 @@ export const weather = {
   description: 'Show weather for a city',
   usage: 'weather [city]',
   async run(args, ctx) {
-    const city = args.join('+') || ''
+    const city = args.map(encodeURIComponent).join('+')
     const url = `https://wttr.in/${city}?format=3`
     try {
       const res = await global.fetch(url, { headers: { 'User-Agent': 'curl/7.0' }, signal: runSignal(ctx, 8000) })

@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
+  accountSlotDirectoryPath,
   identityDirectoryPath,
   identityStoragePath,
   migrateLegacyOnce,
@@ -26,6 +27,10 @@ describe('identity storage containment', () => {
     expect(identityDirectoryPath(root, '../other')).toBeNull()
     expect(identityStoragePath(root, 'a1b2c3d4', '../auth.json')).toBeNull()
     expect(identityStoragePath(root, 'a1b2c3d4', 'auth.json')).toBe(join(root, 'identities', 'a1b2c3d4', 'auth.json'))
+    expect(accountSlotDirectoryPath(root, 'a1b2c3d4', 'claude', 'acct-0123abcd'))
+      .toBe(join(root, 'identities', 'a1b2c3d4', 'accounts', 'claude', 'acct-0123abcd'))
+    expect(accountSlotDirectoryPath(root, 'a1b2c3d4', 'claude', '../../outside')).toBeNull()
+    expect(accountSlotDirectoryPath(root, 'a1b2c3d4', '../provider', 'acct-0123abcd')).toBeNull()
   })
 
   it('treats signed-out installs with identities as locked', () => {

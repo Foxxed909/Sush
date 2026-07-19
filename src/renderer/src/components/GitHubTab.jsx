@@ -60,6 +60,10 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
   const [inbox, setInbox] = useState(null)
   const [busyRepo, setBusyRepo] = useState('')
   const debounceRef = useRef(null)
+  const busyTimerRef = useRef(null)
+
+  // Timers must not fire after unmount (network call + setState on a dead tab).
+  useEffect(() => () => { clearTimeout(debounceRef.current); clearTimeout(busyTimerRef.current) }, [])
 
   const loadStatus = useCallback(async () => {
     if (!online) return
@@ -225,7 +229,7 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
             </span>
           </span>
           <button
-            onClick={() => { setBusyRepo(r.fullName); onRun(`clone ${r.fullName}`); setTimeout(() => setBusyRepo(''), 4000) }}
+            onClick={() => { setBusyRepo(r.fullName); onRun(`clone ${r.fullName}`); clearTimeout(busyTimerRef.current); busyTimerRef.current = setTimeout(() => setBusyRepo(''), 4000) }}
             disabled={busyRepo === r.fullName}
             title="Clone into the active workdir"
             style={{ padding: '3px 9px', borderRadius: 7, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.08), color: accent, fontSize: 10.5, fontWeight: 800, cursor: 'pointer', opacity: busyRepo === r.fullName ? 0.5 : 1 }}
@@ -257,9 +261,9 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
       {work && (
         <>
           {[
-            ['Open PRs', work.prs],
-            ['Review requests', work.reviewRequests],
-            ['Assigned issues', work.issues]
+            ['Open PRs', work.prs || []],
+            ['Review requests', work.reviewRequests || []],
+            ['Assigned issues', work.issues || []]
           ].map(([label, items]) => (
             <div key={label} style={{ marginBottom: 4 }}>
               <div style={{ padding: '2px 12px', fontSize: 10.5, color: 'var(--text-3)', fontWeight: 700 }}>
@@ -284,7 +288,7 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
       {/* Inbox */}
       <SectionTitle>INBOX{inbox?.unreadCount ? ` (${inbox.unreadCount})` : ''}</SectionTitle>
       {!inbox && <div style={{ padding: '2px 12px 12px', fontSize: 11, color: 'var(--text-4)' }}>loading...</div>}
-      {inbox && inbox.notifications.length === 0 && (
+      {inbox && (inbox.notifications || []).length === 0 && (
         <div style={{ padding: '2px 12px 12px', fontSize: 11, color: 'var(--text-5)' }}>inbox zero</div>
       )}
       {(inbox?.notifications || []).slice(0, 15).map(n => (

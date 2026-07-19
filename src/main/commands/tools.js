@@ -76,7 +76,14 @@ export function buildToolCommand({ path, ext }, args, {
       ? { file: powershell, args: ['-ExecutionPolicy', 'Bypass', '-File', path, ...args] }
       : { error: 'PowerShell was not found on PATH (`powershell` or `pwsh`)' }
   }
-  if (ext === '.bat') return { file: path, args, shell: true }
+  if (ext === '.bat') {
+    // .bat must go through cmd.exe, which re-parses its metacharacters — never
+    // hand it a shell with raw args; refuse anything cmd would interpret.
+    if (args.some(a => /[&|<>^%"]/.test(a))) {
+      return { error: 'arguments contain cmd.exe metacharacters, which .bat tools cannot receive safely' }
+    }
+    return { file: 'cmd', args: ['/c', path, ...args] }
+  }
   return { file: path, args }
 }
 
@@ -108,8 +115,7 @@ export const vibe = {
       const { stdout, stderr } = await execFileAsync(cmd.file, cmd.args, {
         cwd: TOOLS_DIR,
         timeout: 30000,
-        windowsHide: true,
-        shell: cmd.shell === true
+        windowsHide: true
       })
       const out = (stdout + stderr).trimEnd()
       return ok(out || ansi.dim('(tool ran with no output)'))
