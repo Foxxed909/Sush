@@ -105,16 +105,17 @@ testable and disconnectable any time. Graduated from Experiments.
 
 ## Plans
 
-| | Free | Plus | Pro | Ultra | Max |
-|---|---|---|---|---|---|
-| Price | $0 | $8/mo | $16/mo | $29/mo | $49/mo |
-| Accounts per CLI | 1 | 4 | 6 | 10 | 16 |
-| Grid sessions | 4 | 9 | 12 | 20 | 25 |
-| Quiet Credits | 5m | 60m | 150m | 600m | 1500m |
-| Custom agents | — | ✓ | ✓ | ✓ | ✓ |
-| Cloud voices | — | ✓ | ✓ | ✓ | ✓ |
-| Connect accounts (OAuth) | — | ✓ | ✓ | ✓ | ✓ |
-| Usage Guard | — | — | ✓ | ✓ | ✓ |
-| Auto-handoff | — | — | — | ✓ | ✓ |
+| | Free | Plus | Dev | Pro | Ultra | Max | Enterprise |
+|---|---|---|---|---|---|---|---|
+| Price | $0 | $8/mo | $12/mo | $16/mo | $29/mo | $49/mo | $99/mo |
+| Accounts per CLI | 1 | 4 | 5 | 6 | 10 | 16 | 50 |
+| Grid sessions | 4 | 9 | 10 | 12 | 20 | 25 | 32 |
+| Quiet Credits | 5m | 60m | 90m | 150m | 600m | 1500m | 10000m |
+| Custom agents | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Cloud voices | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Connect accounts (OAuth) | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Developer workflows | — | — | ✓ | — | — | ✓ | ✓ |
+| Usage Guard | — | — | — | ✓ | ✓ | ✓ | ✓ |
+| Auto-handoff | — | — | — | — | ✓ | ✓ | ✓ |
 
 Unlock codes are offline — no payment rails, no account. See **Settings ▸ Plan**.

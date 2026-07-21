@@ -17,16 +17,18 @@ import { rgba } from '../lib/ui'
 export const TIER_META = {
   free:  { label: 'Free',  price: '$0',  unit: 'forever',  color: '#a4b0c4', blurb: 'The essentials, no code needed.' },
   plus:  { label: 'Plus',  price: '$8',  unit: '/ month',  color: '#88c0d0', blurb: 'Multi-account work + cloud voice.', popular: true },
+  dev:   { label: 'Dev',   price: '$12', unit: '/ month',  color: '#729dff', blurb: 'Repo crews and safe parallel work.' },
   pro:   { label: 'Pro',   price: '$16', unit: '/ month',  color: '#b48ead', blurb: 'Bigger grid + the Usage Guard.' },
   ultra: { label: 'Ultra', price: '$29', unit: '/ month',  color: '#ebcb8b', blurb: 'Standing swarms, hands-free handoff.' },
-  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#d06f79', blurb: 'Everything Sush can do, maxed.' }
+  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#d06f79', blurb: 'Everything Sush can do, maxed.' },
+  enterprise: { label: 'Enterprise', price: '$99', unit: '/ month', color: '#8fddd5', blurb: 'A 20-seat private fleet for high-volume teams.' }
 }
 
 // Mirror of main/credits.js TIER_ALLOWANCE_SEC so the cards and the real
 // meter never disagree.
-export const CREDIT_MINUTES = { free: 5, plus: 60, pro: 150, ultra: 600, max: 1500 }
+export const CREDIT_MINUTES = { free: 5, plus: 60, dev: 90, pro: 150, ultra: 600, max: 1500, enterprise: 10000 }
 
-const ORDER = ['free', 'plus', 'pro', 'ultra', 'max']
+const ORDER = ['free', 'plus', 'dev', 'pro', 'ultra', 'max', 'enterprise']
 
 const FEATURES = [
   ['Accounts per CLI', t => String(t.slots)],
@@ -35,6 +37,7 @@ const FEATURES = [
   ['Custom agents', t => t.customAgents],
   ['Cloud voices', t => t.cloudTts],
   ['Connect accounts (OAuth)', t => !!t.providerConnect],
+  ['Developer workflows', t => !!t.developerWorkflows],
   ['Usage Guard', t => !!t.usageGuard],
   ['Auto-handoff', t => !!t.autoHandoff]
 ]
@@ -122,7 +125,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
           long-running swarms alive.
         </p>
 
-        {/* The deck — all five plans fanned like a hand of cards. The front
+        {/* The deck — every plan fanned like a hand of cards. The front
             card is fully dealt (complete feature list); the rest peek out
             behind it, each showing its name + price on the exposed corner.
             Click a card to bring it forward. */}
@@ -133,6 +136,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
               // order, rotated around a shared bottom-left pivot.
               const rest = ORDER.filter(t => t !== active)
               const deck = [active, ...rest]
+              const fanStep = deck.length >= 7 ? 88 : 106
               return deck.map((t, i) => {
                 const m = TIER_META[t]
                 const f = tiers[t]
@@ -152,7 +156,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                       position: 'absolute', top: 0, left: 0,
                       width: 300, height: 430,
                       transformOrigin: '20% 130%',
-                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${80 + i * 106}px) rotate(${i * 4.5}deg)`,
+                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${80 + i * fanStep}px) rotate(${i * 4.5}deg)`,
                       '--tier-glow': rgba(m.color, 0.28),
                       zIndex: 10 - i,
                       cursor: front ? 'default' : 'pointer',

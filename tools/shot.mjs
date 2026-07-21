@@ -66,14 +66,16 @@ const stub = `
     platform: 'win32',
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
     usersActivate: async () => ({ ok: true, user }),
-    licenseGet: async () => ({ tier: 'pro', expiry: null,
-      features: { slots: 6, gridCap: 12, customAgents: true, cloudTts: true, usageGuard: true, autoHandoff: false, providerConnect: true, themes: 'all' },
+    licenseGet: async () => ({ tier: 'dev', expiry: null,
+      features: { slots: 5, gridCap: 10, customAgents: true, cloudTts: true, usageGuard: false, autoHandoff: false, providerConnect: true, developerWorkflows: true, themes: 'all' },
       tiers: {
-        free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
-        plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  themes: 'all' },
-        pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  themes: 'all' },
-        ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' },
-        max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' }
+        free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, developerWorkflows: false, themes: 'base' },
+        plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  developerWorkflows: false, themes: 'all' },
+        dev:   { slots: 5,  gridCap: 10, customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  developerWorkflows: true, themes: 'all' },
+        pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  developerWorkflows: false, themes: 'all' },
+        ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  developerWorkflows: false, themes: 'all' },
+        max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  developerWorkflows: true, themes: 'all' },
+        enterprise: { slots: 50, gridCap: 32, customAgents: true, cloudTts: true, usageGuard: true, autoHandoff: true, providerConnect: true, developerWorkflows: true, themes: 'all', fleetSeats: 20, privateFleet: true }
       } }),
     creditsGet: async () => credits,
     claudeLimitsGet: async () => ({ ok: true, limits: { status: 'allowed', rateLimitType: '', resetsAt: now + 3600e3, sessionPct: 42, weekPct: 18, at: now } }),

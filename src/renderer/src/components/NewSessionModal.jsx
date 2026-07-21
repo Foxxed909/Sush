@@ -4,6 +4,7 @@ import PathField from './PathField'
 import { rgba, accentVars } from '../lib/ui'
 import { allAgents, MAX_SESSIONS } from '../lib/agents'
 import { useCliAvailability } from '../hooks/useCliAvailability'
+import { useEntitlements } from '../hooks/useEntitlements'
 import { loadCrews, saveCrew, deleteCrew, parseRepoCrew } from '../lib/crews'
 
 function pathLabel(cwd) {
@@ -40,6 +41,8 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [crews, setCrews] = useState(() => loadCrews())
   const [repoCrew, setRepoCrew] = useState(null)   // .sush/crew.json in the chosen dir
   const { avail, rescan, checking } = useCliAvailability()
+  const ent = useEntitlements()
+  const developerWorkflows = ent.can('developerWorkflows')
 
   // Repo crew preset: when the chosen directory ships a .sush/crew.json, offer
   // it as a first-class chip. Forward slashes are fine on Windows too — main
@@ -55,6 +58,10 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     }, 250)
     return () => { cancelled = true; clearTimeout(t) }
   }, [cwd])
+
+  useEffect(() => {
+    if (!developerWorkflows) setWorktrees(false)
+  }, [developerWorkflows])
 
   const applyCrew = (crew) => {
     setCounts({ ...crew.counts })
@@ -134,7 +141,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     const agents = AGENT_LIST
       .filter(a => (counts[a.id] || 0) > 0)
       .map(a => ({ ...a, count: counts[a.id] }))
-    onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined, worktrees })
+    onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined, worktrees: developerWorkflows && worktrees })
   }
 
   useEffect(() => {
@@ -260,11 +267,15 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             {repoCrew && (
               <button
                 onClick={() => {
+                  if (!developerWorkflows) return
                   setCounts({ ...repoCrew.counts })
                   if (repoCrew.brief) setBrief(repoCrew.brief)
                   if (repoCrew.name) setSessionName(repoCrew.name)
                 }}
-                title={`This repo ships its own crew (.sush/crew.json)${repoCrew.brief ? ` — “${repoCrew.brief.slice(0, 80)}”` : ''}`}
+                disabled={!developerWorkflows}
+                title={developerWorkflows
+                  ? `This repo ships its own crew (.sush/crew.json)${repoCrew.brief ? ` — “${repoCrew.brief.slice(0, 80)}”` : ''}`
+                  : 'Repo crews are available on Dev, Max, and Enterprise.'}
                 className="sush-mini-btn"
                 style={{
                   ...miniBtn(accent),
@@ -273,11 +284,13 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                   gap: 6,
                   color: accent,
                   background: rgba(accent, 0.1),
-                  border: `1px solid ${rgba(accent, 0.45)}`
+                  border: `1px solid ${rgba(accent, 0.45)}`,
+                  opacity: developerWorkflows ? 1 : 0.52,
+                  cursor: developerWorkflows ? 'pointer' : 'not-allowed'
                 }}
               >
-                <Icon name="rocket" size={12} strokeWidth={2.3} color={accent} />
-                Repo crew: {repoCrew.name}
+                <Icon name={developerWorkflows ? 'rocket' : 'lock'} size={12} strokeWidth={2.3} color={accent} />
+                {developerWorkflows ? `Repo crew: ${repoCrew.name}` : 'Repo crew · Dev'}
               </button>
             )}
             {PRESETS.map(preset => {
@@ -433,16 +446,18 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               cwd), so it's safe to leave on. */}
           <div style={{ marginTop: 20 }}>
             <button
-              onClick={() => setWorktrees(v => !v)}
+              onClick={() => { if (developerWorkflows) setWorktrees(v => !v) }}
+              disabled={!developerWorkflows}
+              title={developerWorkflows ? undefined : 'Isolated worktrees are available on Dev, Max, and Enterprise.'}
               className="flex items-center"
-              style={{ gap: 10, width: '100%', textAlign: 'left', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', background: worktrees ? rgba(accent, 0.08) : '#0f1318', border: `1px solid ${worktrees ? rgba(accent, 0.45) : '#1b2127'}` }}
+              style={{ gap: 10, width: '100%', textAlign: 'left', padding: '11px 13px', borderRadius: 10, cursor: developerWorkflows ? 'pointer' : 'not-allowed', opacity: developerWorkflows ? 1 : 0.58, background: worktrees ? rgba(accent, 0.08) : '#0f1318', border: `1px solid ${worktrees ? rgba(accent, 0.45) : '#1b2127'}` }}
             >
               <span className="flex items-center justify-center" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: rgba(accent, worktrees ? 0.16 : 0.08), border: `1px solid ${rgba(accent, worktrees ? 0.45 : 0.2)}`, color: worktrees ? accent : 'var(--text-3)' }}>
                 <Icon name={worktrees ? 'check' : 'grid'} size={15} strokeWidth={2.3} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: worktrees ? accent : 'var(--text-2)' }}>Isolate each session in its own git worktree</span>
-                <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>Each agent gets a private checkout on a <code style={{ fontFamily: 'monospace' }}>sush/…</code> branch so parallel agents never trample each other. Ignored if the directory isn’t a git repo.</span>
+                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: worktrees ? accent : 'var(--text-2)' }}>{developerWorkflows ? 'Isolate each session in its own git worktree' : 'Isolated git worktrees · Dev'}</span>
+                <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>{developerWorkflows ? <>Each agent gets a private checkout on a <code style={{ fontFamily: 'monospace' }}>sush/…</code> branch so parallel agents never trample each other. Ignored if the directory isn’t a git repo.</> : 'Available on Dev, Max, and Enterprise. Give every agent a private checkout when parallel work would collide.'}</span>
               </span>
             </button>
           </div>

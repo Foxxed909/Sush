@@ -1965,6 +1965,9 @@ export function registerIpcHandlers(win) {
   // under <repoRoot>/.sush-worktrees/<name> on a dedicated `sush/<name>` branch
   // and returns its path for the session to spawn in.
   ipcMain.handle('sush:git-worktree-add', async (event, { cwd, name } = {}) => {
+    if (!can('developerWorkflows')) {
+      return { ok: false, error: 'Isolated worktrees are available on Dev, Max, and Enterprise.' }
+    }
     const dir = existingDirectory(cwd)
     if (!dir) return { ok: false, error: 'Working directory does not exist' }
     const safe = String(name ?? '').trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
