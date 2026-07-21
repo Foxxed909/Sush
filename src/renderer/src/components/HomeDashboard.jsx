@@ -334,10 +334,9 @@ export default function HomeDashboard({
             <SectionLabel icon="folder" accent={accent}>Projects</SectionLabel>
             <div className="flex flex-col" style={{ gap: 9 }}>
               {uniqueCwds.length ? uniqueCwds.map(item => (
-                <button
+                <div
                   key={item.path}
                   title={item.path}
-                  onClick={() => onRun(`work "${item.path}"`)}
                   className="sush-row flex items-center"
                   style={{
                     gap: 12,
@@ -348,34 +347,47 @@ export default function HomeDashboard({
                     background: 'linear-gradient(180deg, rgba(25,26,30,0.5), rgba(15,16,17,0.4))',
                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
                     color: 'var(--text-2)',
-                    padding: '12px 14px',
-                    cursor: 'pointer'
+                    padding: '4px 6px 4px 14px'
                   }}
                 >
-                  <Icon name="folder" size={17} color={accent} />
-                  <span style={{ minWidth: 0, flex: 1 }}>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.label}
+                  <button
+                    onClick={() => onRun(`work "${item.path}"`)}
+                    className="flex items-center"
+                    style={{ gap: 12, minWidth: 0, flex: 1, padding: '8px 0', textAlign: 'left', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
+                  >
+                    <Icon name="folder" size={17} color={accent} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.label}
+                      </span>
+                      <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
+                        {item.path}
+                      </span>
                     </span>
-                    <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
-                      {item.path}
-                    </span>
-                  </span>
+                    <Icon name="arrowRight" size={14} color="var(--text-5)" className="sush-row-arrow" />
+                  </button>
                   {onTogglePin && (
-                    <span
-                      role="button"
+                    <button
+                      type="button"
                       title={pinnedProjects.some(p => p.cwd === item.path) ? 'Unpin from Home' : 'Pin to Home'}
-                      onClick={(e) => { e.stopPropagation(); onTogglePin({ cwd: item.path, label: item.label }) }}
-                      className="flex items-center justify-center"
-                      style={{ width: 22, height: 22, borderRadius: 6, color: pinnedProjects.some(p => p.cwd === item.path) ? accent : 'var(--text-5)', flexShrink: 0 }}
+                      aria-label={pinnedProjects.some(p => p.cwd === item.path) ? `Unpin ${item.label} from Home` : `Pin ${item.label} to Home`}
+                      onClick={() => onTogglePin({ cwd: item.path, label: item.label })}
+                      className="sush-icon-btn flex items-center justify-center"
+                      style={{ width: 30, height: 30, borderRadius: 7, background: 'none', border: 'none', color: pinnedProjects.some(p => p.cwd === item.path) ? accent : 'var(--text-5)', cursor: 'pointer', flexShrink: 0 }}
                     >
                       <Icon name="star" size={13} strokeWidth={2} />
-                    </span>
+                    </button>
                   )}
-                  <Icon name="arrowRight" size={14} color="var(--text-5)" className="sush-row-arrow" />
-                </button>
+                </div>
               )) : (
-                <EmptyState icon="folder" accent={accent}>No directories yet</EmptyState>
+                <EmptyState
+                  icon="folder"
+                  accent={accent}
+                  title="No projects yet"
+                  detail="Open a workspace and it will stay handy here."
+                  actionLabel="Open workspace"
+                  onAction={onNewSession}
+                />
               )}
             </div>
           </section>
@@ -414,7 +426,14 @@ export default function HomeDashboard({
                   </span>
                 </button>
               )) : (
-                <EmptyState icon="clock" accent={accent}>No sessions yet</EmptyState>
+                <EmptyState
+                  icon="clock"
+                  accent={accent}
+                  title="No recent sessions"
+                  detail="Start a shell and Sush will remember it here."
+                  actionLabel="Start terminal"
+                  onAction={onOpenTab}
+                />
               )}
             </div>
           </section>
@@ -486,7 +505,7 @@ function NpmScriptsSection({ accent, cwd, onRun }) {
   )
 }
 
-function EmptyState({ icon, accent, children }) {
+function EmptyState({ icon, accent, title, detail, actionLabel, onAction }) {
   return (
     <div
       className="flex items-center"
@@ -501,7 +520,20 @@ function EmptyState({ icon, accent, children }) {
       }}
     >
       <Icon name={icon} size={16} color="var(--text-5)" />
-      {children}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ color: 'var(--text-2)', fontSize: 12.5, fontWeight: 800 }}>{title}</div>
+        {detail && <div style={{ color: 'var(--text-3)', fontSize: 11.5, lineHeight: 1.45, marginTop: 2 }}>{detail}</div>}
+      </div>
+      {onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="sush-btn"
+          style={{ flexShrink: 0, border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 'var(--r-sm)', background: rgba(accent, 0.1), color: accent, cursor: 'pointer', padding: '6px 9px', fontSize: 11, fontWeight: 800 }}
+        >
+          {actionLabel}
+        </button>
+      )}
     </div>
   )
 }

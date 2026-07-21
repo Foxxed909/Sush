@@ -1,6 +1,8 @@
 import { getOauthConfig } from './config'
-import { linkProvider, activateUserViaProvider } from '../users'
+import { linkProvider, activateUserViaProvider, userHomeDir } from '../users'
 import { saveToken } from './tokenStore'
+import { syncGitHubCliToken } from './github-cli-auth'
+import { GITHUB_DEVICE_SCOPES } from './github-scopes'
 import { createTicket } from './tickets'
 import { emitOauthEvent } from './events'
 
@@ -11,9 +13,16 @@ import { emitOauthEvent } from './events'
 
 const DEVICE_CODE_URL = 'https://github.com/login/device/code'
 const TOKEN_URL = 'https://github.com/login/oauth/access_token'
-const SCOPES = 'repo read:user notifications'
+const SCOPES = GITHUB_DEVICE_SCOPES
 
 let active = null
+
+async function persistGitHubLogin(userId, token, profile) {
+  const stored = saveToken(userId, 'github', token, { login: profile.login, scopes: SCOPES })
+  const cli = await syncGitHubCliToken({ token, configDir: `${userHomeDir(userId)}/.gh` })
+  const warnings = [stored.ok ? '' : stored.error, cli.ok ? '' : `GitHub CLI was not signed in: ${cli.error}`].filter(Boolean)
+  return warnings.length ? warnings.join(' ') : undefined
+}
 
 function stopActive(emitCancel) {
   if (!active) return
@@ -131,8 +140,8 @@ async function complete(flow, ctx, token) {
       finish(flow, { provider: 'github', phase: 'error', error: linked.error })
       return
     }
-    const stored = saveToken(ctx.userId, 'github', token, { login: profile.login, scopes: SCOPES })
-    finish(flow, { provider: 'github', phase: 'success', mode: 'link', user: linked.user, warning: stored.ok ? undefined : stored.error })
+    const warning = await persistGitHubLogin(ctx.userId, token, profile)
+    finish(flow, { provider: 'github', phase: 'success', mode: 'link', user: linked.user, warning })
     return
   }
 
@@ -140,8 +149,8 @@ async function complete(flow, ctx, token) {
   // so the create form can claim the profile (and token) atomically.
   const activated = activateUserViaProvider({ provider: 'github', subject: profile.id })
   if (activated.ok) {
-    const stored = saveToken(activated.user.id, 'github', token, { login: profile.login, scopes: SCOPES })
-    finish(flow, { provider: 'github', phase: 'success', mode: 'signin', user: activated.user, warning: stored.ok ? undefined : stored.error })
+    const warning = await persistGitHubLogin(activated.user.id, token, profile)
+    finish(flow, { provider: 'github', phase: 'success', mode: 'signin', user: activated.user, warning })
   } else {
     const ticket = createTicket({ provider: 'github', profile, token })
     finish(flow, { provider: 'github', phase: 'success', mode: 'signin', user: null, ticket, profile })

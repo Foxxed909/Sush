@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { isAppChord } from '../lib/keymap'
+import { terminalInputAllowed, terminalInputTargets } from '../lib/terminalInput'
 import '@xterm/xterm/css/xterm.css'
 
 export function useTerminal({
@@ -118,6 +119,13 @@ export function useTerminal({
     try { fitAddonRef.current?.fit() } catch {}
   }, [])
 
+  const sendPtyInput = useCallback((data, { broadcast = false } = {}) => {
+    if (!data || !terminalInputAllowed(inputLockedRef.current, data)) return false
+    const targets = broadcast ? terminalInputTargets(tabId, broadcastTabIdsRef.current) : [tabId]
+    for (const targetId of targets) window.sush.ptyInput({ tabId: targetId, data })
+    return true
+  }, [tabId])
+
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -221,7 +229,7 @@ export function useTerminal({
     const inputDisposable = term.onData((data) => {
       // Usage Guard block: swallow input to this session while the guard is
       // tripped — except Ctrl+C, so a runaway stream can still be interrupted.
-      if (inputLockedRef.current && data !== '\x03') return
+      if (!sendPtyInput(data, { broadcast: true })) return
       if (data === '\r') {
         const command = commandBuffer.trim()
         // Notify completion of a previously flagged long command
@@ -261,14 +269,6 @@ export function useTerminal({
         pendingNotifCmd = null
       } else if (data >= ' ' && !data.startsWith('\x1b')) {
         commandBuffer += data
-      }
-      window.sush.ptyInput({ tabId, data })
-      // Broadcast to other tabs if broadcast mode is active
-      const bcastIds = broadcastTabIdsRef.current
-      if (bcastIds && bcastIds.length > 1) {
-        for (const id of bcastIds) {
-          if (id !== tabId) window.sush.ptyInput({ tabId: id, data })
-        }
       }
     })
 
@@ -342,7 +342,7 @@ export function useTerminal({
     // Listing transparentBg here disposed and recreated the whole xterm on a
     // wallpaper/eco toggle, wiping every terminal's visible buffer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, profile?.id, profile?.shell, resizePty, tabId])
+  }, [containerRef, profile?.id, profile?.shell, resizePty, sendPtyInput, tabId])
 
   useEffect(() => {
     if (transparentBg || powerSaver) {
@@ -387,9 +387,11 @@ export function useTerminal({
 
   const pasteText = useCallback((text) => {
     if (!termRef.current || !text) return
-    window.sush.ptyInput({ tabId, data: text })
+    // Context-menu and file-drop pastes bypass xterm's onData callback, so
+    // explicitly apply the same Usage Guard and broadcast behavior as typing.
+    if (!sendPtyInput(text, { broadcast: true })) return
     termRef.current.focus()
-  }, [tabId])
+  }, [sendPtyInput])
 
   const search = useCallback((query, opts = {}) => {
     if (!searchAddonRef.current || !query) return

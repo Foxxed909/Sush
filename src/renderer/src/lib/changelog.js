@@ -8,6 +8,26 @@
 
 export const CHANGELOG = [
   {
+    v: '4.11.0',
+    codename: 'sotto',
+    date: '2026-07-19',
+    summary: 'A tighter Sush: one focused app, safer desktop integrations, and room for larger crews.',
+    changes: {
+      new: [
+        'Enterprise adds a 32-session grid, 50 account slots per CLI, and a 20-seat Private Fleet for larger local teams.',
+        'GitHub connection can use the signed-in GitHub CLI and requests only the scopes Sush needs.'
+      ],
+      improved: [
+        'Hush defaults to local whisper.cpp when it is available, keeping dictation private and free by default.',
+        'The separate Sush Air companion app was retired so the repository has one terminal product to maintain.'
+      ],
+      fixed: [
+        'Windows tool launches reject unsafe batch-file arguments, and port discovery works on non-English Windows installs.',
+        'Terminal input protections now apply consistently to typed, pasted, and dropped input.'
+      ]
+    }
+  },
+  {
     v: '4.10.0',
     codename: 'sotto',
     date: '2026-07-10',

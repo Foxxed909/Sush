@@ -1,5 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import Terminal from './components/Terminal'
+import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import TitleBar from './components/TitleBar'
 import ProfileManager, { useProfiles } from './components/ProfileManager'
 import Settings from './components/Settings'
@@ -51,6 +50,11 @@ import { canHandleGlobalShortcut } from './lib/shortcutGuard'
 import { isSensitiveCommand } from './lib/commandPrivacy'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
+
+// xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
+// opens on Home and restores terminals only on demand, so keep that code out
+// of the first renderer payload until a terminal is actually shown.
+const Terminal = React.lazy(() => import('./components/Terminal'))
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
 const OLD_COMMAND_RECENTS_KEY = 'sush-recents'
@@ -1980,7 +1984,7 @@ export default function App() {
                 // Grid auto-sizes to the session count: a near-square layout
                 // (2 sessions → 1×2, 3-4 → 2×2, 5-9 → 3×3, and so on). The live
                 // tile count is capped by the plan tier's gridCap (Free 4 /
-                // Plus 9 / Pro 12 / Ultra 20 / Max 25) — also the lazy-boot CPU
+                // Plus 9 / Pro 12 / Ultra 20 / Max 25 / Enterprise 32) — also the lazy-boot CPU
                 // guard, honest about it via the "showing X of N" note below —
                 // so a weak machine isn't asked to paint a wall of WebGL
                 // terminals at once.
@@ -2024,37 +2028,39 @@ export default function App() {
                             : { position: 'absolute', inset: 0 }}
                         >
                           {booted ? (
-                            <Terminal
-                              tabId={tab.id}
-                              theme={t}
-                              profile={prof}
-                              shellId={tab.shell}
-                              active={focused}
-                              splitVisible={layoutGridMode}
-                              initialCwd={tab.cwd}
-                              bootCommand={tab.bootCommand}
-                              fontSize={layoutGridMode ? Math.max(10, fontSize - 2) : fontSize}
-                              fontFamily={fontFamily}
-                              cursorStyle={cursorStyle}
-                              broadcastTabIds={broadcastTargets}
-                              restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
-                              persistScrollback={settings.persistScrollback !== false}
-                              transparentBg={wallpaperOnTerminals}
-                              powerSaver={terminalSaver}
-                              inputLocked={guardBlocked && tab.agentId === 'claude'}
-                              onSessionState={(state) => handleSessionState(tab.id, state)}
-                              onReady={(state) => handleTerminalReady(tab.id, state)}
-                              onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
-                              onCommand={(cmd) => {
-                                // Move a repeated command to the end so the
-                                // palette's "recent" list reflects real recency
-                                // (includes()-dedupe froze old commands in place).
-                                if (cmd && !isSensitiveCommand(cmd)) {
-                                  setCommandHistory(prev => [...prev.filter(c => c !== cmd).slice(-499), cmd])
-                                }
-                              }}
-                              onExport={() => exportSessionOutput(tab.id)}
-                            />
+                            <Suspense fallback={<div className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, color: '#8a939c', fontSize: 12 }}>Starting terminal…</div>}>
+                              <Terminal
+                                tabId={tab.id}
+                                theme={t}
+                                profile={prof}
+                                shellId={tab.shell}
+                                active={focused}
+                                splitVisible={layoutGridMode}
+                                initialCwd={tab.cwd}
+                                bootCommand={tab.bootCommand}
+                                fontSize={layoutGridMode ? Math.max(10, fontSize - 2) : fontSize}
+                                fontFamily={fontFamily}
+                                cursorStyle={cursorStyle}
+                                broadcastTabIds={broadcastTargets}
+                                restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
+                                persistScrollback={settings.persistScrollback !== false}
+                                transparentBg={wallpaperOnTerminals}
+                                powerSaver={terminalSaver}
+                                inputLocked={guardBlocked && tab.agentId === 'claude'}
+                                onSessionState={(state) => handleSessionState(tab.id, state)}
+                                onReady={(state) => handleTerminalReady(tab.id, state)}
+                                onNewTab={() => openTab(prof, { cwd: tab.cwd, shell: tab.shell })}
+                                onCommand={(cmd) => {
+                                  // Move a repeated command to the end so the
+                                  // palette's "recent" list reflects real recency
+                                  // (includes()-dedupe froze old commands in place).
+                                  if (cmd && !isSensitiveCommand(cmd)) {
+                                    setCommandHistory(prev => [...prev.filter(c => c !== cmd).slice(-499), cmd])
+                                  }
+                                }}
+                                onExport={() => exportSessionOutput(tab.id)}
+                              />
+                            </Suspense>
                           ) : (
                             <div className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, cursor: 'pointer' }}>
                               <div style={{ textAlign: 'center' }}>

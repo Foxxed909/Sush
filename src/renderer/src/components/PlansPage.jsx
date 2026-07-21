@@ -5,10 +5,10 @@ import { rgba } from '../lib/ui'
 // The pricing page — a full page of its own (opened from Settings ▸ Plan, the
 // palette, or any upgrade hint), not a section buried in the Settings scroll.
 //
-// Structure is deliberate: the three core plans read as a ladder; Ultra and
-// Max sit below as one wide "performance" band with a different shape, so the
-// page is a hierarchy, not five identical cards. Accent is restrained — tier
-// color marks each plan's identity, the pink accent only marks actions.
+// Structure is deliberate: every plan is one card in a single comparison deck.
+// The selected card carries the complete story; the rest remain quiet and
+// comparable. Accent is restrained — tier color marks each plan's identity,
+// the pink accent only marks actions.
 
 // Tier identity colors come from Nord (frost + aurora) so the ladder reads as
 // one family instead of five unrelated hues. Max is nord11 brightened one step
@@ -17,16 +17,30 @@ import { rgba } from '../lib/ui'
 export const TIER_META = {
   free:  { label: 'Free',  price: '$0',  unit: 'forever',  color: '#a4b0c4', blurb: 'The essentials, no code needed.' },
   plus:  { label: 'Plus',  price: '$8',  unit: '/ month',  color: '#88c0d0', blurb: 'Multi-account work + cloud voice.', popular: true },
+  dev:   { label: 'Dev',   price: '$12', unit: '/ month',  color: '#7aa2ff', blurb: 'Repo crews and safe parallel work.' },
   pro:   { label: 'Pro',   price: '$16', unit: '/ month',  color: '#b48ead', blurb: 'Bigger grid + the Usage Guard.' },
   ultra: { label: 'Ultra', price: '$29', unit: '/ month',  color: '#ebcb8b', blurb: 'Standing swarms, hands-free handoff.' },
-  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#d06f79', blurb: 'Everything Sush can do, maxed.' }
+  max:   { label: 'Max',   price: '$49', unit: '/ month',  color: '#d06f79', blurb: 'Everything Sush can do, maxed.' },
+  enterprise: { label: 'Enterprise', price: '$99', unit: '/ month', color: '#8fddd1', blurb: 'A 20-seat private fleet for high-volume teams.' }
 }
 
 // Mirror of main/credits.js TIER_ALLOWANCE_SEC so the cards and the real
 // meter never disagree.
-export const CREDIT_MINUTES = { free: 5, plus: 60, pro: 150, ultra: 600, max: 1500 }
+export const CREDIT_MINUTES = { free: 5, plus: 60, dev: 90, pro: 150, ultra: 600, max: 1500, enterprise: 10000 }
 
-const ORDER = ['free', 'plus', 'pro', 'ultra', 'max']
+export const ENTERPRISE_ACCENTS = [
+  { id: 'ice', label: 'Ice teal', color: '#8fddd1' },
+  { id: 'violet', label: 'Violet', color: '#a78bfa' },
+  { id: 'blue', label: 'Blue', color: '#7aa2ff' },
+  { id: 'lime', label: 'Lime', color: '#b6e67a' },
+  { id: 'amber', label: 'Amber', color: '#ffbc42' }
+]
+
+function enterpriseAccentFor(id) {
+  return ENTERPRISE_ACCENTS.find(item => item.id === id) || ENTERPRISE_ACCENTS[0]
+}
+
+const ORDER = ['free', 'plus', 'dev', 'pro', 'ultra', 'max', 'enterprise']
 
 const FEATURES = [
   ['Accounts per CLI', t => String(t.slots)],
@@ -35,6 +49,7 @@ const FEATURES = [
   ['Custom agents', t => t.customAgents],
   ['Cloud voices', t => t.cloudTts],
   ['Connect accounts (OAuth)', t => !!t.providerConnect],
+  ['Developer workflows', t => !!t.developerWorkflows],
   ['Usage Guard', t => !!t.usageGuard],
   ['Auto-handoff', t => !!t.autoHandoff]
 ]
@@ -63,7 +78,11 @@ export default function PlansPage({ accent, ent, onDismiss }) {
   const tier = ent.tier || 'free'
   const tiers = ent.tiers && Object.keys(ent.tiers).length ? ent.tiers : null
   // Which card is dealt to the front of the fan — defaults to your tier.
-  const [active, setActive] = useState(ORDER.includes(tier) ? tier : 'plus')
+  const [active, setActive] = useState(ORDER.includes(tier) ? tier : 'max')
+  const [enterpriseAccentId, setEnterpriseAccentId] = useState(() => {
+    try { return enterpriseAccentFor(localStorage.getItem('sush-enterprise-accent')).id } catch { return 'ice' }
+  })
+  const [verticalCards, setVerticalCards] = useState(() => window.innerWidth <= 980)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -73,6 +92,23 @@ export default function PlansPage({ accent, ent, onDismiss }) {
     window.addEventListener('keydown', onEsc)
     return () => window.removeEventListener('keydown', onEsc)
   }, [onDismiss])
+
+  useEffect(() => {
+    if (ORDER.includes(tier)) setActive(tier)
+  }, [tier])
+
+  useEffect(() => {
+    try { localStorage.setItem('sush-enterprise-accent', enterpriseAccentId) } catch {}
+  }, [enterpriseAccentId])
+
+  useEffect(() => {
+    const syncCardLayout = () => setVerticalCards(window.innerWidth <= 980)
+    syncCardLayout()
+    window.addEventListener('resize', syncCardLayout)
+    return () => window.removeEventListener('resize', syncCardLayout)
+  }, [])
+
+  const enterpriseAccent = enterpriseAccentFor(enterpriseAccentId)
 
   const redeem = async () => {
     const c = code.trim()
@@ -111,7 +147,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
         </button>
       </div>
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '38px 26px 60px' }}>
+      <div style={{ maxWidth: 960, margin: '0 auto', padding: '38px 26px 60px' }}>
         {/* Lede */}
         <h1 style={{ fontSize: 30, fontWeight: 900, color: 'var(--text-1)', letterSpacing: '-0.02em', lineHeight: 1.15, textWrap: 'balance', margin: 0 }}>
           One terminal. Your whole crew.
@@ -122,7 +158,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
           long-running swarms alive.
         </p>
 
-        {/* The deck — all five plans fanned like a hand of cards. The front
+        {/* The deck — every plan is fanned like a hand of cards. The front
             card is fully dealt (complete feature list); the rest peek out
             behind it, each showing its name + price on the exposed corner.
             Click a card to bring it forward. */}
@@ -133,46 +169,48 @@ export default function PlansPage({ accent, ent, onDismiss }) {
               // order, rotated around a shared bottom-left pivot.
               const rest = ORDER.filter(t => t !== active)
               const deck = [active, ...rest]
+              const fanStep = deck.length >= 7 ? 88 : 103
               return deck.map((t, i) => {
                 const m = TIER_META[t]
                 const f = tiers[t]
                 if (!f) return null
-                const front = i === 0
+                const front = verticalCards || i === 0
                 const current = t === tier
+                const tierColor = t === 'enterprise' ? enterpriseAccent.color : m.color
                 return (
                   <div
                     key={t}
                     className="sush-fan-card"
-                    onClick={() => setActive(t)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActive(t) } }}
-                    aria-pressed={front}
+                    onClick={() => { if (!verticalCards) setActive(t) }}
+                    role={verticalCards ? undefined : 'button'}
+                    tabIndex={verticalCards ? undefined : 0}
+                    onKeyDown={verticalCards ? undefined : e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActive(t) } }}
+                    aria-pressed={verticalCards ? undefined : front}
                     style={{
                       position: 'absolute', top: 0, left: 0,
                       width: 300, height: 430,
                       transformOrigin: '20% 130%',
-                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${80 + i * 106}px) rotate(${i * 4.5}deg)`,
-                      '--tier-glow': rgba(m.color, 0.28),
+                      '--fan-pose': front ? 'rotate(0deg)' : `translateX(${80 + i * fanStep}px) rotate(${i * 4.5}deg)`,
+                      '--tier-glow': rgba(tierColor, 0.28),
                       zIndex: 10 - i,
-                      cursor: front ? 'default' : 'pointer',
+                      cursor: verticalCards || front ? 'default' : 'pointer',
                       display: 'flex', flexDirection: 'column',
                       borderRadius: 18, padding: '18px 17px 16px',
-                      border: `1px solid ${front ? rgba(m.color, 0.65) : rgba(m.color, 0.42)}`,
-                      background: `radial-gradient(130% 55% at 50% 0%, ${rgba(m.color, front ? 0.20 : 0.13)}, transparent 62%), ${front ? '#101114' : 'var(--surface-1)'}`,
-                      boxShadow: front ? `0 18px 44px rgba(0,0,0,0.5), 0 0 26px ${rgba(m.color, 0.14)}, 0 0 0 1px ${rgba(m.color, 0.14)}` : '0 10px 26px rgba(0,0,0,0.42)'
+                      border: `1px solid ${front ? rgba(tierColor, 0.65) : rgba(tierColor, 0.42)}`,
+                      background: `radial-gradient(130% 55% at 50% 0%, ${rgba(tierColor, front ? 0.20 : 0.13)}, transparent 62%), ${front ? '#101114' : 'var(--surface-1)'}`,
+                      boxShadow: front ? `0 18px 44px rgba(0,0,0,0.5), 0 0 26px ${rgba(tierColor, 0.14)}, 0 0 0 1px ${rgba(tierColor, 0.14)}` : '0 10px 26px rgba(0,0,0,0.42)'
                     }}
                   >
                     {/* Exposed corner: name + price sit on whichever corner the
                         fan actually reveals — left on the dealt card, right on
                         the peeking ones. */}
                     <div className="flex items-center" style={{ gap: 8, justifyContent: front ? 'flex-start' : 'flex-end' }}>
-                      <span style={{ fontSize: 13, fontWeight: 900, color: m.color }}>{m.label}</span>
-                      {current && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: '#05070b', background: m.color, borderRadius: 999, padding: '2px 8px' }}>Your plan</span>}
-                      {!current && m.popular && front && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: '#05070b', background: m.color, borderRadius: 999, padding: '2px 8px' }}>Popular</span>}
+                      <span style={{ fontSize: 13, fontWeight: 900, color: tierColor }}>{m.label}</span>
+                      {current && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: '#05070b', background: tierColor, borderRadius: 999, padding: '2px 8px' }}>Your plan</span>}
+                      {!current && m.popular && front && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.7, textTransform: 'uppercase', color: '#05070b', background: tierColor, borderRadius: 999, padding: '2px 8px' }}>Popular</span>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 6, justifyContent: front ? 'flex-start' : 'flex-end' }}>
-                      <span style={{ fontSize: 27, fontWeight: 900, color: m.color, lineHeight: 1, letterSpacing: '-0.02em' }}>{m.price}</span>
+                      <span style={{ fontSize: 27, fontWeight: 900, color: tierColor, lineHeight: 1, letterSpacing: '-0.02em' }}>{m.price}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>{m.unit}</span>
                     </div>
                     {/* Full details only on the dealt card — the fan stays calm. */}
@@ -182,9 +220,20 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                         <div style={{ height: 1, background: 'var(--border-1)', margin: '13px 0' }} />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8.5, flex: 1 }}>
                           {FEATURES.map(([name, fn]) => (
-                            <FeatureLine key={name} name={name} value={fn(f, t)} color={m.color} />
+                            <FeatureLine key={name} name={name} value={fn(f, t)} color={tierColor} />
                           ))}
                         </div>
+                        {t === 'enterprise' && (
+                          <div className="flex items-center" onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${rgba(tierColor, 0.22)}`, gap: 8, flexWrap: 'wrap' }}>
+                            <span className="flex items-center" style={{ gap: 5, color: '#5fd3a8', fontSize: 10, fontWeight: 800, marginRight: 'auto' }}><Icon name="check" size={12} strokeWidth={2.4} /> {f.fleetSeats || 20}-seat fleet · Whisper local</span>
+                            <div role="radiogroup" aria-label="Enterprise accent" className="flex items-center" style={{ gap: 5 }}>
+                              {ENTERPRISE_ACCENTS.map(item => {
+                                const selected = item.id === enterpriseAccent.id
+                                return <button key={item.id} type="button" role="radio" aria-checked={selected} aria-label={`Use ${item.label} for Enterprise`} title={item.label} onClick={() => setEnterpriseAccentId(item.id)} style={{ width: 18, height: 18, borderRadius: 5, padding: 0, border: `2px solid ${selected ? 'var(--text-1)' : 'transparent'}`, outline: selected ? `2px solid ${rgba(item.color, 0.5)}` : 'none', outlineOffset: 1, background: item.color, cursor: 'pointer' }} />
+                              })}
+                            </div>
+                          </div>
+                        )}
                         {current && t !== 'free' ? (
                           <button onClick={e => { e.stopPropagation(); revert() }} style={{ marginTop: 12, width: '100%', fontSize: 11, fontWeight: 800, color: 'var(--text-3)', background: 'var(--surface-2)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '8px 0', cursor: 'pointer' }}>
                             Revert to Free
@@ -192,7 +241,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                         ) : current ? (
                           <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: 'var(--text-4)', padding: '8px 0' }}>You're here</div>
                         ) : (
-                          <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, fontWeight: 800, color: m.color, letterSpacing: 0.4, textTransform: 'uppercase', padding: '8px 0', borderRadius: 999, background: rgba(m.color, 0.09), border: `1px solid ${rgba(m.color, 0.28)}` }}>
+                          <div style={{ marginTop: 12, textAlign: 'center', fontSize: 10, fontWeight: 800, color: tierColor, letterSpacing: 0.4, textTransform: 'uppercase', padding: '8px 0', borderRadius: 999, background: rgba(tierColor, 0.09), border: `1px solid ${rgba(tierColor, 0.28)}` }}>
                             Unlocks with a code
                           </div>
                         )}
@@ -200,15 +249,16 @@ export default function PlansPage({ accent, ent, onDismiss }) {
                     ) : (
                       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 7, alignItems: 'flex-end' }}>
                         <div style={{ fontSize: 10.5, color: 'var(--text-2)', lineHeight: 1.45, textAlign: 'right', maxWidth: 190 }}>{m.blurb}</div>
-                        <div style={{ height: 1, width: 120, background: rgba(m.color, 0.3), margin: '3px 0' }} />
+                        <div style={{ height: 1, width: 120, background: rgba(tierColor, 0.3), margin: '3px 0' }} />
                         {[
                           [String(f.slots), f.slots === 1 ? 'account per CLI' : 'accounts per CLI'],
                           [String(f.gridCap), 'grid sessions'],
                           [`${CREDIT_MINUTES[t]}m`, 'dictation / mo'],
-                          ...(f.usageGuard ? [[f.autoHandoff ? 'Guard+' : 'Guard', f.autoHandoff ? 'auto-handoff' : 'usage guard']] : [])
+                          ...(f.usageGuard ? [[f.autoHandoff ? 'Guard+' : 'Guard', f.autoHandoff ? 'auto-handoff' : 'usage guard']] : []),
+                          ...(f.privateFleet ? [[String(f.fleetSeats || 20), 'Private Fleet seats']] : [])
                         ].map(([v, l]) => (
                           <div key={l} style={{ fontSize: 11, textAlign: 'right' }}>
-                            <span style={{ color: m.color, fontWeight: 900 }}>{v}</span>
+                            <span style={{ color: tierColor, fontWeight: 900 }}>{v}</span>
                             <span style={{ color: 'var(--text-3)', fontWeight: 600 }}> {l}</span>
                           </div>
                         ))}
@@ -230,6 +280,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
           </div>
           <div style={{ display: 'flex', gap: 8, width: '100%', maxWidth: 520 }}>
             <input
+              id="sush-redeem-code"
               value={code}
               onChange={e => setCode(e.target.value.toUpperCase())}
               onKeyDown={e => { if (e.key === 'Enter') redeem() }}

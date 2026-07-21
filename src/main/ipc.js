@@ -351,11 +351,100 @@ function readCodexHealth(env, { doctor = false } = {}) {
   })
 }
 
+// Gemini and OpenCode do not expose a stable, machine-readable quota API like
+// Claude's stream-json rate_limit_event. A bounded version run still proves the
+// selected slot can launch its CLI, and the config-root check shows whether that
+// slot has been configured. We intentionally label this as health, not usage.
+function providerConfigPresent(provider, env) {
+  const home = env.HOME || env.USERPROFILE || homedir()
+  if (provider === 'gemini') return existsSync(join(home, '.gemini'))
+  if (provider === 'opencode') {
+    const configHome = env.XDG_CONFIG_HOME || join(home, '.config')
+    return existsSync(join(configHome, 'opencode'))
+  }
+  return false
+}
+
+function readCliHealth(provider, env) {
+  const label = provider === 'gemini' ? 'Gemini' : 'OpenCode'
+  const configured = providerConfigPresent(provider, env)
+  const bin = resolveExecutable(provider)
+  if (!bin) {
+    return Promise.resolve({
+      ok: true,
+      usage: {
+        kind: 'health',
+        status: 'not found',
+        note: `${label} CLI was not found`,
+        healthy: false,
+        configured
+      }
+    })
+  }
+
+  const { file, args } = shimSpawnSpec(bin, ['--version'])
+  return new Promise(resolve => {
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let child
+    let timer = null
+    const done = (usage) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      try { child?.kill() } catch {}
+      resolve({ ok: true, usage })
+    }
+    try {
+      child = spawn(file, args, { windowsHide: true, env: { ...process.env, ...env } })
+    } catch (e) {
+      return done({
+        kind: 'health',
+        status: 'CLI check failed',
+        note: e.message,
+        healthy: false,
+        configured
+      })
+    }
+    timer = setTimeout(() => done({
+      kind: 'health',
+      status: 'CLI check timed out',
+      note: `${label} did not answer within 10s`,
+      healthy: false,
+      configured
+    }), 10000)
+    child.stdout.on('data', d => { stdout = (stdout + d).slice(-2000) })
+    child.stderr.on('data', d => { stderr = (stderr + d).slice(-2000) })
+    child.on('error', e => done({
+      kind: 'health',
+      status: 'CLI check failed',
+      note: e.message,
+      healthy: false,
+      configured
+    }))
+    child.on('close', code => {
+      const detail = firstUsefulLine(`${stdout}\n${stderr}`)
+      done({
+        kind: 'health',
+        status: code === 0 ? 'CLI ready' : 'CLI check failed',
+        note: configured ? 'slot configuration found' : 'no slot configuration found yet',
+        detail: detail || `${provider} --version exited ${code}`,
+        healthy: code === 0,
+        configured,
+        checkCode: code
+      })
+    })
+  })
+}
+
 // Read one account's "usage" by probing the CLI with that slot's env layered on
 // top of the active identity env (so only this provider's config dir moves).
 //   • Claude: a real rate-limit snapshot from its stream-json `rate_limit_event`.
 //   • Codex: default stays spawn-free (auth.json). The optional doctor flag is
 //     button-only and bounded, for richer health when the user asks for it.
+//   • Gemini/OpenCode: bounded local CLI health checks; they never pretend to
+//     be quota figures because those CLIs do not report a portable quota API.
 async function readAccountUsage(userId, provider, slotId, options = {}) {
   if (provider === 'claude') {
     const overlay = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
@@ -364,6 +453,10 @@ async function readAccountUsage(userId, provider, slotId, options = {}) {
   if (provider === 'codex') {
     const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
     return readCodexHealth(env, { doctor: options.doctor === true })
+  }
+  if (provider === 'gemini' || provider === 'opencode') {
+    const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
+    return readCliHealth(provider, env)
   }
   return { ok: false, error: 'Usage isn’t available for this CLI.' }
 }
@@ -1596,11 +1689,10 @@ export function registerIpcHandlers(win) {
 
   // ── Usage snapshot (the Usage settings panel) ─────────────────────────────
   // Cheap, spawn-free aggregate the Usage panel polls on a timer: per-CLI
-  // install state (cached presence), the active account slot + when it last hit
-  // a limit (from accounts.json), and the LAST CAPTURED Claude rate-limit window
-  // (passive — getClaudeLimits never spawns). The live Claude probe stays on
-  // its own handler (claude-limits-check) so auto-refresh can't hammer a weak
-  // CPU with real `claude` runs every tick.
+  // install state (cached presence), the active account slot + last saved
+  // provider health/usage, when it last hit a limit, and the LAST CAPTURED
+  // Claude rate-limit window. This handler never launches a CLI: on-demand
+  // checks are the only path that can spawn a provider process.
   ipcMain.handle('sush:usage-snapshot', () => {
     const user = getActiveUser()
     const providers = (user ? listAccounts(user.id) : {}).providers || {}
@@ -1608,7 +1700,13 @@ export function registerIpcHandlers(win) {
       const st = providers[p]
       if (!st) return null
       const slot = st.slots?.find(s => s.id === st.active)
-      return slot ? { label: slot.label, lastLimitAt: slot.lastLimitAt || null, count: st.slots.length } : null
+      return slot ? {
+        id: slot.id,
+        label: slot.label,
+        lastLimitAt: slot.lastLimitAt || null,
+        usage: slot.usage || null,
+        count: st.slots.length
+      } : null
     }
     const present = (name) => {
       if (!cliPresence.has(name)) cliPresence.set(name, !!resolveExecutable(name))
@@ -1965,6 +2063,9 @@ export function registerIpcHandlers(win) {
   // under <repoRoot>/.sush-worktrees/<name> on a dedicated `sush/<name>` branch
   // and returns its path for the session to spawn in.
   ipcMain.handle('sush:git-worktree-add', async (event, { cwd, name } = {}) => {
+    if (!can('developerWorkflows')) {
+      return { ok: false, error: 'Isolated worktrees are available on Dev, Max, and Enterprise.' }
+    }
     const dir = existingDirectory(cwd)
     if (!dir) return { ok: false, error: 'Working directory does not exist' }
     const safe = String(name ?? '').trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)

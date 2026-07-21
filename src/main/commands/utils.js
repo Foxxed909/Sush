@@ -110,7 +110,9 @@ export const credits = {
     // (which needs no key and spends no credits at all).
     const stt = getSttConfigPublic()
     const footer = stt.provider === 'local'
-      ? '  Dictation runs on local whisper.cpp — free, no credits spent.'
+      ? stt.localStatus?.ready
+        ? '  Dictation runs on local whisper.cpp — free, no credits spent.'
+        : `  Local Whisper needs: ${(stt.localStatus?.missing || ['whisper.cpp CLI', 'base.en model']).join(' + ')}.`
       : stt.hasKey
         ? '  Whisper key set. Cloud dictation spends this meter.'
         : '  Set a Whisper key in Settings ▸ Voice to enable dictation.'

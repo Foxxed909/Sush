@@ -1,6 +1,7 @@
 import { homedir } from 'os'
 import { join, resolve } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { getActiveUser, userHomeDir } from '../users'
 
 // The .sushrc is Sush's own shell-agnostic profile. It is a small declarative
 // INI-like file that Sush parses and applies to whichever underlying shell a tab
@@ -21,8 +22,13 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 //   doctor
 //   git status
 
-export function sushrcPath() {
+function sharedSushrcPath() {
   return join(homedir(), '.sushrc')
+}
+
+export function sushrcPath() {
+  const active = getActiveUser()
+  return active ? join(userHomeDir(active.id), '.sushrc') : sharedSushrcPath()
 }
 
 export const DEFAULT_SUSHRC = `# ~/.sushrc — your Sush profile (applies to every shell)
@@ -100,6 +106,18 @@ function readProfileAt(file) {
   }
 }
 
+// Existing Sush installs had one shared profile. Let an identity inherit it
+// until it saves a profile-local .sushrc, so adding profile isolation never
+// makes established aliases silently disappear.
+function readHomeProfile() {
+  const file = sushrcPath()
+  const own = readProfileAt(file)
+  const shared = sharedSushrcPath()
+  if (own.exists || file === shared) return own
+  const inherited = readProfileAt(shared)
+  return inherited.exists ? { ...inherited, path: file, inheritedFrom: shared } : own
+}
+
 // Merge a project profile OVER a base (home) profile. Aliases/env/settings are
 // key-wise overrides (project wins); startup commands concatenate (home first,
 // then project) so a repo can add boot steps without losing the user's.
@@ -121,7 +139,7 @@ export function projectRcTrusted(env = process.env) {
 }
 
 export function loadSushrc(cwd, { trustProject = projectRcTrusted() } = {}) {
-  const home = readProfileAt(sushrcPath())
+  const home = readHomeProfile()
   const dir = cwd && String(cwd).trim()
   if (!dir) return home
 
@@ -151,7 +169,14 @@ export function loadSushrc(cwd, { trustProject = projectRcTrusted() } = {}) {
 export function readSushrcRaw() {
   const file = sushrcPath()
   try {
-    return { ok: true, path: file, exists: existsSync(file), content: existsSync(file) ? readFileSync(file, 'utf8') : DEFAULT_SUSHRC }
+    const profile = readHomeProfile()
+    return {
+      ok: true,
+      path: file,
+      exists: existsSync(file),
+      inheritedFrom: profile.inheritedFrom,
+      content: profile.raw || DEFAULT_SUSHRC
+    }
   } catch (err) {
     return { ok: false, path: file, exists: false, content: DEFAULT_SUSHRC, error: err.message }
   }

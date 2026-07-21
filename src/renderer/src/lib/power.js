@@ -29,8 +29,8 @@ export function withPerfMode(settings, mode) {
 // One-click light profile: the eco rung plus reduced motion and a solid window
 // material, as a single named toggle. It composes existing settings rather than
 // adding a parallel rendering path — turning it off restores exactly what the
-// user had before (kept in `featherRestore`). ("Sush Air" is the separate
-// Tauri app in air/ — this is just a rendering profile.)
+// user had before (kept in `featherRestore`). Feather is only a rendering
+// profile; it never changes plans, features, or terminal behavior.
 
 export function isFeather(settings = {}) {
   return settings.featherMode === true

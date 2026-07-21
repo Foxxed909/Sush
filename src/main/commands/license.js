@@ -15,12 +15,11 @@ export const plan = {
       ansi.dim('─'.repeat(34)),
       `${ansi.cyan('Accounts/CLI')}  ${features.slots}`,
       `${ansi.cyan('Grid sessions')} ${features.gridCap}`,
+      ...(features.fleetSeats ? [`${ansi.cyan('Private Fleet')} ${features.fleetSeats} seats`] : []),
       `${ansi.cyan('Custom agents')} ${features.customAgents ? ansi.green('yes') : ansi.dim('—')}`,
       `${ansi.cyan('Cloud voices')}  ${features.cloudTts ? ansi.green('yes') : ansi.dim('—')}`,
       '',
-      // Max is the top of the five-tier ladder — 'pro' was the ceiling before
-      // Ultra/Max landed, and this line never moved with it.
-      tier === 'max'
+      tier === 'enterprise'
         ? ansi.dim('You’re on the top tier.')
         : ansi.dim('Have a code? Run:  unlock SUSH-…')
     ]

@@ -10,18 +10,12 @@ Power (or from the command palette) and Sush drops to eco rendering, freezes
 all motion, and goes to a solid window — then puts *exactly* your old setup
 back when you turn it off.
 
-### 💨 Sush Air (new app)
-A separate, far lighter desktop app built on Tauri — the Sush essentials
-(terminal sessions, agent launching, palette, themes, core commands) with a
-fraction of Electron's footprint. Lives in `air/` in the repo.
-
 ### 🧰 Review cycle 4.11.0
 A deep pass over the whole app: safer command handling on Windows (`.bat`
 tools, package installs, app launching), quoting that respects apostrophes,
 port listings that work on non-English Windows, history search you can see
 while you cycle (Ctrl+R), and a stack of small leak and race fixes across the
-panels. Two unused dependencies removed — Sush is lighter before Air even
-kicks in.
+panels. Two unused dependencies removed, keeping Sush itself lighter.
 
 ### 🔍 Hunt, with a face
 `Ctrl+Shift+F` opens the **Hunt overlay**: type once and watch matches from
@@ -44,14 +38,14 @@ next to the toggle shows exactly how many sessions are listening before you
 type a single key.
 
 ### 🎧 Dictation that never locks you out
-Running out of Quiet Credits no longer blocks **local whisper.cpp** dictation
-— your own CPU was always free, and now the mic knows it.
+Hush now defaults to **local whisper.cpp** dictation. Your own CPU is always
+free, so Quiet Credits never block the mic; cloud transcription remains an
+explicit opt-in path for people who configure it.
 
 ### 🎙️ Voice that actually works
-Dictation (Hush) and talking to Seducia now run on **Whisper** with your own
-OpenAI key — the key is encrypted on your machine and never leaves the main
-process. Tap the mic or press `Ctrl+Shift+S`, speak, and your words land in
-the focused terminal. `Esc` cancels without spending anything.
+Dictation (Hush) runs on **local Whisper** by default. Tap the mic or press
+`Ctrl+Shift+S`, speak, and your words land in the focused terminal. `Esc`
+cancels without spending anything.
 
 ### 🕊️ Quiet Credits
 Dictation is metered by a transparent, **local** monthly allowance — no
@@ -105,16 +99,18 @@ testable and disconnectable any time. Graduated from Experiments.
 
 ## Plans
 
-| | Free | Plus | Pro | Ultra | Max |
-|---|---|---|---|---|---|
-| Price | $0 | $8/mo | $16/mo | $29/mo | $49/mo |
-| Accounts per CLI | 1 | 4 | 6 | 10 | 16 |
-| Grid sessions | 4 | 9 | 12 | 20 | 25 |
-| Quiet Credits | 5m | 60m | 150m | 600m | 1500m |
-| Custom agents | — | ✓ | ✓ | ✓ | ✓ |
-| Cloud voices | — | ✓ | ✓ | ✓ | ✓ |
-| Connect accounts (OAuth) | — | ✓ | ✓ | ✓ | ✓ |
-| Usage Guard | — | — | ✓ | ✓ | ✓ |
-| Auto-handoff | — | — | — | ✓ | ✓ |
+| | Free | Plus | Dev | Pro | Ultra | Max | Enterprise |
+|---|---|---|---|---|---|---|---|
+| Price | $0 | $8/mo | $12/mo | $16/mo | $29/mo | $49/mo | $99/mo |
+| Accounts per CLI | 1 | 4 | 5 | 6 | 10 | 16 | 50 |
+| Grid sessions | 4 | 9 | 10 | 12 | 20 | 25 | 32 |
+| Quiet Credits | 5m | 60m | 90m | 150m | 600m | 1500m | 10,000m |
+| Developer workflows | — | — | Repo crews + isolated worktrees | — | — | ✓ | ✓ |
+| Private Fleet | — | — | — | — | — | — | 20 seats |
+| Custom agents | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Cloud voices | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Connect accounts (OAuth) | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Usage Guard | — | — | — | ✓ | ✓ | ✓ | ✓ |
+| Auto-handoff | — | — | — | — | ✓ | ✓ | ✓ |
 
 Unlock codes are offline — no payment rails, no account. See **Settings ▸ Plan**.

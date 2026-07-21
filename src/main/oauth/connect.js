@@ -364,3 +364,18 @@ export async function testProvider({ provider } = {}) {
     text: `Token valid${t?.account ? ` — signed in as ${t.account}` : ''}${t?.expires_at ? `, expires ${new Date(t.expires_at).toLocaleTimeString()}` : ''}`
   }
 }
+
+// The browser needs a complete response for every loopback OAuth outcome.
+// Keep this local to the provider-connect flow; Google sign-in has its own
+// callback page because it returns a different kind of identity payload.
+function respond(res, title, body) {
+  try {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end([
+      '<!doctype html><html><body style="font-family:system-ui;background:#0b0d11;color:#dfe3ea;',
+      'display:flex;align-items:center;justify-content:center;height:100vh;margin:0">',
+      `<div style="text-align:center"><h2 style="margin:0 0 8px">${title}</h2>`,
+      `<p style="opacity:.7;margin:0">${body}</p></div></body></html>`
+    ].join(''))
+  } catch {}
+}

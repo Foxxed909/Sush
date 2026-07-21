@@ -9,7 +9,13 @@ export function resolveExecutable(name) {
   const finder = process.platform === 'win32' ? 'where.exe' : 'which'
   let hits
   try {
-    const out = execFileSync(finder, [name], { encoding: 'utf8', windowsHide: true })
+    const out = execFileSync(finder, [name], {
+      encoding: 'utf8',
+      windowsHide: true,
+      // A missing optional CLI is a normal probe result, not an app error.
+      // Keep where.exe/which diagnostics out of Electron's console and tests.
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
     hits = out.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
   } catch {
     return null

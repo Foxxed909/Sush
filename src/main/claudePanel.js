@@ -1,6 +1,9 @@
 import { spawn } from 'child_process'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { activeUserEnv } from './users'
+import { resolvePanelPermissionMode } from './claude-permissions'
 
 // Claude Code panel backend: drives `claude -p --output-format stream-json`
 // and relays each NDJSON event to the renderer as it lands — live streamed
@@ -199,10 +202,15 @@ export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissio
     return { ok: false, error: 'Invalid session id' }
   }
   if (sessionId) args.push('--resume', String(sessionId))
-  // Panel default: plan-free editing inside the chosen workspace dir, still
-  // gated by Claude Code's own permission config. 'acceptEdits' keeps file
-  // edits flowing without a TTY to answer prompts on.
-  args.push('--permission-mode', permissionMode === 'default' ? 'default' : 'acceptEdits')
+  // Panel default stays acceptEdits, but the active Claude account can opt into
+  // a supported defaultMode in its own isolated settings.json. This is how a
+  // deliberate bypass setting stays scoped to one account slot.
+  let configuredMode = null
+  try {
+    const configDir = activeUserEnv().CLAUDE_CONFIG_DIR
+    if (configDir) configuredMode = JSON.parse(readFileSync(join(configDir, 'settings.json'), 'utf8'))?.permissions?.defaultMode
+  } catch {}
+  args.push('--permission-mode', resolvePanelPermissionMode(permissionMode, configuredMode))
 
   const { file, args: fullArgs } = shimSpawnSpec(bin, args)
   let child

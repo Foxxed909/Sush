@@ -1,6 +1,6 @@
 import { sign } from './license-secret.mjs'
 
-const PAID_TIERS = new Set(['plus', 'pro', 'ultra', 'max'])
+const PAID_TIERS = new Set(['plus', 'dev', 'pro', 'ultra', 'max', 'enterprise'])
 
 function freeLicense() {
   return { tier: 'free' }
@@ -27,8 +27,8 @@ function validCalendarDate(value) {
 // `now` is injectable so expiry behavior is deterministic in tests.
 export function verifySignedCode(raw, now = Date.now()) {
   const code = normalizedCode(raw)
-  const plain = code.match(/^SUSH-(PLUS|PRO|ULTRA|MAX)-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
-  const dated = code.match(/^SUSH-(PLUS|PRO|ULTRA|MAX)-(\d{8})-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
+  const plain = code.match(/^SUSH-(PLUS|DEV|PRO|ULTRA|MAX|ENTERPRISE)-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
+  const dated = code.match(/^SUSH-(PLUS|DEV|PRO|ULTRA|MAX|ENTERPRISE)-(\d{8})-([0-9A-Z]{8})-([0-9A-Z]{10})$/)
   let tier, nonce, signature, expiry = null
   if (plain) { ;[, tier, nonce, signature] = plain }
   else if (dated) { ;[, tier, expiry, nonce, signature] = dated }

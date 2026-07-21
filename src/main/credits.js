@@ -18,9 +18,11 @@ import { atomicWriteJson } from './secure-storage'
 const TIER_ALLOWANCE_SEC = {
   free: 5 * 60,      // 5 minutes / month — enough to feel it work
   plus: 60 * 60,     // 60 minutes / month
+  dev: 90 * 60,      // 90 minutes / month
   pro: 150 * 60,     // 150 minutes / month (trimmed when Ultra/Max landed)
   ultra: 600 * 60,   // 600 minutes / month
-  max: 1500 * 60     // 1500 minutes / month
+  max: 1500 * 60,    // 1500 minutes / month
+  enterprise: 10000 * 60 // 10,000 minutes / month
 }
 
 // `credits` isn't in TIER_FEATURES (that table gates boolean/number features the

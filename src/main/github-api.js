@@ -1,8 +1,9 @@
 import { spawn } from 'child_process'
-import { getActiveUser, activeUserEnv } from './users'
+import { getActiveUser, activeUserEnv, userHomeDir } from './users'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { getToken, encryptionAvailable } from './oauth/tokenStore'
 import { getOauthConfig } from './oauth/config'
+import { syncGitHubCliToken } from './oauth/github-cli-auth'
 
 // GitHub REST client for the ACTIVE identity. Token resolution prefers the
 // identity's gh CLI login (GH_CONFIG_DIR redirection makes `gh auth token`
@@ -62,6 +63,11 @@ async function resolveGitHubToken() {
   }
   const vaultToken = getToken(user.id, 'github')
   if (vaultToken) {
+    // Repair identities connected before Sush learned to hand the OAuth token
+    // to gh. This runs only after gh auth token missed, never exposes the token
+    // to the renderer, and leaves the vault as the fallback if gh is absent.
+    const synced = await syncGitHubCliToken({ token: vaultToken, configDir: `${userHomeDir(user.id)}/.gh` })
+    if (synced.ok) ghMissAt.delete(user.id)
     tokenCache = { userId: user.id, token: vaultToken, source: 'device', at: now }
     return tokenCache
   }

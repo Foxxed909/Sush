@@ -89,9 +89,9 @@ export const LOGIN_COMMANDS = {
 }
 
 // Hard ceiling on concurrent sessions — must be at least the largest tier's
-// gridCap (Max sells 25 grid sessions; a 16 ceiling silently broke that
+// gridCap (Enterprise sells 32 grid sessions; a 16 ceiling silently broke that
 // promise). The per-tier cap is enforced where sessions are created
 // (launchSessions consults the license); this is only the absolute bound.
-export const MAX_SESSIONS = 25
+export const MAX_SESSIONS = 32
 
 export const agentById = (id) => allAgents().find(a => a.id === id) || null

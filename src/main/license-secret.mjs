@@ -11,7 +11,7 @@ import { createHmac } from 'crypto'
 
 export const SECRET = 'W8HvXmTAt64GyCNKptYrjimZxYIci6J07OFjuwklsV8='
 export const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ' // Crockford-ish: no I/L/O/U
-export const TIERS = ['plus', 'pro', 'ultra', 'max']
+export const TIERS = ['plus', 'dev', 'pro', 'ultra', 'max', 'enterprise']
 
 // First 10 base32 chars of HMAC-SHA256(SECRET, message). `expiry` (YYYYMMDD) is
 // folded into the signed message for dated/trial codes so it can't be edited.

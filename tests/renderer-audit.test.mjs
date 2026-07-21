@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'fs'
 import { countersAfterTabs } from '../src/renderer/src/lib/sessionIds.js'
 import { isGitFileStaged } from '../src/renderer/src/lib/gitStatus.js'
 import { canHandleGlobalShortcut } from '../src/renderer/src/lib/shortcutGuard.js'
@@ -8,8 +9,27 @@ import { quoteShellPath } from '../src/renderer/src/lib/shellQuote.js'
 import { buildSshCommand, normalizeSshPort, normalizeSshProfiles } from '../src/renderer/src/lib/ssh.js'
 import { parseStoredObject } from '../src/renderer/src/lib/storage.js'
 import { unquoteEnvValue } from '../src/renderer/src/lib/env.js'
+import { CHANGELOG, LATEST_VERSION } from '../src/renderer/src/lib/changelog.js'
+import { terminalInputAllowed, terminalInputTargets } from '../src/renderer/src/lib/terminalInput.js'
 
 afterEach(() => vi.unstubAllGlobals())
+
+describe('release metadata', () => {
+  it('keeps the latest changelog entry aligned with the packaged app version', () => {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+    expect(LATEST_VERSION).toBe(pkg.version)
+    expect(CHANGELOG[0].v).toBe(pkg.version)
+  })
+})
+
+describe('terminal input routing', () => {
+  it('blocks every protected-input route except Ctrl+C and dedupes broadcast recipients', () => {
+    expect(terminalInputAllowed(true, 'paste this')).toBe(false)
+    expect(terminalInputAllowed(true, '\x03')).toBe(true)
+    expect(terminalInputAllowed(false, 'paste this')).toBe(true)
+    expect(terminalInputTargets('active', ['peer', 'active', 'peer'])).toEqual(['active', 'peer'])
+  })
+})
 
 describe('restored session counters', () => {
   it('continues after the largest restored ID in each namespace', () => {

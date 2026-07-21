@@ -22,3 +22,16 @@ users, if the trim draws complaints (see PRIVATE.md watchlist).
 **Cause of death:** Five unrelated hues read as noise and failed contrast at
 small sizes. Replaced with the Nord frost/aurora family.
 **Could it rise again?** No. THEME.md is locked.
+
+### Sush Air — 2026-07-19
+**Cause of death:** A separate Tauri 2/Rust app created a second, deliberately
+smaller product to maintain while Sush itself became the primary terminal.
+Its independent build, dependency tree, and feature boundary no longer earn
+their weight in this repository.
+**Concept retained:** A light, native Sush can still be valuable: Rust-backed
+PTY sessions with xterm.js, a twelve-tab ceiling, Ctrl+K command palette,
+four calm terminal themes, and a renderer-owned `:` command layer (`:help`,
+`:clear`, `:note`, `:theme`, `:agent`) that never interferes with shell input.
+**Could it rise again?** Yes—as a clean, dedicated Tauri distribution or a
+future "Sush Lite" experiment, revived from this brief rather than maintained
+as a shadow app inside the main product repository.

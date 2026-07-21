@@ -18,7 +18,10 @@ import { chromium } from 'playwright-core'
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const appVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 const dist = join(root, 'out', 'renderer')
-const outDir = resolve(process.argv[2] || join(root, 'shots'))
+const cliArgs = process.argv.slice(2)
+const plansOnly = cliArgs.includes('--plans-only')
+const explicitOutDir = cliArgs.find(arg => arg !== '--plans-only')
+const outDir = resolve(explicitOutDir || join(root, 'shots'))
 mkdirSync(outDir, { recursive: true })
 if (!existsSync(join(dist, 'index.html'))) {
   console.error('out/renderer missing — run `npx electron-vite build` first')
@@ -50,7 +53,7 @@ const stub = `
 (() => {
   const now = Date.now()
   const user = { id: 'u1', name: 'Taylor', color: '#ff6b9d', avatar: 'T', hasPin: false, isolation: 'cli', createdAt: now - 86400e3, lastUsedAt: now }
-  const credits = { tier: 'pro', allowanceSec: 9000, usedSec: 1740, remainingSec: 7260, resetAt: now + 20 * 86400e3, period: '2026-07' }
+  const credits = { tier: 'enterprise', allowanceSec: 600000, usedSec: 4200, remainingSec: 595800, resetAt: now + 20 * 86400e3, period: '2026-07' }
   const ptyListeners = []
   const stateListeners = []
   const DEMO = [
@@ -66,14 +69,16 @@ const stub = `
     platform: 'win32',
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
     usersActivate: async () => ({ ok: true, user }),
-    licenseGet: async () => ({ tier: 'pro', expiry: null,
-      features: { slots: 6, gridCap: 12, customAgents: true, cloudTts: true, usageGuard: true, autoHandoff: false, providerConnect: true, themes: 'all' },
+    licenseGet: async () => ({ tier: 'enterprise', expiry: null,
+      features: { slots: 50, gridCap: 32, customAgents: true, cloudTts: true, usageGuard: true, autoHandoff: true, providerConnect: true, developerWorkflows: true, themes: 'all', fleetSeats: 20, privateFleet: true },
       tiers: {
-        free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
-        plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  themes: 'all' },
-        pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  themes: 'all' },
-        ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' },
-        max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all' }
+        free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, developerWorkflows: false, themes: 'base' },
+        plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  developerWorkflows: false, themes: 'all' },
+        dev:   { slots: 5,  gridCap: 10, customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  developerWorkflows: true, themes: 'all' },
+        pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  developerWorkflows: false, themes: 'all' },
+        ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  developerWorkflows: false, themes: 'all' },
+        max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  developerWorkflows: true, themes: 'all' },
+        enterprise: { slots: 50, gridCap: 32, customAgents: true, cloudTts: true, usageGuard: true, autoHandoff: true, providerConnect: true, developerWorkflows: true, themes: 'all', fleetSeats: 20, privateFleet: true }
       } }),
     creditsGet: async () => credits,
     claudeLimitsGet: async () => ({ ok: true, limits: { status: 'allowed', rateLimitType: '', resetsAt: now + 3600e3, sessionPct: 42, weekPct: 18, at: now } }),
@@ -107,7 +112,7 @@ const stub = `
     githubNotifications: async () => ({ ok: true, notifications: [], unreadCount: 3, connected: true }),
     githubStatus: async () => ({ configured: { github: true, google: false }, safeStorage: true, connected: true, source: 'gh-cli', login: 'taylor' }),
     gitStatus: async () => ({ repo: true, dir: '/home/taylor/sush', branch: 'main', files: [ { status: 'M', rawStatus: ' M', path: 'src/App.jsx' }, { status: '??', rawStatus: '??', path: 'notes.md' } ] }),
-    sttConfigGet: async () => ({ provider: 'openai', model: '', hasKey: true, localBin: '', localModel: '', safeStorage: true, defaults: { openai: { model: 'whisper-1' }, local: { model: '' } }, credits }),
+    sttConfigGet: async () => ({ provider: 'local', model: '', hasKey: false, localBin: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/whisper-cli.exe', localModel: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/models/ggml-base.en.bin', localStatus: { ready: true, missing: [], managedBin: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/whisper-cli.exe', managedModel: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/models/ggml-base.en.bin' }, safeStorage: true, defaults: { openai: { model: 'whisper-1' }, local: { model: 'base.en' } }, credits }),
     ttsConfigGet: async () => ({ provider: 'system', hasKey: false, voice: '', model: '', safeStorage: true }),
     getAllCommands: async () => ([
       { name: 'hunt', description: 'Search the output of every open session', usage: 'hunt <text>', aliases: ['searchall'] },
@@ -218,8 +223,26 @@ await page.evaluate(() => { document.querySelector('[title="Close"], [aria-label
 // 7 — Plans page
 await page.evaluate(() => window.dispatchEvent(new CustomEvent('sush:open-plans')))
 await shot('07-plans')
+await page.locator('.sush-fan-card[aria-pressed="true"]').screenshot({ path: join(outDir, '07-enterprise.png') })
+console.log('✓', '07-enterprise')
 await page.keyboard.press('Escape')
 await page.evaluate(() => { document.querySelector('[title="Close"], [aria-label="Close"]')?.click() })
+
+// The six-card deck switches to the same vertical card layout before it can
+// crowd a compact window. Capture it independently from the desktop fan.
+await page.setViewportSize({ width: 900, height: 900 })
+await page.evaluate(() => window.dispatchEvent(new CustomEvent('sush:open-plans')))
+await shot('07-plans-narrow')
+await page.keyboard.press('Escape')
+await page.evaluate(() => { document.querySelector('[title="Close"], [aria-label="Close"]')?.click() })
+await page.setViewportSize({ width: 1440, height: 900 })
+
+if (plansOnly) {
+  await browser.close()
+  server.close()
+  console.log('done →', outDir)
+  process.exit(0)
+}
 
 // 8 — New session launcher
 await page.keyboard.press('Control+Shift+n')

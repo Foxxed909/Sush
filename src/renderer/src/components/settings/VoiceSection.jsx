@@ -26,9 +26,9 @@ const TTS_ENGINES = [['system', 'System'], ['openai', 'OpenAI'], ['elevenlabs', 
 const OPENAI_VOICES = ['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse']
 const STT_MODELS = ['whisper-1', 'gpt-4o-mini-transcribe', 'gpt-4o-transcribe']
 
-// Dictation (Hush): speak into the focused terminal. Runs Whisper over the
-// user's own key — held in main, never round-tripped here — and is metered by
-// the local Quiet Credits bucket (shown live below).
+// Dictation (Hush): speak into the focused terminal. Local whisper.cpp is the
+// default; the OpenAI route stays optional for people who explicitly configure
+// it. Keys are held in main and never round-tripped here.
 function DictationBlock({ accent, settings, set }) {
   const [stt, setStt] = useState(null)     // public config + credits from main
   const [keyInput, setKeyInput] = useState('')
@@ -90,14 +90,16 @@ function DictationBlock({ accent, settings, set }) {
             <Label>Transcription engine</Label>
             <Segment
               accent={accent}
-              value={stt?.provider || 'openai'}
+              value={stt?.provider || 'local'}
               options={[['openai', 'OpenAI cloud'], ['local', 'Local whisper.cpp']]}
               onChange={(v) => saveCfg({ provider: v })}
               disabled={busy}
             />
             <Hint>
-              {(stt?.provider || 'openai') === 'local'
-                ? 'Runs whisper.cpp on this machine — fully offline, no key, and it never spends Quiet Credits. Needs ffmpeg on PATH to convert mic audio.'
+              {(stt?.provider || 'local') === 'local'
+                ? stt?.localStatus?.ready
+                  ? 'Local Whisper is ready — audio stays on this machine and never spends Quiet Credits.'
+                  : `Local Whisper setup needed: ${(stt?.localStatus?.missing || ['whisper.cpp CLI', 'base.en model']).join(' + ')}. Nothing is sent to a cloud service.`
                 : 'Whisper via your own OpenAI key. Metered by Quiet Credits (below).'}
             </Hint>
           </Row>
@@ -113,6 +115,7 @@ function DictationBlock({ accent, settings, set }) {
                   placeholder="Auto-detect (whisper-cli on PATH) — or paste a full path"
                   style={inputStyle}
                 />
+                {stt?.localStatus?.managedBin && <Hint>Managed install path: <span className="sush-mono">{stt.localStatus.managedBin}</span></Hint>}
               </Row>
               <Row>
                 <Label>Model file (.bin / .gguf)</Label>
@@ -120,10 +123,10 @@ function DictationBlock({ accent, settings, set }) {
                   className="sush-mono"
                   defaultValue={stt?.localModel || ''}
                   onBlur={e => saveCfg({ localModel: e.target.value })}
-                  placeholder="e.g. ~/models/ggml-base.en.bin"
+                  placeholder={stt?.localStatus?.managedModel || 'e.g. ~/models/ggml-base.en.bin'}
                   style={inputStyle}
                 />
-                <Hint>Download a ggml model from the whisper.cpp releases (base.en is a good start: fast and ~140 MB). Nothing ever leaves this machine.</Hint>
+                <Hint>Base.en is the default: fast, around 141 MB, and fully local. Sush auto-detects the managed install or accepts any .bin/.gguf path.</Hint>
               </Row>
             </>
           )}

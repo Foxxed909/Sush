@@ -2,7 +2,6 @@ import React, { useEffect } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { CHANGELOG } from '../lib/changelog'
-import { TIER_META } from './PlansPage'
 
 // A full-page changelog, opened from the palette ("What's New"), Settings ▸
 // Plan, or automatically once after an update. Same standalone-page shape as
@@ -63,7 +62,7 @@ export default function ChangelogPage({ accent, onDismiss }) {
       <div className="sush-scroll" style={{ flex: 1, overflowY: 'auto', padding: '26px 30px' }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           {CHANGELOG.map((rel, i) => {
-            const tint = TIER_META[rel.codename] ? accent : accent
+            const tint = accent
             return (
               <div key={rel.v} className="flex" style={{ gap: 18, marginBottom: 30 }}>
                 {/* Rail */}

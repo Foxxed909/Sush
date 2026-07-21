@@ -53,8 +53,8 @@ function MiniSparkline({ history, accent }) {
 }
 
 // Per-account usage readout under a slot row. Shows the session/week bars when
-// the probe returned utilization numbers; otherwise falls back to status + the
-// reset window (still useful, and honest about what we could read).
+// a provider reported utilization numbers; otherwise falls back to the bounded
+// CLI health result, without misrepresenting configuration as a quota figure.
 function SlotUsage({ usage, history, accent }) {
   if (!usage) return null
   const hasBars = usage.sessionPct != null || usage.weekPct != null
@@ -68,8 +68,8 @@ function SlotUsage({ usage, history, accent }) {
         </>
       ) : usage.kind === 'health' ? (
         <div style={{ fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: usage.signedIn ? '#5fd3a8' : '#ff7a8a', flexShrink: 0 }} />
-          <span style={{ color: usage.signedIn ? 'var(--text-2)' : '#ff9aa8' }}>{usage.status}</span>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: usage.healthy ?? usage.signedIn ? '#5fd3a8' : '#ff7a8a', flexShrink: 0 }} />
+          <span style={{ color: usage.healthy ?? usage.signedIn ? 'var(--text-2)' : '#ff9aa8' }}>{usage.status}</span>
           {usage.note && <span style={{ color: 'var(--text-4)', fontWeight: 600 }}>· {usage.note}</span>}
           {usage.detail && <span style={{ color: 'var(--text-4)', fontWeight: 600 }} title={usage.detail}>· {usage.detail.slice(0, 80)}</span>}
         </div>
@@ -96,8 +96,8 @@ export default function AccountsSection({ accent }) {
     window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
   }, [])
 
-  // On-demand usage read for one Claude account. Spawns a tiny probe under that
-  // slot's login — never auto-polled, so it's safe on a weak CPU.
+  // On-demand provider read for one account slot. It is never auto-polled: the
+  // provider only launches after the user explicitly asks to check it.
   const readUsage = async (provider, slotId, options = {}) => {
     const key = `${provider}:${slotId}`
     setUsageBusy(b => ({ ...b, [key]: true }))
@@ -220,13 +220,13 @@ export default function AccountsSection({ accent }) {
                         Switch
                       </button>
                     )}
-                    {(p === 'claude' || p === 'codex') && !isEditing && (
+                    {!isEditing && (
                       <button
                         onClick={() => readUsage(p, slot.id, p === 'codex' ? { doctor: true } : {})}
-                        disabled={usageBusy[uKey] || (p === 'codex' && !online)}
-                        title={p === 'claude' ? 'Refresh usage' : online ? 'Run codex doctor' : 'Codex doctor waits for network'}
+                        disabled={usageBusy[uKey] || ((p === 'claude' || p === 'codex') && !online)}
+                        title={p === 'claude' ? 'Check Claude quota' : p === 'codex' ? (online ? 'Run Codex health check' : 'Codex health check waits for network') : `Check ${label} CLI health`}
                         className="flex items-center justify-center"
-                        style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: (p === 'codex' && !online) ? 'default' : 'pointer', padding: '0 2px', flexShrink: 0, opacity: (p === 'codex' && !online) ? 0.45 : 1 }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: ((p === 'claude' || p === 'codex') && !online) ? 'default' : 'pointer', padding: '0 2px', flexShrink: 0, opacity: ((p === 'claude' || p === 'codex') && !online) ? 0.45 : 1 }}
                         onMouseEnter={e => { e.currentTarget.style.color = accent }}
                         onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-4)' }}
                       >
@@ -252,7 +252,7 @@ export default function AccountsSection({ accent }) {
                       </button>
                     )}
                   </div>
-                  {(p === 'claude' || p === 'codex') && slot.usage && <SlotUsage usage={slot.usage} history={slot.usageHistory} accent={accent} />}
+                  {slot.usage && <SlotUsage usage={slot.usage} history={slot.usageHistory} accent={accent} />}
                 </div>
               )
             })}

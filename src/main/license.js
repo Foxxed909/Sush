@@ -17,17 +17,35 @@ import { atomicWriteJson } from './secure-storage'
 // so it's intentionally NOT advertised in the Plan table or enforced — all
 // themes are free for now. The enforced gates are slots/gridCap/customAgents/
 // cloudTts/providerConnect.
-// Five tiers. Pro was trimmed when Ultra/Max landed above it (slots 8→6,
+// Seven tiers. Dev is the focused builder tier between Plus and Pro: its
+// repo-defined crews and isolated worktrees are deliberately non-linear
+// benefits, reserved for Dev, Max, and Enterprise. Pro/Ultra remain the
+// usage-management path (Usage Guard and auto-handoff).
+// Pro was trimmed when Ultra/Max landed above it (slots 8→6,
 // grid 16→12) — the top of the old Pro moved into Ultra. usageGuard gates the
 // Claude quota guard (Pro+); autoHandoff gates its hands-free mode (Ultra+).
 // providerConnect gates the OAuth account-connect flow (Plus+ — graduated
 // from Settings ▸ Experiments 2026-07).
 export const TIER_FEATURES = {
-  free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, themes: 'base' },
-  plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  themes: 'all'  },
-  pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  themes: 'all'  },
-  ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  },
-  max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  themes: 'all'  }
+  free:  { slots: 1,  gridCap: 4,  customAgents: false, cloudTts: false, usageGuard: false, autoHandoff: false, providerConnect: false, developerWorkflows: false, themes: 'base' },
+  plus:  { slots: 4,  gridCap: 9,  customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  developerWorkflows: false, themes: 'all'  },
+  dev:   { slots: 5,  gridCap: 10, customAgents: true,  cloudTts: true,  usageGuard: false, autoHandoff: false, providerConnect: true,  developerWorkflows: true,  themes: 'all'  },
+  pro:   { slots: 6,  gridCap: 12, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: false, providerConnect: true,  developerWorkflows: false, themes: 'all'  },
+  ultra: { slots: 10, gridCap: 20, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  developerWorkflows: false, themes: 'all'  },
+  max:   { slots: 16, gridCap: 25, customAgents: true,  cloudTts: true,  usageGuard: true,  autoHandoff: true,  providerConnect: true,  developerWorkflows: true,  themes: 'all'  },
+  enterprise: {
+    slots: 50,
+    gridCap: 32,
+    customAgents: true,
+    cloudTts: true,
+    usageGuard: true,
+    autoHandoff: true,
+    providerConnect: true,
+    developerWorkflows: true,
+    themes: 'all',
+    fleetSeats: 20,
+    privateFleet: true
+  }
 }
 const file = () => join(app.getPath('userData'), 'sush-license.json')
 

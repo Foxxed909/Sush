@@ -3,12 +3,13 @@ import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { useOnline } from '../../hooks/useOnline'
+import { activeProviderUsage, claudeLimitStatus, providerNeedsNetwork } from '../../lib/usageStatus'
 import { Section, Row, Label, Hint, Segment, LockNote, ago } from './primitives'
 
 // Usage & Guard: the Usage Guard plus a live limit/account dashboard across
 // every agent CLI. The auto-poll reads a cheap, spawn-free snapshot (install
-// state, active account, last limit hit, Claude's last captured window); only
-// the explicit "Check Claude live" button spawns a real probe.
+// state, active account, last limit hit, and saved provider checks). Explicit
+// per-provider checks are the only path that may launch a CLI.
 
 const USAGE_INTERVALS = [[0, 'Off'], [30, '30s'], [60, '1 min'], [300, '5 min']]
 
@@ -89,7 +90,8 @@ export default function UsageSection({ accent, settings, set }) {
   const online = useOnline()
   const [snap, setSnap] = useState(null)
   const [live, setLive] = useState(null)        // live Claude probe result
-  const [checking, setChecking] = useState(false)
+  const [checking, setChecking] = useState({})  // provider -> bool
+  const [checkError, setCheckError] = useState('')
   const [lastAt, setLastAt] = useState(null)
   const interval = settings.usageRefresh ?? 60   // seconds; 0 = off
 
@@ -109,22 +111,42 @@ export default function UsageSection({ accent, settings, set }) {
     return () => clearInterval(id)
   }, [interval, pull])
 
-  const checkLive = async () => {
-    if (!online) return
-    setChecking(true)
+  const checkProvider = async (provider) => {
+    if (providerNeedsNetwork(provider) && !online) return
+    const slotId = snap?.[provider]?.account?.id
+    if (!slotId) return
+    setChecking(s => ({ ...s, [provider]: true }))
+    setCheckError('')
     try {
-      const r = await window.sush.claudeLimitsCheck?.()
-      if (r?.limits) setLive(r.limits)
-    } catch {}
-    setChecking(false)
-    pull()
+      if (provider === 'claude') {
+        const r = await window.sush.claudeLimitsCheck?.()
+        if (r?.limits) setLive(r.limits)
+        else if (r?.error) setCheckError(r.error)
+      } else {
+        const r = await window.sush.accountsUsageRead?.({
+          provider,
+          slotId,
+          ...(provider === 'codex' ? { doctor: true } : {})
+        })
+        if (r?.error) setCheckError(r.error)
+      }
+    } catch (e) {
+      setCheckError(e?.message || `Could not check ${provider}.`)
+    } finally {
+      setChecking(s => ({ ...s, [provider]: false }))
+      pull()
+    }
   }
 
-  const claudeLimit = live || snap?.claude?.limits || null
+  const claudeLimit = claudeLimitStatus(snap, live)
   const clock = (ts) => ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
 
-  const Card = ({ label, sub, data, children }) => {
+  const Card = ({ provider, label, sub, data, children }) => {
     const installed = data?.installed
+    const checkLabel = provider === 'claude' ? 'Check quota' : provider === 'codex' ? 'Check health' : 'Check CLI'
+    const needsNetwork = providerNeedsNetwork(provider)
+    const isChecking = !!checking[provider]
+    const blocked = !installed || (needsNetwork && !online)
     return (
       <div style={{ marginBottom: 12, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
         <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -133,9 +155,23 @@ export default function UsageSection({ accent, settings, set }) {
             <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>{label}</div>
             <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 1 }}>{sub}</div>
           </div>
-          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: installed ? '#5fd3a8' : 'var(--text-3)' }}>
-            {installed ? 'INSTALLED' : 'NOT FOUND'}
-          </span>
+          <div className="flex items-center" style={{ gap: 8 }}>
+            {installed && (
+              <button
+                onClick={() => checkProvider(provider)}
+                disabled={isChecking || blocked}
+                title={needsNetwork && !online ? `${label} check waits for network` : `Check the active ${label} account`}
+                className="flex items-center"
+                style={{ gap: 5, fontSize: 9.5, fontWeight: 800, color: accent, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.25)}`, borderRadius: 999, padding: '3px 8px', cursor: blocked ? 'default' : 'pointer', opacity: (isChecking || blocked) ? 0.55 : 1 }}
+              >
+                {isChecking && <span className="sush-spinner" style={{ width: 9, height: 9 }} />}
+                {isChecking ? 'Checking…' : checkLabel}
+              </button>
+            )}
+            <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, color: installed ? '#5fd3a8' : 'var(--text-3)' }}>
+              {installed ? 'INSTALLED' : 'NOT FOUND'}
+            </span>
+          </div>
         </div>
         <div style={{ padding: '9px 13px', fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.7 }}>
           {!installed
@@ -157,14 +193,31 @@ export default function UsageSection({ accent, settings, set }) {
     )
   }
 
+  const HealthLine = ({ provider, usage }) => {
+    if (!usage) {
+      const action = provider === 'codex' ? 'Run Check health to verify the active account.' : 'Run Check CLI to verify the active account.'
+      return <div style={{ color: 'var(--text-4)' }}>{action}</div>
+    }
+    const healthy = usage.healthy ?? usage.signedIn ?? false
+    return (
+      <div style={{ color: 'var(--text-4)' }}>
+        <span style={{ color: healthy ? '#5fd3a8' : '#ffb74d', fontWeight: 700 }}>{usage.status || 'check complete'}</span>
+        {usage.note && <span> · {usage.note}</span>}
+        {usage.detail && <span title={usage.detail}> · {usage.detail}</span>}
+        {usage.at && <span style={{ color: 'var(--text-5)' }}> · checked {ago(usage.at)}</span>}
+      </div>
+    )
+  }
+
   return (
     <Section id="Usage & Guard" icon="activity" label="Usage & Guard" accent={accent}>
       <Row>
         <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
           Live account &amp; limit status for every agent CLI. The auto-refresh below reads a
           cheap snapshot (no CLI is launched) — install state, your active account, and when
-          each account last got rate-limited. Use <strong style={{ color: accent }}>Check Claude live</strong> to
-          actually probe Claude’s current window and reset time.
+          each account last got rate-limited. Use the check button on any provider card to
+          verify its active account. Claude also reports its current quota window when available;
+          the other CLIs show health only because they do not provide a portable quota API.
         </div>
       </Row>
 
@@ -186,25 +239,14 @@ export default function UsageSection({ accent, settings, set }) {
               </button>
             )
           })}
-          <span style={{ flex: 1 }} />
-          <button
-            onClick={checkLive}
-            disabled={checking || !online}
-            title={online ? 'Probe Claude now' : 'Live probe waits for network'}
-            className="flex items-center"
-            style={{ gap: 6, fontSize: 10.5, fontWeight: 800, color: accent, background: rgba(accent, 0.1), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 999, padding: '5px 13px', cursor: online ? 'pointer' : 'default', opacity: (checking || !online) ? 0.6 : 1 }}
-          >
-            {checking && <span className="sush-spinner" style={{ width: 10, height: 10 }} />}
-            {checking ? 'Probing…' : 'Check Claude live'}
-          </button>
         </div>
 
-        <Card label="Claude Code" sub="Claude Pro / Max" data={snap?.claude}>
+        <Card provider="claude" label="Claude Code" sub="Claude Pro / Max" data={snap?.claude}>
           <AccountLine account={snap?.claude?.account} />
           <div>
             Limit window:{' '}
-            {!claudeLimit
-              ? <span style={{ color: 'var(--text-3)' }}>unknown — run a Claude panel session or click “Check Claude live”.</span>
+            {!claudeLimit?.status
+              ? <span style={{ color: 'var(--text-3)' }}>unknown — run a Claude panel session or click “Check quota”.</span>
               : claudeLimit.status === 'allowed'
                 ? <span style={{ color: '#5fd3a8', fontWeight: 700 }}>OK</span>
                 : <span style={{ color: '#ffb74d', fontWeight: 700 }}>{String(claudeLimit.status).replace(/_/g, ' ')}</span>}
@@ -212,20 +254,22 @@ export default function UsageSection({ accent, settings, set }) {
           </div>
         </Card>
 
-        <Card label="Codex" sub="ChatGPT subscription" data={snap?.codex}>
+        <Card provider="codex" label="Codex" sub="ChatGPT subscription" data={snap?.codex}>
           <AccountLine account={snap?.codex?.account} />
-          <div style={{ color: 'var(--text-4)' }}>Codex has no live usage probe — Sush tracks limits as its sessions hit them.</div>
+          <HealthLine provider="codex" usage={activeProviderUsage(snap, 'codex')} />
         </Card>
 
-        <Card label="Gemini" sub="Google account" data={snap?.gemini}>
+        <Card provider="gemini" label="Gemini" sub="Google account" data={snap?.gemini}>
           <AccountLine account={snap?.gemini?.account} />
-          <div style={{ color: 'var(--text-4)' }}>No live usage probe; Sush can rotate slots when limits surface in-session.</div>
+          <HealthLine provider="gemini" usage={activeProviderUsage(snap, 'gemini')} />
         </Card>
 
-        <Card label="OpenCode" sub="any provider" data={snap?.opencode}>
+        <Card provider="opencode" label="OpenCode" sub="any provider" data={snap?.opencode}>
           <AccountLine account={snap?.opencode?.account} />
-          <div style={{ color: 'var(--text-4)' }}>No live usage probe; Sush keeps each slot in its own XDG config/data dirs.</div>
+          <HealthLine provider="opencode" usage={activeProviderUsage(snap, 'opencode')} />
         </Card>
+
+        {checkError && <div style={{ color: '#ff8aa0', fontSize: 10.5, fontWeight: 700, margin: '-2px 0 10px' }}>{checkError}</div>}
 
         <div style={{ fontSize: 10, color: 'var(--text-5)', marginTop: 4 }}>
           {lastAt ? `Snapshot updated ${clock(lastAt)}${interval ? ` · auto every ${interval < 60 ? interval + 's' : interval / 60 + ' min'}` : ' · auto-refresh off'}` : 'Loading…'}

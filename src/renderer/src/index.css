@@ -768,6 +768,7 @@ p { text-wrap: pretty; }
 .sush-fan-card:nth-child(3) { animation-delay: 0.10s; }
 .sush-fan-card:nth-child(4) { animation-delay: 0.15s; }
 .sush-fan-card:nth-child(5) { animation-delay: 0.20s; }
+.sush-fan-card:nth-child(6) { animation-delay: 0.25s; }
 .sush-fan-card:not([aria-pressed="true"]):hover {
   transform: var(--fan-pose, none) translateY(-16px);
   box-shadow: 0 22px 48px rgba(0,0,0,0.55), 0 0 30px var(--tier-glow, rgba(255,255,255,0.1)) !important;
@@ -775,7 +776,7 @@ p { text-wrap: pretty; }
 .sush-fan-card[aria-pressed="true"]:hover {
   transform: var(--fan-pose, none) translateY(-3px);
 }
-@media (max-width: 760px) {
+@media (max-width: 980px) {
   .sush-fan { height: auto !important; }
   .sush-fan-card { position: relative !important; transform: none !important; width: 100% !important; height: auto !important; margin-bottom: 10px; }
 }
