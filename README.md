@@ -37,42 +37,23 @@ settings, scrollback, and credits meter all live on your disk.
 See [`docs/SUSH_GUIDE.md`](docs/SUSH_GUIDE.md) for the full walkthrough,
 tips, and an honest pros/cons list.
 
-## Sush Air
+## Sush Air — a different application
 
 Some days you want the orchestrator. Some days you want a terminal.
 
-**Air** is the small one — a second window of the same app that is a terminal
-and nothing else. No identity gate, no license check, no agents, no account
-rotation, no metrics polling, no browser panel. Not hidden behind a flag:
-absent. Its preload bridges 14 methods, all namespaced `air:`, against the main
-bridge's 120, so a bug in Air's renderer cannot read a license, enumerate users
-or reach the token store — those channels are not on its bridge at all. Run
-`sush --air` and the main app's IPC surface is never registered in the process
-to begin with.
+[**Sush Air**](air/README.md) lives in [`air/`](air/) and is **not part of
+Sush**. Separate `package.json`, separate dependencies, separate build,
+separate settings directory, separate installer. Install one without the other;
+uninstall one and the other does not notice. Nothing in this application knows
+Air exists.
 
-What it does have: PTY sessions (twelve, capped in the main process), tabs that
-rename themselves from the shell's working directory, a `Ctrl+K` palette, split
-view, find-in-output, four calm themes, and a `:` command layer.
+Air is a terminal and nothing else — no identity, no licence, no agents, no
+account rotation, no metrics, no browser panel, no network code. It offers to
+import your `~/.sushrc` aliases, env and start folder the first time it finds
+one, and copies them into its own settings rather than linking to yours.
 
-The rule for that layer is the whole design: **a line starting with `:` is
-Air's, everything else is your shell's.** No guessing, no "did you mean", no
-intercepting a command that merely looks like one of ours. Type `theme` and you
-get your shell's; type `:theme` and you get Air's.
-
-```
-:help          :new [path]     :split        :font 15 | + | -
-:clear         :close          :find text    :zen
-:note text     :rename name    :go 2         :export
-:notes         :theme harbor   :cwd          :agent claude
-```
-
-`:note` is the one thing Air has that the main app doesn't — you notice
-something mid-run and the alternative is a scratch file you never open again.
-Notes stay in localStorage; Air has no network code to send them anywhere.
-
-Open it with `npm run air`, `sush --air`, or **Open Sush Air** in the main
-app's command palette. It is a sibling window, not a mode: opening it changes
-nothing in the main app, and closing it takes nothing with it.
+Two applications, two build jobs in CI, two test runs. If a change here could
+turn Air red, they were never really separate.
 
 ## Stack
 
@@ -84,8 +65,10 @@ system (no UI framework) · xterm.js · node-pty · Vitest.
 ```bash
 npm install
 npm run dev       # electron-vite dev — hot-reloading renderer
-npm run air       # same, but boots Sush Air alone (no main window)
 ```
+
+Sush Air is built and run from its own directory — `cd air && npm install &&
+npm run dev`. It does not share this project's `node_modules`.
 
 Other scripts:
 
@@ -120,6 +103,7 @@ Settings ▸ Plan, or run `unlock SUSH-...` in any session.
 | [`learning.md`](learning.md) | Engineering lessons carried across cycles |
 | [`GRAVEYARD.md`](GRAVEYARD.md) | Retired features and why — and what has risen |
 | [`REVIEW.md`](REVIEW.md) | 2026-07-24 codebase review: bugs found, what was left alone |
+| [`air/README.md`](air/README.md) | Sush Air — the separate application, and its import flow |
 
 ## License
 

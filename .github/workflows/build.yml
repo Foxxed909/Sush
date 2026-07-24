@@ -6,7 +6,10 @@ on:
   pull_request:
 
 jobs:
-  build:
+  # Two applications, two jobs. Deliberately not one job with two `cd`s: if a
+  # change to Sush can turn Air's build red, or the other way round, then they
+  # are not actually separate, and CI should be the thing that says so.
+  sush:
     strategy:
       fail-fast: false
       matrix:
@@ -18,6 +21,26 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  air:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: air
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: air/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run build

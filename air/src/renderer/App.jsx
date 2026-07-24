@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import AirTerminal from './AirTerminal'
+import Terminal from './Terminal'
 import Palette from './Palette'
 import Notes from './Notes'
+import Import from './Import'
 import { runAirCommand, isAirCommand, completions, helpText, COMMANDS } from './commands'
 import { THEMES, getAirTheme, resolveTheme, DEFAULT_THEME_ID } from './themes'
 import { load, save } from './store'
@@ -30,6 +31,7 @@ export default function App() {
   const [flash, setFlash] = useState(null)
   const [sheet, setSheet] = useState(null)   // { title, lines } — help, cwd, errors
   const [findQuery, setFindQuery] = useState(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   const termRefs = useRef(new Map())
   const inputRef = useRef(null)
@@ -244,6 +246,17 @@ export default function App() {
           setSheet({ title: 'Working directory', lines: [dir] })
         })
         break
+      case 'import':
+        setImportOpen(true)
+        break
+      case 'forget':
+        window.air.importClear().then(() => {
+          // Sessions already running keep the env they were spawned with —
+          // there is no way to unset a variable in a live shell from out here,
+          // and pretending otherwise would be a lie you find out about later.
+          say('Forgot everything from Sush. New sessions start clean.')
+        })
+        break
       default:
         say(`Nothing wired up for :${result.action}.`, 'warn')
     }
@@ -265,6 +278,7 @@ export default function App() {
     const onKey = (e) => {
       const ctrl = e.ctrlKey || e.metaKey
       if (e.key === 'Escape') {
+        if (importOpen) return setImportOpen(false)
         if (paletteOpen) return setPaletteOpen(false)
         if (sheet) return setSheet(null)
         if (findQuery !== null) { setFindQuery(null); termOf()?.clearFind(); return }
@@ -293,7 +307,23 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active, closeTab, dispatch, findQuery, notesOpen, openTab, paletteOpen, sheet, termOf, zen])
+  }, [active, closeTab, dispatch, findQuery, importOpen, notesOpen, openTab, paletteOpen, sheet, termOf, zen])
+
+  // Offer the import once, on the first launch that finds a Sush profile, and
+  // then never again unasked — `:import` is always there for anyone who wants
+  // it later. The flag is written before the sheet opens rather than after it
+  // is answered, so a crash or a force-quit mid-decision cannot turn a one-time
+  // offer into something that greets you every morning.
+  useEffect(() => {
+    if (load('import-offered', false)) return
+    let live = true
+    window.air.importScan().then(result => {
+      if (!live) return
+      save('import-offered', true)
+      if (result.found && result.items.length) setImportOpen(true)
+    })
+    return () => { live = false }
+  }, [])
 
   // Tab labels follow the shell. A session started in your home directory and
   // then `cd`'d into a repo should say the repo's name, not "session 2".
@@ -349,7 +379,7 @@ export default function App() {
               style={shown ? undefined : { display: 'none' }}
               onMouseDown={() => setActiveId(tab.id)}
             >
-              <AirTerminal
+              <Terminal
                 ref={(handle) => {
                   if (handle) termRefs.current.set(tab.id, handle)
                   else termRefs.current.delete(tab.id)
@@ -438,6 +468,13 @@ export default function App() {
           onClose={() => setNotesOpen(false)}
           onAdd={(text) => setNotes(prev => [...prev, { text, at: Date.now(), session: active?.label ?? null }])}
           onRemove={(at) => setNotes(prev => prev.filter(n => n.at !== at))}
+        />
+      )}
+
+      {importOpen && (
+        <Import
+          onClose={() => setImportOpen(false)}
+          say={say}
         />
       )}
 
