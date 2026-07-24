@@ -24,10 +24,22 @@ and every glass surface has a lite/saver/reduce-motion off-switch.
   primary actions, selection, and live state; never decoration.
 - **State vocabulary** (fixed): working `#5fd3a8`, needs-you `#ffcb6b`,
   error `#ff6b81`, limit `#ff9f43`, info `#82aaff`, idle grays.
-- **Tier colors** (Nord family, so the plan ladder reads as one palette):
-  Free `#a4b0c4` (Nord-cast gray), Plus `#88c0d0` (nord8), Pro `#b48ead`
-  (nord15), Ultra `#ebcb8b` (nord13), Max `#d06f79` (nord11 brightened one
-  step for ≥4.5:1 at small sizes on the dark surfaces).
+- **Tier colors** (Nord family, so the plan ladder reads as one palette).
+  Seven rungs, in ladder order — this list is the whole ladder, and it must
+  match `TIER_META` in `PlansPage.jsx` and `TIER_FEATURES` in
+  `main/license-core.mjs` exactly. It previously named only five, which left
+  Dev and Enterprise shipping in the product but absent from the design
+  vocabulary; `learning.md` asks that each status word have exactly one
+  meaning, and a ladder documented at the wrong length breaks that at the
+  first rung it omits.
+
+  Free `#a4b0c4` (Nord-cast gray — the palette has no mid-gray of its own),
+  Plus `#88c0d0` (nord8), Dev `#7aa2ff` (nord9 pushed bluer, so it reads as a
+  branch off Plus rather than a step past Pro), Pro `#b48ead` (nord15),
+  Ultra `#ebcb8b` (nord13), Max `#d06f79` (nord11 brightened one step for
+  ≥4.5:1 at small sizes on the dark surfaces), Enterprise `#8fddd1`
+  (nord7 lightened; the only tier whose accent is user-selectable, because a
+  fleet is someone else's brand before it is ours).
 
 ## Typography
 
