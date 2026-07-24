@@ -483,11 +483,46 @@ button, input {
 
 /* ── Import from Sush ─────────────────────────────────────────────────────── */
 
-.air-import { width: min(560px, 100%); }
+/* The list scrolls; the question and the answer do not.
+ *
+ * The first version let the whole sheet scroll, which put "Import" below the
+ * fold on any profile with more than four entries — so the decision you had
+ * come to make was the one thing you could not see. Header and actions are
+ * pinned and only the list moves. */
+.air-import {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: 76vh;
+  overflow: hidden;
+  padding-bottom: 14px;
+}
 
 .air-import-blurb { margin: 0 0 16px; color: var(--air-dim); font-size: 12.5px; line-height: 1.55; }
 
-.air-import-groups { display: flex; flex-direction: column; gap: 18px; }
+.air-import-groups {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  /* Room for the scrollbar so rows do not shift under it, and a hair of
+     bottom padding so the last row is not flush against the divider. */
+  padding: 0 6px 2px 0;
+  /* Fade the last few pixels so a clipped row reads as "there is more" rather
+     than as a row that happens to be cut in half. The top edge is left hard —
+     it sits directly under the heading, and fading it would look like a bug. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--air-text) 16%, transparent) transparent;
+}
+.air-import-groups::-webkit-scrollbar { width: 9px; }
+.air-import-groups::-webkit-scrollbar-track { background: transparent; }
+.air-import-groups::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--air-text) 14%, transparent);
+  border-radius: 5px;
+}
 
 .air-import-group h3 {
   display: flex;
@@ -510,7 +545,7 @@ button, input {
 
 /* Rows, not cards. A checklist of things you already own should read as a list
    you scan, not as a gallery you shop. */
-.air-import-item {
+.air-import .air-import-item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -523,9 +558,9 @@ button, input {
   cursor: pointer;
   transition: background var(--air-fast);
 }
-.air-import-item:hover { background: color-mix(in srgb, var(--air-text) 6%, transparent); }
+.air-import .air-import-item:hover { background: color-mix(in srgb, var(--air-text) 6%, transparent); }
 
-.air-import-box {
+.air-import .air-import-box {
   flex: 0 0 auto;
   width: 15px;
   height: 15px;
@@ -539,7 +574,7 @@ button, input {
   color: var(--air-bg);
   transition: background var(--air-fast), border-color var(--air-fast);
 }
-.air-import-item.is-on .air-import-box {
+.air-import .air-import-item.is-on .air-import-box {
   background: var(--air-accent);
   border-color: var(--air-accent);
 }
@@ -553,7 +588,7 @@ button, input {
 }
 /* Off is legible, not hidden. Something you have declined is still information;
    fading it to nothing means you cannot check what you turned off. */
-.air-import-item:not(.is-on) .air-import-label { color: var(--air-dim); text-decoration: line-through; }
+.air-import .air-import-item:not(.is-on) .air-import-label { color: var(--air-dim); text-decoration: line-through; }
 
 .air-import-detail {
   font-size: 11.5px;
@@ -567,6 +602,7 @@ button, input {
 
 .air-import-never,
 .air-import-path {
+  flex-shrink: 0;
   margin: 14px 0 0;
   font-size: 11px;
   line-height: 1.5;
@@ -576,12 +612,13 @@ button, input {
 .air-import-path { margin-top: 4px; opacity: 0.75; word-break: break-all; }
 
 .air-import-actions {
+  flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
 }
-.air-import-actions button {
+.air-import .air-import-actions button {
   margin: 0;
   padding: 7px 14px;
   border: 1px solid var(--air-line);
@@ -592,9 +629,9 @@ button, input {
   cursor: pointer;
   transition: background var(--air-fast), border-color var(--air-fast);
 }
-.air-import-actions button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--air-text) 26%, transparent); }
-.air-import-actions button:disabled { opacity: 0.5; cursor: default; }
-.air-import-actions .is-primary {
+.air-import .air-import-actions button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--air-text) 26%, transparent); }
+.air-import .air-import-actions button:disabled { opacity: 0.5; cursor: default; }
+.air-import .air-import-actions .is-primary {
   background: var(--air-accent);
   border-color: var(--air-accent);
   color: var(--air-bg);
