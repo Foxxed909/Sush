@@ -182,10 +182,15 @@ button, input {
   transition: border-color var(--air-fast);
 }
 
-/* The focus ring only appears in split — with one pane there is nothing to
-   disambiguate, and a permanent border around the whole window is noise. */
+/* Borders only appear in split — with one pane there is nothing to
+   disambiguate, and a permanent frame around the whole window is noise.
+   In split, BOTH panes get a hairline and the focused one takes the accent.
+   Drawing the ring on the active pane alone made the other one look like it
+   had failed to render rather than like it was simply not focused: the eye
+   reads a missing edge as a broken layout before it reads it as a state. */
+.air-stage.is-split .air-pane { border-color: var(--air-line); }
 .air-stage.is-split .air-pane.is-active {
-  border-color: color-mix(in srgb, var(--air-accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--air-accent) 38%, transparent);
 }
 
 .air-term {
