@@ -100,6 +100,16 @@ export const COMMANDS = [
     name: 'cwd',
     args: '',
     summary: 'Show this session’s working directory'
+  },
+  {
+    name: 'import',
+    args: '',
+    summary: 'Bring your aliases, env and start folder across from Sush'
+  },
+  {
+    name: 'forget',
+    args: '',
+    summary: 'Drop everything imported from Sush and go back to plain Air'
   }
 ]
 
@@ -280,6 +290,12 @@ export function resolveAction(parsed) {
 
     case 'cwd':
       return { ok: true, action: 'cwd' }
+
+    case 'import':
+      return { ok: true, action: 'import' }
+
+    case 'forget':
+      return { ok: true, action: 'forget' }
 
     default:
       return { ok: false, error: `Unknown command :${name}. Try :help.` }

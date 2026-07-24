@@ -1,8 +1,7 @@
 import pty from 'node-pty'
 
-// The one place that spawns a PTY. Both the full app and Sush Air go through
-// this, so the Windows degradation ladder below is written once instead of
-// drifting between two copies.
+// The one place Sush spawns a PTY, so the Windows degradation ladder below is
+// written once instead of drifting between call sites.
 //
 // `useConptyDll` is deliberately never set. Enabling it made node-pty load its
 // bundled conpty.dll, which failed with "error 267 (ERROR_DIRECTORY)" on stock

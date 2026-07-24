@@ -213,7 +213,48 @@ Nothing here is asserted from reading alone.
   commands and out-of-range `:go` produce the right messages, and closing the
   last session leaves a fresh one rather than an empty window.
 
-## 7. What I'd do next
+## 7. Correction: Air is a separate application (same day, second pass)
+
+The section above, and everything I wrote in `GRAVEYARD.md` and the pull request
+defending it, argued that Air should be a second **window** of this app — one
+build, one dependency tree, one `spawnPty`. That was wrong, and it is worth
+being precise about *why*, because the reasoning was not obviously bad.
+
+The argument was: the first Sush Air died of an independent build and an
+independent dependency tree, so do not build a second one. True premise, wrong
+conclusion. What killed it was that it was separate **and written in a different
+language on a different runtime**, so every feature had to be implemented twice.
+Separateness was not the cost; Rust-vs-JavaScript was.
+
+And sharing a process cost something I under-weighted. Air's entire claim is
+what it refuses to carry, and in a shared process that claim is unfalsifiable:
+"no licence gate" degrades to "this window does not currently call the licence
+gate", enforced by nothing but the discipline of whoever edits it next. A
+user cannot check it. A 14-method bridge sitting beside a 120-method one in the
+same binary is a convention, not a boundary.
+
+It is now `air/` — its own `package.json`, dependencies, build, settings
+directory, installer and CI job. Sush's `--air` flag, its `sush:open-air` IPC
+handler, its `openAir` bridge method and its palette entry are gone. The Sush
+bridge went from 120 methods to 119; Air's went from 14 to 18, the four new ones
+being the import flow.
+
+Both halves are verified rather than asserted:
+
+- Sush boots with `window.sush` at 119 methods, `window.sush.openAir`
+  `undefined`, `window.air` `undefined`, one window, zero renderer errors.
+- Air boots with `window.air` at 18 methods and `window.sush` **`undefined`** —
+  not filtered, absent, because there is no such module in that application.
+- `air/tools/verify.cjs` drives the built app headless: **44/44**, including the
+  whole import flow end to end and an assertion that a credential-shaped env var
+  is neither pre-ticked nor printed to the screen.
+
+`vitest.config.mjs` now excludes `air/` from Sush's test run. Without it Vitest's
+default glob walked into `air/tests/` and Sush's suite silently depended on Air
+being installed — the exact coupling the split was meant to remove. Sush's suite
+is 115 tests; Air's is 45; CI runs them as two jobs on three platforms each.
+
+## 8. What I'd do next
 
 1. **Split `App.jsx` and `ipc.js`.** In that order, and behind tests — §2.1 is
    evidence that file size is now producing bugs on its own.

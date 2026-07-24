@@ -1710,9 +1710,6 @@ export default function App() {
     else if (action === 'manage-users') setShowUserManager(true)
     else if (action === 'broadcast') setBroadcastMode(prev => !prev)
     else if (action === 'feather') saveSettings(withFeather(settings, !isFeather(settings)))
-    // Air is a sibling window, not a mode: opening it changes nothing here and
-    // closing it takes nothing with it.
-    else if (action === 'air') window.sush.openAir()
     else if (action === 'grid') {
       setGridMode(prev => {
         if (!prev && tabsRef.current.length < 2) return prev
@@ -1767,7 +1764,6 @@ export default function App() {
       { id: 'act-switch-user', label: 'Switch User / Sign Out', description: 'Closes your sessions and opens the user picker', icon: 'users', action: 'switch-user' },
       { id: 'act-users', label: 'Manage Users', description: 'Identities, PINs, isolation level', icon: 'users', action: 'manage-users' },
       { id: 'act-feather', label: isFeather(settings) ? 'Feather Mode: Off' : 'Feather Mode: On', description: 'One-click light profile — eco rendering, no motion, solid window', icon: 'feather', action: 'feather' },
-      { id: 'act-air', label: 'Open Sush Air', description: 'The small one — a plain terminal in its own window, no identity, no agents', icon: 'feather', action: 'air' },
     ]
     base.push(
       { id: 'act-grid', label: 'Toggle Grid Layout', description: 'Tile every session in an auto-sized grid (Ctrl+Shift+G)', icon: 'grid', action: 'grid' },

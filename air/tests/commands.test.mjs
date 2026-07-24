@@ -9,8 +9,8 @@ import {
   runAirCommand,
   suggest,
   tokenize
-} from '../src/renderer/src/air/commands.js'
-import { DEFAULT_THEME_ID, THEMES, getAirTheme, resolveTheme } from '../src/renderer/src/air/themes.js'
+} from '../src/renderer/commands.js'
+import { DEFAULT_THEME_ID, THEMES, getAirTheme, resolveTheme } from '../src/renderer/themes.js'
 
 describe('Air command detection', () => {
   it('claims lines that start with : and leaves everything else to the shell', () => {

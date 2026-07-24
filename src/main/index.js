@@ -3,14 +3,11 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync } from 'fs'
 import { registerIpcHandlers } from './ipc'
-import { createAirWindow } from './air'
 
-// `sush --air` starts the small one on its own: no main window, no identity
-// gate, no license read, none of the main app's IPC surface registered at all.
-// That last part is the honest version of "lightweight" — in Air-only mode the
-// privileged handlers do not exist in this process, so there is nothing for a
-// renderer bug to reach even if it found a way to ask.
-const airOnly = process.argv.includes('--air')
+// Sush Air used to live in this process, behind a `--air` flag. It is its own
+// application now — see ../air. Nothing in this file knows about it, which is
+// the point: two products that can be built, shipped, installed and uninstalled
+// without reference to each other.
 
 const trustedRendererContents = new Set()
 
@@ -126,26 +123,10 @@ function createWindow() {
   }
 
   registerIpcHandlers(win)
-
-  // The one door from the big app to the small one. Registered here rather than
-  // in ipc.js because this is where window creation lives, and because Air must
-  // stay reachable even if the main app's IPC surface is refactored around it.
-  ipcMain.removeHandler('sush:open-air')
-  ipcMain.handle('sush:open-air', () => {
-    createAirWindow({ icon: appIcon() })
-    return { ok: true }
-  })
 }
 
 app.whenReady().then(() => {
   installPermissionPolicy()
-  if (airOnly) {
-    createAirWindow({ icon: appIcon() })
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createAirWindow({ icon: appIcon() })
-    })
-    return
-  }
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

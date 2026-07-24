@@ -39,27 +39,55 @@ as a shadow app inside the main product repository.
 ## Risen
 
 ### Sush Air — buried 2026-07-19, risen 2026-07-24
-Revived from the brief above, and deliberately *not* in the form that brief
-imagined. The Tauri distribution was the wrong resurrection: it would have
-rebuilt the exact three things that killed the first one — an independent
-build, an independent dependency tree, and an independent feature boundary.
+Revived from the brief above. It came back twice on the same day, and the first
+version was wrong, so both are recorded — a graveyard that only lists other
+people's mistakes is not doing its job.
 
-Air is now a second window of the main Electron app. One `spawnPty`, one
-`npm run build`, one `node_modules`. What makes it light is the surface it
-exposes rather than a second toolchain: its preload bridges 14 methods, all
-namespaced `air:`, against the main bridge's 120, and `sush --air` never
-registers the main app's IPC surface in the process at all. There is no
-identity system, no license gate, no agent orchestration, no account rotation,
-no system-metrics polling and no webview — not hidden behind a flag, absent.
+**First attempt (morning): a second window of the main Electron app.** One
+`spawnPty`, one `npm run build`, one `node_modules`, `sush --air` to boot it
+alone. The reasoning was that an independent build and dependency tree are what
+killed the Tauri version, so sharing them was the safe resurrection.
+
+It was not. Sharing a process meant Air's lightness was a promise about
+restraint rather than a fact about the binary: every capability Air refused to
+carry was still one import away, "no licence gate" meant *this window does not
+call it*, and the only thing keeping the boundary honest was that nobody had
+crossed it yet. A user could not verify any of it. Worse, it made "install just
+the small one" impossible — the small one was 890 kB of main-app renderer with
+a different entry point.
+
+**Second attempt (afternoon): a separate application, in `air/`.** Own
+`package.json`, own dependencies, own `electron.vite.config.mjs`, own settings
+directory (`Sush Air`, not `Sush`), own installer, own CI job. Sush's source no
+longer contains the string `air` anywhere meaningful, and Air imports nothing
+from Sush.
+
+That is the third form Air has taken, and it is the one the original burial
+actually asked for — "a clean, dedicated distribution". What was wrong with the
+Tauri version was never that it was separate; it was that it was separate *and*
+in a second language with a second runtime, so keeping the two in sync meant
+writing everything twice. Air is separate and boring: the same Electron, the
+same React, the same xterm, ninety duplicated lines of PTY spawn ladder. A
+duplicated file that never has to agree with anything is cheaper than a
+dependency between two products.
 
 The retained brief shipped whole: xterm.js PTY sessions, a twelve-tab ceiling
 (enforced in main, not just in the tab strip), a Ctrl+K palette, four calm
 themes, and a renderer-owned `:` layer with `:help`, `:clear`, `:note`,
 `:theme` and `:agent`. Beyond it: `:split`, `:find`, `:go`, `:font`, `:zen`,
-`:export`, `:cwd`, `:new`, `:close`, `:rename`, OSC 7 tab labels that follow
-the shell, and a notes panel that never leaves the machine.
+`:export`, `:cwd`, `:new`, `:close`, `:rename`, `:import`, `:forget`, OSC 7 tab
+labels that follow the shell, and a notes panel that never leaves the machine.
 
-**What would bury it again:** a second dependency, a second build step, or a
-feature that only makes sense with an identity behind it. Air's value is
-entirely in what it refuses to carry; the moment it needs the main app's
-bridge to do its job, it has stopped being Air.
+**What would bury it again:** a dependency it does not need, a feature that only
+makes sense with an identity behind it, or an import that becomes a live link
+back to Sush's file formats. Air's value is entirely in what it refuses to
+carry.
+
+### "Open Sush Air" in the Sush command palette — 2026-07-24
+**Cause of death:** It was the last thread tying the two applications together.
+A palette entry that launches another product implies the two ship together,
+install together and version together — none of which is true any more. Sush no
+longer knows Air exists, which is the point.
+**Could it rise again?** Only as an OS-level "open with", never as an IPC
+channel. `sush:open-air` existing at all meant Sush had a handle on Air's
+window, and a handle is a coupling waiting to grow arguments.

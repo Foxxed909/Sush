@@ -1,21 +1,18 @@
 {
-  "name": "sush",
-  "version": "4.11.0",
-  "codename": "sotto",
-  "description": "Sush - the terminal your agents live in",
+  "name": "sush-air",
+  "version": "1.0.0",
+  "description": "Sush Air - a terminal, and nothing else",
   "engines": {
     "node": ">=22.12.0"
   },
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "usage": "node tools/claude-usage.mjs",
-    "mint": "node tools/mint-code.mjs",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
-    "shots": "npm run build && node tools/shot.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify": "electron tools/verify.cjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
@@ -25,40 +22,22 @@
     "@xterm/xterm": "^5.5.0",
     "node-pty": "^1.1.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "systeminformation": "^5.31.17"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.2.0",
-    "autoprefixer": "^10.4.20",
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
-    "playwright-core": "^1.61.1",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.13",
     "vite": "^7.3.6",
     "vitest": "^4.1.9"
   },
   "build": {
-    "appId": "com.sush.terminal",
-    "productName": "Sush",
+    "appId": "com.sushair.terminal",
+    "productName": "Sush Air",
     "directories": {
       "output": "dist"
     },
-    "extraResources": [
-      {
-        "from": "resources/tools",
-        "to": "tools",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "resources/icon.ico",
-        "to": "icon.ico"
-      }
-    ],
     "win": {
       "target": "nsis",
       "icon": "resources/icon.ico"

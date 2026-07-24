@@ -182,10 +182,15 @@ button, input {
   transition: border-color var(--air-fast);
 }
 
-/* The focus ring only appears in split — with one pane there is nothing to
-   disambiguate, and a permanent border around the whole window is noise. */
+/* Borders only appear in split — with one pane there is nothing to
+   disambiguate, and a permanent frame around the whole window is noise.
+   In split, BOTH panes get a hairline and the focused one takes the accent.
+   Drawing the ring on the active pane alone made the other one look like it
+   had failed to render rather than like it was simply not focused: the eye
+   reads a missing edge as a broken layout before it reads it as a state. */
+.air-stage.is-split .air-pane { border-color: var(--air-line); }
 .air-stage.is-split .air-pane.is-active {
-  border-color: color-mix(in srgb, var(--air-accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--air-accent) 38%, transparent);
 }
 
 .air-term {
@@ -480,6 +485,163 @@ button, input {
 }
 
 .air-sheet-body > button { margin-top: 14px; border: 1px solid var(--air-line); }
+
+/* ── Import from Sush ─────────────────────────────────────────────────────── */
+
+/* The list scrolls; the question and the answer do not.
+ *
+ * The first version let the whole sheet scroll, which put "Import" below the
+ * fold on any profile with more than four entries — so the decision you had
+ * come to make was the one thing you could not see. Header and actions are
+ * pinned and only the list moves. */
+.air-import {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: 76vh;
+  overflow: hidden;
+  padding-bottom: 14px;
+}
+
+.air-import-blurb { margin: 0 0 16px; color: var(--air-dim); font-size: 12.5px; line-height: 1.55; }
+
+.air-import-groups {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  /* Room for the scrollbar so rows do not shift under it, and a hair of
+     bottom padding so the last row is not flush against the divider. */
+  padding: 0 6px 2px 0;
+  /* Fade the last few pixels so a clipped row reads as "there is more" rather
+     than as a row that happens to be cut in half. The top edge is left hard —
+     it sits directly under the heading, and fading it would look like a bug. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--air-text) 16%, transparent) transparent;
+}
+.air-import-groups::-webkit-scrollbar { width: 9px; }
+.air-import-groups::-webkit-scrollbar-track { background: transparent; }
+.air-import-groups::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--air-text) 14%, transparent);
+  border-radius: 5px;
+}
+
+.air-import-group h3 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--air-text);
+}
+.air-import-group h3 span {
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--air-dim);
+}
+
+/* Rows, not cards. A checklist of things you already own should read as a list
+   you scan, not as a gallery you shop. */
+.air-import .air-import-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--air-r);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--air-fast);
+}
+.air-import .air-import-item:hover { background: color-mix(in srgb, var(--air-text) 6%, transparent); }
+
+.air-import .air-import-box {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--air-line);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--air-bg);
+  transition: background var(--air-fast), border-color var(--air-fast);
+}
+.air-import .air-import-item.is-on .air-import-box {
+  background: var(--air-accent);
+  border-color: var(--air-accent);
+}
+
+.air-import-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.air-import-label {
+  font-family: 'Cascadia Code', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--air-text);
+}
+/* Off is legible, not hidden. Something you have declined is still information;
+   fading it to nothing means you cannot check what you turned off. */
+.air-import .air-import-item:not(.is-on) .air-import-label { color: var(--air-dim); text-decoration: line-through; }
+
+.air-import-detail {
+  font-size: 11.5px;
+  color: var(--air-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.air-import-note { margin-top: 2px; font-size: 11px; color: #f0c675; }
+
+.air-import-never,
+.air-import-path {
+  flex-shrink: 0;
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--air-dim);
+}
+.air-import-never { padding-top: 12px; border-top: 1px solid var(--air-line); }
+.air-import-path { margin-top: 4px; opacity: 0.75; word-break: break-all; }
+
+.air-import-actions {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.air-import .air-import-actions button {
+  margin: 0;
+  padding: 7px 14px;
+  border: 1px solid var(--air-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--air-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--air-fast), border-color var(--air-fast);
+}
+.air-import .air-import-actions button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--air-text) 26%, transparent); }
+.air-import .air-import-actions button:disabled { opacity: 0.5; cursor: default; }
+.air-import .air-import-actions .is-primary {
+  background: var(--air-accent);
+  border-color: var(--air-accent);
+  color: var(--air-bg);
+  font-weight: 600;
+}
 
 /* ── Flash ────────────────────────────────────────────────────────────────── */
 

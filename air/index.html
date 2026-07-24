@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Air talks to exactly one thing: the PTY on the other side of its preload
+      bridge. So every remote fetch, frame and connection is denied outright —
+      there is no origin this page needs to reach, and a CSP that says so is a
+      cheaper guarantee than a policy that says it should not.
+
+      blob: stays in img-src because :export builds a blob URL and hands it to a
+      download anchor. CSP does not gate downloads, but keeping the scheme
+      declared keeps the reason for it written down.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Sush Air</title>
+  </head>
+  <body>
+    <div id="air-root"></div>
+    <script type="module" src="/src/renderer/main.jsx"></script>
+  </body>
+</html>
