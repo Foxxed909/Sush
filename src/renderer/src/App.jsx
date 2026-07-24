@@ -48,6 +48,7 @@ import { buildDigestMarkdown, digestSummaryPrompt } from './lib/digest'
 import { countersAfterTabs } from './lib/sessionIds'
 import { canHandleGlobalShortcut } from './lib/shortcutGuard'
 import { isSensitiveCommand } from './lib/commandPrivacy'
+import { downloadText, stampedFileName } from './lib/download'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
 
@@ -843,20 +844,34 @@ export default function App() {
   useEffect(() => { localStorage.setItem('sush-right-tab', rightTab) }, [rightTab])
   useEffect(() => { localStorage.setItem('sush-right-width', String(rightWidth)) }, [rightWidth])
 
+  // Panel resize. The teardown is kept in a ref and also run on unmount: a drag
+  // that was still in progress when the panel closed (or the app hot-reloaded)
+  // left a mousemove handler bound to `window` forever, calling setState on an
+  // unmounted tree and re-widening the panel on the next unrelated drag.
+  const rightDragCleanup = useRef(null)
+  useEffect(() => () => { rightDragCleanup.current?.() }, [])
+
   const startRightDrag = useCallback((e) => {
     e.preventDefault()
+    rightDragCleanup.current?.()
     const startX = e.clientX
     const startWidth = rightWidth
     const onMove = (ev) => {
       const delta = startX - ev.clientX
       setRightWidth(Math.max(280, Math.min(700, startWidth + delta)))
     }
-    const onUp = () => {
+    const stop = () => {
       window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('mouseup', stop)
+      window.removeEventListener('blur', stop)
+      rightDragCleanup.current = null
     }
     window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mouseup', stop)
+    // Alt-tabbing mid-drag never delivers a mouseup — without this the panel
+    // kept resizing when you came back and moved the mouse.
+    window.addEventListener('blur', stop)
+    rightDragCleanup.current = stop
   }, [rightWidth])
 
   useEffect(() => {
@@ -931,13 +946,11 @@ export default function App() {
             ''
           ].join('\n')
         : (text || '(no captured output)')
-      const blob = new Blob([body], { type: md ? 'text/markdown' : 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `sush-${(tab.label || 'session').replace(/[^\w.-]+/g, '_')}-${Date.now()}.${md ? 'md' : 'txt'}`
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadText(
+        body,
+        stampedFileName(tab.label, md ? 'md' : 'txt'),
+        md ? 'text/markdown' : 'text/plain'
+      )
     } catch {}
   }, [])
 
@@ -977,13 +990,7 @@ export default function App() {
       let summary = null
       try { summary = await cliComplete(digestSummaryPrompt(label, sessions), { cwd: cwd || undefined }) } catch {}
       const md = buildDigestMarkdown({ label, cwd, sessions, summary })
-      const blob = new Blob([md], { type: 'text/markdown' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `sush-digest-${label.replace(/[^\w.-]+/g, '_')}-${Date.now()}.md`
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadText(md, stampedFileName(label, 'md', 'sush-digest'), 'text/markdown')
       window.sush.copyText?.(md).catch(() => {})
     } finally {
       setDigestBusy(false)

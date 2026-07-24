@@ -9,6 +9,7 @@
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "air": "electron-vite dev -- --air",
     "usage": "node tools/claude-usage.mjs",
     "mint": "node tools/mint-code.mjs",
     "build": "electron-vite build",
