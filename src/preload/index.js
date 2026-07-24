@@ -108,6 +108,7 @@ contextBridge.exposeInMainWorld('sush', {
   readFile: (payload) => ipcRenderer.invoke('sush:read-file', payload),
   writeFile: (payload) => ipcRenderer.invoke('sush:write-file', payload),
   openExternal: (payload) => ipcRenderer.invoke('sush:open-external', payload),
+  openAir: () => ipcRenderer.invoke('sush:open-air'),
   getNpmScripts: (payload) => ipcRenderer.invoke('sush:get-npm-scripts', payload),
   getAllCommands: () => ipcRenderer.invoke('sush:get-all-commands'),
   sessionStats: () => ipcRenderer.invoke('sush:session-stats'),

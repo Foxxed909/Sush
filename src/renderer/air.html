@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Stricter than the main window's policy, and it can afford to be. The main
+      app embeds webviews, loads remote avatars and talks to OAuth endpoints, so
+      its CSP has to allow https:, ws: and frame-src. Air talks to exactly one
+      thing - the PTY on the other side of its preload bridge - so every remote
+      fetch, frame and connection is denied outright. blob: stays in img-src and
+      is needed by nothing else; :export builds a blob URL but hands it to a
+      download anchor, which CSP does not gate.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Sush Air</title>
+  </head>
+  <body>
+    <div id="air-root"></div>
+    <script type="module" src="/src/air/main.jsx"></script>
+  </body>
+</html>

@@ -6,7 +6,7 @@ import { promisify } from 'util'
 import { fileURLToPath } from 'url'
 
 const execFileAsync = promisify(execFile)
-import * as pty from 'node-pty'
+import { spawnPty } from './shell/spawn'
 import si from 'systeminformation'
 import { registry } from './shell/registry'
 import { clearTabTimer, loadSnippets, saveSnippets } from './commands/extras'
@@ -49,9 +49,57 @@ import {
 } from './github-api'
 
 const contexts = new Map()
+// tabId -> Set<AbortController>. A Set, not a single controller: the smart bar
+// and the terminal can both have a built-in in flight on the same tab, and a
+// plain `set(tabId, ac)` let the second command overwrite the first's handle —
+// the first became uncancelable, and the loser's `finally` then deleted the
+// WINNER's entry, so `cancel-command` silently fell through to writing ^C into
+// a PTY that wasn't running the command at all.
 const abortControllers = new Map()
+
+function trackAbort(tabId, controller) {
+  let set = abortControllers.get(tabId)
+  if (!set) { set = new Set(); abortControllers.set(tabId, set) }
+  set.add(controller)
+}
+
+function untrackAbort(tabId, controller) {
+  const set = abortControllers.get(tabId)
+  if (!set) return
+  set.delete(controller)
+  if (!set.size) abortControllers.delete(tabId)
+}
+
+// Abort every in-flight command on a tab. Returns true if anything was aborted,
+// so the caller knows whether to fall through to the PTY's ^C.
+function abortTab(tabId) {
+  const set = abortControllers.get(tabId)
+  if (!set?.size) return false
+  for (const controller of set) {
+    try { controller.abort() } catch {}
+  }
+  return true
+}
 const cliEngineChildren = new Set()
 const ptySessions = new Map()
+
+// Hard ceiling on concurrently live PTYs, enforced in MAIN. The renderer has
+// its own tier-aware grid cap, but that is a UI affordance: a renderer bug (or
+// a crew launch that loops) could ask for hundreds of shells and main would
+// spawn every one. 64 is far above any real tier's grid cap and far below
+// "your machine stops responding".
+const MAX_LIVE_PTYS = 64
+
+// Cap for sush:read-file. See the handler for why this exists.
+const READ_FILE_MAX_BYTES = 8 * 1024 * 1024
+
+function formatBytes(n) {
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = Number(n) || 0
+  let i = 0
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++ }
+  return `${value < 10 && i > 0 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
+}
 const fileWatchers = new Map()
 const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
@@ -461,7 +509,11 @@ async function readAccountUsage(userId, provider, slotId, options = {}) {
   return { ok: false, error: 'Usage isn’t available for this CLI.' }
 }
 
-function getDefaultShell(shellId = 'powershell') {
+// Exported so Sush Air resolves shells through exactly this logic — including
+// the PowerShell bootstrap that makes `&&` work and emits the OSC 7 sequence
+// cwd tracking depends on. A second, simpler resolver in Air would have been a
+// second thing to keep correct on Windows.
+export function getDefaultShell(shellId = 'powershell') {
   if (process.env.SUSH_SHELL) {
     return { id: 'custom', label: process.env.SUSH_SHELL, file: process.env.SUSH_SHELL, args: [] }
   }
@@ -636,35 +688,6 @@ function existingDirectory(cwd) {
 // never touch useConptyDll. We then degrade gracefully (winpty, then cmd.exe) so a
 // single bad shell/option can never hard-crash a session, and surface an
 // actionable error if everything fails.
-function spawnPty(shell, { cols, rows, cwd, env }) {
-  const base = {
-    name: 'xterm-256color',
-    cols: Number(cols) || 80,
-    rows: Number(rows) || 24,
-    cwd,
-    env
-  }
-
-  const attempts = [
-    { shell, opts: base },                               // system ConPTY (default)
-    { shell, opts: { ...base, useConpty: false } }       // bundled winpty fallback
-  ]
-  // Last resort on Windows: a guaranteed-present shell with the default backend.
-  if (process.platform === 'win32' && shell.file.toLowerCase() !== 'cmd.exe') {
-    attempts.push({ shell: { id: 'cmd', label: 'Command Prompt', file: 'cmd.exe', args: [] }, opts: base })
-  }
-
-  const errors = []
-  for (const attempt of attempts) {
-    try {
-      return { proc: pty.spawn(attempt.shell.file, attempt.shell.args, attempt.opts), shell: attempt.shell }
-    } catch (err) {
-      errors.push(`${attempt.shell.file}: ${err.message}`)
-    }
-  }
-  throw new Error(`Could not start a terminal. Tried: ${errors.join(' | ')}`)
-}
-
 async function getGitStatus(cwd) {
   const dir = existingDirectory(cwd)
   if (!dir) return { repo: false, dir: String(cwd || ''), files: [], error: 'Working directory does not exist' }
@@ -1079,8 +1102,10 @@ function closeAllPtySessions({ sync = false } = {}) {
 
 function stopIdentityRuntime({ sync = false, preserveOauthProvider = null } = {}) {
   identityRuntimeGeneration += 1
-  for (const controller of abortControllers.values()) {
-    try { controller.abort() } catch {}
+  for (const set of abortControllers.values()) {
+    for (const controller of set) {
+      try { controller.abort() } catch {}
+    }
   }
   abortControllers.clear()
   for (const child of cliEngineChildren) {
@@ -1163,7 +1188,7 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
   }
 
   const ac = new AbortController()
-  abortControllers.set(tabId, ac)
+  trackAbort(tabId, ac)
   // Hand the cancel signal to the command via its context — before this,
   // the controller existed but nothing ever observed it, so built-ins were
   // uncancelable no matter what the renderer asked for.
@@ -1193,7 +1218,7 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
     return { output: `\x1b[31mError: ${err.message}\x1b[0m`, type: 'error', handled: true, cwd: ctx.cwd, sensitive }
   } finally {
     ctx.signal = null
-    abortControllers.delete(tabId)
+    untrackAbort(tabId, ac)
   }
 }
 
@@ -1239,6 +1264,12 @@ function restoreFromTray() {
     mainWin.show()
     mainWin.focus()
   }
+  // Destroy the icon on restore. It used to live for the rest of the app's
+  // lifetime after a single minimize-to-tray, so the user saw a permanent tray
+  // entry for a window that was plainly visible — and on Windows the stale icon
+  // outlived the window on some shells. hideToTray() recreates it on demand.
+  try { tray?.destroy() } catch {}
+  tray = null
 }
 
 export function registerIpcHandlers(win) {
@@ -1270,6 +1301,11 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:pty-start', (event, payload) => {
     if (!getActiveUser()) throw new Error('Sign in to an identity before starting a terminal.')
+    // Reusing an existing tabId is a restart, not a new session — only a
+    // genuinely new tab counts against the ceiling.
+    if (!ptySessions.has(payload?.tabId) && ptySessions.size >= MAX_LIVE_PTYS) {
+      throw new Error(`Too many terminals open (${MAX_LIVE_PTYS}). Close a session and try again.`)
+    }
     return startPtySession(payload)
   })
 
@@ -1313,7 +1349,7 @@ export function registerIpcHandlers(win) {
     if (!command) {
       // Passthrough — run as real system command (no shell: prevents injection via metacharacters)
       const ac = new AbortController()
-      abortControllers.set(tabId, ac)
+      trackAbort(tabId, ac)
       try {
         const { stdout, stderr } = await execFileAsync(cmd, args, {
           cwd: ctx.cwd,
@@ -1331,7 +1367,7 @@ export function registerIpcHandlers(win) {
         }
         return { output: out || `\x1b[31m${e.message}\x1b[0m`, type: 'error' }
       } finally {
-        abortControllers.delete(tabId)
+        untrackAbort(tabId, ac)
       }
     }
 
@@ -1342,11 +1378,7 @@ export function registerIpcHandlers(win) {
     // A registered command can be in flight even while a PTY exists for the
     // tab (smart-bar built-ins) — abort it first; the old order wrote ^C to
     // the PTY and left the built-in running to its timeout.
-    const ac = abortControllers.get(tabId)
-    if (ac) {
-      ac.abort()
-      return
-    }
+    if (abortTab(tabId)) return
     ptySessions.get(tabId)?.proc.write('\x03')
   })
 
@@ -1799,6 +1831,18 @@ export function registerIpcHandlers(win) {
     try {
       const info = await stat(target.path)
       if (info.isDirectory()) return { ok: false, error: 'Path is a directory' }
+      // Cap the read. This handler backs "open this file in the panel", and
+      // every consumer is a text editor or viewer — nothing here wants a
+      // gigabyte. Without the cap, `read-file` on a core dump or a video
+      // decoded the whole thing into a UTF-8 string on the main process and
+      // froze the entire app (or hit V8's string limit and threw a
+      // useless "Invalid string length"). Refuse early, and say the size.
+      if (info.size > READ_FILE_MAX_BYTES) {
+        return {
+          ok: false,
+          error: `File is ${formatBytes(info.size)} — too large to open here (limit ${formatBytes(READ_FILE_MAX_BYTES)}).`
+        }
+      }
       const content = await rf(target.path, 'utf8')
       return { ok: true, content }
     } catch (e) {

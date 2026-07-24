@@ -37,6 +37,43 @@ settings, scrollback, and credits meter all live on your disk.
 See [`docs/SUSH_GUIDE.md`](docs/SUSH_GUIDE.md) for the full walkthrough,
 tips, and an honest pros/cons list.
 
+## Sush Air
+
+Some days you want the orchestrator. Some days you want a terminal.
+
+**Air** is the small one — a second window of the same app that is a terminal
+and nothing else. No identity gate, no license check, no agents, no account
+rotation, no metrics polling, no browser panel. Not hidden behind a flag:
+absent. Its preload bridges 14 methods, all namespaced `air:`, against the main
+bridge's 120, so a bug in Air's renderer cannot read a license, enumerate users
+or reach the token store — those channels are not on its bridge at all. Run
+`sush --air` and the main app's IPC surface is never registered in the process
+to begin with.
+
+What it does have: PTY sessions (twelve, capped in the main process), tabs that
+rename themselves from the shell's working directory, a `Ctrl+K` palette, split
+view, find-in-output, four calm themes, and a `:` command layer.
+
+The rule for that layer is the whole design: **a line starting with `:` is
+Air's, everything else is your shell's.** No guessing, no "did you mean", no
+intercepting a command that merely looks like one of ours. Type `theme` and you
+get your shell's; type `:theme` and you get Air's.
+
+```
+:help          :new [path]     :split        :font 15 | + | -
+:clear         :close          :find text    :zen
+:note text     :rename name    :go 2         :export
+:notes         :theme harbor   :cwd          :agent claude
+```
+
+`:note` is the one thing Air has that the main app doesn't — you notice
+something mid-run and the alternative is a scratch file you never open again.
+Notes stay in localStorage; Air has no network code to send them anywhere.
+
+Open it with `npm run air`, `sush --air`, or **Open Sush Air** in the main
+app's command palette. It is a sibling window, not a mode: opening it changes
+nothing in the main app, and closing it takes nothing with it.
+
 ## Stack
 
 Electron 43 (main + preload + renderer) · React 18 · a hand-rolled CSS design
@@ -47,6 +84,7 @@ system (no UI framework) · xterm.js · node-pty · Vitest.
 ```bash
 npm install
 npm run dev       # electron-vite dev — hot-reloading renderer
+npm run air       # same, but boots Sush Air alone (no main window)
 ```
 
 Other scripts:
@@ -80,7 +118,8 @@ Settings ▸ Plan, or run `unlock SUSH-...` in any session.
 | [`THEME.md`](THEME.md) | Theme palette rules |
 | [`PUBLIC.md`](PUBLIC.md) | User-facing "What's New" — the latest release highlights |
 | [`learning.md`](learning.md) | Engineering lessons carried across cycles |
-| [`GRAVEYARD.md`](GRAVEYARD.md) | Retired features and why |
+| [`GRAVEYARD.md`](GRAVEYARD.md) | Retired features and why — and what has risen |
+| [`REVIEW.md`](REVIEW.md) | 2026-07-24 codebase review: bugs found, what was left alone |
 
 ## License
 
