@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import Icon from '../Icons'
+import UsageBar from '../UsageBar'
 import { rgba } from '../../lib/ui'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { useOnline } from '../../hooks/useOnline'
@@ -213,7 +214,7 @@ export default function UsageSection({ accent, settings, set }) {
     <Section id="Usage & Guard" icon="activity" label="Usage & Guard" accent={accent}>
       <Row>
         <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
-          Live account &amp; limit status for every agent CLI. The auto-refresh below reads a
+          Live account & limit status for every agent CLI. The auto-refresh below reads a
           cheap snapshot (no CLI is launched) — install state, your active account, and when
           each account last got rate-limited. Use the check button on any provider card to
           verify its active account. Claude also reports its current quota window when available;
@@ -222,6 +223,16 @@ export default function UsageSection({ accent, settings, set }) {
       </Row>
 
       <UsageGuardBlock accent={accent} settings={settings} set={set} />
+
+      {/* Pool view — N Free accounts as one capacity meter */}
+      <Row>
+        <Label>Account pool</Label>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <UsageBar provider="claude" accent={accent} compact={false} />
+          <UsageBar provider="codex" accent={accent} compact={false} />
+        </div>
+        <Hint>Treats every account slot for a CLI as one shared pool. Auto-switch prefers the healthiest remaining slot first.</Hint>
+      </Row>
 
       <Row>
         {/* Controls */}
