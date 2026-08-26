@@ -12,8 +12,6 @@ import { Section, Row, Label, ago } from './primitives'
 // it only points the CLI at the right slot. Provider Connect (OAuth, Plus+)
 // lives at the bottom: it complements the slots with stored tokens.
 
-// A thin usage bar (session / week %). Goes amber past 70%, red past 90% so a
-// near-limit account reads at a glance.
 function MiniBar({ label, pct, accent }) {
   const p = Math.max(0, Math.min(100, pct ?? 0))
   const col = p >= 90 ? '#ff7a8a' : p >= 70 ? '#ffb74d' : accent
@@ -52,9 +50,6 @@ function MiniSparkline({ history, accent }) {
   )
 }
 
-// Per-account usage readout under a slot row. Shows the session/week bars when
-// a provider reported utilization numbers; otherwise falls back to the bounded
-// CLI health result, without misrepresenting configuration as a quota figure.
 function SlotUsage({ usage, history, accent }) {
   if (!usage) return null
   const hasBars = usage.sessionPct != null || usage.weekPct != null
@@ -90,14 +85,12 @@ export default function AccountsSection({ accent }) {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [usageBusy, setUsageBusy] = useState({})   // `${provider}:${slotId}` -> bool
+  const [usageBusy, setUsageBusy] = useState({})
 
   useEffect(() => {
     window.sush.accountsList?.().then(r => { if (r?.ok) setData(r.providers) }).catch(() => {})
   }, [])
 
-  // On-demand provider read for one account slot. It is never auto-polled: the
-  // provider only launches after the user explicitly asks to check it.
   const readUsage = async (provider, slotId, options = {}) => {
     const key = `${provider}:${slotId}`
     setUsageBusy(b => ({ ...b, [key]: true }))
@@ -115,8 +108,6 @@ export default function AccountsSection({ accent }) {
     setErr('')
     const r = await fn()
     if (r?.ok) setData(r.providers)
-    // Every failure is shown — a swallowed 'no-user' here let "+ Add account"
-    // fail invisibly and the user think the slot feature was a no-op.
     else setErr(r?.error === 'no-user' ? 'No Sush profile is signed in - sign in first.' : (r?.error || 'Something went wrong'))
     setBusy(false)
   }
@@ -125,7 +116,8 @@ export default function AccountsSection({ accent }) {
     ['claude', 'Claude', 'Claude Pro / Max subscription'],
     ['codex', 'Codex', 'ChatGPT subscription'],
     ['gemini', 'Gemini', 'Google account'],
-    ['opencode', 'OpenCode', 'any provider']
+    ['opencode', 'OpenCode', 'any provider'],
+    ['grok', 'Grok Build', 'xAI SuperGrok / X Premium+']
   ]
   const slotName = (slot, i) => slot.id === 'default' && slot.label === 'Default' ? 'Account 1' : (slot.label || `Account ${i + 1}`)
   const limitAgo = (slot) => {
@@ -134,7 +126,7 @@ export default function AccountsSection({ accent }) {
     if (h > 12) return null
     return h < 1 ? 'limit hit <1h ago' : `limit hit ${Math.round(h)}h ago`
   }
-  const [editing, setEditing] = useState(null)  // { provider, slotId, value }
+  const [editing, setEditing] = useState(null)
   const commitRename = () => {
     const e = editing
     setEditing(null)
@@ -169,9 +161,6 @@ export default function AccountsSection({ accent }) {
               <button
                 onClick={() => call(async () => {
                   const r = await window.sush.accountsAdd({ provider: p })
-                  // Hand the user straight to the sign-in: the new slot is
-                  // already active, so a fresh session of this CLI prompts
-                  // its own login flow (browser OAuth) — no manual steps.
                   if (r?.ok) window.dispatchEvent(new CustomEvent('sush:open-login-session', { detail: { provider: p } }))
                   return r
                 })}
@@ -283,7 +272,6 @@ export default function AccountsSection({ accent }) {
       {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 4 }}>{err}</div>}
       </Row>
 
-      {/* Provider Connect (Plus+) — OAuth tokens as first-class accounts. */}
       <Row>
         <Label>Connect provider accounts (OAuth)</Label>
         <AccountConnect accent={accent} />
