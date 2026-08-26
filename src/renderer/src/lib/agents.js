@@ -16,7 +16,10 @@ export const BUILTIN_AGENTS = [
   // Gemini has no verified resume flag yet — define one on a custom agent if
   // your build supports it.
   { id: 'gemini', label: 'Gemini', command: 'gemini', mono: 'G', color: '#4285f4', desc: 'Google CLI' },
-  { id: 'opencode', label: 'OpenCode', command: 'opencode', mono: 'O', color: '#f59e0b', desc: 'OpenCode CLI' }
+  { id: 'opencode', label: 'OpenCode', command: 'opencode', mono: 'O', color: '#f59e0b', desc: 'OpenCode CLI' },
+  // Grok Build (xAI) — interactive TUI; --continue resumes the latest session
+  // for the cwd (docs: -c / --continue).
+  { id: 'grok', label: 'Grok Build', command: 'grok', resumeCommand: 'grok --continue', mono: 'Gk', color: '#22d3ee', desc: 'xAI coding agent' }
 ]
 
 const CUSTOM_KEY = 'sush-custom-agents'
@@ -85,7 +88,8 @@ export const LOGIN_COMMANDS = {
   claude: { command: 'claude', label: 'Claude sign-in' },
   codex: { command: 'codex', label: 'Codex sign-in' },
   gemini: { command: 'gemini', label: 'Gemini sign-in' },
-  opencode: { command: 'opencode auth login', label: 'OpenCode sign-in' }
+  opencode: { command: 'opencode auth login', label: 'OpenCode sign-in' },
+  grok: { command: 'grok login', label: 'Grok Build sign-in' }
 }
 
 // Hard ceiling on concurrent sessions — must be at least the largest tier's
@@ -95,3 +99,6 @@ export const LOGIN_COMMANDS = {
 export const MAX_SESSIONS = 32
 
 export const agentById = (id) => allAgents().find(a => a.id === id) || null
+
+/** Providers that participate in account slots + the usage pool popover. */
+export const POOL_PROVIDERS = ['claude', 'codex', 'gemini', 'opencode', 'grok']

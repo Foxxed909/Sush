@@ -3,6 +3,7 @@ import Icon from './Icons'
 import UsageBar from './UsageBar'
 import { rgba } from '../lib/ui'
 import { usePolling } from '../hooks/usePolling'
+import { POOL_PROVIDERS } from '../lib/agents'
 
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
 // live cpu/mem · usage icon (click for pool). Reuses gitStatus + getSystemStats IPC.
@@ -14,13 +15,11 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
   const [stats, setStats] = useState(null)
   const [clock, setClock] = useState(() => new Date())
 
-  // Bottom-corner clock — refreshed each minute (the strip is always visible).
   useEffect(() => {
     const id = setInterval(() => setClock(new Date()), 30_000)
     return () => clearInterval(id)
   }, [])
 
-  // Git status follows the active directory.
   useEffect(() => {
     let cancelled = false
     if (!cwd) { setGit(null); return }
@@ -30,9 +29,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
     return () => { cancelled = true }
   }, [cwd])
 
-  // System stats (lightweight: CPU + mem only) + a periodic git refresh to catch
-  // dirty-count changes. Polls only while the window is focused — pauses in the
-  // background. Uses the lite IPC so the status bar never spawns OS processes.
   const poll = useCallback(() => {
     window.sush.getSystemStatsLite()
       .then(s => { if (s && !s.error) setStats(s) })
@@ -74,7 +70,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         overflow: 'visible'
       }}
     >
-      {/* cwd */}
       <span style={{ ...seg, minWidth: 0, maxWidth: '46%' }}>
         <Icon name={view === 'home' ? 'home' : 'folder'} size={12} color={accent} />
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl', textAlign: 'left' }}>
@@ -82,7 +77,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       </span>
 
-      {/* open cwd in Explorer / VS Code */}
       {cwd && view !== 'home' && (
         <span style={{ ...seg, gap: 2, padding: '0 6px' }}>
           <button
@@ -106,7 +100,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       )}
 
-      {/* git */}
       {git && (
         <span style={seg}>
           <Icon name="gitBranch" size={12} color={dirty ? '#ffcb6b' : 'var(--text-3)'} />
@@ -120,10 +113,8 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       )}
 
-      {/* spacer */}
       <span style={{ flex: 1 }} />
 
-      {/* mode chips */}
       {!online && (
         <span style={{ ...segR, color: '#ffcb6b', fontWeight: 800, letterSpacing: 0.3 }} title="Network polls are paused until the connection comes back.">
           <Icon name="wifi" size={12} color="#ffcb6b" />
@@ -133,7 +124,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
       {broadcastMode && <span style={{ ...segR, color: '#ff5370', fontWeight: 800, letterSpacing: 0.4 }}>BROADCAST</span>}
       {gridMode && <span style={{ ...segR, color: accent, fontWeight: 800, letterSpacing: 0.4 }}>GRID</span>}
 
-      {/* shell */}
       {shell && view !== 'home' && (
         <span style={segR}>
           <Icon name="terminal" size={12} color="var(--text-3)" />
@@ -141,7 +131,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       )}
 
-      {/* agent activity — click to open Mission Control */}
       {(() => {
         const s = agentSummary || {}
         const waiting = s.waiting || 0
@@ -163,12 +152,10 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         )
       })()}
 
-      {/* account pool — circle control; click for total % + per-account rows */}
       <span style={{ ...segR, padding: '0 8px', overflow: 'visible' }}>
-        <UsageBar providers={['claude', 'codex']} accent={accent} variant="icon" />
+        <UsageBar providers={POOL_PROVIDERS} accent={accent} variant="icon" />
       </span>
 
-      {/* workspaces · sessions */}
       <span style={segR}>
         {workspaceCount > 0 && (
           <>
@@ -181,7 +168,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         <span>session{sessionCount === 1 ? '' : 's'}</span>
       </span>
 
-      {/* cpu */}
       <span style={segR} title="CPU load">
         <Icon name="cpu" size={12} color="var(--text-3)" />
         <span style={{ color: usageColor(cpu), fontWeight: 700, minWidth: 30, textAlign: 'right' }}>
@@ -189,7 +175,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       </span>
 
-      {/* mem */}
       <span style={segR} title="Memory used">
         <Icon name="activity" size={12} color="var(--text-3)" />
         <span style={{ color: usageColor(memPct), fontWeight: 700, minWidth: 30, textAlign: 'right' }}>
@@ -197,7 +182,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       </span>
 
-      {/* power saver chip */}
       {saverActive && (
         <span style={{ ...segR, color: '#5fd3a8', fontWeight: 800, letterSpacing: 0.3 }} title={
           saverReason === 'eco'
@@ -217,7 +201,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       )}
 
-      {/* battery */}
       {battery?.hasBattery && (
         <span style={segR} title={battery.charging ? `Battery ${battery.percent}% — charging` : `Battery ${battery.percent}%`}>
           <Icon name="battery" size={13} color={battery.charging ? '#5fd3a8' : battery.percent <= 15 ? '#ff5370' : battery.percent <= 30 ? '#ffcb6b' : 'var(--text-3)'} />
@@ -227,7 +210,6 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         </span>
       )}
 
-      {/* clock */}
       <span style={{ ...segR, paddingRight: 12, color: 'var(--text-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title={clock.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}>
         {clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </span>
