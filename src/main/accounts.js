@@ -31,6 +31,17 @@ export const SLOT_PROVIDERS = {
       XDG_STATE_HOME: '.local/state',
       XDG_CACHE_HOME: '.cache'
     }
+  },
+  // Grok Build stores config under ~/.grok — isolate via HOME/USERPROFILE
+  // the same way Gemini does (no dedicated GROK_HOME env documented).
+  grok: {
+    label: 'Grok Build',
+    env: {
+      HOME: '.',
+      USERPROFILE: '.',
+      APPDATA: 'AppData/Roaming',
+      LOCALAPPDATA: 'AppData/Local'
+    }
   }
 }
 
@@ -105,23 +116,16 @@ function providerState(data, provider) {
   return data.providers[provider]
 }
 
-// Best remaining % from a usage snapshot (session or week). Higher = healthier.
-// Returns null when we have no numeric signal (health-only CLIs).
 function remainingPct(slot) {
   const u = slot?.usage
   if (!u) return null
   const session = typeof u.sessionPct === 'number' ? u.sessionPct : null
   const week = typeof u.weekPct === 'number' ? u.weekPct : null
   if (session == null && week == null) return null
-  // Remaining = 100 - used. Prefer the tighter (higher-used) window.
   const used = Math.max(session ?? 0, week ?? 0)
   return Math.max(0, 100 - used)
 }
 
-// Ranking for auto-rotation:
-// 1. Highest remaining % when we have usage cache
-// 2. Then oldest lastLimitAt (most rested)
-// 3. Stable id tie-break
 function rankSlots(slots) {
   return [...slots].sort((a, b) => {
     const ra = remainingPct(a)
@@ -157,8 +161,6 @@ export function listAccounts(userId) {
   return { ok: true, providers }
 }
 
-// Aggregate pool view for one provider — powers the Usage popover / Settings panel.
-// poolTotalPct is the sum of each slot's remaining % (4 accounts at 100% → 400%).
 export function getPoolStats(userId, provider) {
   if (!userId || !SLOT_PROVIDERS[provider]) {
     return { ok: false, error: 'no-user-or-provider' }
@@ -174,7 +176,6 @@ export function getPoolStats(userId, provider) {
   for (const s of slots) {
     const rem = remainingPct(s)
     const limitedAgo = s.lastLimitAt ? Date.now() - s.lastLimitAt : null
-    // Consider a slot "healthy" if it has remaining > 5% or no recent limit hit.
     const isHealthy = (rem != null ? rem > 5 : true) && (!s.lastLimitAt || limitedAgo > 5 * 60 * 1000)
     if (rem != null) {
       totalRemaining += rem
@@ -192,9 +193,7 @@ export function getPoolStats(userId, provider) {
   }
 
   const avgRemaining = known > 0 ? Math.round(totalRemaining / known) : null
-  // Sum of remaining % across slots that reported (e.g. 4 × 100 → 400).
   const poolTotalPct = known > 0 ? Math.round(totalRemaining) : null
-  // Avg remaining scaled to a 0–100 bar (legacy / optional).
   const poolPct = known > 0 ? Math.min(100, Math.round(totalRemaining / slots.length)) : null
 
   return {
@@ -213,10 +212,6 @@ export function getPoolStats(userId, provider) {
   }
 }
 
-// What happens when THIS CLI hits its session limit, set per-CLI (it used to be
-// one global toggle, but auto-hopping makes sense on a CLI with several logins
-// and none on a single-login one). Lives with the account data, so the limit
-// cascade in main reads it straight from here — no renderer round-trip.
 export const LIMIT_POLICIES = ['never', 'ask', 'auto']
 
 export function getLimitPolicy(userId, provider) {
@@ -249,8 +244,6 @@ export function renameAccount(userId, provider, slotId, label) {
   return { ok: true, ...listAccounts(userId) }
 }
 
-// Remember that the active slot just hit its limit, so rotation can prefer
-// the slot that has rested longest and the UI can show "limited Xh ago".
 export function markLimitHit(userId, provider) {
   if (!userId || !SLOT_PROVIDERS[provider]) return
   const data = load(userId)
@@ -261,9 +254,6 @@ export function markLimitHit(userId, provider) {
   save(userId, data)
 }
 
-// Cache a usage snapshot on a slot (session/week percentages + reset times),
-// scraped on demand from the CLI's own usage view. Stored so the UI can paint
-// the bars instantly from cache and show "updated Xm ago" without re-spawning.
 export function setAccountUsage(userId, provider, slotId, usage) {
   if (!userId || !SLOT_PROVIDERS[provider]) return { ok: false, error: 'Unknown provider' }
   const data = load(userId)
@@ -286,8 +276,6 @@ export function setAccountUsage(userId, provider, slotId, usage) {
   return { ok: true, ...listAccounts(userId) }
 }
 
-// Creates the slot and makes it active, so the very next session spawned uses
-// it — that session is where the user logs the new account in.
 export function addAccount(userId, provider, label) {
   if (!userId) return { ok: false, error: 'no-user' }
   if (!SLOT_PROVIDERS[provider]) return { ok: false, error: 'This CLI does not support extra accounts' }
@@ -319,9 +307,6 @@ export function switchAccount(userId, provider, slotId) {
   return { ok: true, slotId: slot.id, label: slot.label, ...listAccounts(userId) }
 }
 
-// Rotate to another slot (used by the limit cascade).
-// Prefers highest remaining % when usage cache exists, then oldest lastLimitAt.
-// Returns the slot we landed on, or ok:false when there is nowhere to rotate.
 export function nextAccount(userId, provider) {
   if (!userId) return { ok: false, error: 'no-user' }
   const data = load(userId)
@@ -336,8 +321,6 @@ export function nextAccount(userId, provider) {
   return { ok: true, slotId: next.id, label: next.label }
 }
 
-// What a limit-hit COULD rotate to, without changing anything.
-// Must use the same ranking as nextAccount so 'ask' and 'auto' agree.
 export function peekNextAccount(userId, provider) {
   if (!userId || !SLOT_PROVIDERS[provider]) return null
   const data = load(userId)
@@ -366,22 +349,15 @@ export function removeAccount(userId, provider, slotId) {
   return { ok: true, ...listAccounts(userId) }
 }
 
-// Env overlay that points one provider at a specific slot. Claude/Codex use
-// provider-specific config vars; Gemini/OpenCode need slot-local HOME/XDG
-// overlays because their CLIs do not expose a narrower account-dir variable.
-// The default slot returns {} because identity env already points there.
 export function slotEnv(userId, provider, slotId) {
   return envForSlot(userId, provider, slotId)
 }
 
-// Env overlay for the active slots. Spread AFTER the identity env so a
-// non-default slot wins; default slots add nothing (identity env already
-// points at the original config dir).
 export function accountSlotEnv(userId) {
   if (!userId) return {}
   const data = load(userId)
   const env = {}
-  for (const [p, spec] of Object.entries(SLOT_PROVIDERS)) {
+  for (const [p] of Object.entries(SLOT_PROVIDERS)) {
     const st = data.providers?.[p]
     if (!st || !st.active || st.active === 'default') continue
     if (!st.slots?.some(s => s.id === st.active)) continue
