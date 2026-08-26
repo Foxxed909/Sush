@@ -48,6 +48,8 @@ contextBridge.exposeInMainWorld('sush', {
   accountsRename: (payload) => ipcRenderer.invoke('sush:accounts-rename', payload),
   accountsSetPolicy: (payload) => ipcRenderer.invoke('sush:accounts-set-policy', payload),
   accountsUsageRead: (payload) => ipcRenderer.invoke('sush:accounts-usage-read', payload),
+  // Aggregate pool stats (N Free accounts as one capacity pool)
+  accountsPoolStats: (payload) => ipcRenderer.invoke('sush:accounts-pool-stats', payload),
   // Claude Code panel (stream-json driver)
   claudePanelStart: (payload) => ipcRenderer.invoke('sush:claude-panel-start', payload),
   claudePanelStop: (payload) => ipcRenderer.invoke('sush:claude-panel-stop', payload),
