@@ -5,10 +5,8 @@ import { TIER_META } from '../PlansPage'
 import { loadCustomAgents, saveCustomAgents } from '../../lib/agents'
 import { Section, Row, Label, Hint } from './primitives'
 
-// Plan summary + preferences backup. The full pricing wall lives on its own
-// page (PlansPage) — Settings shows where you are and hands you the door.
-// Backup lives here (not with .sushrc) because a preferences file is an
-// account-shaped artifact: it's what you carry to a new machine.
+// Plan summary + preferences backup. Full pricing wall (PlansPage) is soft-retired
+// for solo use — see docs/ladder-pricing-tier-layout.md. Unlock codes still work.
 
 function BackupRow({ accent, settings, onChange }) {
   const fileRef = useRef(null)
@@ -58,6 +56,52 @@ function BackupRow({ accent, settings, onChange }) {
   )
 }
 
+function RedeemRow({ accent, ent }) {
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  const redeem = async () => {
+    const c = code.trim()
+    if (!c || busy) return
+    setBusy(true); setMsg(null)
+    const r = await ent.redeem?.(c)
+    setBusy(false)
+    if (r?.ok) {
+      setMsg({ ok: true, text: `Unlocked ${TIER_META[r.tier]?.label || r.tier}.` })
+      setCode('')
+    } else {
+      setMsg({ ok: false, text: r?.error || 'Could not redeem that code.' })
+    }
+  }
+
+  return (
+    <Row>
+      <Label>Unlock code</Label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={code}
+          onChange={e => setCode(e.target.value.toUpperCase())}
+          onKeyDown={e => { if (e.key === 'Enter') redeem() }}
+          placeholder="SUSH-PLUS-…"
+          spellCheck={false}
+          className="sush-mono"
+          style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-2)', color: 'var(--text-2)', borderRadius: 8, padding: '8px 10px', fontSize: 12, outline: 'none', letterSpacing: 0.4 }}
+        />
+        <button
+          onClick={redeem}
+          disabled={!code.trim() || busy}
+          style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: code.trim() && !busy ? '#0a0a0a' : 'var(--text-4)', background: code.trim() && !busy ? accent : 'var(--surface-2)', border: `1px solid ${rgba(accent, 0.4)}`, borderRadius: 999, padding: '0 16px', cursor: code.trim() && !busy ? 'pointer' : 'default' }}
+        >
+          {busy ? '…' : 'Redeem'}
+        </button>
+      </div>
+      {msg && <div style={{ fontSize: 11, fontWeight: 700, color: msg.ok ? '#7fd6a0' : '#ff8aa0', marginTop: 6 }}>{msg.text}</div>}
+      <Hint>Offline unlock — no account, no payment rails. Ladder layout docs: docs/ladder-pricing-tier-layout.md</Hint>
+    </Row>
+  )
+}
+
 export default function PlanSection({ accent, ent, settings, onChange }) {
   const tier = ent.tier || 'free'
   const meta = TIER_META[tier] || TIER_META.free
@@ -74,15 +118,10 @@ export default function PlanSection({ accent, ent, settings, onChange }) {
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{meta.blurb}</div>
           </div>
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent('sush:open-plans'))}
-            style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: '#0a0a0a', background: accent, border: `1px solid ${accent}`, borderRadius: 999, padding: '8px 16px', cursor: 'pointer' }}
-          >
-            View plans →
-          </button>
         </div>
-        <Hint>Compare tiers, redeem an unlock code, or revert to Free — all on the Plans page.</Hint>
+        <Hint>Plans comparison page is soft-retired (solo). Redeem a code below if you have one.</Hint>
       </Row>
+      <RedeemRow accent={accent} ent={ent} />
       <Row>
         <Label>What’s new</Label>
         <button
