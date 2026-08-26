@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
+import { POOL_PROVIDERS } from '../lib/agents'
 
 // Account pool capacity. Default chrome is a quiet circle; click opens a
-// popover: total remaining (sum across slots, e.g. 4 × 100% → 400%) plus
-// one row per account. Settings uses variant="panel" for the same content
-// always expanded. Never spawns a CLI — pool IPC or accounts-list only.
+// popover: total remaining (sum across slots) plus one row per account.
+// Settings uses variant="provider-panel" for the same content always expanded.
 
 const STATE = {
   ok: '#5fd3a8',
@@ -26,6 +26,7 @@ function providerLabel(provider) {
   if (provider === 'codex') return 'Codex'
   if (provider === 'gemini') return 'Gemini'
   if (provider === 'opencode') return 'OpenCode'
+  if (provider === 'grok') return 'Grok Build'
   return provider
 }
 
@@ -135,7 +136,6 @@ function PoolBreakdown({ pool, accent }) {
   )
 }
 
-/** Fetch pool for one or all default providers. */
 function usePoolData(providers) {
   const list = Array.isArray(providers) ? providers : [providers || 'claude']
   const [pools, setPools] = useState({})
@@ -166,12 +166,6 @@ function usePoolData(providers) {
   return { pools, refresh: pull }
 }
 
-/**
- * variant:
- *  - "icon" (default): circle in the status strip; click toggles popover
- *  - "panel": always-expanded breakdown (Settings)
- *  - "provider-panel": single-provider expanded card
- */
 export default function UsageBar({
   provider,
   providers,
@@ -179,7 +173,7 @@ export default function UsageBar({
   variant = 'icon',
   style = {}
 }) {
-  const providerList = providers || (provider ? [provider] : ['claude', 'codex'])
+  const providerList = providers || (provider ? [provider] : POOL_PROVIDERS)
   const { pools } = usePoolData(providerList)
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
@@ -228,7 +222,6 @@ export default function UsageBar({
     )
   }
 
-  // Icon control — hide entirely when no slots exist for any listed provider.
   if (!anySlots) return null
 
   return (
@@ -274,7 +267,7 @@ export default function UsageBar({
             background: 'var(--surface-3)',
             boxShadow: 'var(--shadow-float)',
             maxWidth: 320,
-            maxHeight: 360,
+            maxHeight: 420,
             overflowY: 'auto'
           }}
         >
