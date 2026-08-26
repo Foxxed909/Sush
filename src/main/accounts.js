@@ -157,8 +157,8 @@ export function listAccounts(userId) {
   return { ok: true, providers }
 }
 
-// Aggregate pool view for one provider — powers the unified UsageBar.
-// Treats N Free accounts as one capacity pool.
+// Aggregate pool view for one provider — powers the Usage popover / Settings panel.
+// poolTotalPct is the sum of each slot's remaining % (4 accounts at 100% → 400%).
 export function getPoolStats(userId, provider) {
   if (!userId || !SLOT_PROVIDERS[provider]) {
     return { ok: false, error: 'no-user-or-provider' }
@@ -192,8 +192,9 @@ export function getPoolStats(userId, provider) {
   }
 
   const avgRemaining = known > 0 ? Math.round(totalRemaining / known) : null
-  // Pool remaining as if slots were sequential capacity (rough but useful):
-  // sum of remaining / number of slots that reported, scaled to 100.
+  // Sum of remaining % across slots that reported (e.g. 4 × 100 → 400).
+  const poolTotalPct = known > 0 ? Math.round(totalRemaining) : null
+  // Avg remaining scaled to a 0–100 bar (legacy / optional).
   const poolPct = known > 0 ? Math.min(100, Math.round(totalRemaining / slots.length)) : null
 
   return {
@@ -202,9 +203,11 @@ export function getPoolStats(userId, provider) {
     label: SLOT_PROVIDERS[provider].label,
     slotCount: slots.length,
     healthyCount: healthy,
+    knownCount: known,
     activeId: st.active,
     avgRemaining,
     poolPct,
+    poolTotalPct,
     limitPolicy: LIMIT_POLICIES.includes(st.limitPolicy) ? st.limitPolicy : 'ask',
     slots: details
   }
@@ -232,7 +235,7 @@ export function setLimitPolicy(userId, provider, policy) {
   return { ok: true, ...listAccounts(userId) }
 }
 
-export function renameAccount(userId, provider, slotId, label) {
+export function renameAccount(userId, provider, label) {
   if (!userId) return { ok: false, error: 'no-user' }
   if (!SLOT_PROVIDERS[provider]) return { ok: false, error: 'Unknown provider' }
   const name = String(label ?? '').trim().slice(0, 24)
