@@ -5,7 +5,7 @@ import { rgba } from '../lib/ui'
 import { usePolling } from '../hooks/usePolling'
 
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
-// live cpu/mem · account pool bars. Reuses the existing gitStatus + getSystemStats IPC.
+// live cpu/mem · usage icon (click for pool). Reuses gitStatus + getSystemStats IPC.
 // Polls on a gentle 4s cadence; git is re-read whenever the active cwd changes too.
 export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, gridMode, agentSummary, onOpenMission, battery, saverActive, saverAuto, saverReason = '', online = true }) {
   const cwd = activeTab?.cwd || null
@@ -71,7 +71,7 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         fontSize: 'var(--fs-sm)',
         color: dim,
         userSelect: 'none',
-        overflow: 'hidden'
+        overflow: 'visible'
       }}
     >
       {/* cwd */}
@@ -163,12 +163,9 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
         )
       })()}
 
-      {/* account pool bars — N Free slots as one capacity meter */}
-      <span style={{ ...segR, padding: 0, gap: 0 }}>
-        <UsageBar provider="claude" accent={accent} compact showLabel />
-      </span>
-      <span style={{ ...segR, padding: 0, gap: 0 }}>
-        <UsageBar provider="codex" accent={accent} compact showLabel />
+      {/* account pool — circle control; click for total % + per-account rows */}
+      <span style={{ ...segR, padding: '0 8px', overflow: 'visible' }}>
+        <UsageBar providers={['claude', 'codex']} accent={accent} variant="icon" />
       </span>
 
       {/* workspaces · sessions */}
