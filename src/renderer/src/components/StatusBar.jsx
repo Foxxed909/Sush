@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Icon from './Icons'
+import UsageBar from './UsageBar'
 import { rgba } from '../lib/ui'
 import { usePolling } from '../hooks/usePolling'
 
 // A persistent bottom status strip: cwd · git branch (+ dirty count) · shell ·
-// live cpu/mem. Reuses the existing gitStatus + getSystemStats IPC. Polls on a
-// gentle 4s cadence; git is re-read whenever the active cwd changes too.
+// live cpu/mem · account pool bars. Reuses the existing gitStatus + getSystemStats IPC.
+// Polls on a gentle 4s cadence; git is re-read whenever the active cwd changes too.
 export default function StatusBar({ accent, activeTab, view, sessionCount, workspaceCount = 0, broadcastMode, gridMode, agentSummary, onOpenMission, battery, saverActive, saverAuto, saverReason = '', online = true }) {
   const cwd = activeTab?.cwd || null
   const shell = activeTab?.shellLabel || activeTab?.shell || null
@@ -161,6 +162,14 @@ export default function StatusBar({ accent, activeTab, view, sessionCount, works
           </button>
         )
       })()}
+
+      {/* account pool bars — N Free slots as one capacity meter */}
+      <span style={{ ...segR, padding: 0, gap: 0 }}>
+        <UsageBar provider="claude" accent={accent} compact showLabel />
+      </span>
+      <span style={{ ...segR, padding: 0, gap: 0 }}>
+        <UsageBar provider="codex" accent={accent} compact showLabel />
+      </span>
 
       {/* workspaces · sessions */}
       <span style={segR}>
