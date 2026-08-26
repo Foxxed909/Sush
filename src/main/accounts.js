@@ -235,7 +235,7 @@ export function setLimitPolicy(userId, provider, policy) {
   return { ok: true, ...listAccounts(userId) }
 }
 
-export function renameAccount(userId, provider, label) {
+export function renameAccount(userId, provider, slotId, label) {
   if (!userId) return { ok: false, error: 'no-user' }
   if (!SLOT_PROVIDERS[provider]) return { ok: false, error: 'Unknown provider' }
   const name = String(label ?? '').trim().slice(0, 24)
