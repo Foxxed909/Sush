@@ -149,8 +149,8 @@ export default function UsageSection({ accent, settings, set }) {
     const isChecking = !!checking[provider]
     const blocked = !installed || (needsNetwork && !online)
     return (
-      <div style={{ marginBottom: 12, borderRadius: 'var(--r-lg)', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}>
-        <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ marginBottom: 12, borderRadius: 'var(--r-lg)', border: '1px solid var(--border-2)', background: 'var(--surface-2)', overflow: 'hidden' }}>
+        <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid var(--border-1)' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: installed ? '#5fd3a8' : 'rgba(255,255,255,0.18)', boxShadow: installed ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>{label}</div>
@@ -224,14 +224,17 @@ export default function UsageSection({ accent, settings, set }) {
 
       <UsageGuardBlock accent={accent} settings={settings} set={set} />
 
-      {/* Pool view — N Free accounts as one capacity meter */}
+      {/* Pool view — total remaining % + per-account rows (same as status-bar popover) */}
       <Row>
         <Label>Account pool</Label>
         <div style={{ display: 'grid', gap: 8 }}>
-          <UsageBar provider="claude" accent={accent} compact={false} />
-          <UsageBar provider="codex" accent={accent} compact={false} />
+          <UsageBar provider="claude" accent={accent} variant="provider-panel" />
+          <UsageBar provider="codex" accent={accent} variant="provider-panel" />
         </div>
-        <Hint>Treats every account slot for a CLI as one shared pool. Auto-switch prefers the healthiest remaining slot first.</Hint>
+        <Hint>
+          Total is the sum of remaining % across slots (e.g. four accounts near full ≈ 400%).
+          The status-bar circle opens the same breakdown. Auto-switch prefers the healthiest slot first.
+        </Hint>
       </Row>
 
       <Row>
