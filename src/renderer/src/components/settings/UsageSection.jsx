@@ -5,19 +5,11 @@ import { rgba } from '../../lib/ui'
 import { useEntitlements } from '../../hooks/useEntitlements'
 import { useOnline } from '../../hooks/useOnline'
 import { activeProviderUsage, claudeLimitStatus, providerNeedsNetwork } from '../../lib/usageStatus'
+import { POOL_PROVIDERS } from '../../lib/agents'
 import { Section, Row, Label, Hint, Segment, LockNote, ago } from './primitives'
-
-// Usage & Guard: the Usage Guard plus a live limit/account dashboard across
-// every agent CLI. The auto-poll reads a cheap, spawn-free snapshot (install
-// state, active account, last limit hit, and saved provider checks). Explicit
-// per-provider checks are the only path that may launch a CLI.
 
 const USAGE_INTERVALS = [[0, 'Off'], [30, '30s'], [60, '1 min'], [300, '5 min']]
 
-// Usage Guard: watch Claude's utilization (from the passive rate-limit
-// snapshot — no probe spawned) and act when it crosses the chosen threshold.
-// The MODE is the user's choice, previewed in plain words before anything
-// happens. Guard itself is Pro+; the hands-free handoff mode is Ultra+.
 const GUARD_PCTS = [50, 60, 70, 80, 90]
 function guardPreview(mode, pct) {
   if (mode === 'handoff') return `At ${pct}%, Sush summarizes each live Claude session and hands the work to your next available model — hands-free.`
@@ -90,11 +82,11 @@ function UsageGuardBlock({ accent, settings, set }) {
 export default function UsageSection({ accent, settings, set }) {
   const online = useOnline()
   const [snap, setSnap] = useState(null)
-  const [live, setLive] = useState(null)        // live Claude probe result
-  const [checking, setChecking] = useState({})  // provider -> bool
+  const [live, setLive] = useState(null)
+  const [checking, setChecking] = useState({})
   const [checkError, setCheckError] = useState('')
   const [lastAt, setLastAt] = useState(null)
-  const interval = settings.usageRefresh ?? 60   // seconds; 0 = off
+  const interval = settings.usageRefresh ?? 60
 
   const pull = React.useCallback(async () => {
     try {
@@ -105,7 +97,6 @@ export default function UsageSection({ accent, settings, set }) {
 
   useEffect(() => { pull() }, [pull])
 
-  // Auto-refresh on the chosen interval (cheap snapshot only).
   useEffect(() => {
     if (!interval) return
     const id = setInterval(pull, interval * 1000)
@@ -224,21 +215,20 @@ export default function UsageSection({ accent, settings, set }) {
 
       <UsageGuardBlock accent={accent} settings={settings} set={set} />
 
-      {/* Pool view — total remaining % + per-account rows (same as status-bar popover) */}
       <Row>
         <Label>Account pool</Label>
         <div style={{ display: 'grid', gap: 8 }}>
-          <UsageBar provider="claude" accent={accent} variant="provider-panel" />
-          <UsageBar provider="codex" accent={accent} variant="provider-panel" />
+          {POOL_PROVIDERS.map(p => (
+            <UsageBar key={p} provider={p} accent={accent} variant="provider-panel" />
+          ))}
         </div>
         <Hint>
-          Total is the sum of remaining % across slots (e.g. four accounts near full ≈ 400%).
-          The status-bar circle opens the same breakdown. Auto-switch prefers the healthiest slot first.
+          Total is the sum of remaining % across slots. The status-bar circle opens the same
+          breakdown for every CLI. Auto-switch prefers the healthiest slot first.
         </Hint>
       </Row>
 
       <Row>
-        {/* Controls */}
         <div className="flex items-center" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 700 }}>Auto-refresh</span>
           {USAGE_INTERVALS.map(([val, lbl]) => {
@@ -281,6 +271,11 @@ export default function UsageSection({ accent, settings, set }) {
         <Card provider="opencode" label="OpenCode" sub="any provider" data={snap?.opencode}>
           <AccountLine account={snap?.opencode?.account} />
           <HealthLine provider="opencode" usage={activeProviderUsage(snap, 'opencode')} />
+        </Card>
+
+        <Card provider="grok" label="Grok Build" sub="xAI SuperGrok / X Premium+" data={snap?.grok}>
+          <AccountLine account={snap?.grok?.account} />
+          <HealthLine provider="grok" usage={activeProviderUsage(snap, 'grok')} />
         </Card>
 
         {checkError && <div style={{ color: '#ff8aa0', fontSize: 10.5, fontWeight: 700, margin: '-2px 0 10px' }}>{checkError}</div>}
