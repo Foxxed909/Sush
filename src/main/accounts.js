@@ -105,6 +105,37 @@ function providerState(data, provider) {
   return data.providers[provider]
 }
 
+// Best remaining % from a usage snapshot (session or week). Higher = healthier.
+// Returns null when we have no numeric signal (health-only CLIs).
+function remainingPct(slot) {
+  const u = slot?.usage
+  if (!u) return null
+  const session = typeof u.sessionPct === 'number' ? u.sessionPct : null
+  const week = typeof u.weekPct === 'number' ? u.weekPct : null
+  if (session == null && week == null) return null
+  // Remaining = 100 - used. Prefer the tighter (higher-used) window.
+  const used = Math.max(session ?? 0, week ?? 0)
+  return Math.max(0, 100 - used)
+}
+
+// Ranking for auto-rotation:
+// 1. Highest remaining % when we have usage cache
+// 2. Then oldest lastLimitAt (most rested)
+// 3. Stable id tie-break
+function rankSlots(slots) {
+  return [...slots].sort((a, b) => {
+    const ra = remainingPct(a)
+    const rb = remainingPct(b)
+    if (ra != null && rb != null && ra !== rb) return rb - ra
+    if (ra != null && rb == null) return -1
+    if (ra == null && rb != null) return 1
+    const la = a.lastLimitAt || 0
+    const lb = b.lastLimitAt || 0
+    if (la !== lb) return la - lb
+    return String(a.id).localeCompare(String(b.id))
+  })
+}
+
 export function listAccounts(userId) {
   if (!userId) return { ok: false, error: 'no-user' }
   const data = load(userId)
@@ -124,6 +155,59 @@ export function listAccounts(userId) {
     }
   }
   return { ok: true, providers }
+}
+
+// Aggregate pool view for one provider — powers the unified UsageBar.
+// Treats N Free accounts as one capacity pool.
+export function getPoolStats(userId, provider) {
+  if (!userId || !SLOT_PROVIDERS[provider]) {
+    return { ok: false, error: 'no-user-or-provider' }
+  }
+  const data = load(userId)
+  const st = providerState(data, provider)
+  const slots = st.slots || []
+  let totalRemaining = 0
+  let known = 0
+  let healthy = 0
+  const details = []
+
+  for (const s of slots) {
+    const rem = remainingPct(s)
+    const limitedAgo = s.lastLimitAt ? Date.now() - s.lastLimitAt : null
+    // Consider a slot "healthy" if it has remaining > 5% or no recent limit hit.
+    const isHealthy = (rem != null ? rem > 5 : true) && (!s.lastLimitAt || limitedAgo > 5 * 60 * 1000)
+    if (rem != null) {
+      totalRemaining += rem
+      known += 1
+    }
+    if (isHealthy) healthy += 1
+    details.push({
+      id: s.id,
+      label: s.label,
+      remainingPct: rem,
+      lastLimitAt: s.lastLimitAt || null,
+      active: s.id === st.active,
+      healthy: isHealthy
+    })
+  }
+
+  const avgRemaining = known > 0 ? Math.round(totalRemaining / known) : null
+  // Pool remaining as if slots were sequential capacity (rough but useful):
+  // sum of remaining / number of slots that reported, scaled to 100.
+  const poolPct = known > 0 ? Math.min(100, Math.round(totalRemaining / slots.length)) : null
+
+  return {
+    ok: true,
+    provider,
+    label: SLOT_PROVIDERS[provider].label,
+    slotCount: slots.length,
+    healthyCount: healthy,
+    activeId: st.active,
+    avgRemaining,
+    poolPct,
+    limitPolicy: LIMIT_POLICIES.includes(st.limitPolicy) ? st.limitPolicy : 'ask',
+    slots: details
+  }
 }
 
 // What happens when THIS CLI hits its session limit, set per-CLI (it used to be
@@ -232,9 +316,8 @@ export function switchAccount(userId, provider, slotId) {
   return { ok: true, slotId: slot.id, label: slot.label, ...listAccounts(userId) }
 }
 
-// Rotate to another slot (used by the limit cascade): prefer the slot whose
-// last limit hit is the OLDEST — it has had the most time to reset — instead
-// of blind round-robin (which could hop straight onto another limited login).
+// Rotate to another slot (used by the limit cascade).
+// Prefers highest remaining % when usage cache exists, then oldest lastLimitAt.
 // Returns the slot we landed on, or ok:false when there is nowhere to rotate.
 export function nextAccount(userId, provider) {
   if (!userId) return { ok: false, error: 'no-user' }
@@ -242,23 +325,24 @@ export function nextAccount(userId, provider) {
   const st = providerState(data, provider)
   if (st.slots.length < 2) return { ok: false, error: 'no-alternate' }
   const others = st.slots.filter(s => s.id !== st.active)
-  const next = others.sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
+  const ranked = rankSlots(others)
+  const next = ranked[0]
+  if (!next) return { ok: false, error: 'no-alternate' }
   st.active = next.id
   if (!save(userId, data)) return { ok: false, error: 'Could not write accounts file' }
   return { ok: true, slotId: next.id, label: next.label }
 }
 
-// What a limit-hit COULD rotate to, without changing anything. Must use the
-// same rested-longest rule as nextAccount — this used to be round-robin, so
-// the 'ask' path could offer the user account B while 'auto' (and an accepted
-// switch) actually landed on account C.
+// What a limit-hit COULD rotate to, without changing anything.
+// Must use the same ranking as nextAccount so 'ask' and 'auto' agree.
 export function peekNextAccount(userId, provider) {
   if (!userId || !SLOT_PROVIDERS[provider]) return null
   const data = load(userId)
   const st = data.providers?.[provider]
   if (!st || !Array.isArray(st.slots) || st.slots.length < 2) return null
   const others = st.slots.filter(s => s.id !== st.active)
-  const next = [...others].sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
+  const ranked = rankSlots(others)
+  const next = ranked[0]
   return next ? { id: next.id, label: next.label } : null
 }
 
