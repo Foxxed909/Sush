@@ -2,6 +2,14 @@ import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { agentById } from '../lib/agents'
 
+function compactTokens(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0) return '—'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}m`
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`
+  return String(Math.round(n))
+}
+
 export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher }) {
   const [value, setValue] = useState('')
   const ref = useRef(null)
@@ -50,7 +58,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
             <Icon name="chevronDown" size={10} />
           </button>
           <span className="nightly-context-note" title="Context-window telemetry stays separate from subscription usage and only appears when the CLI exposes it">
-            Context {activeTab?.contextPct != null ? `${activeTab.contextPct}%` : '—'}
+            Context {activeTab?.contextPct != null ? `${activeTab.contextPct}%` : compactTokens(providerMeta?.contextTokens)}
           </span>
           {providerMeta?.accountLabel && (
             <span className="nightly-context-note" title="Active CLI account slot">
