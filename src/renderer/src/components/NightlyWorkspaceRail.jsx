@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
 import { rgba } from '../lib/ui'
+import NightlyProfileMenu from './NightlyProfileMenu'
 
 function workspaceKey(tab) {
   // Nightly's unit of work is the project folder. Legacy group ids are only
@@ -27,7 +28,12 @@ export default function NightlyWorkspaceRail({
   onOverview,
   onNewSession,
   onHunt,
-  onSettings
+  onSettings,
+  user,
+  onLock,
+  onSignOut,
+  onManageUsers,
+  onViewProfile
 }) {
   const workspaces = useMemo(() => {
     const map = new Map()
@@ -109,6 +115,14 @@ export default function NightlyWorkspaceRail({
 
       <div className="nightly-rail-footer">
         <button onClick={onSettings}><Icon name="settings" size={13} /> Settings</button>
+        <NightlyProfileMenu
+          user={user}
+          accent={accent}
+          onLock={onLock}
+          onSignOut={onSignOut}
+          onManageUsers={onManageUsers}
+          onViewProfile={onViewProfile}
+        />
       </div>
     </aside>
   )
