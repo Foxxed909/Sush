@@ -4,6 +4,14 @@ import { STATES } from '../lib/agentActivity'
 import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
 
+function compactTokens(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0) return '—'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}m`
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`
+  return String(Math.round(n))
+}
+
 function projectName(cwd) {
   if (!cwd) return 'Unassigned'
   const bits = String(cwd).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
@@ -65,8 +73,8 @@ export default function NightlyTopbar({
           {providerLabel}
           {providerMeta?.model && <strong>· {providerMeta.model}</strong>}
         </span>
-        <span className="nightly-chip" title="Live context-window telemetry is not exposed by every CLI yet">
-          Context <strong>{activeTab?.contextPct != null ? `${activeTab.contextPct}%` : '—'}</strong>
+        <span className="nightly-chip" title={providerMeta?.contextTokens != null ? 'Provider-reported input context for the latest observed turn' : 'This CLI has not exposed context telemetry for this workspace yet'}>
+          Context <strong>{activeTab?.contextPct != null ? `${activeTab.contextPct}%` : compactTokens(providerMeta?.contextTokens)}</strong>
         </span>
         {providerMeta?.accountLabel && (
           <span className="nightly-chip nightly-subtle" title={providerMeta.accountCount > 1 ? `${providerMeta.accountCount} connected account slots` : 'Active account'}>
