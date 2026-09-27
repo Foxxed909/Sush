@@ -233,6 +233,15 @@ if (await accountChip.count()) {
   await page.mouse.click(800, 500)
 }
 
+// 2c — Workspace layout presets.
+const layoutButton = page.locator('.nightly-layout-menu > button').first()
+if (await layoutButton.count()) {
+  await layoutButton.click()
+  await shot('02c-layout-menu')
+  await page.keyboard.press('Escape').catch(() => {})
+  await page.mouse.click(800, 500)
+}
+
 // 3 — Command palette
 await page.keyboard.press('Control+p')
 await shot('03-palette')
@@ -290,7 +299,8 @@ await page.waitForTimeout(1200)
 
 // 8 — New session launcher with provider model/reasoning controls visible.
 await page.keyboard.press('Control+Shift+n')
-await page.getByText('Claude Code', { exact: true }).first().click()
+const launcher = page.locator('.sush-backdrop').filter({ hasText: 'Agents & tools' }).last()
+await launcher.getByText('Claude Code', { exact: true }).click()
 await page.waitForTimeout(250)
 await shot('08-launcher-models')
 await page.keyboard.press('Escape')
