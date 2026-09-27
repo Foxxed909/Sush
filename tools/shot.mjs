@@ -181,6 +181,22 @@ const stub = `
         groupLabel: 'Sush dev',
         startedAt: now - 180000,
         lastActiveAt: now - 5000
+      }, {
+        label: 'Codex Review',
+        profileId: 'powershell',
+        profileLabel: 'PowerShell',
+        shell: 'powershell',
+        shellLabel: 'PowerShell',
+        cwd: '/home/taylor/sush',
+        bootCommand: 'codex --model gpt-5.3-codex',
+        agentId: 'codex',
+        model: 'gpt-5.3-codex',
+        effort: 'high',
+        tag: 'sess-review',
+        groupId: 'grp-demo',
+        groupLabel: 'Sush dev',
+        startedAt: now - 120000,
+        lastActiveAt: now - 12000
       }]
     }))
   } catch {}
@@ -238,8 +254,18 @@ const layoutButton = page.locator('.nightly-layout-menu > button').first()
 if (await layoutButton.count()) {
   await layoutButton.click()
   await shot('02c-layout-menu')
-  await page.keyboard.press('Escape').catch(() => {})
-  await page.mouse.click(800, 500)
+  await page.locator('.nightly-layout-popover').getByText('Split', { exact: true }).click()
+  await page.waitForTimeout(500)
+  await shot('02d-split')
+
+  await layoutButton.click()
+  await page.locator('.nightly-layout-popover').getByText('Grid', { exact: true }).click()
+  await page.waitForTimeout(500)
+  await shot('02e-grid')
+
+  await layoutButton.click()
+  await page.locator('.nightly-layout-popover').getByText('Focus', { exact: true }).click()
+  await page.waitForTimeout(350)
 }
 
 // 3 — Command palette
