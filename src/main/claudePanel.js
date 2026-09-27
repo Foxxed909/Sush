@@ -146,6 +146,20 @@ function mapEvent(msg) {
   if (msg.type === 'assistant') {
     const blocks = msg.message?.content || []
     const events = []
+    const usage = msg.message?.usage
+    if (usage && typeof usage === 'object') {
+      const n = (v) => Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0
+      // Anthropic reports cache reads/creation separately from uncached input.
+      // Their sum is the best provider-native measure of the current request
+      // context we can expose without guessing the model's maximum window.
+      const contextTokens = n(usage.input_tokens) + n(usage.cache_creation_input_tokens) + n(usage.cache_read_input_tokens)
+      events.push({
+        kind: 'usage',
+        contextTokens,
+        outputTokens: n(usage.output_tokens),
+        usage
+      })
+    }
     for (const b of blocks) {
       if (b.type === 'text' && b.text) events.push({ kind: 'text', text: b.text })
       if (b.type === 'tool_use') {
