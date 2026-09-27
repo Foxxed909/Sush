@@ -55,6 +55,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
           <button type="button" className="nightly-model-pill" onClick={onOpenLauncher} title="Open agent/model launcher">
             <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
             {providerMeta?.model || agent?.label || 'Shell'}
+            {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
             <Icon name="chevronDown" size={10} />
           </button>
           <span className="nightly-context-note" title="Context-window telemetry stays separate from subscription usage and only appears when the CLI exposes it">
