@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAgentCommand, normalizeModel } from '../src/renderer/src/lib/nightlyModels.js'
+import { buildAgentCommand, normalizeEffort, normalizeModel } from '../src/renderer/src/lib/nightlyModels.js'
 
 const agent = (id, command, resumeCommand) => ({ id, command, resumeCommand })
 
@@ -16,6 +16,15 @@ describe('Nightly model launch adapter', () => {
   it('keeps the selected model when restoring a resumable session', () => {
     expect(buildAgentCommand(agent('codex', 'codex', 'codex resume --last'), { model: 'gpt-5.3-codex', resume: true }))
       .toBe('codex resume --last --model gpt-5.3-codex')
+  })
+
+  it('adds provider-native reasoning controls only for verified providers', () => {
+    expect(buildAgentCommand(agent('claude', 'claude', 'claude --continue'), { model: 'opus', effort: 'high' }))
+      .toBe('claude --model opus --effort high')
+    expect(buildAgentCommand(agent('codex', 'codex', 'codex resume --last'), { model: 'gpt-5.3-codex', effort: 'xhigh' }))
+      .toBe('codex --model gpt-5.3-codex --config "model_reasoning_effort=\'xhigh\'"')
+    expect(normalizeEffort('claude', 'banana')).toBeNull()
+    expect(normalizeEffort('gemini', 'high')).toBeNull()
   })
 
   it('does not append model text for providers without a verified model flag', () => {
