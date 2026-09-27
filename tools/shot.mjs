@@ -239,7 +239,7 @@ await shot('03-palette')
 await page.keyboard.press('Escape')
 
 // 4 — Nightly Overview (Mission Control evolved into a canvas layout)
-await page.getByRole('button', { name: 'Overview', exact: true }).click()
+await page.locator('.nightly-rail-actions').getByRole('button', { name: 'Overview', exact: true }).click()
 await shot('04-overview')
 
 // Return to the active session, then open the focused contextual inspector.
