@@ -51,6 +51,9 @@ import { isSensitiveCommand } from './lib/commandPrivacy'
 import { downloadText, stampedFileName } from './lib/download'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
+import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
+import NightlyTopbar from './components/NightlyTopbar'
+import NightlyComposer from './components/NightlyComposer'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -1904,84 +1907,40 @@ export default function App() {
           : theme.xterm.background
       }}
     >
-      {!zenMode && (
-        <TitleBar
-          accent={accent}
-          onSettings={() => setShowSettings(true)}
-          sessionCount={runningSessionCount}
-          themeId={themeId}
-          onThemeChange={(id) => saveSettings({ ...settings, themeId: id })}
-          user={identity.currentUser}
-          onLock={identity.lock}
-          onSignOut={identity.signOut}
-          onManageUsers={() => setShowUserManager(true)}
-          onViewProfile={() => setShowProfile(true)}
-          minimizeToTray={settings.minimizeToTray === true}
-          trafficLightSide={settings.trafficLightSide === 'left' ? 'left' : 'right'}
-        />
-      )}
-
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0">      <div className="flex flex-1 min-h-0">
         {!zenMode && (
-        <div data-glass className={!mounted ? 'sush-slide-right' : undefined} style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <SessionRail
-          tabs={tabs}
-          activeId={activeId}
-          view={view}
-          accent={accent}
-          profiles={profiles}
-          onHome={() => { setHomeView('dashboard'); setView('home') }}
-          onSelect={selectTab}
-          onNew={({ profile }) => openTab(profile)}
-          onNewSession={() => setShowLauncher(true)}
-          onClose={closeTab}
-          onCloseGroup={closeGroup}
-          onAddToGroup={addToGroup}
-          onClearExited={clearExitedSessions}
-          onRenameGroup={renameGroup}
-          onReorder={reorderTabs}
-          onProfiles={() => setShowProfiles(true)}
-          onRename={renameTab}
-          onDuplicate={duplicateTab}
-          renamingId={renamingId}
-          onRenameStart={setRenamingId}
-          onRenameEnd={() => setRenamingId(null)}
-          onHandoff={(id) => setHandoffSource(id)}
-          activity={agentStates}
-        />
-        </div>
+          <NightlyWorkspaceRail
+            tabs={tabs}
+            activeId={activeId}
+            accent={accent}
+            activity={agentStates}
+            onHome={() => { setHomeView('dashboard'); setView('home') }}
+            onSelect={selectTab}
+            onNewSession={() => setShowLauncher(true)}
+            onHunt={() => setShowHunt(true)}
+            onSettings={() => setShowSettings(true)}
+          />
         )}
 
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex flex-col flex-1 min-w-0">        <div className="flex flex-col flex-1 min-w-0">
           {!zenMode && (
-          <div data-glass className={!mounted ? 'sush-slide-down' : undefined}>
-          <SmartCommandBar
-            activeTab={activeTab}
-            accent={accent}
-            onRun={runSmartInput}
-            onSeducia={() => setSeduciaOpen(true)}
-            onTogglePanel={() => setRightOpen(prev => !prev)}
-            rightOpen={rightOpen}
-            busy={smartBusy}
-            broadcastMode={broadcastMode}
-            onToggleBroadcast={() => setBroadcastMode(prev => !prev)}
-            broadcastScope={broadcastScope}
-            onToggleBroadcastScope={() => setBroadcastScope(prev => prev === 'all' ? 'workspace' : 'all')}
-            broadcastCount={broadcastTargets?.length ?? 0}
-            gridMode={gridMode}
-            onToggleGrid={() => {
-              setGridMode(prev => {
-                if (!prev && tabsRef.current.length < 2) return prev
-                if (!prev) setView('terminal')
-                return !prev
-              })
-            }}
-            settings={settings}
-          />
-          </div>
+            <NightlyTopbar
+              activeTab={view === 'home' ? null : activeTab}
+              tabs={tabs}
+              accent={accent}
+              activity={agentStates}
+              limited={!!agentLimits[activeId]}
+              guardTrip={guardTrip}
+              rightOpen={rightOpen}
+              onHome={() => { setHomeView('dashboard'); setView('home') }}
+              onHunt={() => setShowHunt(true)}
+              onMission={() => setShowMission(true)}
+              onSeducia={() => setSeduciaOpen(true)}
+              onTogglePanel={() => setRightOpen(prev => !prev)}
+            />
           )}
 
-          <div className="flex-1 relative overflow-hidden">
+          <div className="flex-1 relative overflow-hidden">          <div className="flex-1 relative overflow-hidden">
             {(
               // One container for both layouts. Grid mode is a STYLE switch on
               // the same keyed wrappers — terminals never remount on toggle, so
@@ -2185,6 +2144,19 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {view === 'terminal' && !zenMode && (
+            <NightlyComposer
+              activeTab={activeTab}
+              accent={accent}
+              disabled={guardBlocked && activeTab?.agentId === 'claude'}
+              onOpenLauncher={() => setShowLauncher(true)}
+              onSend={(text) => {
+                if (!activeTab) return
+                promptSession(activeTab.id, `${text}\r`)
+              }}
+            />
+          )}
         </div>
 
         {rightOpen && !zenMode && (
@@ -2221,26 +2193,7 @@ export default function App() {
         )}
       </div>
 
-      {!zenMode && (
-        <StatusBar
-          accent={accent}
-          activeTab={view === 'home' ? null : activeTab}
-          view={view}
-          sessionCount={tabs.length}
-          workspaceCount={new Set(tabs.map(t => t.groupId).filter(Boolean)).size}
-          broadcastMode={broadcastMode}
-          gridMode={gridMode}
-          agentSummary={agentSummary}
-          onOpenMission={() => setShowMission(true)}
-          battery={battery}
-          saverActive={terminalSaver}
-          saverAuto={autoSaverActive || quietHoursActive}
-          saverReason={ecoMode ? 'eco' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : manualSaver ? 'manual' : zenMode ? 'focus' : ''}
-          online={online}
-        />
-      )}
-
-      {!zenMode && !ecoMode && (
+      {!zenMode && !ecoMode && (      {!zenMode && !ecoMode && (
         <SeduciaOrb
           accent={accent}
           open={seduciaOpen}
