@@ -4,16 +4,17 @@ import { STATES } from '../lib/agentActivity'
 import { rgba } from '../lib/ui'
 
 function workspaceKey(tab) {
+  // Nightly's unit of work is the project folder. Legacy group ids are only
+  // a fallback for sessions that do not have a cwd yet.
   return String(tab.cwd || tab.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
 }
 
 function workspaceLabel(tab) {
-  if (tab.groupLabel) return tab.groupLabel
   if (tab.cwd) {
     const bits = String(tab.cwd).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
     return bits[bits.length - 1] || tab.cwd
   }
-  return 'Unassigned'
+  return tab.groupLabel || 'Unassigned'
 }
 
 export default function NightlyWorkspaceRail({
