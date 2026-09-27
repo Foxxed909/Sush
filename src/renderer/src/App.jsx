@@ -1389,23 +1389,14 @@ export default function App() {
   // the fresh account (claude --continue, codex resume --last). Explicit, one
   // click from Mission Control — never automatic, so a live session is never
   // yanked out from under you.
-  const switchAndResume = useCallback(async (tabId) => {
+  const switchToAccountAndResume = useCallback(async (tabId, slotId) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
     const provider = tab?.agentId
     const agent = agentById(provider)
-    // Rotation only makes sense when this CLI has a verified continuation
-    // path. This now covers Claude, Codex, Gemini, OpenCode and Grok.
-    if (!tab || !provider || !agent?.resumeCommand) return
+    if (!tab || !provider || !agent?.resumeCommand || !slotId) return { ok: false }
     try {
-      const list = await window.sush.accountsList?.()
-      const st = list?.providers?.[provider]
-      if (!st || (st.slots?.length || 0) < 2) return
-      const alt = st.slots
-        .filter(s => s.id !== st.active)
-        .sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
-      if (!alt) return
-      const sw = await window.sush.accountsSwitch({ provider, slotId: alt.id })
-      if (!sw?.ok) return
+      const sw = await window.sush.accountsSwitch({ provider, slotId })
+      if (!sw?.ok) return sw || { ok: false }
       const { cwd, label, groupId, groupLabel, model } = tab
       closeTab(tabId)
       openTab(profiles[0], {
@@ -1418,8 +1409,28 @@ export default function App() {
         groupLabel,
         tag: `sess-${nextSessionTag++}`
       })
-    } catch {}
+      return { ok: true, label: sw.label || null }
+    } catch {
+      return { ok: false }
+    }
   }, [closeTab, openTab, profiles])
+
+  // Pick the best alternate account automatically for limit-hit recovery.
+  const switchAndResume = useCallback(async (tabId) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    const provider = tab?.agentId
+    const agent = agentById(provider)
+    if (!tab || !provider || !agent?.resumeCommand) return
+    try {
+      const list = await window.sush.accountsList?.()
+      const st = list?.providers?.[provider]
+      if (!st || (st.slots?.length || 0) < 2) return
+      const alt = st.slots
+        .filter(s => s.id !== st.active)
+        .sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
+      if (alt) await switchToAccountAndResume(tabId, alt.id)
+    } catch {}
+  }, [switchToAccountAndResume])
 
   const handleSessionState = useCallback((tabId, state) => {
     setTabs(prev => prev.map(tab => {
@@ -1951,6 +1962,7 @@ export default function App() {
               onHunt={() => setShowHunt(true)}
               onMission={() => setView(prev => prev === 'overview' ? 'terminal' : 'overview')}
               onSeducia={() => setSeduciaOpen(true)}
+              onSwitchAccount={(slotId) => activeId && switchToAccountAndResume(activeId, slotId)}
               onTogglePanel={() => setRightOpen(prev => !prev)}
             />
           )}
