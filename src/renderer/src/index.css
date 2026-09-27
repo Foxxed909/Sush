@@ -1071,3 +1071,54 @@ p { text-wrap: pretty; }
 .nightly-inspector .sush-htabs::-webkit-scrollbar {
   display: none;
 }
+
+
+/* Nightly account popover --------------------------------------------------- */
+.nightly-account-menu { position: relative; -webkit-app-region: no-drag; }
+.nightly-account-chip { cursor: pointer; font: inherit; }
+.nightly-account-chip:hover { border-color: var(--border-2); color: var(--text-2); }
+.nightly-account-count {
+  min-width: 14px; height: 14px; padding: 0 3px; border-radius: 999px;
+  display: inline-grid; place-items: center; background: var(--accent-a10);
+  color: var(--accent); font-size: 8px; font-weight: 850;
+}
+.nightly-account-popover {
+  position: absolute; z-index: 1250; top: calc(100% + 8px); left: 50%;
+  width: 272px; transform: translateX(-50%); padding: 5px;
+  border: 1px solid var(--border-2); border-radius: 11px;
+  background: rgba(15,16,18,.98); box-shadow: 0 18px 48px rgba(0,0,0,.52);
+  backdrop-filter: blur(20px);
+}
+.nightly-account-popover-head {
+  height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 7px;
+  border-bottom: 1px solid var(--border-1); margin-bottom: 4px;
+}
+.nightly-account-popover-head span { color: var(--text-2); font-size: 10px; font-weight: 850; }
+.nightly-account-popover-head small {
+  margin-left: auto; color: var(--text-5); font-size: 8px; text-transform: capitalize;
+}
+.nightly-account-row {
+  width: 100%; min-height: 42px; display: flex; align-items: center; gap: 8px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text-2);
+  padding: 5px 7px; text-align: left; cursor: pointer;
+}
+.nightly-account-row:hover:not(:disabled) { background: rgba(255,255,255,.045); }
+.nightly-account-row:disabled { cursor: default; }
+.nightly-account-row.is-active { background: var(--accent-a06); }
+.nightly-account-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.nightly-account-copy { flex: 1; min-width: 0; }
+.nightly-account-copy strong {
+  display: block; color: var(--text-2); font-size: 10.5px; font-weight: 780;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nightly-account-copy small { display: block; color: var(--text-5); font-size: 8.5px; margin-top: 1px; }
+.nightly-account-usage {
+  color: var(--text-4); font-size: 9px; font-weight: 800;
+  border: 1px solid var(--border-1); border-radius: 6px; padding: 2px 5px;
+}
+.nightly-account-usage.is-high { color: #ffb56e; border-color: rgba(255,159,67,.22); background: rgba(255,159,67,.06); }
+.nightly-account-foot {
+  padding: 7px 8px 5px; margin-top: 3px; border-top: 1px solid var(--border-1);
+  color: var(--text-5); font-size: 8.25px; line-height: 1.4;
+}
+.nightly-account-empty { padding: 14px 8px; color: var(--text-4); font-size: 9.5px; text-align: center; }
