@@ -17,6 +17,7 @@ export default function NightlyTopbar({
   activity = {},
   limited = false,
   guardTrip,
+  providerMeta,
   rightOpen,
   onHome,
   onHunt,
@@ -59,16 +60,27 @@ export default function NightlyTopbar({
       </div>
 
       <div className="nightly-topbar-center">
-        <span className="nightly-chip">
+        <span className="nightly-chip" title={providerMeta?.model ? `Model: ${providerMeta.model}` : undefined}>
           <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
           {providerLabel}
+          {providerMeta?.model && <strong>· {providerMeta.model}</strong>}
         </span>
         <span className="nightly-chip" title="Live context-window telemetry is not exposed by every CLI yet">
           Context <strong>{activeTab?.contextPct != null ? `${activeTab.contextPct}%` : '—'}</strong>
         </span>
+        {providerMeta?.accountLabel && (
+          <span className="nightly-chip nightly-subtle" title={providerMeta.accountCount > 1 ? `${providerMeta.accountCount} connected account slots` : 'Active account'}>
+            {providerMeta.accountLabel}
+          </span>
+        )}
+        {providerMeta?.usagePct != null && (
+          <span className={`nightly-chip ${providerMeta.usagePct >= 80 ? 'nightly-limit' : ''}`} title={`Session: ${providerMeta.sessionPct ?? '—'}% · Week: ${providerMeta.weekPct ?? '—'}%`}>
+            Usage <strong>{providerMeta.usagePct}%</strong>
+          </span>
+        )}
         <span className={`nightly-chip ${limited || guardTrip ? 'nightly-limit' : ''}`}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: limited || guardTrip ? '#ff9f43' : state.dot }} />
-          {guardTrip ? `Usage ${guardTrip.pct}%` : limited ? 'Limit reached' : state.label}
+          {guardTrip ? `Guard ${guardTrip.pct}%` : limited ? 'Limit reached' : state.label}
         </span>
         <span className="nightly-chip nightly-subtle">{workspaceTabs.length} agent{workspaceTabs.length === 1 ? '' : 's'}</span>
       </div>
