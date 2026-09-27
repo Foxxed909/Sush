@@ -1122,3 +1122,9 @@ p { text-wrap: pretty; }
   color: var(--text-5); font-size: 8.25px; line-height: 1.4;
 }
 .nightly-account-empty { padding: 14px 8px; color: var(--text-4); font-size: 9.5px; text-align: center; }
+
+.nightly-effort-tag {
+  display: inline-flex; align-items: center; height: 15px; padding: 0 4px;
+  border-radius: 5px; background: var(--accent-a06); color: var(--accent);
+  font-size: 7.75px; font-weight: 850; letter-spacing: .1px; text-transform: lowercase;
+}
