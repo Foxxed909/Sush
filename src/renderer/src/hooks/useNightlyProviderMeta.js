@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePolling } from './usePolling'
 
 // One spawn-free data source for Nightly's title/composer chrome. It reads the
@@ -6,6 +6,8 @@ import { usePolling } from './usePolling'
 // opening a workspace never launches provider CLIs or spends tokens.
 export function useNightlyProviderMeta(activeTab, enabled = true) {
   const [snapshot, setSnapshot] = useState(null)
+  const [claudeByCwd, setClaudeByCwd] = useState({})
+  const panelCwdRef = useRef(new Map())
 
   const read = useCallback(async () => {
     try {
@@ -16,8 +18,44 @@ export function useNightlyProviderMeta(activeTab, enabled = true) {
 
   usePolling(read, 15000, enabled)
 
+  useEffect(() => {
+    const off = window.sush?.onClaudePanelEvent?.((ev) => {
+      if (!ev?.panelId || ev.panelId === '*') return
+      if (ev.kind === 'init') {
+        const cwd = String(ev.cwd || '').replace(/[\\/]+$/, '').toLowerCase()
+        if (!cwd) return
+        panelCwdRef.current.set(ev.panelId, cwd)
+        setClaudeByCwd(prev => ({
+          ...prev,
+          [cwd]: {
+            ...(prev[cwd] || {}),
+            model: ev.model || prev[cwd]?.model || null,
+            at: Date.now()
+          }
+        }))
+        return
+      }
+      if (ev.kind === 'usage') {
+        const cwd = panelCwdRef.current.get(ev.panelId)
+        if (!cwd) return
+        setClaudeByCwd(prev => ({
+          ...prev,
+          [cwd]: {
+            ...(prev[cwd] || {}),
+            contextTokens: Number.isFinite(ev.contextTokens) ? ev.contextTokens : prev[cwd]?.contextTokens ?? null,
+            outputTokens: Number.isFinite(ev.outputTokens) ? ev.outputTokens : prev[cwd]?.outputTokens ?? null,
+            at: Date.now()
+          }
+        }))
+      }
+    })
+    return off
+  }, [])
+
   return useMemo(() => {
     const provider = activeTab?.agentId
+    const cwdKey = String(activeTab?.cwd || '').replace(/[\\/]+$/, '').toLowerCase()
+    const streamMeta = provider === 'claude' && cwdKey ? claudeByCwd[cwdKey] : null
     if (!provider || provider === 'shell') {
       return {
         provider: provider || 'shell',
@@ -27,7 +65,8 @@ export function useNightlyProviderMeta(activeTab, enabled = true) {
         sessionPct: null,
         weekPct: null,
         usagePct: null,
-        model: activeTab?.model || null
+        model: activeTab?.model || null,
+        contextTokens: null
       }
     }
 
@@ -51,8 +90,9 @@ export function useNightlyProviderMeta(activeTab, enabled = true) {
       sessionPct,
       weekPct,
       usagePct: known.length ? Math.max(...known) : null,
-      model: activeTab?.model || null,
+      model: streamMeta?.model || activeTab?.model || null,
+      contextTokens: streamMeta?.contextTokens ?? null,
       lastLimitAt: account?.lastLimitAt || null
     }
-  }, [snapshot, activeTab])
+  }, [snapshot, activeTab, claudeByCwd])
 }
