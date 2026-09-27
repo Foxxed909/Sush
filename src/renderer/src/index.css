@@ -1128,3 +1128,50 @@ p { text-wrap: pretty; }
   border-radius: 5px; background: var(--accent-a06); color: var(--accent);
   font-size: 7.75px; font-weight: 850; letter-spacing: .1px; text-transform: lowercase;
 }
+
+
+/* Nightly profile menu ------------------------------------------------------ */
+.nightly-rail-footer { position: relative; display: grid; gap: 2px; }
+.nightly-profile-menu { position: relative; min-width: 0; }
+.nightly-profile-trigger {
+  width: 100%; min-width: 0; height: 39px; display: flex; align-items: center; gap: 8px;
+  padding: 4px 7px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--text-3); cursor: pointer; text-align: left;
+}
+.nightly-profile-trigger:hover { background: rgba(255,255,255,.045); color: var(--text-1); }
+.nightly-profile-avatar {
+  position: relative; width: 26px; height: 26px; flex-shrink: 0; display: grid; place-items: center;
+  overflow: hidden; border: 1px solid; border-radius: 8px; font-size: 10px; font-weight: 900;
+}
+.nightly-profile-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.nightly-profile-copy { min-width: 0; flex: 1; }
+.nightly-profile-copy strong {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-2); font-size: 10.5px; font-weight: 780;
+}
+.nightly-profile-copy small {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 1px; color: var(--text-5); font-size: 8px;
+}
+.nightly-profile-popover {
+  position: absolute; z-index: 1400; left: 2px; bottom: calc(100% + 7px); width: 230px;
+  padding: 5px; border: 1px solid var(--border-2); border-radius: 11px;
+  background: rgba(15,16,18,.985); box-shadow: 0 18px 48px rgba(0,0,0,.55);
+  backdrop-filter: blur(20px);
+}
+.nightly-profile-popover button {
+  width: 100%; min-height: 34px; display: grid; grid-template-columns: 18px minmax(0,1fr) auto;
+  align-items: center; gap: 7px; border: 0; border-radius: 7px; padding: 5px 7px;
+  background: transparent; color: var(--text-2); cursor: pointer; text-align: left;
+}
+.nightly-profile-popover button:hover { background: rgba(255,255,255,.045); }
+.nightly-profile-popover button > span { font-size: 10.5px; font-weight: 720; }
+.nightly-profile-popover button > small { color: var(--text-5); font-size: 7.75px; }
+.nightly-profile-popover button.is-danger { color: #ff8da0; }
+.nightly-profile-divider { height: 1px; background: var(--border-1); margin: 4px 3px; }
+
+@media (max-width: 760px) {
+  .nightly-profile-copy, .nightly-profile-trigger > svg { display: none; }
+  .nightly-profile-trigger { justify-content: center; padding: 4px 0; }
+  .nightly-profile-popover { left: 48px; bottom: 0; }
+}
