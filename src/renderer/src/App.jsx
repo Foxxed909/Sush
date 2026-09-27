@@ -54,6 +54,8 @@ import Icon from './components/Icons'
 import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
 import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
+import { buildAgentCommand } from './lib/nightlyModels'
+import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -158,6 +160,7 @@ function makeTab(profile, options = {}) {
     cwd,
     bootCommand: options.command ?? null,
     agentId: options.agentId ?? null,
+    model: options.model ?? null,
     tag: options.tag ?? null,
     groupId: options.groupId ?? null,
     groupLabel: options.groupLabel ?? null,
@@ -220,7 +223,7 @@ function loadRecentSessions() {
 // boot command. Plain shells (no agent / no command) stay bare.
 function restoreBootCommand(item) {
   const agent = item.agentId && item.agentId !== 'shell' ? agentById(item.agentId) : null
-  if (agent) return agent.resumeCommand ?? agent.command ?? item.bootCommand ?? null
+  if (agent) return buildAgentCommand(agent, { model: item.model, resume: true }) ?? item.bootCommand ?? null
   return item.bootCommand ?? null
 }
 
@@ -247,6 +250,7 @@ function loadSessionLayout(profiles) {
         cwd: item.cwd,
         command: resumeAgents ? restoreBootCommand(item) : null,
         agentId: item.agentId,
+        model: item.model,
         tag: item.tag,
         groupId: item.groupId,
         groupLabel: item.groupLabel,
@@ -566,6 +570,7 @@ export default function App() {
   }, [])
 
   const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
+  const nightlyProviderMeta = useNightlyProviderMeta(view === 'terminal' ? activeTab : null, !zenMode)
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
   const runningSessionCount = tabs.filter(t => t.status === 'running').length
 
@@ -890,6 +895,7 @@ export default function App() {
         cwd: tab.cwd,
         bootCommand: tab.bootCommand,
         agentId: tab.agentId,
+        model: tab.model,
         tag: tab.tag,
         groupId: tab.groupId,
         groupLabel: tab.groupLabel,
@@ -1133,8 +1139,9 @@ export default function App() {
         }
         const tab = openTab(prof, {
           cwd: sessionCwd,
-          command: spec.agent.command || undefined,
+          command: buildAgentCommand(spec.agent, { model: spec.agent.model }) || undefined,
           agentId: spec.agent.id,
+          model: spec.agent.model || null,
           tag: `sess-${nextSessionTag++}`,
           groupId,
           groupLabel: label,
@@ -1931,6 +1938,7 @@ export default function App() {
               activity={agentStates}
               limited={!!agentLimits[activeId]}
               guardTrip={guardTrip}
+              providerMeta={nightlyProviderMeta}
               rightOpen={rightOpen}
               onHome={() => { setHomeView('dashboard'); setView('home') }}
               onHunt={() => setShowHunt(true)}
@@ -2148,6 +2156,7 @@ export default function App() {
           {view === 'terminal' && !zenMode && (
             <NightlyComposer
               activeTab={activeTab}
+              providerMeta={nightlyProviderMeta}
               accent={accent}
               disabled={guardBlocked && activeTab?.agentId === 'claude'}
               onOpenLauncher={() => setShowLauncher(true)}
