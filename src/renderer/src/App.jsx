@@ -1973,6 +1973,19 @@ export default function App() {
               onMission={() => setView(prev => prev === 'overview' ? 'terminal' : 'overview')}
               onSeducia={() => setSeduciaOpen(true)}
               onSwitchAccount={(slotId) => activeId && switchToAccountAndResume(activeId, slotId)}
+              layoutMode={view === 'overview' ? 'overview' : gridMode ? 'grid' : splitId ? 'split' : 'focus'}
+              canSplit={tabs.length > 1}
+              onLayoutFocus={() => { setGridMode(false); setSplitId(null); setView('terminal') }}
+              onLayoutSplit={() => { setGridMode(false); toggleSplit() }}
+              onLayoutGrid={() => {
+                setSplitId(null)
+                setGridMode(prev => {
+                  if (!prev && tabsRef.current.length < 2) return prev
+                  setView('terminal')
+                  return !prev
+                })
+              }}
+              onLayoutOverview={() => setView('overview')}
               onTogglePanel={() => setRightOpen(prev => !prev)}
             />
           )}
