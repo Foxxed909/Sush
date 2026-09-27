@@ -23,6 +23,7 @@ export default function NightlyWorkspaceRail({
   activity = {},
   onSelect,
   onHome,
+  onOverview,
   onNewSession,
   onHunt,
   onSettings
@@ -57,7 +58,7 @@ export default function NightlyWorkspaceRail({
 
       <div className="nightly-rail-actions">
         <button onClick={onHunt}><Icon name="search" size={13} /> Search</button>
-        <button onClick={onHome}><Icon name="home" size={13} /> Overview</button>
+        <button onClick={onOverview || onHome}><Icon name="activity" size={13} /> Overview</button>
       </div>
 
       <div className="nightly-section-label">Projects</div>
