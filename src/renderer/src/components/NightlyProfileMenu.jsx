@@ -29,7 +29,6 @@ export default function NightlyProfileMenu({
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
-  if (!user) return null
 
   useEffect(() => {
     if (!open) return
@@ -42,6 +41,8 @@ export default function NightlyProfileMenu({
     setOpen(false)
     fn?.()
   }
+
+  if (!user) return null
 
   return (
     <div ref={ref} className="nightly-profile-menu">
