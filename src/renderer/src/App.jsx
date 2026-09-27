@@ -54,6 +54,7 @@ import Icon from './components/Icons'
 import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
 import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
+import NightlyOverview from './components/NightlyOverview'
 import { buildAgentCommand } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 
@@ -1922,6 +1923,7 @@ export default function App() {
             accent={accent}
             activity={agentStates}
             onHome={() => { setHomeView('dashboard'); setView('home') }}
+            onOverview={() => setView('overview')}
             onSelect={selectTab}
             onNewSession={() => setShowLauncher(true)}
             onHunt={() => setShowHunt(true)}
@@ -1942,7 +1944,7 @@ export default function App() {
               rightOpen={rightOpen}
               onHome={() => { setHomeView('dashboard'); setView('home') }}
               onHunt={() => setShowHunt(true)}
-              onMission={() => setShowMission(true)}
+              onMission={() => setView(prev => prev === 'overview' ? 'terminal' : 'overview')}
               onSeducia={() => setSeduciaOpen(true)}
               onTogglePanel={() => setRightOpen(prev => !prev)}
             />
@@ -2100,6 +2102,22 @@ export default function App() {
                 onNewSession={() => setShowLauncher(true)}
                 onSeducia={() => setSeduciaOpen(true)}
               />
+              </div>
+            )}
+
+            {view === 'overview' && (
+              <div key="nightly-overview" className="sush-reveal" style={{ position: 'absolute', inset: 0, zIndex: 20 }}>
+                <NightlyOverview
+                  tabs={tabs}
+                  states={agentStates}
+                  limits={agentLimits}
+                  metrics={sessionMetrics}
+                  summary={agentSummary}
+                  accent={accent}
+                  onFocus={(id) => { setActiveId(id); setView('terminal') }}
+                  onHandoff={(id) => performLimitHandoff(id)}
+                  onNewSession={() => setShowLauncher(true)}
+                />
               </div>
             )}
 
