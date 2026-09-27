@@ -143,7 +143,14 @@ const stub = `
       { key: 'u:u1:powershell:powershell:c:/users/taylor/docs', saved: true, label: 'docs', lines: [ { line: 3, text: 'npm ERR! ' + term + ' script missing' } ] }
     ] : [] }),
     onPtyData: (fn) => { ptyListeners.push(fn); return () => {} },
-    onPtyState: (fn) => { stateListeners.push(fn); return () => {} }
+    onPtyState: (fn) => { stateListeners.push(fn); return () => {} },
+    onClaudePanelEvent: (fn) => {
+      const t = setTimeout(() => {
+        fn({ panelId: 'nightly-demo', kind: 'init', cwd: '/home/taylor/sush', model: 'claude-sonnet-5', sessionId: 'demo-session' })
+        fn({ panelId: 'nightly-demo', kind: 'usage', contextTokens: 28640, outputTokens: 1337 })
+      }, 600)
+      return () => clearTimeout(t)
+    }
   }
   window.sush = new Proxy(answers, {
     get(target, prop) {
@@ -156,6 +163,26 @@ const stub = `
     sessionStorage.setItem('sush-skip-splash', '1')
     localStorage.setItem('sush-active-user', 'u1')
     localStorage.setItem('u:u1::sush-last-seen-version', '${appVersion}')
+    localStorage.setItem('u:u1::sush-session-layout', JSON.stringify({
+      activeKey: 'powershell:powershell:/home/taylor/sush:sess-demo',
+      tabs: [{
+        label: 'Claude Code',
+        profileId: 'powershell',
+        profileLabel: 'PowerShell',
+        shell: 'powershell',
+        shellLabel: 'PowerShell',
+        cwd: '/home/taylor/sush',
+        bootCommand: 'claude --model sonnet --effort high',
+        agentId: 'claude',
+        model: 'sonnet',
+        effort: 'high',
+        tag: 'sess-demo',
+        groupId: 'grp-demo',
+        groupLabel: 'Sush dev',
+        startedAt: now - 180000,
+        lastActiveAt: now - 5000
+      }]
+    }))
   } catch {}
 })()
 `
