@@ -24,6 +24,16 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Nightly visual smoke
+        if: matrix.os == 'ubuntu-latest'
+        run: node tools/shot.mjs shots-ci
+      - name: Upload Nightly screenshots
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sush-nightly-screenshots
+          path: shots-ci/
+          if-no-files-found: error
 
   air:
     strategy:
