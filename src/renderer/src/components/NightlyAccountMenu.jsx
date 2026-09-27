@@ -48,7 +48,7 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
       </button>
 
       {open && (
-        <div className="nightly-account-popover sush-fade-up">
+        <div className="nightly-account-popover">
           <div className="nightly-account-popover-head">
             <span>Accounts</span>
             <small>{provider}</small>
