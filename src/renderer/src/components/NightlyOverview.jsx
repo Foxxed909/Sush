@@ -5,12 +5,11 @@ import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
 
 function workspaceKey(tab) {
-  return tab.groupId || String(tab.cwd || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
+  return String(tab.cwd || tab.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
 }
 
 function workspaceLabel(tab) {
-  if (tab.groupLabel) return tab.groupLabel
-  if (!tab.cwd) return 'Unassigned'
+  if (!tab.cwd) return tab.groupLabel || 'Unassigned'
   const parts = String(tab.cwd).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
   return parts[parts.length - 1] || tab.cwd
 }
@@ -97,7 +96,9 @@ export default function NightlyOverview({
                       </span>
                       <span className="nightly-overview-copy">
                         <span>{tab.label}</span>
-                        <small>{tab.model ? `${agent?.label || tab.agentId} · ${tab.model}` : (agent?.label || 'Terminal')}</small>
+                        <small>{tab.model
+                          ? `${agent?.label || tab.agentId} · ${tab.model}${tab.effort ? ` · ${tab.effort}` : ''}`
+                          : `${agent?.label || 'Terminal'}${tab.effort ? ` · ${tab.effort}` : ''}`}</small>
                       </span>
                       <span className={`nightly-overview-status${limited ? ' is-limited' : ''}`}>
                         <span style={{ background: limited ? '#ff9f43' : state.dot }} />
