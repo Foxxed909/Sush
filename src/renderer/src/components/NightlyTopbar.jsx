@@ -4,6 +4,7 @@ import { STATES } from '../lib/agentActivity'
 import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
 import NightlyAccountMenu from './NightlyAccountMenu'
+import NightlyLayoutMenu from './NightlyLayoutMenu'
 
 function compactTokens(value) {
   const n = Number(value)
@@ -33,6 +34,12 @@ export default function NightlyTopbar({
   onMission,
   onSeducia,
   onSwitchAccount,
+  layoutMode,
+  canSplit,
+  onLayoutFocus,
+  onLayoutSplit,
+  onLayoutGrid,
+  onLayoutOverview,
   onTogglePanel
 }) {
   const [branch, setBranch] = useState(null)
@@ -102,7 +109,16 @@ export default function NightlyTopbar({
 
       <div className="nightly-topbar-actions">
         <button className="nightly-icon-btn" onClick={onHunt} title="Search all output"><Icon name="search" size={14} /></button>
-        <button className="nightly-icon-btn" onClick={onMission} title="Agent overview"><Icon name="activity" size={14} /></button>
+        <NightlyLayoutMenu
+          accent={accent}
+          mode={layoutMode}
+          canSplit={canSplit}
+          onFocus={onLayoutFocus}
+          onSplit={onLayoutSplit}
+          onGrid={onLayoutGrid}
+          onOverview={onLayoutOverview || onMission}
+        />
+        <button className="nightly-icon-btn" onClick={onMission} title="Overview"><Icon name="activity" size={14} /></button>
         <button className="nightly-action-btn" onClick={onSeducia}><Icon name="sparkles" size={13} /> Seducia</button>
         <button className={`nightly-icon-btn${rightOpen ? ' is-active' : ''}`} onClick={onTogglePanel} title="Toggle inspector"><Icon name="panel" size={14} /></button>
         <span className="nightly-window-divider" />
