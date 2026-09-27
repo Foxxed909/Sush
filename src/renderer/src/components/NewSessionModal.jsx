@@ -37,6 +37,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [cwdValid, setCwdValid] = useState(null)
   const [counts, setCounts] = useState({ shell: 1 })
   const [models, setModels] = useState({})
+  const [efforts, setEfforts] = useState({})
   const [sessionName, setSessionName] = useState('')
   const [brief, setBrief] = useState('')
   const [worktrees, setWorktrees] = useState(false)
@@ -143,7 +144,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     if (!canLaunch) return
     const agents = AGENT_LIST
       .filter(a => (counts[a.id] || 0) > 0)
-      .map(a => ({ ...a, count: counts[a.id], model: String(models[a.id] || '').trim() || null }))
+      .map(a => ({ ...a, count: counts[a.id], model: String(models[a.id] || '').trim() || null, effort: String(efforts[a.id] || '').trim() || null }))
     onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined, worktrees: developerWorkflows && worktrees })
   }
 
@@ -411,8 +412,10 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             agents={AGENT_LIST}
             counts={counts}
             models={models}
+            efforts={efforts}
             accent={accent}
             onChange={(id, value) => setModels(prev => ({ ...prev, [id]: value }))}
+            onEffortChange={(id, value) => setEfforts(prev => ({ ...prev, [id]: value }))}
           />
 
           <div style={{ marginTop: 22 }}>
