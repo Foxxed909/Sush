@@ -283,6 +283,11 @@ if (plansOnly) {
   process.exit(0)
 }
 
+// Plans has several nested interactive surfaces. Reload before the launcher so
+// a stale backdrop can never mask the next visual assertion.
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(1200)
+
 // 8 — New session launcher with provider model/reasoning controls visible.
 await page.keyboard.press('Control+Shift+n')
 await page.getByText('Claude Code', { exact: true }).first().click()
