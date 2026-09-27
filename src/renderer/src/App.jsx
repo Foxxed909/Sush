@@ -1949,6 +1949,11 @@ export default function App() {
             onNewSession={() => setShowLauncher(true)}
             onHunt={() => setShowHunt(true)}
             onSettings={() => setShowSettings(true)}
+            user={identity.currentUser}
+            onLock={identity.lock}
+            onSignOut={identity.signOut}
+            onManageUsers={() => setShowUserManager(true)}
+            onViewProfile={() => setShowProfile(true)}
           />
         )}
 
