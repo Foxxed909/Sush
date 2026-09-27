@@ -3,6 +3,7 @@ import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
 import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
+import NightlyAccountMenu from './NightlyAccountMenu'
 
 function compactTokens(value) {
   const n = Number(value)
@@ -31,6 +32,7 @@ export default function NightlyTopbar({
   onHunt,
   onMission,
   onSeducia,
+  onSwitchAccount,
   onTogglePanel
 }) {
   const [branch, setBranch] = useState(null)
@@ -77,9 +79,13 @@ export default function NightlyTopbar({
           Context <strong>{activeTab?.contextPct != null ? `${activeTab.contextPct}%` : compactTokens(providerMeta?.contextTokens)}</strong>
         </span>
         {providerMeta?.accountLabel && (
-          <span className="nightly-chip nightly-subtle" title={providerMeta.accountCount > 1 ? `${providerMeta.accountCount} connected account slots` : 'Active account'}>
-            {providerMeta.accountLabel}
-          </span>
+          <NightlyAccountMenu
+            provider={providerMeta.provider}
+            label={providerMeta.accountLabel}
+            count={providerMeta.accountCount}
+            accent={accent}
+            onSwitch={onSwitchAccount}
+          />
         )}
         {providerMeta?.usagePct != null && (
           <span className={`nightly-chip ${providerMeta.usagePct >= 80 ? 'nightly-limit' : ''}`} title={`Session: ${providerMeta.sessionPct ?? '—'}% · Week: ${providerMeta.weekPct ?? '—'}%`}>
