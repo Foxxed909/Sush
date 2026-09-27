@@ -46,6 +46,8 @@ export default function NightlyTopbar({
   const agent = agentById(activeTab?.agentId) || agentById('shell')
   const providerLabel = agent?.label || activeTab?.agentId || 'Shell'
 
+  const windowControl = (action) => window.sush?.windowControl?.(action)
+
   return (
     <header className="nightly-topbar">
       <div className="nightly-crumbs">
@@ -76,6 +78,10 @@ export default function NightlyTopbar({
         <button className="nightly-icon-btn" onClick={onMission} title="Agent overview"><Icon name="activity" size={14} /></button>
         <button className="nightly-action-btn" onClick={onSeducia}><Icon name="sparkles" size={13} /> Seducia</button>
         <button className={`nightly-icon-btn${rightOpen ? ' is-active' : ''}`} onClick={onTogglePanel} title="Toggle inspector"><Icon name="panel" size={14} /></button>
+        <span className="nightly-window-divider" />
+        <button className="nightly-window-btn" onClick={() => windowControl('minimize')} title="Minimize">−</button>
+        <button className="nightly-window-btn" onClick={() => windowControl('maximize')} title="Maximize">□</button>
+        <button className="nightly-window-btn nightly-window-close" onClick={() => windowControl('close')} title="Close">×</button>
       </div>
     </header>
   )
