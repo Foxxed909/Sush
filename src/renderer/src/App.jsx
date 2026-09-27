@@ -2214,6 +2214,7 @@ export default function App() {
               commandHistory={commandHistory}
               ghNotifCount={ghNotifCount}
               onManageUsers={() => setShowUserManager(true)}
+              nightly
               style={{ width: rightWidth }}
             />
           </div>
