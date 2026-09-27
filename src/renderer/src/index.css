@@ -1054,3 +1054,20 @@ p { text-wrap: pretty; }
   .nightly-overview-grid { grid-template-columns: 1fr; }
   .nightly-overview-resource { display: none; }
 }
+
+
+/* Nightly inspector --------------------------------------------------------- */
+.nightly-inspector {
+  background: rgba(11, 12, 14, .78) !important;
+  backdrop-filter: blur(18px);
+  border-left-color: var(--border-1) !important;
+}
+.nightly-inspector > div:first-child {
+  background: rgba(255,255,255,.012);
+}
+.nightly-inspector .sush-htabs {
+  scrollbar-width: none;
+}
+.nightly-inspector .sush-htabs::-webkit-scrollbar {
+  display: none;
+}
