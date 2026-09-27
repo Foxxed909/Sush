@@ -162,6 +162,7 @@ function makeTab(profile, options = {}) {
     bootCommand: options.command ?? null,
     agentId: options.agentId ?? null,
     model: options.model ?? null,
+    effort: options.effort ?? null,
     tag: options.tag ?? null,
     groupId: options.groupId ?? null,
     groupLabel: options.groupLabel ?? null,
@@ -224,7 +225,7 @@ function loadRecentSessions() {
 // boot command. Plain shells (no agent / no command) stay bare.
 function restoreBootCommand(item) {
   const agent = item.agentId && item.agentId !== 'shell' ? agentById(item.agentId) : null
-  if (agent) return buildAgentCommand(agent, { model: item.model, resume: true }) ?? item.bootCommand ?? null
+  if (agent) return buildAgentCommand(agent, { model: item.model, effort: item.effort, resume: true }) ?? item.bootCommand ?? null
   return item.bootCommand ?? null
 }
 
@@ -252,6 +253,7 @@ function loadSessionLayout(profiles) {
         command: resumeAgents ? restoreBootCommand(item) : null,
         agentId: item.agentId,
         model: item.model,
+        effort: item.effort,
         tag: item.tag,
         groupId: item.groupId,
         groupLabel: item.groupLabel,
@@ -897,6 +899,7 @@ export default function App() {
         bootCommand: tab.bootCommand,
         agentId: tab.agentId,
         model: tab.model,
+        effort: tab.effort,
         tag: tab.tag,
         groupId: tab.groupId,
         groupLabel: tab.groupLabel,
@@ -1140,9 +1143,10 @@ export default function App() {
         }
         const tab = openTab(prof, {
           cwd: sessionCwd,
-          command: buildAgentCommand(spec.agent, { model: spec.agent.model }) || undefined,
+          command: buildAgentCommand(spec.agent, { model: spec.agent.model, effort: spec.agent.effort }) || undefined,
           agentId: spec.agent.id,
           model: spec.agent.model || null,
+          effort: spec.agent.effort || null,
           tag: `sess-${nextSessionTag++}`,
           groupId,
           groupLabel: label,
@@ -1397,13 +1401,14 @@ export default function App() {
     try {
       const sw = await window.sush.accountsSwitch({ provider, slotId })
       if (!sw?.ok) return sw || { ok: false }
-      const { cwd, label, groupId, groupLabel, model } = tab
+      const { cwd, label, groupId, groupLabel, model, effort } = tab
       closeTab(tabId)
       openTab(profiles[0], {
         cwd,
         agentId: provider,
         model: model || null,
-        command: buildAgentCommand(agent, { model, resume: true }) || agent.resumeCommand,
+        effort: effort || null,
+        command: buildAgentCommand(agent, { model, effort, resume: true }) || agent.resumeCommand,
         label,
         groupId,
         groupLabel,
