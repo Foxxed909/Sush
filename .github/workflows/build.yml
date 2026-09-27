@@ -28,7 +28,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: node tools/shot.mjs shots-ci
       - name: Upload Nightly screenshots
-        if: matrix.os == 'ubuntu-latest'
+        if: always() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: sush-nightly-screenshots
