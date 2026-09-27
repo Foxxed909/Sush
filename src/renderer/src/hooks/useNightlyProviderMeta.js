@@ -66,6 +66,7 @@ export function useNightlyProviderMeta(activeTab, enabled = true) {
         weekPct: null,
         usagePct: null,
         model: activeTab?.model || null,
+        effort: activeTab?.effort || null,
         contextTokens: null
       }
     }
@@ -91,6 +92,7 @@ export function useNightlyProviderMeta(activeTab, enabled = true) {
       weekPct,
       usagePct: known.length ? Math.max(...known) : null,
       model: streamMeta?.model || activeTab?.model || null,
+      effort: activeTab?.effort || null,
       contextTokens: streamMeta?.contextTokens ?? null,
       lastLimitAt: account?.lastLimitAt || null
     }
