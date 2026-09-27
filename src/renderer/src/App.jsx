@@ -2193,7 +2193,7 @@ export default function App() {
         )}
       </div>
 
-      {!zenMode && !ecoMode && (      {!zenMode && !ecoMode && (
+      {!zenMode && !ecoMode && (
         <SeduciaOrb
           accent={accent}
           open={seduciaOpen}
