@@ -105,7 +105,7 @@ const stub = `
       opencode: { active: 'default', limitPolicy: 'ask', slots: [ { id: 'default', label: 'Default', lastLimitAt: null, usage: null, usageHistory: [] } ] }
     } }),
     usageSnapshot: async () => ({ ok: true, signedIn: true,
-      claude: { installed: true, account: { label: 'Personal', lastLimitAt: null, count: 2 }, limits: { ok: true, limits: { status: 'allowed', sessionPct: 42, weekPct: 18, resetsAt: now + 3600e3, at: now } } },
+      claude: { installed: true, account: { label: 'Personal', lastLimitAt: null, count: 2, usage: { status: 'allowed', sessionPct: 42, weekPct: 18, at: now } }, limits: { ok: true, limits: { status: 'allowed', sessionPct: 42, weekPct: 18, resetsAt: now + 3600e3, at: now } } },
       codex: { installed: true, account: { label: 'Default', lastLimitAt: null, count: 1 } },
       gemini: { installed: false, account: null },
       opencode: { installed: false, account: null } }),
@@ -197,19 +197,31 @@ await page.keyboard.press('Control+1').catch(() => {})
 await page.waitForTimeout(1400)
 await shot('02-terminal')
 
+// 2b — Account / usage popover in the Nightly title chrome.
+const accountChip = page.locator('.nightly-account-chip').first()
+if (await accountChip.count()) {
+  await accountChip.click()
+  await shot('02b-account-usage')
+  await page.keyboard.press('Escape').catch(() => {})
+  await page.mouse.click(800, 500)
+}
+
 // 3 — Command palette
 await page.keyboard.press('Control+p')
 await shot('03-palette')
 await page.keyboard.press('Escape')
 
-// 4 — Mission Control
-await page.keyboard.press('Control+Shift+m')
-await shot('04-mission-control')
-await page.keyboard.press('Escape')
+// 4 — Nightly Overview (Mission Control evolved into a canvas layout)
+await page.getByRole('button', { name: 'Overview', exact: true }).click()
+await shot('04-overview')
 
-// 5 — Right panel (Seducia/agent side panel)
+// Return to the active session, then open the focused contextual inspector.
+await page.keyboard.press('Control+1').catch(() => {})
+await page.waitForTimeout(500)
+
+// 5 — Focused right inspector
 await page.keyboard.press('Control+b')
-await shot('05-right-panel')
+await shot('05-inspector')
 await page.keyboard.press('Control+b')
 
 // 6 — Settings
@@ -244,9 +256,11 @@ if (plansOnly) {
   process.exit(0)
 }
 
-// 8 — New session launcher
+// 8 — New session launcher with provider model/reasoning controls visible.
 await page.keyboard.press('Control+Shift+n')
-await shot('08-launcher')
+await page.getByText('Claude Code', { exact: true }).first().click()
+await page.waitForTimeout(250)
+await shot('08-launcher-models')
 await page.keyboard.press('Escape')
 
 // 9 — Changelog
