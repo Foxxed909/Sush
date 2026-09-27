@@ -1907,7 +1907,7 @@ export default function App() {
           : theme.xterm.background
       }}
     >
-      <div className="flex flex-1 min-h-0">      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0">
         {!zenMode && (
           <NightlyWorkspaceRail
             tabs={tabs}
@@ -1922,7 +1922,7 @@ export default function App() {
           />
         )}
 
-        <div className="flex flex-col flex-1 min-w-0">        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex flex-col flex-1 min-w-0">
           {!zenMode && (
             <NightlyTopbar
               activeTab={view === 'home' ? null : activeTab}
@@ -1940,7 +1940,7 @@ export default function App() {
             />
           )}
 
-          <div className="flex-1 relative overflow-hidden">          <div className="flex-1 relative overflow-hidden">
+          <div className="flex-1 relative overflow-hidden">
             {(
               // One container for both layouts. Grid mode is a STYLE switch on
               // the same keyed wrappers — terminals never remount on toggle, so
