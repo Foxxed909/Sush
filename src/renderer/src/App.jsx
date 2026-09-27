@@ -1392,7 +1392,10 @@ export default function App() {
   const switchAndResume = useCallback(async (tabId) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
     const provider = tab?.agentId
-    if (!tab || (provider !== 'claude' && provider !== 'codex')) return
+    const agent = agentById(provider)
+    // Rotation only makes sense when this CLI has a verified continuation
+    // path. This now covers Claude, Codex, Gemini, OpenCode and Grok.
+    if (!tab || !provider || !agent?.resumeCommand) return
     try {
       const list = await window.sush.accountsList?.()
       const st = list?.providers?.[provider]
@@ -1403,14 +1406,16 @@ export default function App() {
       if (!alt) return
       const sw = await window.sush.accountsSwitch({ provider, slotId: alt.id })
       if (!sw?.ok) return
-      const agent = agentById(provider)
-      const { cwd, label } = tab
+      const { cwd, label, groupId, groupLabel, model } = tab
       closeTab(tabId)
       openTab(profiles[0], {
         cwd,
         agentId: provider,
-        command: agent?.resumeCommand ?? agent?.command,
+        model: model || null,
+        command: buildAgentCommand(agent, { model, resume: true }) || agent.resumeCommand,
         label,
+        groupId,
+        groupLabel,
         tag: `sess-${nextSessionTag++}`
       })
     } catch {}
