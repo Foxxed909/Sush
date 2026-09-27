@@ -74,6 +74,7 @@ export default function NightlyTopbar({
           <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
           {providerLabel}
           {providerMeta?.model && <strong>· {providerMeta.model}</strong>}
+          {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
         </span>
         <span className="nightly-chip" title={providerMeta?.contextTokens != null ? 'Provider-reported input context for the latest observed turn' : 'This CLI has not exposed context telemetry for this workspace yet'}>
           Context <strong>{activeTab?.contextPct != null ? `${activeTab.contextPct}%` : compactTokens(providerMeta?.contextTokens)}</strong>
