@@ -13,10 +13,8 @@ export const BUILTIN_AGENTS = [
   { id: 'shell', label: 'Terminal', command: null, mono: '>_', color: '#8b9bb0', desc: 'Plain shell' },
   { id: 'claude', label: 'Claude Code', command: 'claude', resumeCommand: 'claude --continue', mono: 'C', color: '#d97757', desc: 'Anthropic CLI' },
   { id: 'codex', label: 'Codex', command: 'codex', resumeCommand: 'codex resume --last', mono: 'Cx', color: '#10a37f', desc: 'OpenAI CLI' },
-  // Gemini has no verified resume flag yet — define one on a custom agent if
-  // your build supports it.
-  { id: 'gemini', label: 'Gemini', command: 'gemini', mono: 'G', color: '#4285f4', desc: 'Google CLI' },
-  { id: 'opencode', label: 'OpenCode', command: 'opencode', mono: 'O', color: '#f59e0b', desc: 'OpenCode CLI' },
+  { id: 'gemini', label: 'Gemini', command: 'gemini', resumeCommand: 'gemini --resume latest', mono: 'G', color: '#4285f4', desc: 'Google CLI' },
+  { id: 'opencode', label: 'OpenCode', command: 'opencode', resumeCommand: 'opencode --continue', mono: 'O', color: '#f59e0b', desc: 'OpenCode CLI' },
   // Grok Build (xAI) — interactive TUI; --continue resumes the latest session
   // for the cwd (docs: -c / --continue).
   { id: 'grok', label: 'Grok Build', command: 'grok', resumeCommand: 'grok --continue', mono: 'Gk', color: '#22d3ee', desc: 'xAI coding agent' }
