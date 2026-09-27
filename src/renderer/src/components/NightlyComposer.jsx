@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { agentById } from '../lib/agents'
 
-export default function NightlyComposer({ activeTab, accent, disabled = false, onSend, onOpenLauncher }) {
+export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher }) {
   const [value, setValue] = useState('')
   const ref = useRef(null)
   const agent = agentById(activeTab?.agentId) || agentById('shell')
@@ -46,12 +46,22 @@ export default function NightlyComposer({ activeTab, accent, disabled = false, o
         <div className="nightly-composer-meta">
           <button type="button" className="nightly-model-pill" onClick={onOpenLauncher} title="Open agent/model launcher">
             <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
-            {agent?.label || 'Shell'}
+            {providerMeta?.model || agent?.label || 'Shell'}
             <Icon name="chevronDown" size={10} />
           </button>
-          <span className="nightly-context-note" title="Context telemetry will populate here when the active CLI exposes it">
-            Context —
+          <span className="nightly-context-note" title="Context-window telemetry stays separate from subscription usage and only appears when the CLI exposes it">
+            Context {activeTab?.contextPct != null ? `${activeTab.contextPct}%` : '—'}
           </span>
+          {providerMeta?.accountLabel && (
+            <span className="nightly-context-note" title="Active CLI account slot">
+              {providerMeta.accountLabel}
+            </span>
+          )}
+          {providerMeta?.usagePct != null && (
+            <span className="nightly-context-note" title={`Session ${providerMeta.sessionPct ?? '—'}% · week ${providerMeta.weekPct ?? '—'}%`}>
+              Usage {providerMeta.usagePct}%
+            </span>
+          )}
           <span className="nightly-composer-hint">Shift+Enter newline · Ctrl+J focus</span>
           <button type="button" className="nightly-send" onClick={submit} disabled={!value.trim() || disabled || !activeTab} title="Send">
             <Icon name="arrowRight" size={14} />
