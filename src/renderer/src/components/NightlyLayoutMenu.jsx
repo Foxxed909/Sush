@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
@@ -27,6 +27,8 @@ export default function NightlyLayoutMenu({
       <button
         ref={anchorRef}
         className={`nightly-icon-btn${mode !== 'focus' ? ' is-active' : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen(v => !v)}
         title="Workspace layout"
       >
