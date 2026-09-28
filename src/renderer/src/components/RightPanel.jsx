@@ -67,10 +67,15 @@ export default function RightPanel({
 
   // Which tabs the user has hidden (defaults hide History/Snippets → palette).
   const hiddenTabs = Array.isArray(settings.hiddenPanelTabs) ? settings.hiddenPanelTabs : DEFAULT_HIDDEN_TABS
+  const threadSupported = activeTab?.agentId === 'claude' && activeTab?.threadBridge === true
+  const effectiveHiddenTabs = threadSupported
+    ? hiddenTabs
+    : [...new Set([...hiddenTabs, 'thread'])]
 
-  // If the current tab was hidden while selected, fall back to Agent; any
-  // unknown id also lands on Agent.
-  const known = TABS.some(t => t.id === tab)
+  // Thread is session-scoped: switching from a bridged Claude PTY to another
+  // provider must not leave an unusable Thread tab selected. Unknown ids also
+  // land on Agent.
+  const known = TABS.some(t => t.id === tab) && (tab !== 'thread' || threadSupported)
   const safeTab = known ? tab : 'agent'
   useEffect(() => {
     if (safeTab !== tab) onTab(safeTab)
@@ -94,7 +99,7 @@ export default function RightPanel({
       }}
     >
       {/* Tab header — grouped horizontal strip with hairline dividers */}
-      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} hiddenTabs={hiddenTabs} nightly={nightly} />
+      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} hiddenTabs={effectiveHiddenTabs} nightly={nightly} />
 
       {/* Tab body */}
       <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
