@@ -463,6 +463,10 @@ if (await layoutButton.count()) {
   await page.waitForTimeout(450)
 
   await layoutButton.click()
+  const restoredSplitRow = page.locator('.nightly-layout-popover > button').filter({ hasText: 'Active + recent session' })
+  if (!(await restoredSplitRow.evaluate(el => el.classList.contains('is-active')))) {
+    throw new Error('Nightly did not restore the Sush Split preset after visiting another project')
+  }
   await page.locator('.nightly-layout-popover').getByText('Grid', { exact: true }).click()
   await page.waitForTimeout(500)
   {
