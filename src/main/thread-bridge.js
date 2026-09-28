@@ -142,34 +142,13 @@ export function parseThreadEvents(text) {
   return { sessionId, transcriptPath, cwd, state, lastEvent, prompts, eventCount: rows.length }
 }
 
-function textBlocks(content) {
-  if (typeof content === 'string') return content ? [content] : []
-  if (!Array.isArray(content)) return []
+function textFromToolResult(content) {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
   return content
-    .filter(block => block?.type === 'text' && typeof block.text === 'string' && block.text.trim())
+    .filter(block => block?.type === 'text' && typeof block.text === 'string')
     .map(block => block.text)
-}
-
-function toolBlocks(content) {
-  if (!Array.isArray(content)) return []
-  return content
-    .filter(block => block?.type === 'tool_use' && block.name)
-    .map(block => ({
-      id: block.id || null,
-      name: String(block.name),
-      input: block.input && typeof block.input === 'object' ? block.input : null
-    }))
-}
-
-function toolResults(content) {
-  if (!Array.isArray(content)) return []
-  return content
-    .filter(block => block?.type === 'tool_result')
-    .map(block => ({
-      toolUseId: block.tool_use_id || null,
-      isError: block.is_error === true,
-      text: textBlocks(block.content).join('\n') || (typeof block.content === 'string' ? block.content : '')
-    }))
+    .join('\n')
 }
 
 export function parseClaudeTranscript(text) {
@@ -180,35 +159,76 @@ export function parseClaudeTranscript(text) {
     const type = String(row?.type || '')
     const message = row?.message || {}
     const timestamp = row?.timestamp || null
-    const id = row?.uuid || row?.requestId || `${type}:${items.length}`
+    const baseId = row?.uuid || row?.requestId || `${type}:${items.length}`
+    const content = message.content
 
     if (type === 'user') {
-      const texts = textBlocks(message.content)
-      const results = toolResults(message.content)
-      if (texts.length) items.push({ id, type: 'user', text: texts.join('\n\n'), timestamp })
-      for (const result of results) {
-        items.push({ id: `${id}:tool-result:${result.toolUseId || items.length}`, type: 'tool_result', ...result, timestamp })
+      if (typeof content === 'string' && content.trim()) {
+        items.push({ id: baseId, type: 'user', text: content, timestamp })
+        continue
       }
+      if (!Array.isArray(content)) continue
+      content.forEach((block, index) => {
+        if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+          items.push({ id: `${baseId}:text:${index}`, type: 'user', text: block.text, timestamp })
+        } else if (block?.type === 'tool_result') {
+          items.push({
+            id: `${baseId}:tool-result:${block.tool_use_id || index}`,
+            type: 'tool_result',
+            toolUseId: block.tool_use_id || null,
+            isError: block.is_error === true,
+            text: textFromToolResult(block.content),
+            timestamp
+          })
+        }
+      })
       continue
     }
 
-    if (type === 'assistant') {
-      const texts = textBlocks(message.content)
-      if (texts.length) {
+    if (type !== 'assistant') continue
+    if (typeof content === 'string' && content.trim()) {
+      items.push({
+        id: baseId,
+        type: 'assistant',
+        text: content,
+        model: message.model || null,
+        timestamp,
+        usage: message.usage || null,
+        error: row.isApiErrorMessage === true ? row.error || 'api_error' : null
+      })
+      continue
+    }
+    if (!Array.isArray(content)) continue
+
+    content.forEach((block, index) => {
+      // Claude's transcript may contain private/reasoning blocks. Thread is a
+      // user-facing structured activity view, not a reasoning extractor.
+      if (block?.type === 'thinking' || block?.type === 'redacted_thinking') return
+
+      if (block?.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
         items.push({
-          id,
+          id: `${baseId}:text:${index}`,
           type: 'assistant',
-          text: texts.join('\n\n'),
+          text: block.text,
           model: message.model || null,
           timestamp,
           usage: message.usage || null,
           error: row.isApiErrorMessage === true ? row.error || 'api_error' : null
         })
+        return
       }
-      for (const tool of toolBlocks(message.content)) {
-        items.push({ id: `${id}:tool:${tool.id || items.length}`, type: 'tool_use', ...tool, timestamp })
+
+      if (block?.type === 'tool_use' && block.name) {
+        items.push({
+          id: `${baseId}:tool:${block.id || index}`,
+          type: 'tool_use',
+          toolUseId: block.id || null,
+          name: String(block.name),
+          input: block.input && typeof block.input === 'object' ? block.input : null,
+          timestamp
+        })
       }
-    }
+    })
   }
 
   return items
