@@ -324,6 +324,31 @@ await page.waitForTimeout(250)
 }
 await shot('05-inspector')
 await page.keyboard.press('Control+b')
+await page.waitForTimeout(250)
+
+// 5a — Nightly workspace pane picker + local Notes pane.
+const paneButton = page.locator('.nightly-pane-menu > button').first()
+await paneButton.click()
+await page.locator('.nightly-pane-popover').waitFor({ state: 'visible' })
+await shot('05a-pane-picker')
+await page.locator('.nightly-pane-popover').getByText('Notes', { exact: true }).click()
+await page.locator('.nightly-inspector').waitFor({ state: 'visible' })
+await page.waitForTimeout(350)
+if (!(await page.locator('.nightly-inspector').getByText('Memory', { exact: true }).count())) {
+  throw new Error('Nightly Notes pane did not route to the workspace memory host')
+}
+await shot('05b-notes-pane')
+
+// Files should route through the same persistent secondary host.
+await paneButton.click()
+await page.locator('.nightly-pane-popover').getByText('Files', { exact: true }).click()
+await page.waitForTimeout(300)
+if (!(await page.locator('.nightly-inspector [data-tab="files"]').count())) {
+  throw new Error('Nightly Files pane did not become the active workspace pane')
+}
+await shot('05c-files-pane')
+await page.keyboard.press('Control+b')
+await page.waitForTimeout(200)
 
 // 6 — Settings
 await page.keyboard.press('Control+,')
