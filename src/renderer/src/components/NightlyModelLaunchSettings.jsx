@@ -1,5 +1,5 @@
 import React from 'react'
-import { modelSpecFor } from '../lib/nightlyModels'
+import { effortOptionsFor, modelSpecFor } from '../lib/nightlyModels'
 import { rgba } from '../lib/ui'
 
 export default function NightlyModelLaunchSettings({ agents = [], counts = {}, models = {}, efforts = {}, onChange, onEffortChange, accent }) {
@@ -15,6 +15,7 @@ export default function NightlyModelLaunchSettings({ agents = [], counts = {}, m
       <div style={{ display: 'grid', gap: 7 }}>
         {selected.map(agent => {
           const spec = modelSpecFor(agent.id)
+          const effortOptions = effortOptionsFor(agent.id, models[agent.id])
           const listId = `nightly-models-${agent.id}`
           return (
             <label key={agent.id} style={{
@@ -67,7 +68,7 @@ export default function NightlyModelLaunchSettings({ agents = [], counts = {}, m
                       padding: '0 6px', fontSize: 9.75, fontFamily: 'var(--font-ui)'
                     }}
                   >
-                    {spec.effort.options.map(v => <option key={v || 'default'} value={v}>{v ? v : spec.effort.label}</option>)}
+                    {effortOptions.map(v => <option key={v || 'default'} value={v}>{v ? v : spec.effort.label}</option>)}
                   </select>
                 )}
               </span>
