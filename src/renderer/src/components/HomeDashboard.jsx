@@ -4,6 +4,7 @@ import { rgba, accentVars } from '../lib/ui'
 // One stripAnsi for the whole renderer (this file and App used to carry
 // weaker SGR-only copies).
 import { stripAnsi } from '../lib/agentActivity'
+import { folderName } from '../lib/workspaces'
 
 function formatTime(value) {
   if (!value) return ''
@@ -67,7 +68,6 @@ export default function HomeDashboard({
   const active = tabs.find(tab => tab.status === 'running') || tabs[0]
   // Projects are folders: name them by the stable project root, not by the
   // session label or wherever the shell has cd'd to since.
-  const folderName = (path) => String(path || '').replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean).pop() || path
   const activeRoot = active?.workspaceCwd || active?.sessionRootCwd || active?.cwd
   const cwdItems = [
     activeRoot && { label: folderName(activeRoot), path: activeRoot },

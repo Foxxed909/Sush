@@ -3,17 +3,7 @@ import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
 import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
-
-function workspaceKey(tab) {
-  return String(tab.workspaceCwd || tab.cwd || tab.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
-}
-
-function workspaceLabel(tab) {
-  const root = tab.workspaceCwd || tab.cwd
-  if (!root) return tab.groupLabel || 'Unassigned'
-  const parts = String(root).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
-  return parts[parts.length - 1] || root
-}
+import { groupByWorkspace } from '../lib/workspaces'
 
 function memLabel(mb) {
   const n = Number(mb) || 0
@@ -31,15 +21,7 @@ export default function NightlyOverview({
   onHandoff,
   onNewSession
 }) {
-  const workspaces = useMemo(() => {
-    const map = new Map()
-    for (const tab of tabs) {
-      const key = workspaceKey(tab)
-      if (!map.has(key)) map.set(key, { key, label: workspaceLabel(tab), cwd: tab.workspaceCwd || tab.cwd || '', tabs: [] })
-      map.get(key).tabs.push(tab)
-    }
-    return [...map.values()]
-  }, [tabs])
+  const workspaces = useMemo(() => groupByWorkspace(tabs), [tabs])
 
   const chips = [
     ['waiting', summary.waiting || 0],

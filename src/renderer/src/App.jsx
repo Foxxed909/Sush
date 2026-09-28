@@ -33,6 +33,8 @@ import { useEntitlements } from './hooks/useEntitlements'
 import { useBattery } from './hooks/useBattery'
 import { useOnline } from './hooks/useOnline'
 import { STATES, stripAnsi } from './lib/agentActivity'
+import { isMultiline, pasteAndSubmit } from './lib/terminalRegistry'
+import { normalizePathKey, workspaceKey } from './lib/workspaces'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { useSplitView } from './hooks/useSplitView'
 import { useUsageGuard } from './hooks/useUsageGuard'
@@ -117,17 +119,7 @@ function pathLabel(cwd) {
   return trimmed.split(/[\\/]/).filter(Boolean).pop() || trimmed
 }
 
-function normalizePathKey(cwd) {
-  return String(cwd ?? '').replace(/[\\/]+$/, '').toLowerCase()
-}
-
-function nightlyWorkspaceKey(tab) {
-  if (!tab) return null
-  const cwd = normalizePathKey(tab.workspaceCwd || tab.cwd)
-  if (cwd) return `cwd:${cwd}`
-  if (tab.groupId) return `group:${tab.groupId}`
-  return tab.id ? `tab:${tab.id}` : null
-}
+const nightlyWorkspaceKey = workspaceKey
 
 function nightlySessionKey(tab) {
   if (!tab) return null
@@ -2552,6 +2544,10 @@ export default function App() {
               hushSlotRef={setHushSlot}
               onSend={(text) => {
                 if (!activeTab) return
+                // Multi-line messages go in as one paste; a raw newline would
+                // submit the first line and send the rest as new prompts.
+                if (activeTab.status === 'running' && isMultiline(text)
+                  && pasteAndSubmit(activeTab.id, text, () => window.sush.ptyInput({ tabId: activeTab.id, data: '\r' }))) return
                 promptSession(activeTab.id, `${text}\r`)
               }}
             />

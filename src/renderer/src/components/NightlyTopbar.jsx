@@ -7,6 +7,7 @@ import { rgba } from '../lib/ui'
 import NightlyAccountMenu from './NightlyAccountMenu'
 import NightlyLayoutMenu from './NightlyLayoutMenu'
 import NightlyPaneMenu from './NightlyPaneMenu'
+import { tabsInWorkspace, workspaceKey, workspaceLabel } from '../lib/workspaces'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
@@ -15,12 +16,6 @@ function compactTokens(value) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}m`
   if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`
   return String(Math.round(n))
-}
-
-function projectName(cwd) {
-  if (!cwd) return 'Unassigned'
-  const bits = String(cwd).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
-  return bits[bits.length - 1] || cwd
 }
 
 export default function NightlyTopbar({
@@ -64,17 +59,9 @@ export default function NightlyTopbar({
   }, [gitRoot])
   usePolling(readBranch, 8000, !!gitRoot)
 
-  const workspaceTabs = useMemo(() => {
-    const root = activeTab?.workspaceCwd || activeTab?.cwd
-    if (!root) return activeTab ? [activeTab] : []
-    const key = String(root).replace(/[\\/]+$/, '').toLowerCase()
-    return tabs.filter(t => String(t.workspaceCwd || t.cwd || '').replace(/[\\/]+$/, '').toLowerCase() === key)
-  }, [tabs, activeTab])
+  const workspaceTabs = useMemo(() => (activeTab ? tabsInWorkspace(tabs, activeTab) : []), [tabs, activeTab])
 
-  const workspaceCount = useMemo(() => {
-    const keys = new Set(tabs.map(t => String(t.workspaceCwd || t.cwd || t.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()))
-    return keys.size
-  }, [tabs])
+  const workspaceCount = useMemo(() => new Set(tabs.map(workspaceKey)).size, [tabs])
   const hasSession = !!activeTab?.id
 
   const stateId = activeTab?.status === 'exited' ? 'error' : (activity[activeTab?.id] || 'idle')
@@ -90,7 +77,7 @@ export default function NightlyTopbar({
         <button className="nightly-icon-btn" onClick={onHome} title="Home"><Icon name="home" size={13} /></button>
         {hasSession ? (
           <>
-            <span className="nightly-project-name">{projectName(activeTab?.workspaceCwd || activeTab?.cwd)}</span>
+            <span className="nightly-project-name">{workspaceLabel(activeTab)}</span>
             <span className="nightly-slash">/</span>
             <span className="nightly-thread-name">{activeTab?.label || 'Session'}</span>
             {branch && <span className="nightly-branch" title={`Branch ${branch}`}><Icon name="gitBranch" size={11} />{branch}</span>}

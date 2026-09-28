@@ -7,6 +7,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { isAppChord } from '../lib/keymap'
 import { terminalInputAllowed, terminalInputTargets } from '../lib/terminalInput'
 import '@xterm/xterm/css/xterm.css'
+import { registerTerminal, unregisterTerminal } from '../lib/terminalRegistry'
 
 export function useTerminal({
   containerRef,
@@ -206,6 +207,7 @@ export function useTerminal({
     })
 
     termRef.current = term
+    registerTerminal(tabId, term)
     fitAddonRef.current = fitAddon
     searchAddonRef.current = searchAddon
 
@@ -341,6 +343,7 @@ export function useTerminal({
       removeStateListener()
       resizeObserver.disconnect()
       disposeWebglRenderer()
+      unregisterTerminal(tabId, term)
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null
