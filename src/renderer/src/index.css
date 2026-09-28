@@ -1223,3 +1223,51 @@ p { text-wrap: pretty; }
   padding: 7px 8px 4px; margin-top: 3px; border-top: 1px solid var(--border-1);
   color: var(--text-5); font-size: 7.75px;
 }
+
+
+/* Nightly active model menu ------------------------------------------------- */
+.nightly-model-control { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.nightly-model-provider { font-size: 9px; font-weight: 900; flex-shrink: 0; }
+.nightly-model-menu { position: relative; min-width: 0; }
+.nightly-model-popover {
+  position: absolute; z-index: 1450; left: 0; bottom: calc(100% + 8px); width: 286px;
+  padding: 6px; border: 1px solid var(--border-2); border-radius: 11px;
+  background: rgba(15,16,18,.985); box-shadow: 0 20px 52px rgba(0,0,0,.58);
+  backdrop-filter: blur(20px);
+}
+.nightly-model-popover-head {
+  min-height: 31px; display: flex; align-items: center; gap: 8px; padding: 0 6px 5px;
+  border-bottom: 1px solid var(--border-1); margin-bottom: 7px;
+}
+.nightly-model-popover-head span { color: var(--text-2); font-size: 10px; font-weight: 850; }
+.nightly-model-popover-head small { margin-left: auto; color: var(--text-5); font-size: 8px; }
+.nightly-model-popover label {
+  display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; padding: 4px 5px;
+}
+.nightly-model-popover label > span { color: var(--text-4); font-size: 8.75px; font-weight: 760; }
+.nightly-model-popover input,
+.nightly-model-popover select {
+  width: 100%; height: 29px; border: 1px solid var(--border-2); border-radius: 7px;
+  background: var(--surface-2); color: var(--text-2); outline: none; padding: 0 8px;
+  font: 500 9.5px/1 var(--font-mono);
+}
+.nightly-model-popover select { font-family: var(--font-ui); }
+.nightly-model-popover input:focus,
+.nightly-model-popover select:focus { border-color: var(--accent-a35); }
+.nightly-model-popover-note {
+  margin: 6px 5px 2px; padding: 7px 8px; border-radius: 7px;
+  background: rgba(255,255,255,.025); color: var(--text-5); font-size: 8px; line-height: 1.4;
+}
+.nightly-model-popover-actions {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 5px 1px;
+}
+.nightly-model-popover-actions button {
+  height: 29px; border-radius: 7px; padding: 0 9px; font: 750 9px/1 var(--font-ui); cursor: pointer;
+}
+.nightly-model-popover-actions .is-quiet {
+  border: 1px solid var(--border-1); background: transparent; color: var(--text-4);
+}
+.nightly-model-popover-actions .is-primary {
+  border: 1px solid var(--model-accent); background: var(--model-accent-bg); color: var(--model-accent);
+}
+.nightly-model-popover-actions .is-primary:disabled { opacity: .38; cursor: default; }
