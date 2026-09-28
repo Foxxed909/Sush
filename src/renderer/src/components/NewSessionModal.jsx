@@ -7,6 +7,7 @@ import { useCliAvailability } from '../hooks/useCliAvailability'
 import { useEntitlements } from '../hooks/useEntitlements'
 import { loadCrews, saveCrew, deleteCrew, parseRepoCrew } from '../lib/crews'
 import NightlyModelLaunchSettings from './NightlyModelLaunchSettings'
+import { setProviderCapabilities } from '../lib/nightlyModels'
 
 function pathLabel(cwd) {
   if (!cwd) return ''
@@ -44,8 +45,51 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [crews, setCrews] = useState(() => loadCrews())
   const [repoCrew, setRepoCrew] = useState(null)   // .sush/crew.json in the chosen dir
   const { avail, rescan, checking } = useCliAvailability()
+  const [capabilities, setCapabilities] = useState({})
+  const [capChecking, setCapChecking] = useState(false)
+  const [capError, setCapError] = useState('')
   const ent = useEntitlements()
   const developerWorkflows = ent.can('developerWorkflows')
+
+  const loadCapabilities = async (refresh = false) => {
+    setCapChecking(true)
+    setCapError('')
+    try {
+      const result = await window.sush?.providerCapabilities?.({ refresh })
+      if (!result?.ok) {
+        setCapError(result?.error || 'Capability probe unavailable')
+        return
+      }
+      const next = result.providers || {}
+      setCapabilities(next)
+      // Keep launcher/live-session validators and command construction on the
+      // exact same capability snapshot the launcher is showing.
+      setProviderCapabilities(next)
+    } catch (error) {
+      setCapError(error?.message || 'Capability probe unavailable')
+    } finally {
+      setCapChecking(false)
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    window.sush?.providerCapabilities?.()
+      .then(result => {
+        if (cancelled || !result?.ok) return
+        const next = result.providers || {}
+        setCapabilities(next)
+        setProviderCapabilities(next)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const unavailable = (id) => capabilities[id]?.installed === false || avail[id] === false
+  const providerCapability = (id) => capabilities[id] || null
+  const rescanProviders = async () => {
+    await Promise.allSettled([rescan(), loadCapabilities(true)])
+  }
 
   // Never carry an entitlement-only setting into a lower-tier launch.
   useEffect(() => {
@@ -90,7 +134,10 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const total = useMemo(() => Object.values(counts).reduce((sum, n) => sum + (n || 0), 0), [counts])
+  const total = useMemo(
+    () => AGENT_LIST.reduce((sum, agent) => sum + (unavailable(agent.id) ? 0 : (counts[agent.id] || 0)), 0),
+    [AGENT_LIST, counts, avail, capabilities]
+  )
   const remaining = MAX_SESSIONS - total
 
   const dirChips = useMemo(() => {
@@ -119,7 +166,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   }
 
   const oneEach = () => setCounts(Object.fromEntries(
-    AGENT_LIST.filter(a => avail[a.id] !== false).slice(0, MAX_SESSIONS).map(a => [a.id, 1])
+    AGENT_LIST.filter(a => !unavailable(a.id)).slice(0, MAX_SESSIONS).map(a => [a.id, 1])
   ))
   const clearAll = () => setCounts({})
   const applyPreset = (preset) => {
@@ -127,7 +174,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     let used = 0
     for (const [id, count] of Object.entries(preset.counts)) {
       const agent = AGENT_LIST.find(a => a.id === id)
-      if (!agent || avail[id] === false || used >= MAX_SESSIONS) continue
+      if (!agent || unavailable(id) || used >= MAX_SESSIONS) continue
       const capped = Math.min(count, MAX_SESSIONS - used)
       if (capped > 0) {
         next[id] = capped
@@ -145,7 +192,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const launch = () => {
     if (!canLaunch) return
     const agents = AGENT_LIST
-      .filter(a => (counts[a.id] || 0) > 0)
+      .filter(a => !unavailable(a.id) && (counts[a.id] || 0) > 0)
       .map(a => ({ ...a, count: counts[a.id], model: String(models[a.id] || '').trim() || null, effort: String(efforts[a.id] || '').trim() || null }))
     onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined, worktrees: developerWorkflows && worktrees })
   }
@@ -263,8 +310,8 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             <div className="flex items-center" style={{ gap: 8 }}>
               <button onClick={oneEach} className="sush-mini-btn" style={miniBtn(accent)}>1× each</button>
               <button onClick={clearAll} className="sush-mini-btn" style={miniBtn(accent)}>Clear</button>
-              <button onClick={rescan} title="Re-check which CLIs are installed" className="sush-mini-btn" style={{ ...miniBtn(accent), opacity: checking ? 0.5 : 1 }}>
-                {checking ? 'Scanning...' : 'Re-scan'}
+              <button onClick={rescanProviders} title="Re-check installed CLIs and refresh provider capabilities" className="sush-mini-btn" style={{ ...miniBtn(accent), opacity: checking || capChecking ? 0.5 : 1 }}>
+                {checking || capChecking ? 'Scanning...' : 'Re-scan'}
               </button>
             </div>
           </div>
@@ -302,7 +349,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               </button>
             )}
             {PRESETS.map(preset => {
-              const disabled = Object.entries(preset.counts).every(([id]) => avail[id] === false || !AGENT_LIST.some(a => a.id === id))
+              const disabled = Object.entries(preset.counts).every(([id]) => unavailable(id) || !AGENT_LIST.some(a => a.id === id))
               return (
                 <button
                   key={preset.label}
@@ -353,7 +400,15 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             {AGENT_LIST.map(agent => {
               const count = counts[agent.id] || 0
               const on = count > 0
-              const locked = avail[agent.id] === false
+              const cap = providerCapability(agent.id)
+              const locked = unavailable(agent.id)
+              const capabilityBits = cap?.installed === true
+                ? [
+                    cap.version ? `v${cap.version}` : null,
+                    cap.resume === true ? 'resume' : cap.resume === false ? 'no resume' : null,
+                    cap.reasoning?.flag === true ? 'reasoning' : null
+                  ].filter(Boolean)
+                : []
               return (
                 <div
                   key={agent.id}
@@ -392,6 +447,11 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                     <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 2, fontFamily: 'inherit' }}>
                       {locked ? 'Not installed' : agent.command ? `$ ${agent.command}` : agent.desc}
                     </span>
+                    {!!capabilityBits.length && (
+                      <span style={{ display: 'block', fontSize: 9.5, color: 'var(--text-4)', marginTop: 4, fontFamily: 'monospace' }}>
+                        {capabilityBits.join(' · ')}
+                      </span>
+                    )}
                   </span>
                   {locked ? (
                     // "Not installed", not "LOCKED" — the lock vocabulary is
@@ -412,8 +472,14 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
             })}
           </div>
 
+          {capError && (
+            <div style={{ marginTop: 10, fontSize: 10.5, color: '#ff9aae' }}>
+              Provider capability refresh failed: {capError}
+            </div>
+          )}
+
           <NightlyModelLaunchSettings
-            agents={AGENT_LIST}
+            agents={AGENT_LIST.filter(agent => !unavailable(agent.id))}
             counts={counts}
             models={models}
             efforts={efforts}
