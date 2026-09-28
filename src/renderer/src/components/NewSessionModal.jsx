@@ -69,13 +69,15 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
 
   const applyCrew = (crew) => {
     setCounts({ ...crew.counts })
+    setModels({ ...(crew.models || {}) })
+    setEfforts({ ...(crew.efforts || {}) })
     setBrief(crew.brief || '')
     if (crew.name) setSessionName(crew.name)
     if (crew.cwd) setCwd(crew.cwd)
   }
   const saveCurrentCrew = () => {
     const name = sessionName.trim() || pathLabel(cwd) || 'Crew'
-    const r = saveCrew({ name, cwd: cwd.trim() || null, counts, brief: brief.trim() })
+    const r = saveCrew({ name, cwd: cwd.trim() || null, counts, models, efforts, brief: brief.trim() })
     if (r.ok) setCrews(r.crews)
   }
   const removeCrew = (id) => { const r = deleteCrew(id); setCrews(r.crews) }
@@ -273,6 +275,8 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                 onClick={() => {
                   if (!developerWorkflows) return
                   setCounts({ ...repoCrew.counts })
+                  setModels({ ...(repoCrew.models || {}) })
+                  setEfforts({ ...(repoCrew.efforts || {}) })
                   if (repoCrew.brief) setBrief(repoCrew.brief)
                   if (repoCrew.name) setSessionName(repoCrew.name)
                 }}
@@ -334,7 +338,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                       className="flex items-center"
                       style={{ gap: 6, fontSize: 11, fontWeight: 800, color: 'var(--text-2)', background: '#11151a', border: `1px solid ${rgba(accent, 0.28)}`, borderRadius: 999, padding: '4px 6px 4px 11px' }}
                     >
-                      <button onClick={() => applyCrew(crew)} title={`${n} session${n === 1 ? '' : 's'}${crew.cwd ? ` · ${pathLabel(crew.cwd)}` : ''}`} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 800, fontSize: 11, padding: 0 }}>
+                      <button onClick={() => applyCrew(crew)} title={[`${n} session${n === 1 ? '' : 's'}`, crew.cwd ? pathLabel(crew.cwd) : null, ...Object.keys(crew.counts).filter(id => crew.models?.[id]).map(id => `${id}: ${crew.models[id]}${crew.efforts?.[id] ? ` · ${crew.efforts[id]}` : ''}`)].filter(Boolean).join(' · ')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 800, fontSize: 11, padding: 0 }}>
                         <Icon name="layers" size={11} strokeWidth={2.3} color={accent} /> {crew.name} <span style={{ color: 'var(--text-4)' }}>· {n}</span>
                       </button>
                       <button onClick={() => removeCrew(crew.id)} title="Delete crew" style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 2px' }}>×</button>

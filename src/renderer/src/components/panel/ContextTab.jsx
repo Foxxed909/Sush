@@ -3,6 +3,7 @@ import Icon from '../Icons'
 import { stripAnsi } from '../../lib/agentActivity'
 import { rgba } from '../../lib/ui'
 import { agentById } from '../../lib/agents'
+import { lineageOf } from '../../lib/lineage'
 import { PanelEmpty, TabHeader, copyToClipboard, joinPath } from './shared'
 
 const PROJECT_DOCS = [
@@ -30,13 +31,14 @@ function providerName(tab) {
   return id
 }
 
-export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpenFile }) {
+export default function ContextTab({ accent, cwd, activeTab, tabs = [], providerMeta, onOpenFile }) {
   const [data, setData] = useState({ loading: true, git: null, docs: [], tail: '' })
   const requestRef = useRef(0)
   const projectRoot = activeTab?.workspaceCwd || cwd || null
   const checkoutRoot = activeTab?.sessionRootCwd || cwd || projectRoot
   const liveCwd = activeTab?.cwd || checkoutRoot
   const agent = agentById(activeTab?.agentId)
+  const lineage = lineageOf(activeTab, tabs)
   const model = providerMeta?.model || activeTab?.model || 'Provider default'
   const effort = providerMeta?.effort || activeTab?.effort || ''
 
@@ -141,6 +143,17 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
               ) : <strong className="is-muted">Not available</strong>}
             </div>
           </div>
+
+          {(lineage.from || lineage.to.length > 0) && (
+            <div className="nightly-context-lineage">
+              {lineage.from && (
+                <span>Continued from <strong>{lineage.from.label || lineage.from.agentId}</strong>{lineage.sourceAlive ? '' : ' (closed)'}</span>
+              )}
+              {lineage.to.map(t => (
+                <span key={t.id}>Handed off to <strong>{t.label}</strong></span>
+              ))}
+            </div>
+          )}
 
           <div className={`nightly-context-window${providerMeta?.contextTokens != null ? '' : ' is-unavailable'}`}>
             <span>Context window</span>

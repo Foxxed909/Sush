@@ -102,6 +102,7 @@ export default function RightPanel({
             accent={accent}
             cwd={activeCwd}
             activeTab={activeTab}
+            tabs={tabs}
             providerMeta={providerMeta}
             onOpenFile={handleOpenFile}
           />

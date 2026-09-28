@@ -5,6 +5,7 @@ import { rgba } from '../lib/ui'
 import NightlyProfileMenu from './NightlyProfileMenu'
 import NightlyContextMenu from './NightlyContextMenu'
 import NightlyStatusStrip from './NightlyStatusStrip'
+import { lineageTag, lineageOf } from '../lib/lineage'
 import { groupByWorkspace, workspaceKey } from '../lib/workspaces'
 
 const WORKSPACE_STATE_ORDER = ['error', 'waiting', 'working', 'booting', 'idle', 'done']
@@ -223,7 +224,13 @@ export default function NightlyWorkspaceRail({
                             />
                             <span className="nightly-thread-copy">
                               <span>{tab.label}</span>
-                              <small>{tab.agentId && tab.agentId !== 'shell' ? tab.agentId : 'terminal'}</small>
+                              {(() => {
+                                const tag = lineageTag(tab, tabs, id => id)
+                                const { from, to } = lineageOf(tab, tabs)
+                                return tag
+                                  ? <small className="is-lineage" title={from ? `Continued from ${from.label || from.agentId}` : `Handed off to ${to.map(t => t.label).join(', ')}`}>{tag.arrow} {tag.text}</small>
+                                  : <small>{tab.agentId && tab.agentId !== 'shell' ? tab.agentId : 'terminal'}</small>
+                              })()}
                             </span>
                           </button>
                         )}

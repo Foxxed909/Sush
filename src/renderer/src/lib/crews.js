@@ -5,6 +5,8 @@
 // shim) under 'sush-crews'. Read inside functions only — a module-scope
 // localStorage read would beat the per-user scope installed in main.jsx.
 
+import { normalizeEffort, normalizeModel } from './nightlyModels'
+
 const CREWS_KEY = 'sush-crews'
 const MAX_CREWS = 24
 
@@ -22,11 +24,24 @@ function normalizeCrew(raw) {
     if (c > 0) counts[String(id)] = c
   }
   if (!Object.keys(counts).length) return null
+  // Per-agent model + reasoning, so a recipe like "Claude opus/xhigh + Codex
+  // gpt-5.3-codex/high" relaunches exactly. Re-validated with the same rules as
+  // the launcher; anything a CLI would reject is dropped, not stored.
+  const models = {}
+  const efforts = {}
+  for (const id of Object.keys(counts)) {
+    const model = normalizeModel(id, raw.models?.[id])
+    if (model) models[id] = model
+    const effort = normalizeEffort(id, raw.efforts?.[id], model)
+    if (effort) efforts[id] = effort
+  }
   return {
     id: String(raw.id || makeId()),
     name: String(raw.name || 'Crew').trim().slice(0, 40) || 'Crew',
     cwd: raw.cwd ? String(raw.cwd) : null,
     counts,
+    models,
+    efforts,
     brief: String(raw.brief || '').slice(0, 800),
     createdAt: Number(raw.createdAt) || Date.now()
   }
@@ -76,7 +91,7 @@ export function parseRepoCrew(rawText) {
   if (!raw || typeof raw !== 'object') return null
   const normalized = normalizeCrew({ ...raw, counts: raw.counts ?? raw.agents })
   if (!normalized) return null
-  return { name: normalized.name, counts: normalized.counts, brief: normalized.brief }
+  return { name: normalized.name, counts: normalized.counts, models: normalized.models, efforts: normalized.efforts, brief: normalized.brief }
 }
 
 // Turn a crew's { counts } map into the agents[] array launchSessions expects.
@@ -86,6 +101,12 @@ export function crewToAgents(crew, agentById) {
   return Object.entries(crew.counts || {})
     .map(([id, count]) => {
       const known = agentById?.(id)
-      return { id, count, command: known?.command ?? (id === 'shell' ? null : id), label: known?.label || id }
+      return {
+        id, count,
+        command: known?.command ?? (id === 'shell' ? null : id),
+        label: known?.label || id,
+        ...(crew.models?.[id] ? { model: crew.models[id] } : null),
+        ...(crew.efforts?.[id] ? { effort: crew.efforts[id] } : null)
+      }
     })
 }

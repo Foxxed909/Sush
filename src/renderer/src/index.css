@@ -1697,3 +1697,10 @@ p { text-wrap: pretty; }
   background: transparent; color: var(--text-2); font: 500 12px/1 var(--font-ui); cursor: pointer;
 }
 .nightly-attention-act:hover { background: rgba(255,255,255,.06); }
+
+.nightly-thread-copy small.is-lineage { color: var(--text-3); font-family: var(--font-mono); }
+.nightly-context-lineage {
+  display: grid; gap: 4px; padding: 10px 14px; border-top: 1px solid var(--border-1);
+  color: var(--text-3); font-size: 12px;
+}
+.nightly-context-lineage strong { color: var(--text-1); font-weight: 500; }

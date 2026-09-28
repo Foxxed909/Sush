@@ -183,6 +183,7 @@ function makeTab(profile, options = {}) {
     agentId: options.agentId ?? null,
     model: options.model ?? null,
     effort: options.effort ?? null,
+    handoffFrom: options.handoffFrom ?? null,
     tag: options.tag ?? null,
     groupId: options.groupId ?? null,
     groupLabel: options.groupLabel ?? null,
@@ -1264,7 +1265,7 @@ export default function App() {
     return tab
   }, [profiles, rememberSession])
 
-  const launchSessions = useCallback(({ cwd, agents, groupLabel, prompt, groupId: intoGroupId, worktrees }) => {
+  const launchSessions = useCallback(({ cwd, agents, groupLabel, prompt, groupId: intoGroupId, worktrees, handoffFrom }) => {
     const prof = profiles[0]
     const targetCwd = cwd || null
     // Seducia's AI may emit bare agents ({id, count}) — fill command/label
@@ -1361,6 +1362,7 @@ export default function App() {
           agentId: spec.agent.id,
           model: spec.agent.model || null,
           effort: spec.agent.effort || null,
+          handoffFrom: handoffFrom || null,
           tag: `sess-${nextSessionTag++}`,
           groupId,
           groupLabel: label,
@@ -1876,7 +1878,9 @@ export default function App() {
   // either boot a fresh AGENT session that gets the brief typed in and
   // submitted once its TUI is up (launchSessions owns that timing), or paste
   // a single safe line at an existing session's prompt for the user to send.
-  const performHandoff = useCallback(({ targetId, fullText, injectText, openNew, agentId, sourceCwd }) => {
+  const performHandoff = useCallback(({ targetId, fullText, injectText, openNew, agentId, sourceCwd, sourceId }) => {
+    const source = tabsRef.current.find(t => t.id === sourceId)
+    const handoffFrom = source ? { id: source.id, agentId: source.agentId || null, label: source.label } : null
     window.sush.copyText(String(fullText || '')).catch(() => {})
     const oneLine = String(injectText || '').replace(/\r?\n+/g, ' | ').trim()
     if (openNew) {
@@ -1885,6 +1889,7 @@ export default function App() {
           cwd: sourceCwd || null,
           agents: [{ id: agentId, count: 1 }],
           groupLabel: 'Handoff',
+          handoffFrom,
           prompt: oneLine || undefined
         })
       } else {
@@ -1940,6 +1945,7 @@ export default function App() {
       openNew: true,
       agentId: fallback,
       sourceCwd: tab.workspaceCwd || tab.cwd || null,
+      sourceId: tabId,
       fullText: `# Sush limit handoff\nFrom: ${from} — "${tab.label}"\nDir: ${tab.cwd || 'unknown'}\n\n${summary || scroll.slice(-2000)}`,
       injectText: brief
     })
@@ -2823,7 +2829,7 @@ export default function App() {
           sourceId={handoffSource}
           tabs={tabs}
           build={buildHandoffCard}
-          onSubmit={performHandoff}
+          onSubmit={(payload) => performHandoff({ ...payload, sourceId: handoffSource })}
           onClose={() => setHandoffSource(null)}
         />
       )}
