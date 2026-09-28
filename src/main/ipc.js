@@ -34,6 +34,7 @@ import { getSttConfigPublic, setSttConfig, transcribe } from './stt'
 import { getCredits, resetCredits } from './credits'
 import { licensePublic, redeemCode, clearLicense, featuresOf, can, setLicenseChangeSender } from './license'
 import { resolveExecutable, shimSpawnSpec } from './exec'
+import { createCapabilityCache } from './provider-capabilities'
 import { parseGitPorcelainZ } from './git-porcelain'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
@@ -1225,6 +1226,9 @@ async function runRegisteredCommand({ tabId, input, passthroughUnknown = false }
 let handlersRegistered = false
 let mainWin = null
 const cliPresence = new Map()   // CLI name -> found on PATH (see sush:check-clis)
+// Provider CLI capabilities (flags/version from --version/--help). Probed once
+// per installed binary; a CLI upgrade changes its stat and re-probes.
+const providerCaps = createCapabilityCache()
 
 // ── Tray (minimize-to-tray, opt-in via Settings) ─────────────────────────────
 // Created lazily on the first tray-minimize; the icon is a tiny embedded PNG
@@ -1770,6 +1774,18 @@ export function registerIpcHandlers(win) {
       found[name] = cliPresence.get(name)
     }
     return { found }
+  })
+
+  // ── Provider capabilities (Nightly model/reasoning/resume menus) ─────────
+  // Only what the installed CLI's own --version/--help output shows; unknowns
+  // stay null. Nothing account-specific is probed, so no credentials or
+  // identity env are involved and a login change needs no re-probe.
+  ipcMain.handle('sush:provider-capabilities', async (event, { refresh } = {}) => {
+    try {
+      return { ok: true, providers: await providerCaps.all({ refresh: refresh === true }) }
+    } catch (e) {
+      return { ok: false, error: e?.message || 'capability probe failed' }
+    }
   })
 
   // ── Scrollback (for session handoff cards) ────────────────────────────────

@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('sush', {
   homeDir: () => ipcRenderer.invoke('sush:home-dir'),
   seduciaCli: (payload) => ipcRenderer.invoke('sush:seducia-cli', payload),
   checkClis: (payload) => ipcRenderer.invoke('sush:check-clis', payload),
+  providerCapabilities: (payload) => ipcRenderer.invoke('sush:provider-capabilities', payload),
   // CLI account slots (multi-account per identity)
   accountsList: () => ipcRenderer.invoke('sush:accounts-list'),
   accountsAdd: (payload) => ipcRenderer.invoke('sush:accounts-add', payload),
