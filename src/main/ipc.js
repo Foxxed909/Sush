@@ -982,6 +982,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   // session-specific path and records Claude's REAL interactive session_id +
   // transcript_path, binding structured data back to exactly this Sush tab.
   let threadEventFile = null
+  let threadSettingsFile = null
   let bridgedBootCommand = bootCommand
   if (agentId === 'claude' && bootCommand) {
     try {
@@ -998,6 +999,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
         // or create an event sink that no hook will ever write to.
         if (augmented && augmented !== bootCommand) {
           threadEventFile = prepareThreadEventFile(userData, tabId)
+          threadSettingsFile = settingsPath
           bridgedBootCommand = augmented
         }
       }
@@ -1026,7 +1028,10 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
       SUSH_PROFILE_ID: profileId ?? '',
       SUSH_SHELL_ID: requestedShell.id,
       SUSH_TAB_ID: tabId,
-      ...(threadEventFile ? { SUSH_THREAD_EVENT_PATH: threadEventFile } : {})
+      ...(threadEventFile ? {
+        SUSH_THREAD_EVENT_PATH: threadEventFile,
+        SUSH_CLAUDE_THREAD_SETTINGS: threadSettingsFile
+      } : {})
     }
   })
 
