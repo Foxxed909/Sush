@@ -434,6 +434,8 @@ export default function App() {
   const [, setProviderCapsVersion] = useState(0)
   // The Nightly composer hosts Hush's mic while it is mounted.
   const [hushSlot, setHushSlot] = useState(null)
+  // Launcher opened from a project's '+' starts in that project's folder.
+  const [launcherCwd, setLauncherCwd] = useState(null)
   useEffect(() => {
     let cancelled = false
     window.sush.providerCapabilities?.()
@@ -2246,6 +2248,13 @@ export default function App() {
             onSignOut={identity.signOut}
             onManageUsers={() => setShowUserManager(true)}
             onViewProfile={() => setShowProfile(true)}
+            onCloseSession={(id) => closeTab(id)}
+            onRenameSession={renameTab}
+            onDuplicateSession={duplicateTab}
+            onHandoffSession={(id) => setHandoffSource(id)}
+            onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
+            onCloseProject={(key) => tabsRef.current.filter(t => workspaceKey(t) === key).forEach(t => closeTab(t.id))}
+            onOpenPane={(pane, tabId) => { if (tabId) selectTab(tabId); setRightTab(pane); setRightOpen(true) }}
           />
         )}
 
@@ -2715,10 +2724,10 @@ export default function App() {
       {showLauncher && (
         <NewSessionModal
           accent={accent}
-          activeCwd={activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
+          activeCwd={launcherCwd || activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
           recentSessions={recentSessions}
           onLaunch={launchSessions}
-          onClose={() => setShowLauncher(false)}
+          onClose={() => { setShowLauncher(false); setLauncherCwd(null) }}
         />
       )}
 

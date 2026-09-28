@@ -321,6 +321,41 @@ await page.locator('.nightly-broadcast').click()
 if (await page.locator('.nightly-broadcast').count()) throw new Error('Nightly Broadcast pill did not turn broadcast off')
 await shot('02-terminal')
 
+// Session management must be reachable with the mouse: hover close button,
+// right-click menu (Rename / Duplicate / Hand off / Copy path / Close) and
+// inline rename. Escape leaves everything as it was.
+{
+  const row = page.locator('.nightly-thread-row').first()
+  await row.hover()
+  if (!(await row.locator('.nightly-thread-close').isVisible())) throw new Error('Nightly rail row shows no close button on hover')
+  await row.click({ button: 'right' })
+  const menu = page.locator('.nightly-ctx')
+  await menu.waitFor({ state: 'visible' })
+  const box = await menu.boundingBox()
+  if (!box || box.x < 0 || box.y < 0 || box.x + box.width > 1440 || box.y + box.height > 900) throw new Error('Nightly session menu is clipped off-screen')
+  for (const label of ['Rename', 'Duplicate', 'Hand off…', 'Copy path', 'Close session']) {
+    if (!(await menu.getByRole('menuitem', { name: new RegExp(label.replace('…', '')) }).count())) throw new Error(`Nightly session menu is missing ${label}`)
+  }
+  await shot('02h-session-menu')
+  await menu.getByRole('menuitem', { name: /Rename/ }).click()
+  const rename = page.locator('.nightly-thread-rename')
+  await rename.waitFor({ state: 'visible' })
+  await rename.fill('Renamed agent')
+  await rename.press('Enter')
+  if (!(await page.locator('.nightly-thread-row', { hasText: 'Renamed agent' }).count())) throw new Error('Nightly inline rename did not apply')
+  // Put the name back so the rest of the walk finds the same session.
+  await page.locator('.nightly-thread-row', { hasText: 'Renamed agent' }).dblclick()
+  await page.locator('.nightly-thread-rename').fill('Claude Code')
+  await page.locator('.nightly-thread-rename').press('Enter')
+  const head = page.locator('.nightly-workspace-head').first()
+  await head.click({ button: 'right' })
+  await page.locator('.nightly-ctx').getByRole('menuitem', { name: /Close \d+ session/ }).click()
+  if (!(await page.locator('.nightly-ctx-confirm').isVisible())) throw new Error('Closing a whole project must ask for confirmation')
+  await shot('02i-close-project-confirm')
+  await page.keyboard.press('Escape')
+  if (await page.locator('.nightly-ctx').count()) throw new Error('Escape did not close the rail menu')
+}
+
 // Agent lifecycle regression: duplicate + close + reopen must preserve the
 // provider/model/effort identity instead of degrading into a plain shell.
 const baseThreadCount = await page.locator('.nightly-thread-row').count()
