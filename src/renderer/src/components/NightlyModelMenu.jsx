@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import { modelSpecFor } from '../lib/nightlyModels'
 import { rgba } from '../lib/ui'
+import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
 export default function NightlyModelMenu({
   provider,
@@ -17,7 +18,7 @@ export default function NightlyModelMenu({
   const [nextEffort, setNextEffort] = useState(effort || '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const ref = useRef(null)
+  const anchorRef = useRef(null)
 
   useEffect(() => {
     if (!open) return
@@ -25,13 +26,6 @@ export default function NightlyModelMenu({
     setNextEffort(effort || '')
     setError('')
   }, [open, model, effort])
-
-  useEffect(() => {
-    if (!open) return
-    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
-  }, [open])
 
   const dirty = useMemo(
     () => String(nextModel || '').trim() !== String(model || '').trim()
@@ -51,10 +45,13 @@ export default function NightlyModelMenu({
   const listId = `nightly-active-models-${provider}`
 
   return (
-    <div ref={ref} className="nightly-model-menu">
+    <div className="nightly-model-menu">
       <button
+        ref={anchorRef}
         type="button"
         className="nightly-model-pill"
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen(v => !v)}
         title="Change model or reasoning for this session"
       >
@@ -63,8 +60,13 @@ export default function NightlyModelMenu({
         <Icon name="chevronDown" size={10} />
       </button>
 
-      {open && (
-        <div className="nightly-model-popover">
+      <NightlyAnchoredPopover
+        open={open}
+        anchorRef={anchorRef}
+        align="left"
+        className="nightly-model-popover"
+        onClose={() => setOpen(false)}
+      >
           <div className="nightly-model-popover-head">
             <span>Session model</span>
             <small>restart + resume</small>
@@ -134,8 +136,7 @@ export default function NightlyModelMenu({
               {busy ? 'Restarting…' : 'Apply'}
             </button>
           </div>
-        </div>
-      )}
+      </NightlyAnchoredPopover>
     </div>
   )
 }
