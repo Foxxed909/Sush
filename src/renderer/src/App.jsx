@@ -129,6 +129,13 @@ function nightlyWorkspaceKey(tab) {
   return tab.id ? `tab:${tab.id}` : null
 }
 
+function nightlySessionKey(tab) {
+  if (!tab) return null
+  if (tab.tag) return `tag:${tab.tag}`
+  if (tab.startedAt) return `started:${tab.startedAt}`
+  return tabKey(tab)
+}
+
 function tabKey(tab) {
   if (!tab) return 'none'
   const shell = tab.shell || 'powershell'
@@ -1088,7 +1095,7 @@ export default function App() {
           : previousPartner
             ? 'split'
             : 'focus',
-        splitKey: previousPartner ? tabKey(previousPartner) : null
+        splitKey: previousPartner ? nightlySessionKey(previousPartner) : null
       }
     }
 
@@ -1114,7 +1121,7 @@ export default function App() {
 
     if (saved?.layout === 'split' && scopedTabs.length > 1) {
       const activeNow = activeIdRef.current
-      const partner = scopedTabs.find(t => t.id !== activeNow && tabKey(t) === saved.splitKey)
+      const partner = scopedTabs.find(t => t.id !== activeNow && nightlySessionKey(t) === saved.splitKey)
         || scopedTabs.find(t => t.id !== activeNow)
       if (partner) {
         setGridMode(false)
@@ -1151,10 +1158,10 @@ export default function App() {
         : partner
           ? 'split'
           : 'focus',
-      splitKey: partner ? tabKey(partner) : null
+      splitKey: partner ? nightlySessionKey(partner) : null
     }
     saveNightlyWorkspaceUi(map)
-  }, [rightTab, rightOpen, gridMode, splitId, activeId, tabs])
+  }, [rightTab, rightOpen, gridMode, splitId])
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
