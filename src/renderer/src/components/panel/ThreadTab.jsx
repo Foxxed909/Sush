@@ -107,7 +107,7 @@ export default function ThreadTab({ accent, activeTab }) {
     <div className="flex flex-col" style={{ height: '100%' }}>
       <TabHeader accent={accent} icon="fileText" title="Thread" sub={sub} onRefresh={read} />
       <div className="nightly-thread-notice">
-        <Icon name="info" size={12} />
+        <Icon name="sparkles" size={12} />
         <span>
           Same live Claude Code session. Sush renders only structured transcript records Claude has actually persisted; raw terminal remains the source of truth.
         </span>
