@@ -16,12 +16,14 @@ export default function NightlyModelMenu({
   const [nextModel, setNextModel] = useState(model || '')
   const [nextEffort, setNextEffort] = useState(effort || '')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const ref = useRef(null)
 
   useEffect(() => {
     if (!open) return
     setNextModel(model || '')
     setNextEffort(effort || '')
+    setError('')
   }, [open, model, effort])
 
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function NightlyModelMenu({
           <div className="nightly-model-popover-note">
             Applying restarts this CLI and resumes its conversation in the same project.
           </div>
+          {error && <div className="nightly-model-popover-error">{error}</div>}
 
           <div className="nightly-model-popover-actions">
             <button type="button" className="is-quiet" onClick={() => { setOpen(false); onOpenLauncher?.() }}>
@@ -111,12 +114,21 @@ export default function NightlyModelMenu({
               onClick={async () => {
                 if (!dirty || busy) return
                 setBusy(true)
+                setError('')
                 const result = await onApply?.({
                   model: String(nextModel || '').trim() || null,
                   effort: String(nextEffort || '').trim() || null
                 })
                 setBusy(false)
-                if (result?.ok !== false) setOpen(false)
+                if (result?.ok !== false) {
+                  setOpen(false)
+                } else {
+                  setError(result?.error === 'invalid-model'
+                    ? 'Use a provider model ID without spaces or shell characters.'
+                    : result?.error === 'invalid-effort'
+                      ? 'That reasoning level is not supported by this provider.'
+                      : 'This session cannot be resumed with that setting.')
+                }
               }}
             >
               {busy ? 'Restarting…' : 'Apply'}
