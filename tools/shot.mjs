@@ -144,13 +144,6 @@ const stub = `
     ] : [] }),
     onPtyData: (fn) => { ptyListeners.push(fn); return () => {} },
     onPtyState: (fn) => { stateListeners.push(fn); return () => {} },
-    onClaudePanelEvent: (fn) => {
-      const t = setTimeout(() => {
-        fn({ panelId: 'nightly-demo', kind: 'init', cwd: '/home/taylor/sush', model: 'claude-sonnet-5', sessionId: 'demo-session' })
-        fn({ panelId: 'nightly-demo', kind: 'usage', contextTokens: 28640, outputTokens: 1337 })
-      }, 600)
-      return () => clearTimeout(t)
-    }
   }
   window.sush = new Proxy(answers, {
     get(target, prop) {
