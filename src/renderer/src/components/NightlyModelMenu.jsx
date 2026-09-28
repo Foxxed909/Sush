@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
-import { effortLabelFor, effortOptionsFor, modelSpecFor } from '../lib/nightlyModels'
+import { effortLabelFor, effortOptionsFor, modelSpecFor, providerCapabilities } from '../lib/nightlyModels'
 import { rgba } from '../lib/ui'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
@@ -13,6 +13,8 @@ export default function NightlyModelMenu({
   onOpenLauncher
 }) {
   const spec = modelSpecFor(provider)
+  const capability = providerCapabilities(provider)
+  const resumeUnsupported = capability?.resume === false
   const [open, setOpen] = useState(false)
   const [nextModel, setNextModel] = useState(model || '')
   const [nextEffort, setNextEffort] = useState(effort || '')
@@ -75,7 +77,10 @@ export default function NightlyModelMenu({
       >
           <div className="nightly-model-popover-head">
             <span>Session model</span>
-            <small>restart + resume</small>
+            <small>
+              {capability?.version ? `v${capability.version}` : 'provider CLI'}
+              {capability?.resume === true ? ' · resume' : capability?.resume === false ? ' · no resume' : ''}
+            </small>
           </div>
 
           <label className="nightly-field">
@@ -107,7 +112,9 @@ export default function NightlyModelMenu({
           )}
 
           <div className="nightly-model-popover-note">
-            Applying restarts this CLI and resumes its conversation in the same project.
+            {resumeUnsupported
+              ? 'This installed CLI does not advertise conversation resume, so live model/reasoning changes are disabled.'
+              : 'Applying restarts this CLI and resumes its conversation in the same project.'}
           </div>
           {error && <div className="nightly-model-popover-error">{error}</div>}
 
@@ -118,7 +125,7 @@ export default function NightlyModelMenu({
             <button
               type="button"
               className="is-primary"
-              disabled={!dirty || busy}
+              disabled={!dirty || busy || resumeUnsupported}
               style={{ '--model-accent': accent, '--model-accent-bg': rgba(accent, .12) }}
               onClick={async () => {
                 if (!dirty || busy) return
