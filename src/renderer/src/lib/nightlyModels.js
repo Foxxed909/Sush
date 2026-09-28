@@ -17,7 +17,10 @@ export const NIGHTLY_MODEL_SPECS = {
     placeholder: 'sonnet, opus, or full model id',
     effort: {
       label: 'Effort',
-      options: ['', 'low', 'medium', 'high', 'xhigh', 'max', 'ultracode'],
+      options: ['', 'low', 'medium', 'high', 'xhigh', 'max'],
+      // Claude Code exposes low/medium/high/xhigh/max; exact availability can
+      // still vary by model/version, so Sush never invents provider-specific
+      // values beyond the CLI's own effort vocabulary.
       command: value => `--effort ${value}`
     }
   },
