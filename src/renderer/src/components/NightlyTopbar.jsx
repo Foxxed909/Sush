@@ -50,14 +50,15 @@ export default function NightlyTopbar({
 }) {
   const [branch, setBranch] = useState(null)
 
+  const gitRoot = activeTab?.sessionRootCwd || activeTab?.workspaceCwd || activeTab?.cwd
   useEffect(() => {
-    if (!activeTab?.cwd) { setBranch(null); return }
+    if (!gitRoot) { setBranch(null); return }
     let cancelled = false
-    window.sush.gitStatus?.({ cwd: activeTab.cwd })
+    window.sush.gitStatus?.({ cwd: gitRoot })
       .then(g => { if (!cancelled) setBranch(g?.repo ? g.branch : null) })
       .catch(() => { if (!cancelled) setBranch(null) })
     return () => { cancelled = true }
-  }, [activeTab?.cwd])
+  }, [gitRoot])
 
   const workspaceTabs = useMemo(() => {
     const root = activeTab?.workspaceCwd || activeTab?.cwd
