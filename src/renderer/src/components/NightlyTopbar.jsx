@@ -65,9 +65,14 @@ export default function NightlyTopbar({
   }, [tabs, activeTab])
 
   const workspaceCount = useMemo(() => {
-    const keys = new Set(tabs.map(t => String(t.workspaceCwd || t.cwd || t.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()))
+    const keys = new Set(
+      tabs
+        .map(t => String(t.workspaceCwd || t.cwd || t.groupId || '').replace(/[\\/]+$/, '').toLowerCase())
+        .filter(Boolean)
+    )
     return keys.size
   }, [tabs])
+  const liveSessionCount = useMemo(() => tabs.filter(t => t.status !== 'exited').length, [tabs])
   const hasSession = !!activeTab?.id
 
   const stateId = activeTab?.status === 'exited' ? 'error' : (activity[activeTab?.id] || 'idle')
