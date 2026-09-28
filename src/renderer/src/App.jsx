@@ -1570,6 +1570,9 @@ export default function App() {
       return {
         ...tab,
         cwd,
+        // Sessions opened without an explicit project latch the first cwd the
+        // PTY reports. Later OSC7 directory changes update cwd, not project identity.
+        workspaceCwd: tab.workspaceCwd || cwd || null,
         shell,
         shellLabel,
         status: state.status ?? tab.status,
