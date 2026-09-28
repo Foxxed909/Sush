@@ -504,6 +504,16 @@ await shot('05d-pane-restore')
 await page.keyboard.press('Control+b')
 await page.waitForTimeout(200)
 
+// Save Split for this project; the reload assertion below verifies that the
+// preset reconstructs from a stable session key rather than a runtime tab id.
+await layoutButton.click()
+await page.locator('.nightly-layout-popover').getByText('Split', { exact: true }).click()
+await page.waitForTimeout(450)
+if (await page.locator('[data-nightly-tile="1"]').count() !== 2) {
+  throw new Error('Nightly could not enter the Split preset before persistence test')
+}
+await shot('05e-saved-split')
+
 // 6 — Settings
 await page.keyboard.press('Control+,')
 await shot('06-settings')
@@ -543,6 +553,16 @@ await page.waitForTimeout(1200)
 if (await page.locator('.nightly-workspace').count() !== 2) {
   throw new Error('Nightly project root was not preserved across persisted session reload')
 }
+
+if (await page.locator('[data-nightly-tile="1"]').count() !== 2) {
+  throw new Error('Nightly saved Split preset was not restored after reload')
+}
+await shot('07b-restored-split')
+
+// Keep the launcher screenshot calm after proving the saved preset.
+await layoutButton.click()
+await page.locator('.nightly-layout-popover').getByText('Focus', { exact: true }).click()
+await page.waitForTimeout(300)
 
 // 8 — New session launcher with provider model/reasoning controls visible.
 await page.keyboard.press('Control+Shift+n')
