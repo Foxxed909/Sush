@@ -91,7 +91,7 @@ export default function ThreadTab({ accent, activeTab }) {
 
   if (!supported) {
     return (
-      <PanelEmpty icon="messageSquare" accent={accent} hint="Thread is enabled only when Sush can bind structured records to the exact same live provider session.">
+      <PanelEmpty icon="fileText" accent={accent} hint="Thread is enabled only when Sush can bind structured records to the exact same live provider session.">
         Structured Thread is not available for this session yet.
       </PanelEmpty>
     )
@@ -104,7 +104,7 @@ export default function ThreadTab({ accent, activeTab }) {
 
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
-      <TabHeader accent={accent} icon="messageSquare" title="Thread" sub={sub} onRefresh={read} />
+      <TabHeader accent={accent} icon="fileText" title="Thread" sub={sub} onRefresh={read} />
       <div className="nightly-thread-notice">
         <Icon name="info" size={12} />
         <span>
