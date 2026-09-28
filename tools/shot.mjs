@@ -535,6 +535,10 @@ if (await modelButton.count()) {
     if (!box || box.height < 150 || box.x < 0 || box.x + box.width > 1440 || box.y + box.height > 900) {
       throw new Error('Nightly model popover is mounted but clipped/off-screen')
     }
+    const modelMeta = await modelPopover.innerText()
+    if (!modelMeta.includes('v2.1.14') || !modelMeta.includes('resume')) {
+      throw new Error('Nightly live model menu did not surface detected provider capability status')
+    }
   }
   await shot('02c-model-menu')
 
