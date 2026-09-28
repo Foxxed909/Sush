@@ -1340,7 +1340,13 @@ export default function App() {
         profileId: closing.profileId,
         shell: closing.shell,
         shellLabel: closing.shellLabel,
-        label: closing.label
+        label: closing.label,
+        bootCommand: closing.bootCommand || null,
+        agentId: closing.agentId || null,
+        model: closing.model || null,
+        effort: closing.effort || null,
+        groupId: closing.groupId || null,
+        groupLabel: closing.groupLabel || null
       })
       if (lastClosedRef.current.length > 10) lastClosedRef.current.shift()
     }
@@ -1489,13 +1495,27 @@ export default function App() {
   const reopenLastClosed = useCallback(() => {
     const last = lastClosedRef.current.pop()
     if (!last) { openTab(profiles[0]); return }
-    if (last.cwd) {
-      findOrOpenCwd(last.cwd, { label: last.label, profileId: last.profileId, shell: last.shell, shellLabel: last.shellLabel })
-    } else {
-      const prof = profiles.find(p => p.id === last.profileId) ?? profiles[0]
-      openTab(prof, { shell: last.shell, label: last.label })
-    }
-  }, [findOrOpenCwd, openTab, profiles])
+
+    const prof = profiles.find(p => p.id === last.profileId) ?? profiles[0]
+    const agent = last.agentId && last.agentId !== 'shell' ? agentById(last.agentId) : null
+    const command = agent
+      ? (buildAgentCommand(agent, { model: last.model, effort: last.effort, resume: true }) || last.bootCommand || undefined)
+      : (last.bootCommand || undefined)
+
+    openTab(prof, {
+      cwd: last.cwd || null,
+      shell: last.shell,
+      shellLabel: last.shellLabel,
+      label: last.label,
+      command,
+      agentId: last.agentId || null,
+      model: last.model || null,
+      effort: last.effort || null,
+      groupId: last.groupId || null,
+      groupLabel: last.groupLabel || null,
+      tag: `reopen-${Date.now()}`
+    })
+  }, [openTab, profiles])
 
   const queuePtyCommand = useCallback((input, cwd) => {
     const target = cwd ? findOrOpenCwd(cwd) : (tabsRef.current.find(tab => tab.id === activeId) ?? tabsRef.current[0])
@@ -1518,7 +1538,21 @@ export default function App() {
     const tab = tabsRef.current.find(t => t.id === id)
     if (!tab) return
     const prof = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
-    openTab(prof, { cwd: tab.cwd, shell: tab.shell, label: `${tab.label} (copy)`, tag: `copy-${Date.now()}` })
+    const agent = tab.agentId && tab.agentId !== 'shell' ? agentById(tab.agentId) : null
+    openTab(prof, {
+      cwd: tab.cwd,
+      shell: tab.shell,
+      label: `${tab.label} (copy)`,
+      command: agent
+        ? (buildAgentCommand(agent, { model: tab.model, effort: tab.effort }) || tab.bootCommand || undefined)
+        : (tab.bootCommand || undefined),
+      agentId: tab.agentId || null,
+      model: tab.model || null,
+      effort: tab.effort || null,
+      groupId: tab.groupId || null,
+      groupLabel: tab.groupLabel || null,
+      tag: `copy-${Date.now()}`
+    })
   }, [profiles, openTab])
 
   // ── Usage Guard (Pro+) ─────────────────────────────────────────────────────
@@ -1589,7 +1623,7 @@ export default function App() {
   // A limited Claude (or any agent) session's work continues on another model:
   // summarize the session with a NON-limited CLI, then launch the fallback
   // agent in the same directory with the summary as its brief — so hitting a
-  // limit never cuts the task off mid-flight. Used by Mission Control's
+  // limit never cuts the task off mid-flight. Used by Nightly Overview's
   // "Hand off →" and by the Usage Guard's hands-free mode.
   const performLimitHandoff = useCallback(async (tabId) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
