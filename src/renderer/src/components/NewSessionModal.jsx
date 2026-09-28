@@ -91,6 +91,23 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     await Promise.allSettled([rescan(), loadCapabilities(true)])
   }
 
+  // If a saved crew references a CLI that is no longer installed, drop that
+  // stale selection once availability is known. Otherwise an invisible missing
+  // provider can consume the swarm cap even though launch() correctly skips it.
+  useEffect(() => {
+    setCounts(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const [id, count] of Object.entries(next)) {
+        if (count > 0 && unavailable(id)) {
+          next[id] = 0
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [avail, capabilities])
+
   // Never carry an entitlement-only setting into a lower-tier launch.
   useEffect(() => {
     if (!developerWorkflows) setWorktrees(false)
@@ -121,7 +138,8 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   }
   const saveCurrentCrew = () => {
     const name = sessionName.trim() || pathLabel(cwd) || 'Crew'
-    const r = saveCrew({ name, cwd: cwd.trim() || null, counts, models, efforts, brief: brief.trim() })
+    const safeCounts = Object.fromEntries(Object.entries(counts).filter(([id, count]) => count > 0 && !unavailable(id)))
+    const r = saveCrew({ name, cwd: cwd.trim() || null, counts: safeCounts, models, efforts, brief: brief.trim() })
     if (r.ok) setCrews(r.crews)
   }
   const removeCrew = (id) => { const r = deleteCrew(id); setCrews(r.crews) }
@@ -159,7 +177,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     setCounts(prev => {
       const next = Math.max(0, value)
       // Respect the swarm cap across all agents.
-      const others = Object.entries(prev).reduce((sum, [key, n]) => key === id ? sum : sum + (n || 0), 0)
+      const others = Object.entries(prev).reduce((sum, [key, n]) => key === id || unavailable(key) ? sum : sum + (n || 0), 0)
       const capped = Math.min(next, MAX_SESSIONS - others)
       return { ...prev, [id]: capped }
     })
