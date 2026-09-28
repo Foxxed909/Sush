@@ -105,7 +105,7 @@ does not bind to the interactive session).
 
 Everything below is on `claude/roadmap-development-continue-i32p2l`; the visual
 walk (`tools/shot.mjs`) asserts each of these, and unit tests cover the pure
-parts (180 tests).
+parts (177 tests).
 
 - **Seducia no longer trusts model output.** `lib/seduciaSafety.js`: launches
   keep only `{id, count, model, effort}` for catalogued agents (the model can
