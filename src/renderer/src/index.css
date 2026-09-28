@@ -1318,3 +1318,9 @@ p { text-wrap: pretty; }
   padding: 7px 8px 4px; margin-top: 3px; border-top: 1px solid var(--border-1);
   color: var(--text-5); font-size: 7.75px; line-height: 1.4;
 }
+
+.nightly-model-popover-error {
+  margin: 5px 5px 0; padding: 6px 8px; border: 1px solid rgba(255,83,112,.22);
+  border-radius: 7px; background: rgba(255,83,112,.06); color: #ff9aad;
+  font-size: 8px; line-height: 1.35;
+}
