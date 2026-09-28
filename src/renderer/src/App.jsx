@@ -1055,7 +1055,7 @@ export default function App() {
   }, [digestBusy])
 
   // 2-up split (Ctrl+\): state + toggle live in useSplitView.
-  const { splitId, setSplitId, toggleSplit } = useSplitView({ tabs, tabsRef, mruRef, activeIdRef, setBootedIds, setView })
+  const { splitId, setSplitId } = useSplitView({ tabs, tabsRef, mruRef, activeIdRef, setBootedIds, setView })
 
   const currentWorkspaceTabs = useCallback(() => {
     const anchor = tabsRef.current.find(t => t.id === activeIdRef.current)
@@ -1867,7 +1867,7 @@ export default function App() {
     else if (action === 'export-md') exportSessionOutput(undefined, 'md')
     else if (action === 'copy-output') copySessionOutput()
     else if (action === 'reopen') reopenLastClosed()
-    else if (action === 'split') toggleSplit()
+    else if (action === 'split') toggleWorkspaceSplit()
     else if (action === 'hunt') setShowHunt(true)
     else if (action === 'digest') {
       const active = tabsRef.current.find(t => t.id === activeIdRef.current)
@@ -1880,13 +1880,7 @@ export default function App() {
     else if (action === 'manage-users') setShowUserManager(true)
     else if (action === 'broadcast') setBroadcastMode(prev => !prev)
     else if (action === 'feather') saveSettings(withFeather(settings, !isFeather(settings)))
-    else if (action === 'grid') {
-      setGridMode(prev => {
-        if (!prev && tabsRef.current.length < 2) return prev
-        if (!prev) setView('terminal')
-        return !prev
-      })
-    }
+    else if (action === 'grid') toggleWorkspaceGrid()
     else if (action?.startsWith?.('session:')) {
       const id = action.slice('session:'.length)
       setActiveId(id); setView('terminal')
@@ -1912,7 +1906,7 @@ export default function App() {
         prompt: crew.brief || undefined
       })
     }
-  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleSplit, launchSessions, buildWorkspaceDigest])
+  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleWorkspaceSplit, toggleWorkspaceGrid, launchSessions, buildWorkspaceDigest])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
@@ -1927,7 +1921,7 @@ export default function App() {
       { id: 'act-reopen', label: 'Reopen Closed Session', description: 'Bring back the last session you closed (Ctrl+Shift+T)', icon: 'clock', action: 'reopen' },
       { id: 'act-hunt', label: 'Hunt Session Output', description: 'Search every session\'s output, live and saved (Ctrl+Shift+F)', icon: 'search', action: 'hunt' },
       { id: 'act-digest', label: 'Workspace Digest', description: 'AI crew report of this workspace\'s sessions, saved as Markdown', icon: 'fileText', action: 'digest' },
-      { id: 'act-split', label: 'Toggle Split View', description: 'Active session + the previous one, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
+      { id: 'act-split', label: 'Toggle Split View', description: 'Two sessions from this project, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
       { id: 'act-plans', label: 'Plans & Upgrade', description: 'Compare tiers, redeem an unlock code', icon: 'star', action: 'plans' },
       { id: 'act-changelog', label: 'What’s New', description: 'Recent changes and release notes', icon: 'sparkles', action: 'changelog' },
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
