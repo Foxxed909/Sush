@@ -1490,7 +1490,7 @@ export default function App() {
     const requestedModel = next.model ?? null
     const requestedEffort = next.effort ?? null
     const model = requestedModel == null ? null : normalizeModel(provider, requestedModel)
-    const effort = requestedEffort == null ? null : normalizeEffort(provider, requestedEffort)
+    const effort = requestedEffort == null ? null : normalizeEffort(provider, requestedEffort, model || requestedModel)
     if (requestedModel && !model) return { ok: false, error: 'invalid-model' }
     if (requestedEffort && !effort) return { ok: false, error: 'invalid-effort' }
     const command = buildAgentCommand(agent, { model, effort, resume: true })
