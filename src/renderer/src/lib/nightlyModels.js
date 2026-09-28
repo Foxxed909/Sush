@@ -18,9 +18,9 @@ export const NIGHTLY_MODEL_SPECS = {
     effort: {
       label: 'Effort',
       options: ['', 'low', 'medium', 'high', 'xhigh', 'max'],
-      // Claude Code exposes low/medium/high/xhigh/max; exact availability can
-      // still vary by model/version, so Sush never invents provider-specific
-      // values beyond the CLI's own effort vocabulary.
+      // `--effort` accepts low/medium/high/xhigh/max. Claude's interactive
+      // `ultracode` mode is a separate workflow/session feature, not a valid
+      // value for this CLI flag, so Nightly deliberately does not emit it.
       command: value => `--effort ${value}`
     }
   },
