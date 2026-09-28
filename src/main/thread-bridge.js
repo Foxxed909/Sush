@@ -1,5 +1,5 @@
 import {
-  existsSync, mkdirSync, openSync, closeSync, readFileSync, readSync, statSync, writeFileSync
+  existsSync, mkdirSync, openSync, closeSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync
 } from 'fs'
 import { basename, dirname, join } from 'path'
 
@@ -58,6 +58,18 @@ export function prepareThreadEventFile(userData, tabId) {
   if (!path) return null
   writeFileSync(path, '', { encoding: 'utf8', mode: 0o600 })
   return path
+}
+
+export function cleanupThreadEventFile(userData, tabId) {
+  const path = threadEventPath(userData, tabId)
+  if (!path) return false
+  try {
+    unlinkSync(path)
+    return true
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false
+    throw error
+  }
 }
 
 export function augmentClaudeCommand(command, settingsPath, shell = {}) {
