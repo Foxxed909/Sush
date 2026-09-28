@@ -1334,9 +1334,11 @@ export default function App() {
   // matches an existing one (openTab otherwise dedupes by cwd).
   const addToGroup = useCallback((block) => {
     if (!block?.id) return
-    const cwd = block.tabs?.find(t => t.cwd)?.cwd ?? null
+    const anchor = block.tabs?.find(t => t.workspaceCwd || t.cwd)
+    const cwd = anchor?.workspaceCwd || anchor?.cwd || null
     openTab(profiles[0], {
       cwd,
+      workspaceCwd: cwd,
       groupId: block.id,
       groupLabel: block.label,
       tag: `sess-${nextSessionTag++}`
@@ -1782,7 +1784,7 @@ export default function App() {
     performHandoff({
       openNew: true,
       agentId: fallback,
-      sourceCwd: tab.cwd || null,
+      sourceCwd: tab.workspaceCwd || tab.cwd || null,
       fullText: `# Sush limit handoff\nFrom: ${from} — "${tab.label}"\nDir: ${tab.cwd || 'unknown'}\n\n${summary || scroll.slice(-2000)}`,
       injectText: brief
     })
@@ -1911,7 +1913,10 @@ export default function App() {
       const id = action.slice('crew:'.length)
       const crew = loadCrews().find(c => c.id === id)
       if (crew) launchSessions({
-        cwd: crew.cwd || activeIdRef.current && tabsRef.current.find(t => t.id === activeIdRef.current)?.cwd || null,
+        cwd: crew.cwd || activeIdRef.current && (() => {
+          const active = tabsRef.current.find(t => t.id === activeIdRef.current)
+          return active?.workspaceCwd || active?.cwd || null
+        })(),
         agents: crewToAgents(crew, agentById),
         groupLabel: crew.name,
         prompt: crew.brief || undefined
