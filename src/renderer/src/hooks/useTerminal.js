@@ -16,7 +16,8 @@ export function useTerminal({
   initialCwd,
   bootCommand,
   fontSize = 14,
-  fontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
+  fontFamily = "'Cascadia Code', 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace",
+  lineHeight = 1.4,
   cursorStyle = 'block',
   broadcastTabIds,
   restoreKey,
@@ -132,7 +133,8 @@ export function useTerminal({
     const term = new Terminal({
       fontFamily,
       fontSize,
-      lineHeight: 1.4,
+      lineHeight,
+      letterSpacing: 0,
       cursorBlink: true,
       cursorStyle,
       theme: theme?.xterm,
@@ -367,6 +369,14 @@ export function useTerminal({
       resizePty()
     }
   }, [fontFamily, resizePty, safeFit])
+
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.lineHeight = lineHeight
+      safeFit()
+      resizePty()
+    }
+  }, [lineHeight, resizePty, safeFit])
 
   useEffect(() => {
     if (termRef.current) {
