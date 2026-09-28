@@ -301,6 +301,19 @@ await shot('02-git-changes')
 await page.keyboard.press('Control+b')
 await page.waitForTimeout(250)
 
+// Context telemetry is intentionally honest even when numeric fill is unknown;
+// the chip still opens the factual observed-context inspector.
+const contextChip = page.locator('.nightly-context-chip').first()
+if (!(await contextChip.count())) throw new Error('Nightly Context chip is missing for an agent session')
+await contextChip.click()
+await page.waitForTimeout(450)
+if (!(await page.locator('.nightly-inspector').getByText('Context', { exact: true }).first().count())) {
+  throw new Error('Nightly Context chip did not open the Context inspector')
+}
+await shot('02-context-chip')
+await page.keyboard.press('Control+b')
+await page.waitForTimeout(250)
+
 // Agent lifecycle regression: duplicate + close + reopen must preserve the
 // provider/model/effort identity instead of degrading into a plain shell.
 const baseThreadCount = await page.locator('.nightly-thread-row').count()
