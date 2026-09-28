@@ -5,13 +5,14 @@ import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
 
 function workspaceKey(tab) {
-  return String(tab.cwd || tab.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
+  return String(tab.workspaceCwd || tab.cwd || tab.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
 }
 
 function workspaceLabel(tab) {
-  if (!tab.cwd) return tab.groupLabel || 'Unassigned'
-  const parts = String(tab.cwd).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
-  return parts[parts.length - 1] || tab.cwd
+  const root = tab.workspaceCwd || tab.cwd
+  if (!root) return tab.groupLabel || 'Unassigned'
+  const parts = String(root).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || root
 }
 
 function memLabel(mb) {
@@ -34,7 +35,7 @@ export default function NightlyOverview({
     const map = new Map()
     for (const tab of tabs) {
       const key = workspaceKey(tab)
-      if (!map.has(key)) map.set(key, { key, label: workspaceLabel(tab), cwd: tab.cwd || '', tabs: [] })
+      if (!map.has(key)) map.set(key, { key, label: workspaceLabel(tab), cwd: tab.workspaceCwd || tab.cwd || '', tabs: [] })
       map.get(key).tabs.push(tab)
     }
     return [...map.values()]
