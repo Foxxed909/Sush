@@ -140,7 +140,7 @@ function tabKey(tab) {
   if (!tab) return 'none'
   const shell = tab.shell || 'powershell'
   const profileId = tab.profileId || 'powershell'
-  const cwd = normalizePathKey(tab.cwd)
+  const cwd = normalizePathKey(tab.sessionRootCwd || tab.cwd)
   if (!cwd) {
     const unique = tab.tag || tab.startedAt || tab.id
     return `${profileId}:${shell}:new:${unique}`
@@ -275,8 +275,8 @@ function loadSessionLayout(profiles) {
         profileLabel: item.profileLabel,
         shell: item.shell,
         shellLabel: item.shellLabel,
-        cwd: item.cwd,
-        workspaceCwd: item.workspaceCwd ?? item.cwd,
+        cwd: item.sessionRootCwd ?? item.cwd,
+        workspaceCwd: item.workspaceCwd ?? item.sessionRootCwd ?? item.cwd,
         sessionRootCwd: item.sessionRootCwd ?? item.cwd,
         command: resumeAgents ? restoreBootCommand(item) : null,
         agentId: item.agentId,
@@ -1616,8 +1616,8 @@ export default function App() {
     const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel } = tab
     closeTab(tabId, { rememberClosed: false, returnHome: false })
     openTab(profiles[0], {
-      cwd,
-      workspaceCwd: workspaceCwd || cwd,
+      cwd: sessionRootCwd || cwd,
+      workspaceCwd: workspaceCwd || sessionRootCwd || cwd,
       sessionRootCwd: sessionRootCwd || cwd,
       agentId: provider,
       model,
@@ -1642,8 +1642,8 @@ export default function App() {
       const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, model, effort } = tab
       closeTab(tabId, { rememberClosed: false, returnHome: false })
       openTab(profiles[0], {
-        cwd,
-        workspaceCwd: workspaceCwd || cwd,
+        cwd: sessionRootCwd || cwd,
+        workspaceCwd: workspaceCwd || sessionRootCwd || cwd,
         sessionRootCwd: sessionRootCwd || cwd,
         agentId: provider,
         model: model || null,
@@ -1752,8 +1752,8 @@ export default function App() {
       : (last.bootCommand || undefined)
 
     openTab(prof, {
-      cwd: last.cwd || null,
-      workspaceCwd: last.workspaceCwd || last.cwd || null,
+      cwd: last.sessionRootCwd || last.cwd || null,
+      workspaceCwd: last.workspaceCwd || last.sessionRootCwd || last.cwd || null,
       sessionRootCwd: last.sessionRootCwd || last.cwd || null,
       shell: last.shell,
       shellLabel: last.shellLabel,
@@ -1791,8 +1791,8 @@ export default function App() {
     const prof = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
     const agent = tab.agentId && tab.agentId !== 'shell' ? agentById(tab.agentId) : null
     openTab(prof, {
-      cwd: tab.cwd,
-      workspaceCwd: tab.workspaceCwd || tab.cwd,
+      cwd: tab.sessionRootCwd || tab.cwd,
+      workspaceCwd: tab.workspaceCwd || tab.sessionRootCwd || tab.cwd,
       sessionRootCwd: tab.sessionRootCwd || tab.cwd,
       shell: tab.shell,
       label: `${tab.label} (copy)`,
