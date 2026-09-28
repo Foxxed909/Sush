@@ -42,7 +42,14 @@ export default function NightlyModelLaunchSettings({ agents = [], counts = {}, m
                   <input
                     list={listId}
                     value={models[agent.id] || ''}
-                    onChange={e => onChange?.(agent.id, e.target.value)}
+                    onChange={e => {
+                      const nextModel = e.target.value
+                      onChange?.(agent.id, nextModel)
+                      const selectedEffort = efforts[agent.id] || ''
+                      if (selectedEffort && !effortOptionsFor(agent.id, nextModel).includes(selectedEffort)) {
+                        onEffortChange?.(agent.id, '')
+                      }
+                    }}
                     placeholder={spec.placeholder}
                     spellCheck={false}
                     style={{
