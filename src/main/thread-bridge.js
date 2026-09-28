@@ -10,19 +10,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'Notification', 'Stop', 'SessionEnd']
 
-function quoteArg(value, { shellId = '', platform = process.platform } = {}) {
-  const text = String(value ?? '')
+function settingsEnvArg({ shellId = '', platform = process.platform } = {}) {
   const shell = String(shellId || '').toLowerCase()
-  if (shell === 'powershell' || shell === 'pwsh') {
-    return `'${text.replace(/'/g, "''")}'`
-  }
-  if (platform === 'win32' && (shell === 'cmd' || shell === 'cmd.exe')) {
-    return `"${text.replace(/"/g, '""')}"`
-  }
-  // bash/zsh/sh/fish and Git/WSL shells all accept a literal single-quoted
-  // path; the standard close-quote + escaped quote + reopen sequence handles
-  // the rare apostrophe in a user-data path without expansion.
-  return `'${text.replace(/'/g, `'\\''`)}'`
+  if (shell === 'powershell' || shell === 'pwsh') return '"$env:SUSH_CLAUDE_THREAD_SETTINGS"'
+  if (platform === 'win32' && (shell === 'cmd' || shell === 'cmd.exe')) return '"%SUSH_CLAUDE_THREAD_SETTINGS%"'
+  return '"$SUSH_CLAUDE_THREAD_SETTINGS"'
 }
 
 export function claudeHookCommand(platform = process.platform) {
@@ -75,7 +67,7 @@ export function augmentClaudeCommand(command, settingsPath, shell = {}) {
   // Respect an explicit user-provided settings source rather than silently
   // changing its semantics. Built-in Sush Claude launches do not set one.
   if (/(?:^|\s)--settings(?:\s|=)/i.test(source)) return source
-  return `${source} --settings ${quoteArg(settingsPath, shell)}`
+  return `${source} --settings ${settingsEnvArg(shell)}`
 }
 
 function readTail(path, maxBytes) {
