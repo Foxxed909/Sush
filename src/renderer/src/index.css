@@ -892,8 +892,16 @@ p { text-wrap: pretty; }
 .nightly-topbar.is-inspector-open .nightly-thread-name { max-width: 125px; }
 .nightly-topbar.is-inspector-open .nightly-meta-context,
 .nightly-topbar.is-inspector-open .nightly-meta-usage,
-.nightly-topbar.is-inspector-open .nightly-meta-count {
+.nightly-topbar.is-inspector-open .nightly-meta-count,
+.nightly-topbar.is-inspector-open .nightly-branch {
   display: none;
+}
+.nightly-topbar.is-inspector-open .nightly-provider-label,
+.nightly-topbar.is-inspector-open .nightly-account-label {
+  display: none;
+}
+.nightly-topbar.is-inspector-open .nightly-meta-provider strong {
+  margin-left: -2px;
 }
 .nightly-topbar.is-inspector-open .nightly-chip { padding-left: 6px; padding-right: 6px; }
 .nightly-topbar.is-inspector-open .nightly-action-btn { padding-left: 8px; padding-right: 8px; }
