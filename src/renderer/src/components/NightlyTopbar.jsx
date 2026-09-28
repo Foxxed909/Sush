@@ -46,16 +46,29 @@ export default function NightlyTopbar({
   onOpenPane,
   onTogglePanel
 }) {
-  const [branch, setBranch] = useState(null)
+  const [gitMeta, setGitMeta] = useState({ repo: false, branch: null, changes: 0 })
 
   useEffect(() => {
-    if (!activeTab?.cwd) { setBranch(null); return }
+    const cwd = activeTab?.workspaceCwd || activeTab?.cwd
+    if (!cwd) {
+      setGitMeta({ repo: false, branch: null, changes: 0 })
+      return
+    }
     let cancelled = false
-    window.sush.gitStatus?.({ cwd: activeTab.cwd })
-      .then(g => { if (!cancelled) setBranch(g?.repo ? g.branch : null) })
-      .catch(() => { if (!cancelled) setBranch(null) })
+    window.sush.gitStatus?.({ cwd })
+      .then(g => {
+        if (cancelled) return
+        setGitMeta({
+          repo: !!g?.repo,
+          branch: g?.repo ? (g.branch || null) : null,
+          changes: g?.repo && Array.isArray(g.files) ? g.files.length : 0
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setGitMeta({ repo: false, branch: null, changes: 0 })
+      })
     return () => { cancelled = true }
-  }, [activeTab?.cwd])
+  }, [activeTab?.workspaceCwd, activeTab?.cwd])
 
   const workspaceTabs = useMemo(() => {
     const root = activeTab?.workspaceCwd || activeTab?.cwd
@@ -91,7 +104,20 @@ export default function NightlyTopbar({
             <span className="nightly-project-name">{projectName(activeTab?.workspaceCwd || activeTab?.cwd)}</span>
             <span className="nightly-slash">/</span>
             <span className="nightly-thread-name">{activeTab?.label || 'Session'}</span>
-            {branch && <span className="nightly-chip nightly-branch"><Icon name="gitBranch" size={10} />{branch}</span>}
+            {gitMeta.repo && gitMeta.branch && (
+              <button
+                type="button"
+                className="nightly-chip nightly-branch nightly-git-chip"
+                onClick={() => onOpenPane?.('changes')}
+                title={gitMeta.changes
+                  ? `${gitMeta.branch} · ${gitMeta.changes} working-tree change${gitMeta.changes === 1 ? '' : 's'} · Open Changes`
+                  : `${gitMeta.branch} · working tree clean · Open Changes`}
+              >
+                <Icon name="gitBranch" size={10} />
+                <span>{gitMeta.branch}</span>
+                {gitMeta.changes > 0 && <strong className="nightly-git-count">{gitMeta.changes}</strong>}
+              </button>
+            )}
           </>
         ) : (
           <>
