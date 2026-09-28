@@ -37,7 +37,7 @@ import { resolveExecutable, shimSpawnSpec } from './exec'
 import { createCapabilityCache } from './provider-capabilities'
 import { parseGitPorcelainZ } from './git-porcelain'
 import { clipDiff, diffArgs } from './git-diff'
-import { augmentClaudeCommand, ensureClaudeThreadSettings, prepareThreadEventFile, readClaudeThread } from './thread-bridge'
+import { augmentClaudeCommand, cleanupThreadEventFile, ensureClaudeThreadSettings, prepareThreadEventFile, readClaudeThread } from './thread-bridge'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
@@ -1463,6 +1463,7 @@ export function registerIpcHandlers(win) {
       // Even if the PTY teardown throws, the per-tab maps must not leak.
       contexts.delete(tabId)
       tabMeta.delete(tabId)
+      try { cleanupThreadEventFile(app.getPath('userData'), tabId) } catch {}
     }
   })
 
