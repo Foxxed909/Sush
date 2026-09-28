@@ -70,6 +70,7 @@ const stub = `
   ]
   const answers = {
     platform: 'win32',
+    copyText: async (text) => { window.__lastCopied = String(text ?? ''); return { ok: true } },
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
     usersActivate: async () => ({ ok: true, user }),
     licenseGet: async () => ({ tier: 'enterprise', expiry: null,
@@ -640,6 +641,20 @@ if (await paneButton.count()) {
   if (!contextText.includes('Live cwd') || !contextText.includes('/home/taylor/sush/src')) {
     throw new Error('Nightly Context did not distinguish the live PTY cwd from the project root')
   }
+  const contextCopy = page.locator('.nightly-inspector').getByRole('button', { name: 'Copy context bundle' })
+  await contextCopy.click()
+  await page.waitForFunction(() => String(window.__lastCopied || '').includes('# Sush workspace context'))
+  const copiedContext = await page.evaluate(() => window.__lastCopied || '')
+  if (!copiedContext.includes('- Project root: /home/taylor/sush')) {
+    throw new Error('Nightly Context bundle lost the stable project root')
+  }
+  if (!copiedContext.includes('- Live cwd: /home/taylor/sush/src')) {
+    throw new Error('Nightly Context bundle lost the live cwd distinction')
+  }
+  if (!copiedContext.includes('does not imply that every source above is loaded into the provider model context window')) {
+    throw new Error('Nightly Context bundle omitted its model-context disclaimer')
+  }
+  await page.locator('.nightly-inspector').getByRole('button', { name: 'Context bundle copied' }).waitFor({ state: 'visible' })
   await shot('02g-context')
 }
 
