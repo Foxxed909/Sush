@@ -123,7 +123,7 @@ function normalizePathKey(cwd) {
 
 function nightlyWorkspaceKey(tab) {
   if (!tab) return null
-  const cwd = normalizePathKey(tab.cwd)
+  const cwd = normalizePathKey(tab.workspaceCwd || tab.cwd)
   if (cwd) return `cwd:${cwd}`
   if (tab.groupId) return `group:${tab.groupId}`
   return tab.id ? `tab:${tab.id}` : null
@@ -176,6 +176,7 @@ function makeTab(profile, options = {}) {
     shell,
     shellLabel: options.shellLabel ?? null,
     cwd,
+    workspaceCwd: options.workspaceCwd ?? cwd,
     bootCommand: options.command ?? null,
     agentId: options.agentId ?? null,
     model: options.model ?? null,
@@ -267,6 +268,7 @@ function loadSessionLayout(profiles) {
         shell: item.shell,
         shellLabel: item.shellLabel,
         cwd: item.cwd,
+        workspaceCwd: item.workspaceCwd ?? item.cwd,
         command: resumeAgents ? restoreBootCommand(item) : null,
         agentId: item.agentId,
         model: item.model,
@@ -559,10 +561,11 @@ export default function App() {
   }, [identity.ready, settings.cliLimitPolicy])
 
   const rememberSession = useCallback((session) => {
-    if (!session?.cwd) return
+    const rootCwd = session?.workspaceCwd || session?.cwd
+    if (!rootCwd) return
 
     const record = normalizeRecentSession({
-      cwd: session.cwd,
+      cwd: rootCwd,
       label: pathLabel(session.cwd),
       profileId: session.profileId,
       profileLabel: session.profileLabel,
@@ -650,7 +653,7 @@ export default function App() {
         kind: 'project',
         groupId: activeTab.groupId,
         label: activeTab.groupLabel || pathLabel(activeTab.cwd || '') || 'Workspace',
-        cwd: activeTab.cwd || null,
+        cwd: activeTab.workspaceCwd || activeTab.cwd || null,
         focusedLabel
       }
     }
@@ -940,6 +943,7 @@ export default function App() {
         shell: tab.shell,
         shellLabel: tab.shellLabel,
         cwd: tab.cwd,
+        workspaceCwd: tab.workspaceCwd || tab.cwd,
         bootCommand: tab.bootCommand,
         agentId: tab.agentId,
         model: tab.model,
@@ -1164,6 +1168,7 @@ export default function App() {
     const label = existing
       ? (existing.groupLabel || groupLabel || (targetCwd ? pathLabel(targetCwd) : 'Workspace'))
       : (groupLabel || `${targetCwd ? pathLabel(targetCwd) : 'Workspace'}${total >= 2 ? ` · ${total}` : ''}`)
+    const workspaceCwd = existing?.workspaceCwd || existing?.cwd || targetCwd || null
 
     // Flatten the crew into one session spec per PTY, so worktree creation and
     // labeling share the same numbering.
@@ -1215,6 +1220,7 @@ export default function App() {
         }
         const tab = openTab(prof, {
           cwd: sessionCwd,
+          workspaceCwd: workspaceCwd || sessionCwd,
           command: buildAgentCommand(spec.agent, { model: spec.agent.model, effort: spec.agent.effort }) || undefined,
           agentId: spec.agent.id,
           model: spec.agent.model || null,
@@ -1421,6 +1427,7 @@ export default function App() {
     if (closing && rememberClosed) {
       lastClosedRef.current.push({
         cwd: closing.cwd,
+        workspaceCwd: closing.workspaceCwd || closing.cwd,
         profileId: closing.profileId,
         shell: closing.shell,
         shellLabel: closing.shellLabel,
@@ -1487,10 +1494,11 @@ export default function App() {
     const command = buildAgentCommand(agent, { model, effort, resume: true })
     if (!command) return { ok: false, error: 'unsupported-provider' }
 
-    const { cwd, label, groupId, groupLabel } = tab
+    const { cwd, workspaceCwd, label, groupId, groupLabel } = tab
     closeTab(tabId, { rememberClosed: false, returnHome: false })
     openTab(profiles[0], {
       cwd,
+      workspaceCwd: workspaceCwd || cwd,
       agentId: provider,
       model,
       effort,
@@ -1511,10 +1519,11 @@ export default function App() {
     try {
       const sw = await window.sush.accountsSwitch({ provider, slotId })
       if (!sw?.ok) return sw || { ok: false }
-      const { cwd, label, groupId, groupLabel, model, effort } = tab
+      const { cwd, workspaceCwd, label, groupId, groupLabel, model, effort } = tab
       closeTab(tabId, { rememberClosed: false, returnHome: false })
       openTab(profiles[0], {
         cwd,
+        workspaceCwd: workspaceCwd || cwd,
         agentId: provider,
         model: model || null,
         effort: effort || null,
@@ -1619,6 +1628,7 @@ export default function App() {
 
     openTab(prof, {
       cwd: last.cwd || null,
+      workspaceCwd: last.workspaceCwd || last.cwd || null,
       shell: last.shell,
       shellLabel: last.shellLabel,
       label: last.label,
@@ -1656,6 +1666,7 @@ export default function App() {
     const agent = tab.agentId && tab.agentId !== 'shell' ? agentById(tab.agentId) : null
     openTab(prof, {
       cwd: tab.cwd,
+      workspaceCwd: tab.workspaceCwd || tab.cwd,
       shell: tab.shell,
       label: `${tab.label} (copy)`,
       command: agent
