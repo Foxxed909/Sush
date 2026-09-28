@@ -14,7 +14,7 @@ const PANES = [
   { id: 'thread', label: 'Thread', hint: 'Same-session structured turns', icon: 'terminal', disabled: true }
 ]
 
-export default function NightlyPaneMenu({ accent, activePane, panelOpen, onOpen }) {
+export default function NightlyPaneMenu({ accent, activePane, panelOpen, dock = 'right', onDockChange, onOpen }) {
   const [open, setOpen] = useState(false)
   const anchorRef = useRef(null)
 
@@ -41,6 +41,24 @@ export default function NightlyPaneMenu({ accent, activePane, panelOpen, onOpen 
           <div className="nightly-pane-title">
             <span>Workspace panes</span>
             <small>secondary</small>
+          </div>
+          <div className="nightly-pane-dock-switch" role="group" aria-label="Pane dock">
+            <button
+              type="button"
+              className={dock === 'right' ? 'is-active' : ''}
+              onClick={() => onDockChange?.('right')}
+            >
+              <Icon name="panel" size={11} />
+              Right
+            </button>
+            <button
+              type="button"
+              className={dock === 'bottom' ? 'is-active' : ''}
+              onClick={() => onDockChange?.('bottom')}
+            >
+              <Icon name="layout" size={11} />
+              Bottom
+            </button>
           </div>
           {PANES.map(pane => {
             const selected = panelOpen && activePane === pane.id
