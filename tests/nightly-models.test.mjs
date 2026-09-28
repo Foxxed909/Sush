@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAgentCommand, normalizeEffort, normalizeModel } from '../src/renderer/src/lib/nightlyModels.js'
+import { buildAgentCommand, effortOptionsFor, normalizeEffort, normalizeModel } from '../src/renderer/src/lib/nightlyModels.js'
 
 const agent = (id, command, resumeCommand) => ({ id, command, resumeCommand })
 
@@ -24,8 +24,15 @@ describe('Nightly model launch adapter', () => {
     expect(buildAgentCommand(agent('codex', 'codex', 'codex resume --last'), { model: 'gpt-5.3-codex', effort: 'xhigh' }))
       .toBe('codex --model gpt-5.3-codex --config "model_reasoning_effort=\'xhigh\'"')
     expect(normalizeEffort('claude', 'banana')).toBeNull()
-    expect(normalizeEffort('claude', 'ultracode')).toBeNull()
+    expect(normalizeEffort('claude', 'ultracode')).toBe('ultracode')
     expect(normalizeEffort('gemini', 'high')).toBeNull()
+  })
+
+  it('narrows Codex reasoning choices for verified model catalogs', () => {
+    expect(effortOptionsFor('codex', 'gpt-5.3-codex'))
+      .toEqual(['', 'low', 'medium', 'high', 'xhigh'])
+    expect(normalizeEffort('codex', 'minimal', 'gpt-5.3-codex')).toBeNull()
+    expect(normalizeEffort('codex', 'xhigh', 'gpt-5.3-codex')).toBe('xhigh')
   })
 
   it('does not append model text for providers without a verified model flag', () => {
@@ -37,6 +44,11 @@ describe('Nightly model launch adapter', () => {
     expect(normalizeModel('claude', 'opus && rm -rf /')).toBeNull()
     expect(buildAgentCommand(agent('claude', 'claude'), { model: 'opus && echo nope' }))
       .toBe('claude')
+  })
+
+  it('accepts Claude Code ultracode when selected explicitly', () => {
+    expect(buildAgentCommand(agent('claude', 'claude'), { model: 'opus', effort: 'ultracode' }))
+      .toBe('claude --model opus --effort ultracode')
   })
 
   it('treats blank/default selection as provider-owned behavior', () => {
