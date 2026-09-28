@@ -2306,6 +2306,8 @@ export default function App() {
             onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
             onCloseProject={(key) => tabsRef.current.filter(t => workspaceKey(t) === key).forEach(t => closeTab(t.id))}
             onOpenPane={(pane, tabId) => { if (tabId) selectTab(tabId); setRightTab(pane); setRightOpen(true) }}
+            pinnedProjects={pinnedProjects}
+            onTogglePin={togglePinnedProject}
             status={{
               online,
               battery,
