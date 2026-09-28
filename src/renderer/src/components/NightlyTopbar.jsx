@@ -68,7 +68,7 @@ export default function NightlyTopbar({
   const windowControl = (action) => window.sush?.windowControl?.(action)
 
   return (
-    <header className="nightly-topbar">
+    <header className={`nightly-topbar${rightOpen ? ' is-inspector-open' : ''}`}>
       <div className="nightly-crumbs">
         <button className="nightly-icon-btn" onClick={onHome} title="Overview"><Icon name="home" size={13} /></button>
         <span className="nightly-project-name">{projectName(activeTab?.cwd)}</span>
@@ -78,13 +78,13 @@ export default function NightlyTopbar({
       </div>
 
       <div className="nightly-topbar-center">
-        <span className="nightly-chip" title={providerMeta?.model ? `Model: ${providerMeta.model}` : undefined}>
+        <span className="nightly-chip nightly-meta-provider" title={providerMeta?.model ? `Model: ${providerMeta.model}` : undefined}>
           <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
           {providerLabel}
           {providerMeta?.model && <strong>· {providerMeta.model}</strong>}
           {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
         </span>
-        <span className="nightly-chip" title={providerMeta?.contextTokens != null ? 'Provider-reported input context for the latest observed turn' : 'This CLI has not exposed context telemetry for this workspace yet'}>
+        <span className="nightly-chip nightly-meta-context" title={providerMeta?.contextTokens != null ? 'Provider-reported input context for the latest observed turn' : 'This CLI has not exposed context telemetry for this workspace yet'}>
           Context <strong>{activeTab?.contextPct != null ? `${activeTab.contextPct}%` : compactTokens(providerMeta?.contextTokens)}</strong>
         </span>
         {providerMeta?.accountLabel && (
@@ -97,15 +97,15 @@ export default function NightlyTopbar({
           />
         )}
         {providerMeta?.usagePct != null && (
-          <span className={`nightly-chip ${providerMeta.usagePct >= 80 ? 'nightly-limit' : ''}`} title={`Session: ${providerMeta.sessionPct ?? '—'}% · Week: ${providerMeta.weekPct ?? '—'}%`}>
+          <span className={`nightly-chip nightly-meta-usage ${providerMeta.usagePct >= 80 ? 'nightly-limit' : ''}`} title={`Session: ${providerMeta.sessionPct ?? '—'}% · Week: ${providerMeta.weekPct ?? '—'}%`}>
             Usage <strong>{providerMeta.usagePct}%</strong>
           </span>
         )}
-        <span className={`nightly-chip ${limited || guardTrip ? 'nightly-limit' : ''}`}>
+        <span className={`nightly-chip nightly-meta-state ${limited || guardTrip ? 'nightly-limit' : ''}`}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: limited || guardTrip ? '#ff9f43' : state.dot }} />
           {guardTrip ? `Guard ${guardTrip.pct}%` : limited ? 'Limit reached' : state.label}
         </span>
-        <span className="nightly-chip nightly-subtle">{workspaceTabs.length} agent{workspaceTabs.length === 1 ? '' : 's'}</span>
+        <span className="nightly-chip nightly-subtle nightly-meta-count">{workspaceTabs.length} agent{workspaceTabs.length === 1 ? '' : 's'}</span>
       </div>
 
       <div className="nightly-topbar-actions">
