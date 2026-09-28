@@ -66,14 +66,22 @@ export default function NightlyAnchoredPopover({
       if (popoverRef.current?.contains(event.target)) return
       onClose?.()
     }
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onClose?.()
+      requestAnimationFrame(() => anchorRef?.current?.focus?.())
+    }
 
     window.addEventListener('resize', reposition)
     window.addEventListener('scroll', reposition, true)
     window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', onKeyDown)
     return () => {
       window.removeEventListener('resize', reposition)
       window.removeEventListener('scroll', reposition, true)
       window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', onKeyDown)
     }
   }, [open, anchorRef, onClose, place])
 
