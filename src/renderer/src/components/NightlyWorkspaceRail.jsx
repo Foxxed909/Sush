@@ -6,7 +6,7 @@ import NightlyProfileMenu from './NightlyProfileMenu'
 import NightlyContextMenu from './NightlyContextMenu'
 import NightlyStatusStrip from './NightlyStatusStrip'
 import { lineageTag, lineageOf } from '../lib/lineage'
-import { groupByWorkspace, workspaceKey } from '../lib/workspaces'
+import { groupByWorkspace, normalizePathKey, workspaceKey } from '../lib/workspaces'
 
 const WORKSPACE_STATE_ORDER = ['error', 'waiting', 'working', 'booting', 'idle', 'done']
 
@@ -77,9 +77,20 @@ export default function NightlyWorkspaceRail({
   onNewInProject,
   onCloseProject,
   onOpenPane,
+  pinnedProjects = [],
+  onTogglePin,
   status = {}
 }) {
-  const workspaces = useMemo(() => groupByWorkspace(tabs), [tabs])
+  const pinnedKeys = useMemo(
+    () => new Set((pinnedProjects || []).map(item => normalizePathKey(item?.cwd)).filter(Boolean)),
+    [pinnedProjects]
+  )
+  const workspaces = useMemo(
+    () => groupByWorkspace(tabs)
+      .map(workspace => ({ ...workspace, pinned: !!workspace.cwd && pinnedKeys.has(normalizePathKey(workspace.cwd)) }))
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+    [tabs, pinnedKeys]
+  )
 
   const activeTab = tabs.find(t => t.id === activeId)
   const activeWorkspaceKey = activeTab ? workspaceKey(activeTab) : null
@@ -102,6 +113,12 @@ export default function NightlyWorkspaceRail({
   const projectMenu = (workspace) => [
     { label: 'New session here…', icon: 'plus', onSelect: () => onNewInProject?.(workspace.cwd) },
     { label: 'Open Files', icon: 'folder', onSelect: () => onOpenPane?.('files', workspace.tabs[0]?.id) },
+    {
+      label: workspace.pinned ? 'Unpin project' : 'Pin project',
+      icon: 'star',
+      disabled: !workspace.cwd,
+      onSelect: () => onTogglePin?.({ cwd: workspace.cwd, label: workspace.label })
+    },
     { separator: true },
     { label: 'Copy path', icon: 'file', disabled: !workspace.cwd, onSelect: () => copyText(workspace.cwd) },
     { label: 'Reveal folder', icon: 'folder', disabled: !workspace.cwd, onSelect: () => reveal(workspace.cwd) },
@@ -161,7 +178,7 @@ export default function NightlyWorkspaceRail({
           const collapsed = collapsedProjects.has(workspace.key)
           const aggregate = workspaceState(workspace, activity)
           return (
-            <div key={workspace.key} className={`nightly-workspace${selected ? ' is-active' : ''}${collapsed ? ' is-collapsed' : ''}`}>
+            <div key={workspace.key} className={`nightly-workspace${selected ? ' is-active' : ''}${collapsed ? ' is-collapsed' : ''}${workspace.pinned ? ' is-pinned' : ''}`}>
               <div className="nightly-workspace-row">
               <button
                 type="button"
@@ -174,6 +191,11 @@ export default function NightlyWorkspaceRail({
               >
                 <span className="nightly-project-glyph"><Icon name="folder" size={13} /></span>
                 <span className="nightly-workspace-name">{workspace.label}</span>
+                {workspace.pinned && (
+                  <span className="nightly-workspace-pin" title="Pinned project" aria-label="Pinned project">
+                    <Icon name="star" size={9} />
+                  </span>
+                )}
                 <span
                   className={aggregate.id === 'working' || aggregate.id === 'waiting' ? 'nightly-project-state sush-pulse-dot' : 'nightly-project-state'}
                   title={aggregate.state.label}
