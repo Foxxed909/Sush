@@ -50,6 +50,7 @@ export default function RightPanel({
   ghNotifCount = 0,
   onManageUsers,
   nightly = false,
+  dock = 'right',
   style = {}
 }) {
   const [mdPath, setMdPath] = useState(null)
@@ -76,14 +77,19 @@ export default function RightPanel({
 
   return (
     <aside
-      className={`shrink-0 flex flex-col${nightly ? ' nightly-inspector' : ''}`}
+      data-nightly-dock={dock}
+      className={`shrink-0 flex flex-col${nightly ? ' nightly-inspector' : ''}${dock === 'bottom' ? ' is-bottom' : ''}`}
       style={{
         ...accentVars(accent),
-        width: style.width ?? 360,
-        minWidth: 280,
-        maxWidth: '55vw',
+        width: dock === 'bottom' ? '100%' : (style.width ?? 360),
+        minWidth: dock === 'bottom' ? 0 : 280,
+        maxWidth: dock === 'bottom' ? 'none' : '55vw',
+        height: dock === 'bottom' ? (style.height ?? 300) : undefined,
+        minHeight: dock === 'bottom' ? 180 : undefined,
+        maxHeight: dock === 'bottom' ? '58vh' : undefined,
         background: 'transparent',
-        borderLeft: `1px solid ${rgba(accent, 0.1)}`
+        borderLeft: dock === 'bottom' ? 'none' : `1px solid ${rgba(accent, 0.1)}`,
+        borderTop: dock === 'bottom' ? `1px solid ${rgba(accent, 0.1)}` : 'none'
       }}
     >
       {/* Tab header — grouped horizontal strip with hairline dividers */}
