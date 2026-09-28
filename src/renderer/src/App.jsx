@@ -1028,7 +1028,8 @@ export default function App() {
         return { label: t.label, agentId: t.agentId || 'shell', text: stripAnsi(text) }
       }))
       const label = members[0].groupLabel || (groupId ? 'Workspace' : 'Solo sessions')
-      const cwd = members.find(t => t.cwd)?.cwd || null
+      const anchor = members.find(t => t.workspaceCwd || t.sessionRootCwd || t.cwd)
+      const cwd = anchor?.workspaceCwd || anchor?.sessionRootCwd || anchor?.cwd || null
       let summary = null
       try { summary = await cliComplete(digestSummaryPrompt(label, sessions), { cwd: cwd || undefined }) } catch {}
       const md = buildDigestMarkdown({ label, cwd, sessions, summary })
@@ -2488,7 +2489,7 @@ export default function App() {
               accent={accent}
               tab={rightTab}
               onTab={setRightTab}
-              activeCwd={activeTab?.cwd}
+              activeCwd={activeTab?.sessionRootCwd || activeTab?.cwd}
               activeTab={activeTab}
               providerMeta={nightlyProviderMeta}
               tabs={tabs}
@@ -2521,7 +2522,7 @@ export default function App() {
           onOpenChange={setSeduciaOpen}
           tabs={tabs}
           recentSessions={recentSessions}
-          activeCwd={activeTab?.cwd}
+          activeCwd={activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
           scope={seduciaScope}
           controls={seduciaControls}
           onLaunch={launchSessions}
@@ -2594,7 +2595,7 @@ export default function App() {
       {showLauncher && (
         <NewSessionModal
           accent={accent}
-          activeCwd={activeTab?.cwd}
+          activeCwd={activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
           recentSessions={recentSessions}
           onLaunch={launchSessions}
           onClose={() => setShowLauncher(false)}
