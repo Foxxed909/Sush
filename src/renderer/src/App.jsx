@@ -598,7 +598,7 @@ export default function App() {
     return { kind: 'main', focusedLabel }
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
-  // Mission Control: live per-session state inferred from the PTY stream.
+  // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
@@ -1212,7 +1212,7 @@ export default function App() {
     setView('terminal')
   }, [liveTargets])
 
-  // Mission Control: send raw input to one specific session (e.g. answering a
+  // Workspace action: send raw input to one specific session (e.g. answering a
   // blocked agent with "y" + Enter). Queues if the PTY hasn't booted yet.
   const promptSession = useCallback((tabId, data) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -1386,7 +1386,7 @@ export default function App() {
   // cascade can't reach): switch this CLI to the account that's rested longest
   // and relaunch the session in resume mode, so the conversation continues on
   // the fresh account (claude --continue, codex resume --last). Explicit, one
-  // click from Mission Control — never automatic, so a live session is never
+  // click from Overview — never automatic, so a live session is never
   // yanked out from under you.
   const switchToAccountAndResume = useCallback(async (tabId, slotId) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -1742,7 +1742,7 @@ export default function App() {
     else if (action === 'settings') setShowSettings(true)
     else if (action === 'toggle-panel') setRightOpen(prev => !prev)
     else if (action === 'zen') setZenMode(prev => !prev)
-    else if (action === 'mission') setShowMission(true)
+    else if (action === 'mission') setView('overview')
     else if (action === 'shortcuts') setShowShortcuts(true)
     else if (action === 'home') { setHomeView('dashboard'); setView('home') }
     else if (action === 'handoff') { if (activeIdRef.current) setHandoffSource(activeIdRef.current) }
@@ -1802,7 +1802,7 @@ export default function App() {
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
     const base = [
-      { id: 'act-mission', label: 'Mission Control', description: 'Live board of every agent session (Ctrl+Shift+M)', icon: 'activity', action: 'mission' },
+      { id: 'act-mission', label: 'Workspace Overview', description: 'Project and agent status (Ctrl+Shift+M)', icon: 'activity', action: 'mission' },
       { id: 'act-handoff', label: 'Hand Off Session', description: 'Pass this session\'s context to another', icon: 'send', action: 'handoff' },
       { id: 'act-rename', label: 'Rename Session', description: 'Rename the active session (F2)', icon: 'edit', action: 'rename' },
       { id: 'act-sushrc', label: 'Edit .sushrc Profile', description: 'Your shell-agnostic Sush profile', icon: 'fileText', action: 'sushrc' },
@@ -2111,7 +2111,7 @@ export default function App() {
                           {layoutGridMode && (() => {
                             // Live state dot, same classifier the rail uses, so a
                             // tile that needs you (amber) or errored (red) stands
-                            // out in the grid without opening Mission Control.
+                            // out in the grid without opening Overview.
                             const st = tab.status === 'exited' ? null : (booted ? STATES[agentStates[tab.id]] : null)
                             const dot = tab.status === 'exited' ? '#ff5370' : (st?.dot ?? '#42d392')
                             const pulse = st && (agentStates[tab.id] === 'working' || agentStates[tab.id] === 'waiting')
@@ -2410,10 +2410,10 @@ export default function App() {
             {guardMode === 'block' ? ' — input to Claude sessions paused' : guardMode === 'handoff' ? ' — handing work to your next model' : ''}
           </span>
           <button
-            onClick={() => setShowMission(true)}
+            onClick={() => setView('overview')}
             style={{ fontSize: 10.5, fontWeight: 800, color: '#ffcb9b', background: 'rgba(255,159,67,0.14)', border: '1px solid rgba(255,159,67,0.4)', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
           >
-            Mission Control
+            Overview
           </button>
           <button
             title="Dismiss until the next threshold crossing"
