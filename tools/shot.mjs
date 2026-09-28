@@ -106,8 +106,8 @@ const stub = `
     creditsGet: async () => credits,
     claudeLimitsGet: async () => ({ ok: true, limits: { status: 'allowed', rateLimitType: '', resetsAt: now + 3600e3, sessionPct: 42, weekPct: 18, at: now } }),
     batteryStatus: async () => ({ ok: true, hasBattery: true, percent: 74, charging: false }),
-    startPty: async ({ tabId, cwd }) => {
-      startRequests.push({ tabId, cwd: cwd || null })
+    startPty: async ({ tabId, cwd, agentId }) => {
+      startRequests.push({ tabId, cwd: cwd || null, agentId: agentId || null })
       setTimeout(() => {
         let i = 0
         const drip = () => {
@@ -118,7 +118,7 @@ const stub = `
         drip()
       }, 250)
       const liveCwd = cwd === '/home/taylor/sush' ? cwd + '/src' : (cwd || '/home/taylor/sush')
-      return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: liveCwd, profileId: 'powershell', status: 'running', lastActiveAt: now }
+      return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: liveCwd, profileId: 'powershell', status: 'running', lastActiveAt: now, threadBridge: agentId === 'claude' }
     },
     getScrollback: async () => ({ text: 'npm test\\ntest suite passed\\n' }),
     snippetsList: async () => ({ ok: true, snippets: [ { name: 'deploy', command: 'npm run deploy' }, { name: 'wtree', command: 'git worktree list' } ] }),
