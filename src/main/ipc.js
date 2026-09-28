@@ -932,7 +932,7 @@ function writeShellCommands(proc, commands) {
 // on macOS the window can be closed and recreated from the dock while PTYs
 // keep running, and callbacks bound to the old window would silently drop
 // every byte of output for surviving sessions.
-function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand, agentId } = {}) {
+async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand, agentId } = {}) {
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
@@ -983,13 +983,19 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   let bridgedBootCommand = bootCommand
   if (agentId === 'claude' && bootCommand) {
     try {
-      const userData = app.getPath('userData')
-      const settingsPath = ensureClaudeThreadSettings(userData, process.platform)
-      threadEventFile = prepareThreadEventFile(userData, tabId)
-      bridgedBootCommand = augmentClaudeCommand(bootCommand, settingsPath)
+      // First launch may probe once; normal launches hit the persisted
+      // binary-stamped capability cache and spawn nothing. Never risk breaking
+      // an older/custom Claude CLI with a flag it did not advertise.
+      const capabilities = await providerCaps.get('claude')
+      if (capabilities?.threadBridge === true) {
+        const userData = app.getPath('userData')
+        const settingsPath = ensureClaudeThreadSettings(userData, process.platform)
+        threadEventFile = prepareThreadEventFile(userData, tabId)
+        bridgedBootCommand = augmentClaudeCommand(bootCommand, settingsPath)
+      }
     } catch {
-      // Thread is additive. A bridge setup failure must never stop the PTY or
-      // the user's Claude session from launching normally.
+      // Thread is additive. A bridge setup/probe failure must never stop the
+      // PTY or the user's Claude session from launching normally.
       threadEventFile = null
       bridgedBootCommand = bootCommand
     }
