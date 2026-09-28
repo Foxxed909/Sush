@@ -884,6 +884,19 @@ p { text-wrap: pretty; }
 .nightly-slash { color: var(--text-5); }
 .nightly-topbar-center { gap: 5px; justify-content: center; overflow: visible; }
 .nightly-topbar-actions { gap: 5px; justify-content: flex-end; overflow: visible; }
+.nightly-topbar.is-inspector-open {
+  grid-template-columns: minmax(160px, 1fr) auto minmax(205px, auto);
+  gap: 8px;
+}
+.nightly-topbar.is-inspector-open .nightly-project-name { max-width: 105px; }
+.nightly-topbar.is-inspector-open .nightly-thread-name { max-width: 125px; }
+.nightly-topbar.is-inspector-open .nightly-meta-context,
+.nightly-topbar.is-inspector-open .nightly-meta-usage,
+.nightly-topbar.is-inspector-open .nightly-meta-count {
+  display: none;
+}
+.nightly-topbar.is-inspector-open .nightly-chip { padding-left: 6px; padding-right: 6px; }
+.nightly-topbar.is-inspector-open .nightly-action-btn { padding-left: 8px; padding-right: 8px; }
 .nightly-chip {
   height: 24px; padding: 0 8px; border: 1px solid var(--border-1); border-radius: 7px;
   display: inline-flex; align-items: center; gap: 5px; color: var(--text-3);
