@@ -392,6 +392,8 @@ export default function App() {
   const [showHunt, setShowHunt] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
+  const [paneDock, setPaneDock] = useState('right')
+  const [bottomPaneHeight, setBottomPaneHeight] = useState(() => parseInt(localStorage.getItem('sush-bottom-pane-height') || '300', 10))
   const [renamingId, setRenamingId] = useState(null)
   const [handoffSource, setHandoffSource] = useState(null)
   const [showSushrc, setShowSushrc] = useState(false)
@@ -881,6 +883,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('sush-right-open', rightOpen ? '1' : '0') }, [rightOpen])
   useEffect(() => { localStorage.setItem('sush-right-tab', rightTab) }, [rightTab])
   useEffect(() => { localStorage.setItem('sush-right-width', String(rightWidth)) }, [rightWidth])
+  useEffect(() => { localStorage.setItem('sush-bottom-pane-height', String(bottomPaneHeight)) }, [bottomPaneHeight])
 
   // Panel resize. The teardown is kept in a ref and also run on unmount: a drag
   // that was still in progress when the panel closed (or the app hot-reloaded)
@@ -911,6 +914,28 @@ export default function App() {
     window.addEventListener('blur', stop)
     rightDragCleanup.current = stop
   }, [rightWidth])
+
+  const startBottomPaneDrag = useCallback((e) => {
+    e.preventDefault()
+    rightDragCleanup.current?.()
+    const startY = e.clientY
+    const startHeight = bottomPaneHeight
+    const onMove = (ev) => {
+      const delta = startY - ev.clientY
+      const max = Math.max(220, Math.round(window.innerHeight * 0.58))
+      setBottomPaneHeight(Math.max(180, Math.min(max, startHeight + delta)))
+    }
+    const stop = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', stop)
+      window.removeEventListener('blur', stop)
+      rightDragCleanup.current = null
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', stop)
+    window.addEventListener('blur', stop)
+    rightDragCleanup.current = stop
+  }, [bottomPaneHeight])
 
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
@@ -1094,6 +1119,7 @@ export default function App() {
         ...(map[previousKey] || {}),
         tab: rightTab,
         open: rightOpen,
+        dock: paneDock,
         layout: gridMode && previousTabs.length > 1
           ? 'grid'
           : previousPartner
@@ -1111,9 +1137,11 @@ export default function App() {
     if (saved) {
       setRightTab(typeof saved.tab === 'string' ? saved.tab : 'agent')
       setRightOpen(saved.open === true)
+      setPaneDock(saved.dock === 'bottom' ? 'bottom' : 'right')
     } else {
       setRightTab('agent')
       setRightOpen(false)
+      setPaneDock('right')
     }
 
     const scopedTabs = tabsRef.current.filter(t => nightlyWorkspaceKey(t) === key)
@@ -1157,6 +1185,7 @@ export default function App() {
       ...(map[key] || {}),
       tab: rightTab,
       open: rightOpen,
+      dock: paneDock,
       layout: gridMode && scopedTabs.length > 1
         ? 'grid'
         : partner
@@ -1165,7 +1194,7 @@ export default function App() {
       splitKey: partner ? nightlySessionKey(partner) : null
     }
     saveNightlyWorkspaceUi(map)
-  }, [rightTab, rightOpen, gridMode, splitId])
+  }, [rightTab, rightOpen, paneDock, gridMode, splitId])
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
@@ -2230,6 +2259,8 @@ export default function App() {
               onLayoutGrid={toggleWorkspaceGrid}
               onLayoutOverview={() => setView('overview')}
               activePane={rightTab}
+              paneDock={paneDock}
+              onPaneDockChange={setPaneDock}
               onOpenPane={(pane) => {
                 setRightTab(pane)
                 setRightOpen(true)
@@ -2476,9 +2507,50 @@ export default function App() {
               }}
             />
           )}
+
+          {rightOpen && !zenMode && paneDock === 'bottom' && (
+            <div
+              data-glass
+              className={!mounted ? 'sush-slide-up' : undefined}
+              style={{ position: 'relative', display: 'flex', flexShrink: 0, height: bottomPaneHeight, minHeight: 180 }}
+            >
+              <div
+                onMouseDown={startBottomPaneDrag}
+                title="Resize stacked pane"
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 5, cursor: 'row-resize', zIndex: 12 }}
+              />
+              <RightPanel
+                accent={accent}
+                tab={rightTab}
+                onTab={setRightTab}
+                activeCwd={activeTab?.cwd}
+                activeTab={activeTab}
+                providerMeta={nightlyProviderMeta}
+                tabs={tabs}
+                recentSessions={recentSessions}
+                seduciaScope={seduciaScope}
+                seduciaControls={seduciaControls}
+                onLaunch={launchSessions}
+                onRun={runSmartInput}
+                onPrompt={sendAgentPrompt}
+                onFocus={focusAgent}
+                onOpenLauncher={() => setShowLauncher(true)}
+                onClose={() => setRightOpen(false)}
+                onNewTab={(options) => openTab(profiles[0], options)}
+                sshShellId={profileShell(profiles[0])}
+                settings={settings}
+                commandHistory={commandHistory}
+                ghNotifCount={ghNotifCount}
+                onManageUsers={() => setShowUserManager(true)}
+                nightly
+                dock="bottom"
+                style={{ width: '100%', height: bottomPaneHeight }}
+              />
+            </div>
+          )}
         </div>
 
-        {rightOpen && !zenMode && (
+        {rightOpen && !zenMode && paneDock === 'right' && (
           <div data-glass className={!mounted ? 'sush-slide-left' : undefined} style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
             {/* Drag handle */}
             <div
@@ -2509,6 +2581,7 @@ export default function App() {
               ghNotifCount={ghNotifCount}
               onManageUsers={() => setShowUserManager(true)}
               nightly
+              dock="right"
               style={{ width: rightWidth }}
             />
           </div>
