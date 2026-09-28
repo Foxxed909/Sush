@@ -867,6 +867,7 @@ p { text-wrap: pretty; }
 .nightly-rail-footer { padding: 7px; border-top: 1px solid var(--border-1); }
 
 .nightly-topbar {
+  position: relative; z-index: 1200; overflow: visible;
   height: 48px; min-height: 48px; display: grid;
   grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
   align-items: center; gap: 12px; padding: 0 9px 0 12px;
@@ -881,8 +882,8 @@ p { text-wrap: pretty; }
 .nightly-project-name { color: var(--text-2); font-size: 11.5px; font-weight: 780; max-width: 150px; }
 .nightly-thread-name { color: var(--text-1); font-size: 11.5px; font-weight: 650; max-width: 190px; }
 .nightly-slash { color: var(--text-5); }
-.nightly-topbar-center { gap: 5px; justify-content: center; }
-.nightly-topbar-actions { gap: 5px; justify-content: flex-end; }
+.nightly-topbar-center { gap: 5px; justify-content: center; overflow: visible; }
+.nightly-topbar-actions { gap: 5px; justify-content: flex-end; overflow: visible; }
 .nightly-chip {
   height: 24px; padding: 0 8px; border: 1px solid var(--border-1); border-radius: 7px;
   display: inline-flex; align-items: center; gap: 5px; color: var(--text-3);
