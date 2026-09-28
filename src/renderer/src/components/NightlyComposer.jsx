@@ -66,7 +66,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
             />
           </span>
           <span className="nightly-context-note" title="Context-window telemetry stays separate from subscription usage and only appears when the CLI exposes it">
-            Context {activeTab?.contextPct != null ? `${activeTab.contextPct}%` : compactTokens(providerMeta?.contextTokens)}
+            Context {compactTokens(providerMeta?.contextTokens)}
           </span>
           {providerMeta?.accountLabel && (
             <span className="nightly-context-note" title="Active CLI account slot">
