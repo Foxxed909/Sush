@@ -2378,6 +2378,8 @@ export default function App() {
               tab={rightTab}
               onTab={setRightTab}
               activeCwd={activeTab?.cwd}
+              activeTab={activeTab}
+              providerMeta={nightlyProviderMeta}
               tabs={tabs}
               recentSessions={recentSessions}
               seduciaScope={seduciaScope}
