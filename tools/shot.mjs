@@ -348,6 +348,13 @@ if (await accountChip.count()) {
   const beforeRotateThreads = await page.locator('.nightly-thread-row').count()
   await accountPopover.getByText('Work', { exact: true }).click()
   await page.waitForTimeout(900)
+  {
+    const starts = await page.evaluate(() => window.__sushStartRequests || [])
+    const latest = starts[starts.length - 1]
+    if (latest?.cwd !== '/home/taylor/sush') {
+      throw new Error(`Nightly account rotation spawned from transient cwd: ${latest?.cwd || 'missing'}`)
+    }
+  }
   if (await page.locator('.nightly-thread-row').count() !== beforeRotateThreads) {
     throw new Error('Nightly account rotation changed the live session count')
   }
@@ -389,7 +396,32 @@ if (await modelButton.count()) {
     }
   }
   await shot('02c-model-menu')
-  await page.keyboard.press('Escape')
+
+  const beforeModelThreads = await page.locator('.nightly-thread-row').count()
+  const modelInput = modelPopover.locator('input').first()
+  await modelInput.fill('opus')
+  const effortSelect = modelPopover.locator('select').first()
+  await effortSelect.selectOption('xhigh')
+  await modelPopover.getByRole('button', { name: 'Apply', exact: true }).click()
+  await page.waitForTimeout(900)
+  {
+    const starts = await page.evaluate(() => window.__sushStartRequests || [])
+    const latest = starts[starts.length - 1]
+    if (latest?.cwd !== '/home/taylor/sush') {
+      throw new Error(`Nightly model restart spawned from transient cwd: ${latest?.cwd || 'missing'}`)
+    }
+  }
+  if (await page.locator('.nightly-thread-row').count() !== beforeModelThreads) {
+    throw new Error('Nightly model restart changed the live session count')
+  }
+  chromeText = await page.locator('.nightly-topbar').innerText()
+  if (!chromeText.includes('opus') || !chromeText.includes('xhigh')) {
+    throw new Error('Nightly model restart did not apply model/reasoning metadata')
+  }
+  const activeWorkspace = page.locator('.nightly-workspace.is-active')
+  if (!((await activeWorkspace.locator('.nightly-workspace-name').innerText()).toLowerCase().includes('sush'))) {
+    throw new Error('Nightly model restart moved the session out of its project')
+  }
 }
 
 // 2d — Workspace layout presets.
