@@ -2105,7 +2105,13 @@ export default function App() {
               onMission={() => setView(prev => prev === 'overview' ? 'terminal' : 'overview')}
               onSeducia={() => setSeduciaOpen(true)}
               onSwitchAccount={(slotId) => activeId && switchToAccountAndResume(activeId, slotId)}
-              layoutMode={view === 'overview' ? 'overview' : gridMode ? 'grid' : splitId ? 'split' : 'focus'}
+              layoutMode={view === 'overview'
+                ? 'overview'
+                : gridMode
+                  ? 'grid'
+                  : splitId && activeWorkspaceTabs.some(t => t.id === splitId)
+                    ? 'split'
+                    : 'focus'}
               canSplit={activeWorkspaceTabs.length > 1}
               onLayoutFocus={() => { setGridMode(false); setSplitId(null); setView('terminal') }}
               onLayoutSplit={() => { setGridMode(false); toggleWorkspaceSplit() }}
@@ -2138,7 +2144,7 @@ export default function App() {
                 // session plus its pinned partner, reusing the same keyed
                 // wrappers so neither terminal remounts.
                 const splitPartner = !gridMode && !zenMode && splitId && splitId !== activeId
-                  ? tabs.find(t => t.id === splitId) : null
+                  ? activeWorkspaceTabs.find(t => t.id === splitId) : null
                 const layoutGridMode = (gridMode || !!splitPartner) && !zenMode
                 const GRID_CAP = entitlements.limit('gridCap') || 4
                 const gridTabs = gridMode && !zenMode
