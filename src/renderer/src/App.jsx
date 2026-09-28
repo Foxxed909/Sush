@@ -121,6 +121,14 @@ function normalizePathKey(cwd) {
   return String(cwd ?? '').replace(/[\\/]+$/, '').toLowerCase()
 }
 
+function nightlyWorkspaceKey(tab) {
+  if (!tab) return null
+  const cwd = normalizePathKey(tab.cwd)
+  if (cwd) return `cwd:${cwd}`
+  if (tab.groupId) return `group:${tab.groupId}`
+  return tab.id ? `tab:${tab.id}` : null
+}
+
 function tabKey(tab) {
   if (!tab) return 'none'
   const shell = tab.shell || 'powershell'
@@ -584,28 +592,31 @@ export default function App() {
 
   // Secondary pane state belongs to the project, not the whole application.
   // Repo A can keep Files open while repo B keeps Notes open.
-  const nightlyWorkspaceKey = normalizePathKey(activeTab?.cwd) || (activeTab?.groupId ? `group:${activeTab.groupId}` : null)
+  const activeNightlyWorkspaceKey = nightlyWorkspaceKey(activeTab)
+  const activeWorkspaceTabs = activeNightlyWorkspaceKey
+    ? tabs.filter(t => nightlyWorkspaceKey(t) === activeNightlyWorkspaceKey)
+    : []
   const nightlyWorkspaceKeyRef = useRef(null)
   useEffect(() => {
-    if (!nightlyWorkspaceKey) return
+    if (!activeNightlyWorkspaceKey) return
     const map = loadNightlyWorkspaceUi()
     const previousKey = nightlyWorkspaceKeyRef.current
 
-    if (previousKey && previousKey !== nightlyWorkspaceKey) {
+    if (previousKey && previousKey !== activeNightlyWorkspaceKey) {
       map[previousKey] = { tab: rightTab, open: rightOpen }
     }
 
-    nightlyWorkspaceKeyRef.current = nightlyWorkspaceKey
+    nightlyWorkspaceKeyRef.current = activeNightlyWorkspaceKey
     saveNightlyWorkspaceUi(map)
 
-    const saved = map[nightlyWorkspaceKey]
+    const saved = map[activeNightlyWorkspaceKey]
     if (!saved) return
     if (typeof saved.tab === 'string' && saved.tab !== rightTab) setRightTab(saved.tab)
     if (typeof saved.open === 'boolean' && saved.open !== rightOpen) setRightOpen(saved.open)
   // Only workspace changes trigger hydration. Including pane state would let
   // the outgoing workspace overwrite the incoming workspace's saved choice.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nightlyWorkspaceKey])
+  }, [activeNightlyWorkspaceKey])
 
   useEffect(() => {
     const key = nightlyWorkspaceKeyRef.current
@@ -834,16 +845,12 @@ export default function App() {
       // Ctrl+Shift+G → grid layout (all sessions tiled)
       if (ctrl && e.shiftKey && key === 'g') {
         e.preventDefault()
-        setGridMode(prev => {
-          if (!prev && tabsRef.current.length < 2) return prev
-          if (!prev) setView('terminal')
-          return !prev
-        })
+        toggleWorkspaceGrid()
       }
       // Ctrl+Shift+D → duplicate active tab
       if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
       // Ctrl+\ → toggle 2-up split (active + most recent other session)
-      if (ctrl && e.key === '\\') { e.preventDefault(); toggleSplit() }
+      if (ctrl && e.key === '\\') { e.preventDefault(); toggleWorkspaceSplit() }
       // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
       if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); openTab(profiles[0]) }
       // Ctrl+W → close active tab
@@ -1049,6 +1056,34 @@ export default function App() {
 
   // 2-up split (Ctrl+\): state + toggle live in useSplitView.
   const { splitId, setSplitId, toggleSplit } = useSplitView({ tabs, tabsRef, mruRef, activeIdRef, setBootedIds, setView })
+
+  const currentWorkspaceTabs = useCallback(() => {
+    const anchor = tabsRef.current.find(t => t.id === activeIdRef.current)
+    const key = nightlyWorkspaceKey(anchor)
+    return key ? tabsRef.current.filter(t => nightlyWorkspaceKey(t) === key) : []
+  }, [])
+
+  const toggleWorkspaceSplit = useCallback(() => {
+    setSplitId(prev => {
+      if (prev) return null
+      const activeNow = activeIdRef.current
+      const eligible = currentWorkspaceTabs().filter(t => t.id !== activeNow)
+      const partnerId = mruRef.current.find(id => eligible.some(t => t.id === id)) || eligible[0]?.id
+      if (!partnerId) return null
+      setBootedIds(prevBooted => prevBooted.has(partnerId) ? prevBooted : new Set(prevBooted).add(partnerId))
+      setView('terminal')
+      return partnerId
+    })
+  }, [currentWorkspaceTabs, setSplitId])
+
+  const toggleWorkspaceGrid = useCallback(() => {
+    setSplitId(null)
+    setGridMode(prev => {
+      if (!prev && currentWorkspaceTabs().length < 2) return prev
+      setView('terminal')
+      return !prev
+    })
+  }, [currentWorkspaceTabs, setSplitId])
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
@@ -2077,17 +2112,10 @@ export default function App() {
               onSeducia={() => setSeduciaOpen(true)}
               onSwitchAccount={(slotId) => activeId && switchToAccountAndResume(activeId, slotId)}
               layoutMode={view === 'overview' ? 'overview' : gridMode ? 'grid' : splitId ? 'split' : 'focus'}
-              canSplit={tabs.length > 1}
+              canSplit={activeWorkspaceTabs.length > 1}
               onLayoutFocus={() => { setGridMode(false); setSplitId(null); setView('terminal') }}
-              onLayoutSplit={() => { setGridMode(false); toggleSplit() }}
-              onLayoutGrid={() => {
-                setSplitId(null)
-                setGridMode(prev => {
-                  if (!prev && tabsRef.current.length < 2) return prev
-                  setView('terminal')
-                  return !prev
-                })
-              }}
+              onLayoutSplit={() => { setGridMode(false); toggleWorkspaceSplit() }}
+              onLayoutGrid={toggleWorkspaceGrid}
               onLayoutOverview={() => setView('overview')}
               activePane={rightTab}
               onOpenPane={(pane) => {
@@ -2120,7 +2148,7 @@ export default function App() {
                 const layoutGridMode = (gridMode || !!splitPartner) && !zenMode
                 const GRID_CAP = entitlements.limit('gridCap') || 4
                 const gridTabs = gridMode && !zenMode
-                  ? tabs.slice(0, GRID_CAP)
+                  ? activeWorkspaceTabs.slice(0, GRID_CAP)
                   : splitPartner
                     ? [tabs.find(t => t.id === activeId), splitPartner].filter(Boolean)
                     : tabs.filter(tab => bootedIds.has(tab.id))
@@ -2223,9 +2251,9 @@ export default function App() {
                     })}
                     {/* Grid only — split view always shows exactly 2 tiles, so
                         the "showing X of N" cap note would be wrong there. */}
-                    {gridMode && !zenMode && tabs.length > GRID_CAP && (
+                    {gridMode && !zenMode && activeWorkspaceTabs.length > GRID_CAP && (
                       <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 70, fontSize: 10.5, fontWeight: 700, color: '#8a939c', background: 'rgba(5,7,10,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '4px 12px' }}>
-                        showing {GRID_CAP} of {tabs.length} (CPU guard)
+                        showing {GRID_CAP} of {activeWorkspaceTabs.length} in this project (CPU guard)
                       </div>
                     )}
                   </div>
