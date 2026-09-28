@@ -83,7 +83,7 @@ const stub = `
     creditsGet: async () => credits,
     claudeLimitsGet: async () => ({ ok: true, limits: { status: 'allowed', rateLimitType: '', resetsAt: now + 3600e3, sessionPct: 42, weekPct: 18, at: now } }),
     batteryStatus: async () => ({ ok: true, hasBattery: true, percent: 74, charging: false }),
-    startPty: async ({ tabId }) => {
+    startPty: async ({ tabId, cwd }) => {
       setTimeout(() => {
         let i = 0
         const drip = () => {
@@ -93,7 +93,7 @@ const stub = `
         }
         drip()
       }, 250)
-      return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: '/home/taylor/sush', profileId: 'powershell', status: 'running', lastActiveAt: now }
+      return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: cwd || '/home/taylor/sush', profileId: 'powershell', status: 'running', lastActiveAt: now }
     },
     getScrollback: async () => ({ text: 'npm test\\ntest suite passed\\n' }),
     snippetsList: async () => ({ ok: true, snippets: [ { name: 'deploy', command: 'npm run deploy' }, { name: 'wtree', command: 'git worktree list' } ] }),
@@ -353,6 +353,19 @@ if (await layoutButton.count()) {
     }
   }
   await shot('02e-split')
+
+  // Switching to another project while Split is active must not drag the old
+  // project's partner into the new workspace.
+  await page.locator('.nightly-thread-row').filter({ hasText: 'Other project shell' }).click()
+  await page.waitForTimeout(650)
+  await layoutButton.click()
+  const focusRow = page.locator('.nightly-layout-popover > button').filter({ hasText: 'One active session' })
+  if (!(await focusRow.evaluate(el => el.classList.contains('is-active')))) {
+    throw new Error('Nightly Split remained active after crossing project boundaries')
+  }
+  await page.keyboard.press('Escape')
+  await page.locator('.nightly-thread-row').filter({ hasText: 'Claude Code' }).first().click()
+  await page.waitForTimeout(450)
 
   await layoutButton.click()
   await page.locator('.nightly-layout-popover').getByText('Grid', { exact: true }).click()
