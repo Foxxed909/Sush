@@ -164,6 +164,7 @@ export default function NightlyTopbar({
           accent={accent}
           activePane={activePane}
           panelOpen={rightOpen}
+          threadAvailable={activeTab?.agentId === 'claude'}
           dock={paneDock}
           onDockChange={onPaneDockChange}
           onOpen={onOpenPane}
