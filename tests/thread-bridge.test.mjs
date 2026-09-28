@@ -1,7 +1,12 @@
+import { mkdtempSync, existsSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import {
   augmentClaudeCommand,
   claudeHookSettings,
+  cleanupThreadEventFile,
+  prepareThreadEventFile,
   parseClaudeTranscript,
   parseThreadEvents,
   validClaudeTranscriptPath
@@ -82,5 +87,18 @@ describe('Claude thread bridge', () => {
     expect(validClaudeTranscriptPath(`/home/me/.claude/projects/repo/${SID}/main.jsonl`, SID)).toBe(true)
     expect(validClaudeTranscriptPath('/etc/passwd.jsonl', SID)).toBe(false)
     expect(validClaudeTranscriptPath('/tmp/other.jsonl', SID)).toBe(false)
+  })
+
+  it('keeps the event file through provider exit semantics but deletes it when the Sush tab closes', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sush-thread-'))
+    try {
+      const path = prepareThreadEventFile(root, 'tab-42')
+      expect(existsSync(path)).toBe(true)
+      expect(cleanupThreadEventFile(root, 'tab-42')).toBe(true)
+      expect(existsSync(path)).toBe(false)
+      expect(cleanupThreadEventFile(root, 'tab-42')).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
