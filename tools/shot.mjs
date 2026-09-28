@@ -812,6 +812,18 @@ await page.keyboard.press('Control+Shift+n')
 const launcher = page.locator('.sush-backdrop').filter({ hasText: 'Agents & tools' }).last()
 await launcher.getByText('Claude Code', { exact: true }).click()
 await page.waitForTimeout(250)
+{
+  const claudeCard = launcher.locator('.sush-row').filter({ hasText: 'Claude Code' }).first()
+  const claudeText = await claudeCard.innerText()
+  if (!claudeText.includes('v2.1.14') || !claudeText.includes('resume') || !claudeText.includes('reasoning')) {
+    throw new Error('Nightly launcher did not surface detected Claude capabilities')
+  }
+  const geminiCard = launcher.locator('.sush-row').filter({ hasText: 'Gemini' }).first()
+  const geminiText = await geminiCard.innerText()
+  if (!geminiText.includes('NOT INSTALLED')) {
+    throw new Error('Nightly launcher did not surface missing provider state')
+  }
+}
 await shot('08-launcher-models')
 await page.keyboard.press('Escape')
 
