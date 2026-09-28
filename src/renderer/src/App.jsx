@@ -64,6 +64,7 @@ const SESSION_LAYOUT_KEY = 'sush-session-layout'
 const LAST_HOME_VIEW_KEY = 'sush-last-home-view'
 const COMMAND_HISTORY_KEY = 'sush-command-history'
 const PINNED_PROJECTS_KEY = 'sush-pinned-projects'
+const NIGHTLY_WORKSPACE_UI_KEY = 'sush-nightly-workspace-ui'
 const MAX_RECENT_SESSIONS = 8
 
 function loadCommandHistory() {
@@ -84,6 +85,19 @@ function loadPinnedProjects() {
   } catch {
     return []
   }
+}
+
+function loadNightlyWorkspaceUi() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(NIGHTLY_WORKSPACE_UI_KEY) ?? '{}')
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveNightlyWorkspaceUi(map) {
+  try { localStorage.setItem(NIGHTLY_WORKSPACE_UI_KEY, JSON.stringify(map || {})) } catch {}
 }
 
 let nextTabId = 1
@@ -567,6 +581,40 @@ export default function App() {
   }, [])
 
   const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
+
+  // Secondary pane state belongs to the project, not the whole application.
+  // Repo A can keep Files open while repo B keeps Notes open.
+  const nightlyWorkspaceKey = normalizePathKey(activeTab?.cwd) || (activeTab?.groupId ? `group:${activeTab.groupId}` : null)
+  const nightlyWorkspaceKeyRef = useRef(null)
+  useEffect(() => {
+    if (!nightlyWorkspaceKey) return
+    const map = loadNightlyWorkspaceUi()
+    const previousKey = nightlyWorkspaceKeyRef.current
+
+    if (previousKey && previousKey !== nightlyWorkspaceKey) {
+      map[previousKey] = { tab: rightTab, open: rightOpen }
+    }
+
+    nightlyWorkspaceKeyRef.current = nightlyWorkspaceKey
+    saveNightlyWorkspaceUi(map)
+
+    const saved = map[nightlyWorkspaceKey]
+    if (!saved) return
+    if (typeof saved.tab === 'string' && saved.tab !== rightTab) setRightTab(saved.tab)
+    if (typeof saved.open === 'boolean' && saved.open !== rightOpen) setRightOpen(saved.open)
+  // Only workspace changes trigger hydration. Including pane state would let
+  // the outgoing workspace overwrite the incoming workspace's saved choice.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nightlyWorkspaceKey])
+
+  useEffect(() => {
+    const key = nightlyWorkspaceKeyRef.current
+    if (!key) return
+    const map = loadNightlyWorkspaceUi()
+    map[key] = { tab: rightTab, open: rightOpen }
+    saveNightlyWorkspaceUi(map)
+  }, [rightTab, rightOpen])
+
   const nightlyProviderMeta = useNightlyProviderMeta(view === 'terminal' ? activeTab : null, !zenMode)
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
   const runningSessionCount = tabs.filter(t => t.status === 'running').length
