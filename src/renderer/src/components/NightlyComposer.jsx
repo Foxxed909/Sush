@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { agentById } from '../lib/agents'
+import NightlyModelMenu from './NightlyModelMenu'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
@@ -11,7 +12,7 @@ function compactTokens(value) {
   return String(Math.round(n))
 }
 
-export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher }) {
+export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher, onChangeSessionModel }) {
   const [value, setValue] = useState('')
   const ref = useRef(null)
   const agent = agentById(activeTab?.agentId) || agentById('shell')
@@ -53,12 +54,17 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
           spellCheck={false}
         />
         <div className="nightly-composer-meta">
-          <button type="button" className="nightly-model-pill" onClick={onOpenLauncher} title="Open agent/model launcher">
-            <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
-            {providerMeta?.model || agent?.label || 'Shell'}
-            {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
-            <Icon name="chevronDown" size={10} />
-          </button>
+          <span className="nightly-model-control">
+            <span className="nightly-model-provider" style={{ color: agent?.color || accent }}>{agent?.mono || '>_'}</span>
+            <NightlyModelMenu
+              provider={activeTab?.agentId || 'shell'}
+              model={providerMeta?.model || activeTab?.model || null}
+              effort={providerMeta?.effort || activeTab?.effort || null}
+              accent={accent}
+              onApply={onChangeSessionModel}
+              onOpenLauncher={onOpenLauncher}
+            />
+          </span>
           <span className="nightly-context-note" title="Context-window telemetry stays separate from subscription usage and only appears when the CLI exposes it">
             Context {activeTab?.contextPct != null ? `${activeTab.contextPct}%` : compactTokens(providerMeta?.contextTokens)}
           </span>
