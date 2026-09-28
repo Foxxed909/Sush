@@ -1136,6 +1136,11 @@ p { text-wrap: pretty; }
   color: var(--text-5); font-size: 8.25px; line-height: 1.4;
 }
 .nightly-account-empty { padding: 14px 8px; color: var(--text-4); font-size: 9.5px; text-align: center; }
+.nightly-account-error {
+  margin: 5px 4px 2px; padding: 7px 8px; border-radius: 7px;
+  border: 1px solid rgba(255, 83, 112, .22); background: rgba(255, 83, 112, .07);
+  color: #ff9aae; font-size: 8.75px; line-height: 1.4;
+}
 
 .nightly-effort-tag {
   display: inline-flex; align-items: center; height: 15px; padding: 0 4px;
