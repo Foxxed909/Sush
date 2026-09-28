@@ -1434,3 +1434,13 @@ p { text-wrap: pretty; }
   font-size: 8px;
   font-weight: 850;
 }
+
+.nightly-context-chip {
+  font: inherit;
+  cursor: pointer;
+}
+.nightly-context-chip:hover {
+  color: var(--text-2);
+  border-color: var(--accent-a22);
+  background: var(--accent-a06);
+}
