@@ -1444,3 +1444,17 @@ p { text-wrap: pretty; }
   border-color: var(--accent-a22);
   background: var(--accent-a06);
 }
+
+.nightly-open-btn:disabled {
+  opacity: .55;
+  cursor: default;
+}
+.nightly-topbar.is-inspector-open .nightly-open-label {
+  display: none;
+}
+.nightly-topbar.is-inspector-open .nightly-open-btn {
+  width: 29px;
+  padding-left: 0;
+  padding-right: 0;
+  justify-content: center;
+}
