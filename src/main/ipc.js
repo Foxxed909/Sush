@@ -991,7 +991,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
         const userData = app.getPath('userData')
         const settingsPath = ensureClaudeThreadSettings(userData, process.platform)
         threadEventFile = prepareThreadEventFile(userData, tabId)
-        bridgedBootCommand = augmentClaudeCommand(bootCommand, settingsPath)
+        bridgedBootCommand = augmentClaudeCommand(bootCommand, settingsPath, { shellId: requestedShell.id, platform: process.platform })
       }
     } catch {
       // Thread is additive. A bridge setup/probe failure must never stop the
