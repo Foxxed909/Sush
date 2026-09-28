@@ -1398,3 +1398,25 @@ p { text-wrap: pretty; }
   color: var(--text-5); font-size: 8px; line-height: 1.45;
   background: var(--accent-a03);
 }
+
+
+.nightly-pane-dock-switch {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
+  margin: 5px 4px 7px; padding: 4px; border-radius: 8px;
+  background: rgba(255,255,255,.018); border: 1px solid var(--border-1);
+}
+.nightly-pane-dock-switch > button {
+  height: 27px; display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--text-4); font: inherit;
+  font-size: 9px; font-weight: 780; cursor: pointer;
+}
+.nightly-pane-dock-switch > button:hover { color: var(--text-2); background: rgba(255,255,255,.035); }
+.nightly-pane-dock-switch > button.is-active {
+  color: var(--accent); border-color: var(--accent-a22); background: var(--accent-a06);
+}
+.nightly-inspector.is-bottom {
+  width: 100% !important;
+  max-width: none !important;
+  box-shadow: 0 -8px 28px rgba(0,0,0,.12);
+}
