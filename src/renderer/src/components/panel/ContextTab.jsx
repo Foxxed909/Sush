@@ -97,6 +97,29 @@ export default function ContextTab({ accent, cwd, activeTab, tabs = [], provider
     return pieces.length ? pieces.join(' · ') : 'No observed sources yet'
   }, [data.docs.length, changed.length, data.tail])
 
+  const makeBundle = () => buildContextBundle({
+    projectRoot,
+    checkoutRoot,
+    liveCwd,
+    provider: providerName(activeTab),
+    model,
+    effort: effort || 'provider default',
+    account: providerMeta?.accountLabel || '—',
+    git: data.git,
+    docs: data.docs,
+    tail: data.tail,
+    lineage
+  })
+
+  const sendBundleToAgent = () => {
+    const bundle = makeBundle()
+    window.dispatchEvent(new CustomEvent('sush:composer-fill', {
+      detail: {
+        text: `Use this observed Sush workspace context to help with my next request. Do not assume every source below is already in your model context.\n\n${bundle}\n`
+      }
+    }))
+  }
+
   if (!checkoutRoot) {
     return (
       <PanelEmpty icon="layers" accent={accent} hint="Open a project session to inspect the context Sush can actually observe.">
@@ -114,42 +137,41 @@ export default function ContextTab({ accent, cwd, activeTab, tabs = [], provider
         sub={contextSummary}
         onRefresh={load}
         right={
-          <button
-            type="button"
-            onClick={() => {
-              const bundle = buildContextBundle({
-                projectRoot,
-                checkoutRoot,
-                liveCwd,
-                provider: providerName(activeTab),
-                model,
-                effort: effort || 'provider default',
-                account: providerMeta?.accountLabel || '—',
-                git: data.git,
-                docs: data.docs,
-                tail: data.tail,
-                lineage
-              })
-              copyToClipboard(bundle)
-              setCopied(true)
-              if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
-              copyTimerRef.current = setTimeout(() => setCopied(false), 1400)
-            }}
-            title={copied ? 'Context bundle copied' : 'Copy bounded context bundle'}
-            aria-label={copied ? 'Context bundle copied' : 'Copy context bundle'}
-            className="sush-icon-btn flex items-center justify-center"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              border: '1px solid var(--border-1)',
-              background: copied ? rgba(accent, 0.1) : 'transparent',
-              color: copied ? accent : 'var(--text-3)',
-              cursor: 'pointer'
-            }}
-          >
-            <Icon name={copied ? 'check' : 'copy'} size={13} />
-          </button>
+          <div className="flex items-center" style={{ gap: 6 }}>
+            <button
+              type="button"
+              onClick={sendBundleToAgent}
+              title="Fill the active agent composer with this observed context bundle"
+              aria-label="Send context to agent"
+              className="sush-mini-btn"
+              style={{ padding: '5px 9px', borderRadius: 7, border: '1px solid var(--border-1)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer', fontSize: 10.5, fontWeight: 700 }}
+            >
+              Send
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                copyToClipboard(makeBundle())
+                setCopied(true)
+                if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+                copyTimerRef.current = setTimeout(() => setCopied(false), 1400)
+              }}
+              title={copied ? 'Context bundle copied' : 'Copy bounded context bundle'}
+              aria-label={copied ? 'Context bundle copied' : 'Copy context bundle'}
+              className="sush-icon-btn flex items-center justify-center"
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                border: '1px solid var(--border-1)',
+                background: copied ? rgba(accent, 0.1) : 'transparent',
+                color: copied ? accent : 'var(--text-3)',
+                cursor: 'pointer'
+              }}
+            >
+              <Icon name={copied ? 'check' : 'copy'} size={13} />
+            </button>
+          </div>
         }
       />
 
