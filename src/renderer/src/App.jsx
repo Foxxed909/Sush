@@ -2036,6 +2036,11 @@ export default function App() {
                 })
               }}
               onLayoutOverview={() => setView('overview')}
+              activePane={rightTab}
+              onOpenPane={(pane) => {
+                setRightTab(pane)
+                setRightOpen(true)
+              }}
               onTogglePanel={() => setRightOpen(prev => !prev)}
             />
           )}
