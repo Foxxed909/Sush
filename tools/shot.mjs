@@ -240,6 +240,35 @@ await page.keyboard.press('Control+1').catch(() => {})
 await page.waitForTimeout(1400)
 await shot('02-terminal')
 
+// Agent lifecycle regression: duplicate + close + reopen must preserve the
+// provider/model/effort identity instead of degrading into a plain shell.
+const baseThreadCount = await page.locator('.nightly-thread-row').count()
+await page.keyboard.press('Control+Shift+d')
+await page.waitForTimeout(700)
+if (await page.locator('.nightly-thread-row').count() !== baseThreadCount + 1) {
+  throw new Error('Nightly duplicate did not create a second session')
+}
+let chromeText = await page.locator('.nightly-topbar').innerText()
+if (!chromeText.includes('sonnet') || !chromeText.includes('high')) {
+  throw new Error('Nightly duplicate lost model/effort metadata')
+}
+await page.keyboard.press('Control+w')
+await page.waitForTimeout(450)
+await page.keyboard.press('Control+Shift+t')
+await page.waitForTimeout(750)
+if (await page.locator('.nightly-thread-row').count() !== baseThreadCount + 1) {
+  throw new Error('Nightly reopen did not restore the closed agent session')
+}
+chromeText = await page.locator('.nightly-topbar').innerText()
+if (!chromeText.includes('sonnet') || !chromeText.includes('high')) {
+  throw new Error('Nightly reopen lost model/effort metadata')
+}
+await shot('02a-agent-lifecycle')
+await page.keyboard.press('Control+w')
+await page.waitForTimeout(450)
+await page.keyboard.press('Control+1').catch(() => {})
+await page.waitForTimeout(500)
+
 // 2b — Account / usage popover in the Nightly title chrome.
 const accountChip = page.locator('.nightly-account-chip').first()
 if (await accountChip.count()) {
