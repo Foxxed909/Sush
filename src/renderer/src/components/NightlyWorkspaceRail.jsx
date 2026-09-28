@@ -7,13 +7,14 @@ import NightlyProfileMenu from './NightlyProfileMenu'
 function workspaceKey(tab) {
   // Nightly's unit of work is the project folder. Legacy group ids are only
   // a fallback for sessions that do not have a cwd yet.
-  return String(tab.cwd || tab.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
+  return String(tab.workspaceCwd || tab.cwd || tab.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()
 }
 
 function workspaceLabel(tab) {
-  if (tab.cwd) {
-    const bits = String(tab.cwd).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
-    return bits[bits.length - 1] || tab.cwd
+  const root = tab.workspaceCwd || tab.cwd
+  if (root) {
+    const bits = String(root).replace(/[\\/]+$/, '').split(/[\\/]/).filter(Boolean)
+    return bits[bits.length - 1] || root
   }
   return tab.groupLabel || 'Unassigned'
 }
@@ -39,7 +40,7 @@ export default function NightlyWorkspaceRail({
     const map = new Map()
     for (const tab of tabs) {
       const key = workspaceKey(tab)
-      if (!map.has(key)) map.set(key, { key, label: workspaceLabel(tab), cwd: tab.cwd || '', tabs: [] })
+      if (!map.has(key)) map.set(key, { key, label: workspaceLabel(tab), cwd: tab.workspaceCwd || tab.cwd || '', tabs: [] })
       map.get(key).tabs.push(tab)
     }
     return [...map.values()]
