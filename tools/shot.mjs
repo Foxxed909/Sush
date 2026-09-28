@@ -440,6 +440,13 @@ if (await paneButton.count()) {
   await page.waitForTimeout(650)
   const contextPane = page.locator('.nightly-inspector').getByText('Context', { exact: true }).first()
   if (!(await contextPane.count())) throw new Error('Nightly Context pane did not open')
+  const contextText = await page.locator('.nightly-inspector').innerText()
+  if (!contextText.includes('Project root') || !contextText.includes('/home/taylor/sush')) {
+    throw new Error('Nightly Context lost the stable project root')
+  }
+  if (!contextText.includes('Live cwd') || !contextText.includes('/home/taylor/sush/src')) {
+    throw new Error('Nightly Context did not distinguish the live PTY cwd from the project root')
+  }
   await shot('02g-context')
 }
 
