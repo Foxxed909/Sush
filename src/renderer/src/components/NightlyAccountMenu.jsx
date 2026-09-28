@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
+import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
 function usageOf(slot) {
   const u = slot?.usage
@@ -12,7 +13,7 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
   const [open, setOpen] = useState(false)
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState(null)
-  const ref = useRef(null)
+  const anchorRef = useRef(null)
 
   useEffect(() => {
     if (!open || !provider || provider === 'shell') return
@@ -23,20 +24,14 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
     return () => { live = false }
   }, [open, provider])
 
-  useEffect(() => {
-    if (!open) return
-    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
-  }, [open])
-
   if (!provider || provider === 'shell' || !label) return null
   const slots = state?.slots || []
   const activeId = state?.active
 
   return (
-    <div ref={ref} className="nightly-account-menu">
+    <div className="nightly-account-menu">
       <button
+        ref={anchorRef}
         className="nightly-chip nightly-account-chip"
         onClick={() => setOpen(v => !v)}
         title={count > 1 ? `${count} connected account slots` : 'Active CLI account'}
@@ -47,8 +42,13 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
         <Icon name="chevronDown" size={9} />
       </button>
 
-      {open && (
-        <div className="nightly-account-popover">
+      <NightlyAnchoredPopover
+        open={open}
+        anchorRef={anchorRef}
+        align="center"
+        className="nightly-account-popover"
+        onClose={() => setOpen(false)}
+      >
           <div className="nightly-account-popover-head">
             <span>Accounts</span>
             <small>{provider}</small>
@@ -92,8 +92,7 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
           <div className="nightly-account-foot">
             Switching restarts this agent and resumes its conversation on the selected account.
           </div>
-        </div>
-      )}
+      </NightlyAnchoredPopover>
     </div>
   )
 }
