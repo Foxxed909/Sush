@@ -11,7 +11,7 @@
 export const APP_CTRL = new Set(['k', 'b', 'p', 't', 'w', ','])
 
 // Ctrl(/Cmd) + Shift + key.
-//   n launcher · t reopen closed · z zen · b broadcast · m mission control
+//   n launcher · t reopen closed · z zen · b broadcast · m overview
 //   s dictation · g grid · d duplicate · e power saver · f hunt overlay
 export const APP_CTRL_SHIFT = new Set(['n', 't', 'z', 'b', 'm', 's', 'g', 'd', 'e', 'f'])
 
