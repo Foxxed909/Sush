@@ -321,6 +321,23 @@ await page.locator('.nightly-broadcast').click()
 if (await page.locator('.nightly-broadcast').count()) throw new Error('Nightly Broadcast pill did not turn broadcast off')
 await shot('02-terminal')
 
+// Attention inbox: the bell counts sessions that need the user and lists them.
+{
+  const bell = page.locator('.nightly-bell')
+  await bell.waitFor({ state: 'visible' })
+  // Activity is classified from terminal output over a few seconds.
+  await page.waitForFunction(() => /need you/.test(document.querySelector('.nightly-bell')?.getAttribute('aria-label') || '') && !/^No /.test(document.querySelector('.nightly-bell')?.getAttribute('aria-label') || ''), null, { timeout: 15000 }).catch(() => {})
+  const label = await bell.getAttribute('aria-label')
+  if (!/need you/.test(label || '') || /^No /.test(label || '')) throw new Error(`Nightly attention bell shows nothing for waiting agents: ${label}`)
+  await bell.click()
+  const panel = page.locator('.nightly-attention')
+  await panel.waitFor({ state: 'visible' })
+  if (!(await panel.locator('.nightly-attention-row').count())) throw new Error('Nightly attention list is empty while the bell has a count')
+  await shot('02j-attention')
+  await page.keyboard.press('Escape')
+  if (!(await page.title()).startsWith('(')) throw new Error('Window title does not carry the attention count')
+}
+
 // Session management must be reachable with the mouse: hover close button,
 // right-click menu (Rename / Duplicate / Hand off / Copy path / Close) and
 // inline rename. Escape leaves everything as it was.

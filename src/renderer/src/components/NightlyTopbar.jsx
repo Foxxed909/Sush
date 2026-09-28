@@ -7,6 +7,7 @@ import { rgba } from '../lib/ui'
 import NightlyAccountMenu from './NightlyAccountMenu'
 import NightlyLayoutMenu from './NightlyLayoutMenu'
 import NightlyPaneMenu from './NightlyPaneMenu'
+import NightlyAttention from './NightlyAttention'
 import { tabsInWorkspace, workspaceKey, workspaceLabel } from '../lib/workspaces'
 
 function compactTokens(value) {
@@ -27,6 +28,9 @@ export default function NightlyTopbar({
   guardTrip,
   providerMeta,
   rightOpen,
+  attention = [],
+  onAttentionFocus,
+  onAttentionHandoff,
   broadcast = false,
   onToggleBroadcast,
   onHome,
@@ -144,6 +148,7 @@ export default function NightlyTopbar({
             Broadcasting
           </button>
         )}
+        <NightlyAttention items={attention} onFocus={onAttentionFocus} onHandoff={onAttentionHandoff} />
         <button className="nightly-icon-btn" onClick={onHunt} title="Search all output"><Icon name="search" size={14} /></button>
         <NightlyLayoutMenu
           accent={accent}

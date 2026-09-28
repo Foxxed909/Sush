@@ -34,6 +34,8 @@ import { useBattery } from './hooks/useBattery'
 import { useOnline } from './hooks/useOnline'
 import { STATES, stripAnsi } from './lib/agentActivity'
 import { isMultiline, pasteAndSubmit } from './lib/terminalRegistry'
+import { attentionItems, attentionTitle, newlyNeedingAttention } from './lib/attention'
+import { playChime } from './lib/chime'
 import { normalizePathKey, workspaceKey } from './lib/workspaces'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { useSplitView } from './hooks/useSplitView'
@@ -656,6 +658,17 @@ export default function App() {
 
   // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
+
+  // One list of sessions that need the user (limit, waiting, errored). Drives
+  // the topbar bell, the window title count and the optional chime.
+  const attention = useMemo(() => attentionItems(tabs, agentStates, agentLimits), [tabs, agentStates, agentLimits])
+  const attentionIdsRef = useRef([])
+  useEffect(() => {
+    document.title = attentionTitle('Sush', attention.length)
+    const fresh = newlyNeedingAttention(attentionIdsRef.current, attention)
+    attentionIdsRef.current = attention.map(item => item.id)
+    if (fresh.length && settings.attentionSound === true && !ecoMode) playChime()
+  }, [attention]) // eslint-disable-line react-hooks/exhaustive-deps
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
   const agentStatesRef = useRef(agentStates)
@@ -2255,12 +2268,21 @@ export default function App() {
             onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
             onCloseProject={(key) => tabsRef.current.filter(t => workspaceKey(t) === key).forEach(t => closeTab(t.id))}
             onOpenPane={(pane, tabId) => { if (tabId) selectTab(tabId); setRightTab(pane); setRightOpen(true) }}
+            status={{
+              online,
+              battery,
+              saverReason: ecoMode ? 'eco' : manualSaver ? 'saver' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : null,
+              showStats: settings.showSystemStats === true
+            }}
           />
         )}
 
         <div className="flex flex-col flex-1 min-w-0">
           {!zenMode && (
             <NightlyTopbar
+              attention={attention}
+              onAttentionFocus={selectTab}
+              onAttentionHandoff={(id) => performLimitHandoff(id)}
               broadcast={broadcastMode}
               onToggleBroadcast={() => setBroadcastMode(false)}
               activeTab={view === 'home' ? null : activeTab}

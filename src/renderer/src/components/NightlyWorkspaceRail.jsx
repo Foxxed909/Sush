@@ -4,6 +4,7 @@ import { STATES } from '../lib/agentActivity'
 import { rgba } from '../lib/ui'
 import NightlyProfileMenu from './NightlyProfileMenu'
 import NightlyContextMenu from './NightlyContextMenu'
+import NightlyStatusStrip from './NightlyStatusStrip'
 import { groupByWorkspace, workspaceKey } from '../lib/workspaces'
 
 const WORKSPACE_STATE_ORDER = ['error', 'waiting', 'working', 'booting', 'idle', 'done']
@@ -74,7 +75,8 @@ export default function NightlyWorkspaceRail({
   onHandoffSession,
   onNewInProject,
   onCloseProject,
-  onOpenPane
+  onOpenPane,
+  status = {}
 }) {
   const workspaces = useMemo(() => groupByWorkspace(tabs), [tabs])
 
@@ -239,6 +241,8 @@ export default function NightlyWorkspaceRail({
           )
         })}
       </div>
+
+      <NightlyStatusStrip {...status} />
 
       <div className="nightly-rail-footer">
         <button onClick={onSettings}><Icon name="settings" size={13} /> Settings</button>

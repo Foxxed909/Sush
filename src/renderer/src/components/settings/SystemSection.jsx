@@ -10,6 +10,19 @@ export default function SystemSection({ accent, settings, set, onEditSushrc }) {
   return (
     <Section id="System" icon="layers" label="System" accent={accent}>
       <Row>
+        <Label>CPU and memory in the sidebar</Label>
+        <Toggle
+          accent={accent}
+          on={!!settings.showSystemStats}
+          onText="On — live CPU and memory under your projects"
+          offText="Off — the sidebar stays quiet"
+          onClick={() => set('showSystemStats', !settings.showSystemStats)}
+          fullWidth={false}
+        />
+        <Hint>Polls every 5 seconds, only while the window is focused. Offline, power-saver and low-battery notices always appear when they apply.</Hint>
+      </Row>
+
+      <Row>
         <Label>Minimize to tray</Label>
         <Toggle
           accent={accent}
@@ -33,6 +46,20 @@ export default function SystemSection({ accent, settings, set, onEditSushrc }) {
           onClick={() => set('agentNotifications', settings.agentNotifications === false)}
         />
         <Hint>A desktop notification when a session needs input, errors, or finishes while Sush is in the background. Never fires while the window is focused.</Hint>
+      </Row>
+
+      <Row>
+        <Label>Chime when an agent needs you</Label>
+        <Toggle
+          accent={accent}
+          icon="bell"
+          on={settings.attentionSound === true}
+          onText="On — a soft two-note chime, only for newly waiting sessions"
+          offText="Off — the bell and window title count still update"
+          onClick={() => set('attentionSound', settings.attentionSound !== true)}
+          fullWidth={false}
+        />
+        <Hint>Plays inside Sush whether or not it is focused. Muted in Eco mode.</Hint>
       </Row>
 
       <Row>
