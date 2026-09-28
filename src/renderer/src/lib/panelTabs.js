@@ -10,6 +10,7 @@
 export const TAB_GROUPS = [
   { id: 'ai', label: 'AI', tabs: [
     { id: 'agent', label: 'Agent', icon: 'sparkles' },
+    { id: 'context', label: 'Context', icon: 'layers' },
     { id: 'claude', label: 'Claude', icon: 'sparkles' },
   ] },
   { id: 'project', label: 'Project', tabs: [
