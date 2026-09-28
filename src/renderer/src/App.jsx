@@ -724,7 +724,8 @@ export default function App() {
   const accent = theme.ui.accent
   const fontSize = settings.fontSize ?? 14
   const fontFamily = settings.fontFamily ?? "'Cascadia Code', 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace"
-  const terminalLineHeight = settings.lineHeight ?? 1.28
+  const rawLineHeight = Number(settings.lineHeight)
+  const terminalLineHeight = Number.isFinite(rawLineHeight) ? Math.min(1.8, Math.max(1, rawLineHeight)) : 1.28
   const cursorStyle = settings.cursorStyle ?? 'block'
 
   // "Show wallpaper through terminals": when a wallpaper is set and the user
