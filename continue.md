@@ -4,9 +4,9 @@
 >
 > Primary repository: `Foxxed909/Sush`
 >
-> Nightly work: PR #15 — **Nightly: Quiet Nights workspace v1**
+> Quiet Nights v1: PR #15 — **merged into `main`**
 >
-> Active implementation branch: `nightly/quiet-nights-shell-v1`
+> Active implementation branch: `main`
 >
 > This file is intentionally on `main` so a new agent can understand the project before touching the Nightly branch.
 
@@ -136,6 +136,43 @@ parts (177 tests).
 Deliberately NOT done: the structured Thread view (no trustworthy same-session
 bridge exists yet), and deleting `.github/skills/impeccable` (agent tooling the
 repo owner may rely on — remove it separately if unwanted).
+
+---
+
+## 0.3 Mainline continuation after Claude handoff
+
+Claude's branch `claude/roadmap-development-continue-i32p2l` was fast-forwarded
+into `main` in full at `8234d8d`. GitHub now recognizes PR #15 as merged.
+
+Additional work continued directly on `main`:
+
+- **Capability-aware launcher UI.** New-session cards now consume the same
+  provider capability snapshot used by launch/live validators. Installed
+  providers surface detected CLI version plus resume/reasoning support; a
+  provider positively reported as missing cannot leak through a stale saved
+  crew into the launch payload or model controls. Re-scan refreshes both PATH
+  availability and the persisted capability probe.
+- **Bounded Context bundles.** Context can copy a deliberate workspace snapshot
+  containing stable project root, checkout, live cwd, provider/model/reasoning,
+  account label, Git branch/working tree, bounded project docs, bounded terminal
+  tail and handoff lineage. The bundle explicitly says these are sources Sush
+  can observe, not proof they are loaded in the provider model context window.
+- **Context → agent.** The same bounded bundle can fill and focus the active
+  composer. It never auto-submits, matching the Changes pane's Send-to-agent
+  safety pattern.
+- Added unit coverage for bundle bounds/identity/lineage and visual assertions
+  for capability status, Context clipboard semantics, and Context → composer.
+
+Current GitHub Actions note: pushes to `main` are still producing the known
+runner-level failure pattern where all six matrix jobs end before step 1 with no
+job steps/logs. Treat that separately from code failures until a runner actually
+executes the workflow.
+
+PR #17 (`nightly/context-density-v3`) is still open but diverged from the now
+mainlined architecture. Do not merge it wholesale. Its bounded Context-bundle
+idea has been reimplemented on current `main`; its experimental Claude
+"Thread" presentation must still satisfy the same-session truthfulness rule
+before any equivalent feature lands.
 
 ---
 
