@@ -17,6 +17,7 @@ import DockerTab from './panel/DockerTab'
 import EnvManagerTab from './panel/EnvTab'
 import SshTab from './panel/SshTab'
 import MarkdownTab from './panel/MarkdownTab'
+import ContextTab from './panel/ContextTab'
 import { TAB_GROUPS, TABS, DEFAULT_HIDDEN_TABS } from '../lib/panelTabs'
 
 // The right panel SHELL: tab strip + routing only. Every tab body lives in
@@ -30,6 +31,8 @@ export default function RightPanel({
   tab,
   onTab,
   activeCwd,
+  activeTab,
+  providerMeta,
   tabs,
   recentSessions,
   seduciaScope,
@@ -88,6 +91,15 @@ export default function RightPanel({
 
       {/* Tab body */}
       <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
+        {safeTab === 'context' && (
+          <ContextTab
+            accent={accent}
+            cwd={activeCwd}
+            activeTab={activeTab}
+            providerMeta={providerMeta}
+            onOpenFile={handleOpenFile}
+          />
+        )}
         {safeTab === 'agent' && (
           <Seducia
             docked
@@ -147,7 +159,7 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = 
   // A tab shows when it isn't hidden, OR when it's the active one (so you can
   // always navigate away from a tab the palette opened while it's hidden).
   const hidden = new Set(hiddenTabs)
-  const nightlyPrimary = new Set(['agent', 'changes', 'files', 'browser', 'tasks'])
+  const nightlyPrimary = new Set(['agent', 'context', 'changes', 'files', 'browser', 'tasks'])
   const visibleGroups = TAB_GROUPS
     .map(g => ({
       ...g,
