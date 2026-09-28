@@ -24,7 +24,7 @@ describe('Nightly model launch adapter', () => {
     expect(buildAgentCommand(agent('codex', 'codex', 'codex resume --last'), { model: 'gpt-5.3-codex', effort: 'xhigh' }))
       .toBe('codex --model gpt-5.3-codex --config "model_reasoning_effort=\'xhigh\'"')
     expect(normalizeEffort('claude', 'banana')).toBeNull()
-    expect(normalizeEffort('claude', 'ultracode')).toBe('ultracode')
+    expect(normalizeEffort('claude', 'ultracode')).toBeNull()
     expect(normalizeEffort('gemini', 'high')).toBeNull()
   })
 
@@ -48,9 +48,9 @@ describe('Nightly model launch adapter', () => {
       .toBe('claude')
   })
 
-  it('accepts Claude Code ultracode when selected explicitly', () => {
+  it('rejects unsupported Claude effort names instead of forwarding them', () => {
     expect(buildAgentCommand(agent('claude', 'claude'), { model: 'opus', effort: 'ultracode' }))
-      .toBe('claude --model opus --effort ultracode')
+      .toBe('claude --model opus')
   })
 
   it('treats blank/default selection as provider-owned behavior', () => {
