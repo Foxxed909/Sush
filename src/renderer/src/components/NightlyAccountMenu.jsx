@@ -8,7 +8,7 @@ function usageOf(slot) {
   return values.length ? Math.max(...values) : null
 }
 
-export default function NightlyAccountMenu({ provider, label, count = 0, accent, onSwitch }) {
+export default function NightlyAccountMenu({ provider, label, count = 0, usagePct = null, usageTitle, accent, onSwitch }) {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState(null)
@@ -40,15 +40,20 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
     <div className="nightly-account-menu">
       <button
         ref={anchorRef}
-        className="nightly-chip nightly-account-chip"
+        className={`nightly-strip-seg nightly-account-chip${usagePct >= 80 ? ' is-limit' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(v => !v)}
-        title={count > 1 ? `${count} connected account slots` : 'Active CLI account'}
+        title={[count > 1 ? `${count} connected account slots` : 'Active CLI account', usagePct != null ? usageTitle : null].filter(Boolean).join(' · ')}
       >
-        <Icon name="users" size={10} />
-        {label}
-        {count > 1 && <span className="nightly-account-count">{count}</span>}
+        <Icon name="users" size={11} />
+        <span className="nightly-account-label">{label}</span>
+        {usagePct != null && (
+          <span className="nightly-usage" aria-label={`Usage ${usagePct}%`}>
+            <span className="nightly-usage-bar"><span style={{ width: `${Math.max(3, Math.min(100, usagePct))}%` }} /></span>
+            <strong>{usagePct}%</strong>
+          </span>
+        )}
         <Icon name="chevronDown" size={9} />
       </button>
 

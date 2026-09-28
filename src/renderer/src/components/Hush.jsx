@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { DictationRecorder, dictationSupported, formatCredits } from '../lib/dictation'
@@ -19,7 +20,9 @@ import { DictationRecorder, dictationSupported, formatCredits } from '../lib/dic
 // indefinitely. It does NOT discard the clip; Esc is the no-cost cancel.
 const MAX_CLIP_MS = 30000
 
-export default function Hush({ accent, enabled = true, autoSend = true, onInsert }) {
+// `dock`: an element to render the mic into (the Nightly composer); without
+// one it floats bottom-right, clear of the rail.
+export default function Hush({ accent, enabled = true, autoSend = true, onInsert, dock = null }) {
   const [state, setState] = useState('idle')   // idle | listening | transcribing | flash | error
   const [errMsg, setErrMsg] = useState('')
   const [credits, setCredits] = useState(null)   // { remainingSec, allowanceSec, resetAt } | null
@@ -178,18 +181,22 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
   const showPill = listening || transcribing || flash || errored
   const lowCredits = credits && credits.remainingSec > 0 && credits.remainingSec <= 60
 
-  return (
-    <div style={{ position: 'fixed', left: 14, bottom: 36, zIndex: 340, display: 'flex', alignItems: 'center', gap: 8 }}>
+  const docked = !!dock
+  const size = docked ? 30 : 36
+  const ui = (
+    <div style={docked
+      ? { position: 'relative', display: 'flex', alignItems: 'center' }
+      : { position: 'fixed', right: 18, bottom: 18, zIndex: 340, display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
       <button
         onClick={toggle}
         title={listening ? 'Stop & transcribe' : 'Hush — speak into the focused terminal (Ctrl+Shift+S)'}
         className={`flex items-center justify-center${listening ? ' sush-orb' : ''}`}
         style={{
-          width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
-          border: `1px solid ${listening ? 'transparent' : rgba(accent, 0.3)}`,
-          background: listening ? '#ff5370' : transcribing ? '#7c8aff' : flash ? '#5fd3a8' : errored ? '#ffb74d' : 'rgba(10,13,17,0.85)',
+          width: size, height: size, borderRadius: docked ? 9 : '50%', cursor: 'pointer', flexShrink: 0,
+          border: `1px solid ${listening ? 'transparent' : docked ? 'transparent' : rgba(accent, 0.3)}`,
+          background: listening ? '#ff5370' : transcribing ? '#7c8aff' : flash ? '#5fd3a8' : errored ? '#ffb74d' : docked ? 'transparent' : 'rgba(10,13,17,0.85)',
           color: listening || transcribing || flash || errored ? '#05070b' : 'var(--text-3)',
-          boxShadow: listening ? '0 8px 24px rgba(255,83,112,0.4)' : '0 6px 18px rgba(0,0,0,0.4)',
+          boxShadow: listening ? '0 8px 24px rgba(255,83,112,0.4)' : docked ? 'none' : '0 6px 18px rgba(0,0,0,0.4)',
           transition: 'background 180ms cubic-bezier(0.22,1,0.36,1), box-shadow 180ms ease, border-color 180ms ease'
         }}
       >
@@ -199,7 +206,7 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
         <div
           data-glass
           className="seducia-pill"
-          style={{ maxWidth: 'min(420px, 56vw)', padding: '8px 13px', borderRadius: 12, background: 'rgba(8,10,14,0.9)', border: `1px solid ${errored ? 'rgba(255,183,77,0.4)' : rgba(accent, 0.3)}`, boxShadow: '0 8px 24px rgba(0,0,0,0.45)' }}
+          style={{ ...(docked ? { position: 'absolute', right: 0, bottom: 'calc(100% + 12px)', width: 'max-content' } : null), maxWidth: 'min(420px, 56vw)', padding: '8px 13px', borderRadius: 12, background: 'rgba(8,10,14,0.9)', border: `1px solid ${errored ? 'rgba(255,183,77,0.4)' : rgba(accent, 0.3)}`, boxShadow: '0 8px 24px rgba(0,0,0,0.45)' }}
         >
           <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1, color: flash ? '#5fd3a8' : errored ? '#ffb74d' : transcribing ? '#9aa6ff' : accent, marginBottom: 2 }}>
             {flash ? (autoSend ? 'SENT TO TERMINAL' : 'TYPED — PRESS ENTER TO SEND')
@@ -226,4 +233,5 @@ export default function Hush({ accent, enabled = true, autoSend = true, onInsert
       )}
     </div>
   )
+  return docked ? createPortal(ui, dock) : ui
 }

@@ -390,7 +390,7 @@ if (await accountChip.count()) {
   if (!chromeText.includes('sonnet') || !chromeText.includes('high')) {
     throw new Error('Nightly account rotation lost model/reasoning metadata')
   }
-  if (!chromeText.includes('Work') || !/Usage\s+12%/.test(chromeText)) {
+  if (!chromeText.includes('Work') || !/Work[\s\S]*12%/.test(chromeText)) {
     throw new Error('Nightly account rotation left stale account/usage metadata in the titlebar')
   }
   const activeWorkspace = page.locator('.nightly-workspace.is-active')

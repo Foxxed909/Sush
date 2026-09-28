@@ -12,7 +12,7 @@ function compactTokens(value) {
   return String(Math.round(n))
 }
 
-export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher, onChangeSessionModel }) {
+export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher, onChangeSessionModel, hushSlotRef }) {
   const [value, setValue] = useState('')
   const ref = useRef(null)
   const agent = agentById(activeTab?.agentId) || agentById('shell')
@@ -65,20 +65,16 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
               onOpenLauncher={onOpenLauncher}
             />
           </span>
-          <span className="nightly-context-note" title="Context-window telemetry stays separate from subscription usage and only appears when the CLI exposes it">
-            Context {compactTokens(providerMeta?.contextTokens)}
-          </span>
-          {providerMeta?.accountLabel && (
-            <span className="nightly-context-note" title="Active CLI account slot">
-              {providerMeta.accountLabel}
-            </span>
-          )}
-          {providerMeta?.usagePct != null && (
-            <span className="nightly-context-note" title={`Session ${providerMeta.sessionPct ?? '—'}% · week ${providerMeta.weekPct ?? '—'}%`}>
-              Usage {providerMeta.usagePct}%
+          {/* Only real telemetry here: the topbar already carries account and
+              quota, and an unavailable context window is simply not shown. */}
+          {providerMeta?.contextTokens != null && (
+            <span className="nightly-context-note" title="Provider-reported input context for the latest observed turn">
+              Context {compactTokens(providerMeta.contextTokens)}
             </span>
           )}
           <span className="nightly-composer-hint">Shift+Enter newline · Ctrl+J focus</span>
+          {/* Hush docks its mic here (portal) instead of floating over the rail. */}
+          <span ref={hushSlotRef} className="nightly-hush-slot" />
           <button type="button" className="nightly-send" onClick={submit} disabled={!value.trim() || disabled || !activeTab} title="Send">
             <Icon name="arrowRight" size={14} />
           </button>

@@ -33,7 +33,11 @@ export default function SeduciaOrb({
   tabs = [], recentSessions = [], activeCwd,
   scope = { kind: 'main' }, controls = {},
   onLaunch, onRun, onPrompt, onFocus, onOpenLauncher,
-  settings = {}, working = 0
+  settings = {}, working = 0,
+  // false: the host chrome has its own Seducia button (Nightly topbar), so the
+  // orb only appears while she is listening/speaking, and the card anchors
+  // under the topbar instead of floating over the composer.
+  launcher = true
 }) {
   const brain = useSeducia({ tabs, activeCwd, recentSessions, settings, scope, controls, onLaunch, onRun, onPrompt, onFocus, onOpenLauncher })
   const { log, streaming, handle, stop, voiceState, partial, listen, aiEnabled, hasAI, micSupported, voiceError } = brain
@@ -165,7 +169,7 @@ export default function SeduciaOrb({
       style={{
         ...accentVars(accent),
         position: 'fixed',
-        ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : { right: 18, bottom: 40 }),
+        ...(pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : launcher ? { right: 18, bottom: 40 } : { right: 12, top: 54 }),
         zIndex: 360, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12
       }}
     >
@@ -295,10 +299,12 @@ export default function SeduciaOrb({
           </div>
         </div>
       )}
-      <div className="flex items-center" style={{ gap: 10 }}>
-        {pill}
-        {orb}
-      </div>
+      {(launcher || busyVoice) && (
+        <div className="flex items-center" style={{ gap: 10 }}>
+          {launcher && pill}
+          {orb}
+        </div>
+      )}
     </div>
   )
 }

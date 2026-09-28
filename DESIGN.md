@@ -75,3 +75,28 @@ switches: OS reduced-motion, `.sush-reduce-motion` (user toggle),
   while live.
 - **Empty states**: teach the next action ("Launch a swarm to see it light up
   here"), never bare "nothing here".
+
+## Nightly chrome (Quiet Nights)
+
+Studied against T3 Code (neutral-black canvas, 3% white surfaces, 6% white
+hairlines, 11px metadata floor) and BridgeMind One / BridgeSpace (split, snap
+and dock panes with a header per agent pane). Layout stays Sush's: rail,
+topbar, terminals, composer, docked inspector.
+
+- **Topbar**: crumbs as plain text, branch as muted mono. One *session strip*
+  (provider · model · effort | account + usage meter | state) of text segments
+  split by short hairlines — never a row of bordered chips. It sheds trailing
+  segments whole when narrow (container queries + one-row wrap). Telemetry the
+  CLI does not expose is omitted, not shown as `—`.
+- **Type floor**: 10px absolute minimum, 11–11.5px metadata, 12.5px rows,
+  weights 500–650. No 800–900 weights in chrome.
+- **Accent**: only the primary action, the active-row marker (2px bar), the
+  model effort tag and focus. No accent washes, glows or gradients behind pages.
+- **Rail rows**: 30px, neutral selected fill (white 6%) plus the accent bar;
+  provider as a lowercase mono tag; nothing appears selected on Home.
+- **Split/Grid panes**: a 30px header per pane (mono, label, model · effort,
+  state, focus button) above the terminal — never labels floating over output.
+- **Composer**: elevated surface (radius 14, soft drop shadow), model control
+  on the left, Hush mic docked on the right; no duplicate account/quota text.
+- **Floating controls**: none over the rail or composer. The Seducia orb only
+  appears while she is listening/speaking (the topbar has her button).

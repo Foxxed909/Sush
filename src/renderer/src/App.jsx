@@ -440,6 +440,8 @@ export default function App() {
   // Probed once in main and cached per binary, so this is one IPC call at
   // start; the bump re-renders the menus that read the adapter.
   const [, setProviderCapsVersion] = useState(0)
+  // The Nightly composer hosts Hush's mic while it is mounted.
+  const [hushSlot, setHushSlot] = useState(null)
   useEffect(() => {
     let cancelled = false
     window.sush.providerCapabilities?.()
@@ -2238,7 +2240,7 @@ export default function App() {
         {!zenMode && (
           <NightlyWorkspaceRail
             tabs={tabs}
-            activeId={activeId}
+            activeId={view === 'home' ? null : activeId}
             accent={accent}
             activity={agentStates}
             onHome={() => { setHomeView('dashboard'); setView('home') }}
@@ -2359,9 +2361,12 @@ export default function App() {
                           style={layoutGridMode && !inLayout
                             ? { position: 'absolute', inset: 0, visibility: 'hidden', pointerEvents: 'none' }
                             : inLayout
-                            ? { order: layoutOrder.get(tab.id), position: 'relative', overflow: 'hidden', borderRadius: 10, border: `1px solid ${focused ? rgba(accent, 0.6) : 'rgba(255,255,255,0.08)'}`, boxShadow: focused ? `0 0 0 1px ${rgba(accent, 0.35)}` : 'none', background: wallpaperOnTerminals ? 'transparent' : '#07090b' }
+                            ? { order: layoutOrder.get(tab.id), position: 'relative', overflow: 'hidden', borderRadius: 9, border: `1px solid ${focused ? rgba(accent, 0.45) : 'rgba(255,255,255,0.07)'}`, background: wallpaperOnTerminals ? 'transparent' : '#07090b' }
                             : { position: 'absolute', inset: 0 }}
                         >
+                          {/* Always-present body: layouts only move its top edge, so the
+                              terminal keeps its place in the tree and never remounts. */}
+                          <div className="nightly-tile-body" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: inLayout ? 30 : 0 }}>
                           {booted ? (
                             <Suspense fallback={<div className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, color: '#8a939c', fontSize: 12 }}>Starting terminal…</div>}>
                               <Terminal
@@ -2404,29 +2409,33 @@ export default function App() {
                               </div>
                             </div>
                           )}
+                          </div>
                           {inLayout && (() => {
-                            // Live state dot, same classifier the rail uses, so a
-                            // tile that needs you (amber) or errored (red) stands
-                            // out in the grid without opening Overview.
-                            const st = tab.status === 'exited' ? null : (booted ? STATES[agentStates[tab.id]] : null)
-                            const dot = tab.status === 'exited' ? '#ff5370' : (st?.dot ?? '#42d392')
-                            const pulse = st && (agentStates[tab.id] === 'working' || agentStates[tab.id] === 'waiting')
+                            // Pane header: who is in this pane, on what, and whether it
+                            // needs you — same classifier as the rail — without covering
+                            // the terminal's first line.
+                            const st = tab.status === 'exited' ? STATES.error : (booted ? (STATES[agentStates[tab.id]] || STATES.idle) : null)
+                            const dot = st?.dot ?? 'var(--text-5)'
+                            const pulse = booted && (agentStates[tab.id] === 'working' || agentStates[tab.id] === 'waiting')
+                            const tileAgent = agentById(tab.agentId) || agentById('shell')
                             return (
-                            <div className="flex items-center" style={{ position: 'absolute', top: 6, left: 8, right: 8, zIndex: 60, gap: 7, pointerEvents: 'none' }}>
-                              <span className="flex items-center" style={{ gap: 6, padding: '2px 9px', borderRadius: 999, background: 'rgba(5,7,10,0.78)', border: `1px solid ${focused ? rgba(accent, 0.5) : 'rgba(255,255,255,0.1)'}` }}>
-                                <span className={pulse ? 'sush-pulse-dot' : undefined} title={st?.label} style={{ width: 6, height: 6, borderRadius: '50%', background: dot, '--pulse': rgba(dot, 0.6) }} />
-                                <span style={{ fontSize: 10, fontWeight: 800, color: focused ? accent : '#aab3bb', whiteSpace: 'nowrap' }}>{tab.label}</span>
-                              </span>
-                              <span style={{ flex: 1 }} />
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setActiveId(tab.id); setGridMode(false) }}
-                                title="Maximize"
-                                className="flex items-center justify-center"
-                                style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(5,7,10,0.78)', color: '#aab3bb', cursor: 'pointer', pointerEvents: 'auto' }}
-                              >
-                                <Icon name="maximize" size={11} strokeWidth={2.2} />
-                              </button>
-                            </div>
+                              <div className={`nightly-tile-head${focused ? ' is-focused' : ''}`}>
+                                <span className="nightly-tile-mono" style={{ color: tileAgent?.color || accent }}>{tileAgent?.mono || '>_'}</span>
+                                <span className="nightly-tile-label">{tab.label}</span>
+                                {tab.model && <span className="nightly-tile-model">{tab.model}{tab.effort ? ` · ${tab.effort}` : ''}</span>}
+                                <span className="nightly-tile-state" title={st?.label || 'Sleeping'}>
+                                  <span className={pulse ? 'sush-pulse-dot' : undefined} style={{ background: dot, '--pulse': rgba(dot, 0.6) }} />
+                                  {st?.label || 'Sleeping'}
+                                </span>
+                                <button
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => { e.stopPropagation(); setActiveId(tab.id); setGridMode(false); setSplitId(null) }}
+                                  title="Focus this pane"
+                                  className="nightly-tile-btn"
+                                >
+                                  <Icon name="maximize" size={11} strokeWidth={2.2} />
+                                </button>
+                              </div>
                             )
                           })()}
                         </div>
@@ -2538,6 +2547,7 @@ export default function App() {
               disabled={guardBlocked && activeTab?.agentId === 'claude'}
               onOpenLauncher={() => setShowLauncher(true)}
               onChangeSessionModel={(next) => activeId ? restartSessionWithModel(activeId, next) : { ok: false }}
+              hushSlotRef={setHushSlot}
               onSend={(text) => {
                 if (!activeTab) return
                 promptSession(activeTab.id, `${text}\r`)
@@ -2642,6 +2652,7 @@ export default function App() {
           onOpenLauncher={() => setShowLauncher(true)}
           settings={settings}
           working={agentSummary?.working || 0}
+          launcher={zenMode}
         />
       )}
 
@@ -2649,6 +2660,7 @@ export default function App() {
       {identity.ready && settings.hushEnabled !== false && (
         <Hush
           accent={accent}
+          dock={hushSlot}
           autoSend={settings.hushAutoSend !== false}
           onInsert={(text) => {
             const id = activeIdRef.current

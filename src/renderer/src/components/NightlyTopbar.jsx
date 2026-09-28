@@ -89,7 +89,7 @@ export default function NightlyTopbar({
             <span className="nightly-project-name">{projectName(activeTab?.workspaceCwd || activeTab?.cwd)}</span>
             <span className="nightly-slash">/</span>
             <span className="nightly-thread-name">{activeTab?.label || 'Session'}</span>
-            {branch && <span className="nightly-chip nightly-branch"><Icon name="gitBranch" size={10} />{branch}</span>}
+            {branch && <span className="nightly-branch" title={`Branch ${branch}`}><Icon name="gitBranch" size={11} />{branch}</span>}
           </>
         ) : (
           <>
@@ -102,41 +102,47 @@ export default function NightlyTopbar({
 
       <div className="nightly-topbar-center">
         {hasSession ? (
-          <>
-            <span className="nightly-chip nightly-meta-provider" title={providerMeta?.model ? `Model: ${providerMeta.model}` : undefined}>
-              <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
-              {providerLabel}
-              {providerMeta?.model && <strong>· {providerMeta.model}</strong>}
+          // One segmented strip instead of a row of bordered chips: what runs
+          // here, on which account, and whether it needs you. Segments are in
+          // priority order; the strip sheds trailing ones whole when narrow.
+          <div className="nightly-session-strip">
+            <span className={`nightly-strip-seg nightly-meta-provider${providerMeta?.model ? ' has-model' : ''}`} title={providerMeta?.model ? `${providerLabel} · model ${providerMeta.model}` : providerLabel}>
+              <span className="nightly-strip-mono" style={{ color: agent?.color || accent }}>{agent?.mono || '>_'}</span>
+              <span className="nightly-strip-provider">{providerLabel}</span>
+              {providerMeta?.model && <strong>{providerMeta.model}</strong>}
               {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
             </span>
-            <span className="nightly-chip nightly-meta-context" title={providerMeta?.contextTokens != null ? 'Provider-reported input context for the latest observed turn' : 'This CLI has not exposed context telemetry for this workspace yet'}>
-              Context <strong>{compactTokens(providerMeta?.contextTokens)}</strong>
-            </span>
-            {providerMeta?.accountLabel && (
+            {providerMeta?.contextTokens != null && (
+              <span className="nightly-strip-seg nightly-meta-context" title="Provider-reported input context for the latest observed turn">
+                Context <strong>{compactTokens(providerMeta.contextTokens)}</strong>
+              </span>
+            )}
+            {providerMeta?.accountLabel ? (
               <NightlyAccountMenu
                 provider={providerMeta.provider}
                 label={providerMeta.accountLabel}
                 count={providerMeta.accountCount}
+                usagePct={providerMeta.usagePct}
+                usageTitle={`Session ${providerMeta.sessionPct ?? '—'}% · week ${providerMeta.weekPct ?? '—'}%`}
                 accent={accent}
                 onSwitch={onSwitchAccount}
               />
-            )}
-            {providerMeta?.usagePct != null && (
-              <span className={`nightly-chip nightly-meta-usage ${providerMeta.usagePct >= 80 ? 'nightly-limit' : ''}`} title={`Session: ${providerMeta.sessionPct ?? '—'}% · Week: ${providerMeta.weekPct ?? '—'}%`}>
+            ) : providerMeta?.usagePct != null && (
+              <span className={`nightly-strip-seg nightly-meta-usage${providerMeta.usagePct >= 80 ? ' is-limit' : ''}`} title={`Session ${providerMeta.sessionPct ?? '—'}% · week ${providerMeta.weekPct ?? '—'}%`}>
                 Usage <strong>{providerMeta.usagePct}%</strong>
               </span>
             )}
-            <span className={`nightly-chip nightly-meta-state ${limited || guardTrip ? 'nightly-limit' : ''}`}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: limited || guardTrip ? '#ff9f43' : state.dot }} />
+            <span className={`nightly-strip-seg nightly-meta-state${limited || guardTrip ? ' is-limit' : ''}`} title={`${workspaceTabs.length} agent${workspaceTabs.length === 1 ? '' : 's'} in this project`}>
+              <span className="nightly-strip-dot" style={{ background: limited || guardTrip ? '#ff9f43' : state.dot }} />
               {guardTrip ? `Guard ${guardTrip.pct}%` : limited ? 'Limit reached' : state.label}
             </span>
-            <span className="nightly-chip nightly-subtle nightly-meta-count">{workspaceTabs.length} agent{workspaceTabs.length === 1 ? '' : 's'}</span>
-          </>
+          </div>
         ) : (
-          <>
-            <span className="nightly-chip nightly-subtle">{workspaceCount} project{workspaceCount === 1 ? '' : 's'}</span>
-            <span className="nightly-chip nightly-subtle">{tabs.length} live session{tabs.length === 1 ? '' : 's'}</span>
-          </>
+          <div className="nightly-home-summary">
+            <span>{workspaceCount} project{workspaceCount === 1 ? '' : 's'}</span>
+            <span className="nightly-home-sep" aria-hidden>·</span>
+            <span>{tabs.length} live session{tabs.length === 1 ? '' : 's'}</span>
+          </div>
         )}
       </div>
 
@@ -160,7 +166,7 @@ export default function NightlyTopbar({
           onDockChange={onPaneDockChange}
           onOpen={onOpenPane}
         />
-        <button className="nightly-action-btn" onClick={onSeducia}><Icon name="sparkles" size={13} /> Seducia</button>
+        <button className="nightly-action-btn" onClick={onSeducia} title="Seducia (Ctrl+K)"><Icon name="sparkles" size={13} /> Seducia</button>
         <button className={`nightly-icon-btn${rightOpen ? ' is-active' : ''}`} onClick={onTogglePanel} title="Toggle current pane"><Icon name="panel" size={14} /></button>
         <span className="nightly-window-divider" />
         <button className="nightly-window-btn" onClick={() => windowControl('minimize')} title="Minimize">−</button>

@@ -54,7 +54,7 @@ export default function NightlyOverview({
       <div className="nightly-overview-inner">
         <div className="nightly-overview-header">
           <div>
-            <div className="nightly-overview-kicker">Quiet Nights</div>
+            <div className="nightly-overview-kicker">Workspace</div>
             <h1>Overview</h1>
             <p>{tabs.length} session{tabs.length === 1 ? '' : 's'} across {workspaces.length} project{workspaces.length === 1 ? '' : 's'}</p>
           </div>
