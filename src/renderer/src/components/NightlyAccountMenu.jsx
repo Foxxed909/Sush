@@ -38,7 +38,7 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
         title={count > 1 ? `${count} connected account slots` : 'Active CLI account'}
       >
         <Icon name="users" size={10} />
-        {label}
+        <span className="nightly-account-label">{label}</span>
         {count > 1 && <span className="nightly-account-count">{count}</span>}
         <Icon name="chevronDown" size={9} />
       </button>
