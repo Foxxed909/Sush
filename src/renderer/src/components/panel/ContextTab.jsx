@@ -4,6 +4,7 @@ import { stripAnsi } from '../../lib/agentActivity'
 import { rgba } from '../../lib/ui'
 import { agentById } from '../../lib/agents'
 import { lineageOf } from '../../lib/lineage'
+import { buildContextBundle } from '../../lib/contextBundle'
 import { PanelEmpty, TabHeader, copyToClipboard, joinPath } from './shared'
 
 const PROJECT_DOCS = [
@@ -33,7 +34,9 @@ function providerName(tab) {
 
 export default function ContextTab({ accent, cwd, activeTab, tabs = [], providerMeta, onOpenFile }) {
   const [data, setData] = useState({ loading: true, git: null, docs: [], tail: '' })
+  const [copied, setCopied] = useState(false)
   const requestRef = useRef(0)
+  const copyTimerRef = useRef(null)
   const projectRoot = activeTab?.workspaceCwd || cwd || null
   const checkoutRoot = activeTab?.sessionRootCwd || cwd || projectRoot
   const liveCwd = activeTab?.cwd || checkoutRoot
@@ -79,7 +82,10 @@ export default function ContextTab({ accent, cwd, activeTab, tabs = [], provider
 
   useEffect(() => {
     load()
-    return () => { requestRef.current += 1 }
+    return () => {
+      requestRef.current += 1
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    }
   }, [load])
 
   const changed = data.git?.files || []
@@ -107,6 +113,44 @@ export default function ContextTab({ accent, cwd, activeTab, tabs = [], provider
         title="Context"
         sub={contextSummary}
         onRefresh={load}
+        right={
+          <button
+            type="button"
+            onClick={() => {
+              const bundle = buildContextBundle({
+                projectRoot,
+                checkoutRoot,
+                liveCwd,
+                provider: providerName(activeTab),
+                model,
+                effort: effort || 'provider default',
+                account: providerMeta?.accountLabel || '—',
+                git: data.git,
+                docs: data.docs,
+                tail: data.tail,
+                lineage
+              })
+              copyToClipboard(bundle)
+              setCopied(true)
+              if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+              copyTimerRef.current = setTimeout(() => setCopied(false), 1400)
+            }}
+            title={copied ? 'Context bundle copied' : 'Copy bounded context bundle'}
+            aria-label={copied ? 'Context bundle copied' : 'Copy context bundle'}
+            className="sush-icon-btn flex items-center justify-center"
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              border: '1px solid var(--border-1)',
+              background: copied ? rgba(accent, 0.1) : 'transparent',
+              color: copied ? accent : 'var(--text-3)',
+              cursor: 'pointer'
+            }}
+          >
+            <Icon name={copied ? 'check' : 'copy'} size={13} />
+          </button>
+        }
       />
 
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
