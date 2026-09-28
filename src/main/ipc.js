@@ -37,6 +37,7 @@ import { resolveExecutable, shimSpawnSpec } from './exec'
 import { createCapabilityCache } from './provider-capabilities'
 import { parseGitPorcelainZ } from './git-porcelain'
 import { clipDiff, diffArgs } from './git-diff'
+import { augmentClaudeCommand, ensureClaudeThreadSettings, prepareThreadEventFile, readClaudeThread } from './thread-bridge'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
@@ -931,7 +932,7 @@ function writeShellCommands(proc, commands) {
 // on macOS the window can be closed and recreated from the dock while PTYs
 // keep running, and callbacks bound to the old window would silently drop
 // every byte of output for surviving sessions.
-function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand } = {}) {
+function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand, agentId } = {}) {
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
@@ -974,6 +975,26 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
   const sushrcEnv = {}
   for (const [k, v] of Object.entries(sushrc.env || {})) sushrcEnv[k] = String(v)
 
+  // Claude Thread bridge: use an additional per-launch settings source rather
+  // than modifying ~/.claude/settings.json. The hook sink inherits this
+  // session-specific path and records Claude's REAL interactive session_id +
+  // transcript_path, binding structured data back to exactly this Sush tab.
+  let threadEventFile = null
+  let bridgedBootCommand = bootCommand
+  if (agentId === 'claude' && bootCommand) {
+    try {
+      const userData = app.getPath('userData')
+      const settingsPath = ensureClaudeThreadSettings(userData, process.platform)
+      threadEventFile = prepareThreadEventFile(userData, tabId)
+      bridgedBootCommand = augmentClaudeCommand(bootCommand, settingsPath)
+    } catch {
+      // Thread is additive. A bridge setup failure must never stop the PTY or
+      // the user's Claude session from launching normally.
+      threadEventFile = null
+      bridgedBootCommand = bootCommand
+    }
+  }
+
   const { proc, shell } = spawnPty(requestedShell, {
     cols,
     rows,
@@ -989,7 +1010,9 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
       COLORTERM: 'truecolor',
       SUSH: '1',
       SUSH_PROFILE_ID: profileId ?? '',
-      SUSH_SHELL_ID: requestedShell.id
+      SUSH_SHELL_ID: requestedShell.id,
+      SUSH_TAB_ID: tabId,
+      ...(threadEventFile ? { SUSH_THREAD_EVENT_PATH: threadEventFile } : {})
     }
   })
 
@@ -1019,7 +1042,7 @@ function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKe
 
   // Run .sushrc [startup] commands once the shell is ready.
   const startupCmds = (sushrc.startup || []).filter(Boolean)
-  const bootCmd = normalizeBootCommand(bootCommand)
+  const bootCmd = normalizeBootCommand(bridgedBootCommand)
   const queuedBootCommands = [...startupCmds, bootCmd].filter(Boolean)
   if (queuedBootCommands.length) {
     setTimeout(() => {
@@ -1795,6 +1818,18 @@ export function registerIpcHandlers(win) {
       return { ok: true, providers: await providerCaps.all({ refresh: refresh === true }) }
     } catch (e) {
       return { ok: false, error: e?.message || 'capability probe failed' }
+    }
+  })
+
+  // ── Same-session structured Thread (Claude first) ────────────────────────
+  // The renderer never supplies a transcript path. It asks by Sush tab id;
+  // main resolves the path captured from Claude's own hook payload and only
+  // reads a JSONL path structurally tied to that exact session id.
+  ipcMain.handle('sush:thread-read', (event, { tabId } = {}) => {
+    try {
+      return readClaudeThread(app.getPath('userData'), tabId)
+    } catch (e) {
+      return { ok: false, error: e?.message || 'thread read failed' }
     }
   })
 
