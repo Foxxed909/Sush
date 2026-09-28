@@ -424,7 +424,8 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                 ? [
                     cap.version ? `v${cap.version}` : null,
                     cap.resume === true ? 'resume' : cap.resume === false ? 'no resume' : null,
-                    cap.reasoning?.flag === true ? 'reasoning' : null
+                    cap.reasoning?.flag === true ? 'reasoning' : null,
+                    cap.threadBridge === true ? 'Thread' : null
                   ].filter(Boolean)
                 : []
               return (
