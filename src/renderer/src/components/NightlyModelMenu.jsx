@@ -29,6 +29,10 @@ export default function NightlyModelMenu({
 
   const effortOptions = effortOptionsFor(provider, nextModel || model)
 
+  useEffect(() => {
+    if (nextEffort && !effortOptions.includes(nextEffort)) setNextEffort('')
+  }, [nextEffort, effortOptions])
+
   const dirty = useMemo(
     () => String(nextModel || '').trim() !== String(model || '').trim()
       || String(nextEffort || '').trim() !== String(effort || '').trim(),
