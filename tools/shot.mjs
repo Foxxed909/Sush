@@ -471,7 +471,7 @@ await page.keyboard.press('Control+b')
 await page.waitForTimeout(250)
 
 // 5a — Nightly workspace pane picker + local Notes pane.
-const paneButton = page.locator('.nightly-pane-menu > button').first()
+// Reuse the pane button locator declared in the earlier Context-pane check.
 await paneButton.click()
 await page.locator('.nightly-pane-popover').waitFor({ state: 'visible' })
 await shot('05a-pane-picker')
