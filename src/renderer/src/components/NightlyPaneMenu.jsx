@@ -4,8 +4,11 @@ import { rgba } from '../lib/ui'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
 const PANES = [
+  { id: 'agent', label: 'Agent', hint: 'Seducia + workspace agent', icon: 'sparkles' },
+  { id: 'changes', label: 'Changes', hint: 'Git diff and commit flow', icon: 'gitBranch' },
   { id: 'files', label: 'Files', hint: 'Workspace tree', icon: 'file' },
   { id: 'browser', label: 'Browser', hint: 'Persistent web pane', icon: 'globe' },
+  { id: 'tasks', label: 'Tasks', hint: 'Workspace task list', icon: 'check' },
   { id: 'memory', label: 'Notes', hint: 'Local markdown · .sushmemory', icon: 'book' },
   { id: 'thread', label: 'Thread', hint: 'Same-session structured turns', icon: 'terminal', disabled: true }
 ]
