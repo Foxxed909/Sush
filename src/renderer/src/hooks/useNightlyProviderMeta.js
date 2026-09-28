@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePolling } from './usePolling'
 
 // One spawn-free data source for Nightly's title/composer chrome. It reads the
@@ -16,6 +16,13 @@ export function useNightlyProviderMeta(activeTab, enabled = true) {
 
   usePolling(read, 15000, enabled)
 
+  // A session/provider change is user-visible state, so do not wait for the
+  // background polling cadence to refresh account/usage chrome. This also
+  // makes account rotation update immediately after the replacement tab opens.
+  useEffect(() => {
+    if (!enabled || !activeTab?.id) return
+    read()
+  }, [enabled, activeTab?.id, activeTab?.agentId, read])
 
   return useMemo(() => {
     const provider = activeTab?.agentId
