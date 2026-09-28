@@ -43,6 +43,8 @@ export default function NightlyTopbar({
   onLayoutGrid,
   onLayoutOverview,
   activePane,
+  paneDock,
+  onPaneDockChange,
   onOpenPane,
   onTogglePanel
 }) {
@@ -153,6 +155,8 @@ export default function NightlyTopbar({
           accent={accent}
           activePane={activePane}
           panelOpen={rightOpen}
+          dock={paneDock}
+          onDockChange={onPaneDockChange}
           onOpen={onOpenPane}
         />
         <button className="nightly-action-btn" onClick={onSeducia}><Icon name="sparkles" size={13} /> Seducia</button>
