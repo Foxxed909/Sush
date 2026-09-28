@@ -502,7 +502,7 @@ async function readAccountUsage(userId, provider, slotId, options = {}) {
     const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
     return readCodexHealth(env, { doctor: options.doctor === true })
   }
-  if (provider === 'gemini' || provider === 'opencode') {
+  if (provider === 'gemini' || provider === 'opencode' || provider === 'grok') {
     const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
     return readCliHealth(provider, env)
   }
@@ -1750,7 +1750,8 @@ export function registerIpcHandlers(win) {
       claude: { installed: present('claude'), account: activeOf('claude'), limits: getClaudeLimits() },
       codex: { installed: present('codex'), account: activeOf('codex') },
       gemini: { installed: present('gemini'), account: activeOf('gemini') },
-      opencode: { installed: present('opencode'), account: activeOf('opencode') }
+      opencode: { installed: present('opencode'), account: activeOf('opencode') },
+      grok: { installed: present('grok'), account: activeOf('grok') }
     }
   })
 

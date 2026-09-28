@@ -41,7 +41,7 @@ const SECTIONS = [
       { keys: ['Ctrl', 'Shift', 'D'], label: 'Duplicate active session' },
       { keys: ['Ctrl', 'Shift', 'G'], label: 'Toggle grid layout' },
       { keys: ['Ctrl', 'Shift', 'B'], label: 'Toggle broadcast mode' },
-      { keys: ['Ctrl', 'Shift', 'M'], label: 'Mission Control' },
+      { keys: ['Ctrl', 'Shift', 'M'], label: 'Toggle workspace Overview' },
       { keys: ['Ctrl', 'Shift', 'F'], label: 'Hunt — search all session output' },
       { keys: ['Ctrl', 'Shift', 'S'], label: 'Hush voice dictation' },
       { keys: ['Ctrl', 'Shift', 'E'], label: 'Toggle power saver' },

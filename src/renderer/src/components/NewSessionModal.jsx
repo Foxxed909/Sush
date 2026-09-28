@@ -6,6 +6,7 @@ import { allAgents, MAX_SESSIONS } from '../lib/agents'
 import { useCliAvailability } from '../hooks/useCliAvailability'
 import { useEntitlements } from '../hooks/useEntitlements'
 import { loadCrews, saveCrew, deleteCrew, parseRepoCrew } from '../lib/crews'
+import NightlyModelLaunchSettings from './NightlyModelLaunchSettings'
 
 function pathLabel(cwd) {
   if (!cwd) return ''
@@ -35,6 +36,8 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
   const [cwd, setCwd] = useState(activeCwd || '')
   const [cwdValid, setCwdValid] = useState(null)
   const [counts, setCounts] = useState({ shell: 1 })
+  const [models, setModels] = useState({})
+  const [efforts, setEfforts] = useState({})
   const [sessionName, setSessionName] = useState('')
   const [brief, setBrief] = useState('')
   const [worktrees, setWorktrees] = useState(false)
@@ -141,7 +144,7 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
     if (!canLaunch) return
     const agents = AGENT_LIST
       .filter(a => (counts[a.id] || 0) > 0)
-      .map(a => ({ ...a, count: counts[a.id] }))
+      .map(a => ({ ...a, count: counts[a.id], model: String(models[a.id] || '').trim() || null, effort: String(efforts[a.id] || '').trim() || null }))
     onLaunch({ cwd: cwd.trim(), agents, groupLabel: sessionName.trim() || undefined, prompt: brief.trim() || undefined, worktrees: developerWorkflows && worktrees })
   }
 
@@ -404,6 +407,16 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
               )
             })}
           </div>
+
+          <NightlyModelLaunchSettings
+            agents={AGENT_LIST}
+            counts={counts}
+            models={models}
+            efforts={efforts}
+            accent={accent}
+            onChange={(id, value) => setModels(prev => ({ ...prev, [id]: value }))}
+            onEffortChange={(id, value) => setEfforts(prev => ({ ...prev, [id]: value }))}
+          />
 
           <div style={{ marginTop: 22 }}>
             <SectionLabel icon="edit" accent={accent}>Brief</SectionLabel>

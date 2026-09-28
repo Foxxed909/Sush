@@ -17,6 +17,7 @@ import DockerTab from './panel/DockerTab'
 import EnvManagerTab from './panel/EnvTab'
 import SshTab from './panel/SshTab'
 import MarkdownTab from './panel/MarkdownTab'
+import ContextTab from './panel/ContextTab'
 import { TAB_GROUPS, TABS, DEFAULT_HIDDEN_TABS } from '../lib/panelTabs'
 
 // The right panel SHELL: tab strip + routing only. Every tab body lives in
@@ -30,6 +31,8 @@ export default function RightPanel({
   tab,
   onTab,
   activeCwd,
+  activeTab,
+  providerMeta,
   tabs,
   recentSessions,
   seduciaScope,
@@ -46,6 +49,8 @@ export default function RightPanel({
   commandHistory = [],
   ghNotifCount = 0,
   onManageUsers,
+  nightly = false,
+  dock = 'right',
   style = {}
 }) {
   const [mdPath, setMdPath] = useState(null)
@@ -72,21 +77,35 @@ export default function RightPanel({
 
   return (
     <aside
-      className="shrink-0 flex flex-col"
+      data-nightly-dock={dock}
+      className={`shrink-0 flex flex-col${nightly ? ' nightly-inspector' : ''}${dock === 'bottom' ? ' is-bottom' : ''}`}
       style={{
         ...accentVars(accent),
-        width: style.width ?? 360,
-        minWidth: 280,
-        maxWidth: '55vw',
+        width: dock === 'bottom' ? '100%' : (style.width ?? 360),
+        minWidth: dock === 'bottom' ? 0 : 280,
+        maxWidth: dock === 'bottom' ? 'none' : '55vw',
+        height: dock === 'bottom' ? (style.height ?? 300) : undefined,
+        minHeight: dock === 'bottom' ? 180 : undefined,
+        maxHeight: dock === 'bottom' ? '58vh' : undefined,
         background: 'transparent',
-        borderLeft: `1px solid ${rgba(accent, 0.1)}`
+        borderLeft: dock === 'bottom' ? 'none' : `1px solid ${rgba(accent, 0.1)}`,
+        borderTop: dock === 'bottom' ? `1px solid ${rgba(accent, 0.1)}` : 'none'
       }}
     >
       {/* Tab header — grouped horizontal strip with hairline dividers */}
-      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} hiddenTabs={hiddenTabs} />
+      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} hiddenTabs={hiddenTabs} nightly={nightly} />
 
       {/* Tab body */}
       <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
+        {safeTab === 'context' && (
+          <ContextTab
+            accent={accent}
+            cwd={activeCwd}
+            activeTab={activeTab}
+            providerMeta={providerMeta}
+            onOpenFile={handleOpenFile}
+          />
+        )}
         {safeTab === 'agent' && (
           <Seducia
             docked
@@ -135,9 +154,10 @@ export default function RightPanel({
 // scrollbar; gradient edges hint that there's more, and the active tab is
 // always scrolled into view. Tabs render in their groups with a hairline
 // divider between clusters. The collapse button is pinned outside the scroller.
-function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = [] }) {
+function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = [], nightly = false }) {
   const scrollerRef = useRef(null)
   const [edges, setEdges] = useState({ left: false, right: false })
+  const [showAll, setShowAll] = useState(false)
   // Compact mode: icon-only tabs for a dense workspace panel.
   const [compact, setCompact] = useState(() => localStorage.getItem('sush-tabs-compact') === '1')
   const toggleCompact = () => setCompact(c => { const n = !c; localStorage.setItem('sush-tabs-compact', n ? '1' : '0'); return n })
@@ -145,8 +165,16 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = 
   // A tab shows when it isn't hidden, OR when it's the active one (so you can
   // always navigate away from a tab the palette opened while it's hidden).
   const hidden = new Set(hiddenTabs)
+  const nightlyPrimary = new Set(['agent', 'context', 'changes', 'files', 'browser', 'tasks'])
   const visibleGroups = TAB_GROUPS
-    .map(g => ({ ...g, tabs: g.tabs.filter(t => !hidden.has(t.id) || t.id === tab) }))
+    .map(g => ({
+      ...g,
+      tabs: g.tabs.filter(t => {
+        const visibleByPreference = !hidden.has(t.id) || t.id === tab
+        const visibleByNightly = !nightly || showAll || nightlyPrimary.has(t.id) || t.id === tab
+        return visibleByPreference && visibleByNightly
+      })
+    }))
     .filter(g => g.tabs.length)
 
   const renderTab = (t) => {
@@ -240,6 +268,16 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = 
         <div style={fade('left')} />
         <div style={fade('right')} />
       </div>
+      {nightly && (
+        <button
+          onClick={() => setShowAll(v => !v)}
+          title={showAll ? 'Show focused inspector tools' : 'Show all tools'}
+          className="sush-icon-btn flex items-center justify-center"
+          style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, border: `1px solid ${showAll ? rgba(accent, 0.4) : 'var(--border-2)'}`, background: showAll ? rgba(accent, 0.1) : 'var(--surface-2)', color: showAll ? accent : 'var(--text-3)', cursor: 'pointer' }}
+        >
+          <Icon name="grid" size={14} />
+        </button>
+      )}
       <button
         onClick={toggleCompact}
         title={compact ? 'Show tab labels' : 'Compact (icons only)'}

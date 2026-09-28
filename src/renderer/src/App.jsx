@@ -1,16 +1,11 @@
 import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import TitleBar from './components/TitleBar'
 import ProfileManager, { useProfiles } from './components/ProfileManager'
 import Settings from './components/Settings'
-import SessionRail from './components/SessionRail'
 import HomeDashboard from './components/HomeDashboard'
-import SmartCommandBar from './components/SmartCommandBar'
-import StatusBar from './components/StatusBar'
 import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
 import SeduciaOrb from './components/SeduciaOrb'
 import Hush from './components/Hush'
-import MissionControl from './components/MissionControl'
 import AliasNudge from './components/AliasNudge'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsHelp from './components/ShortcutsHelp'
@@ -51,6 +46,12 @@ import { isSensitiveCommand } from './lib/commandPrivacy'
 import { downloadText, stampedFileName } from './lib/download'
 import JsonViewer from './components/JsonViewer'
 import Icon from './components/Icons'
+import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
+import NightlyTopbar from './components/NightlyTopbar'
+import NightlyComposer from './components/NightlyComposer'
+import NightlyOverview from './components/NightlyOverview'
+import { buildAgentCommand, normalizeEffort, normalizeModel } from './lib/nightlyModels'
+import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -63,6 +64,7 @@ const SESSION_LAYOUT_KEY = 'sush-session-layout'
 const LAST_HOME_VIEW_KEY = 'sush-last-home-view'
 const COMMAND_HISTORY_KEY = 'sush-command-history'
 const PINNED_PROJECTS_KEY = 'sush-pinned-projects'
+const NIGHTLY_WORKSPACE_UI_KEY = 'sush-nightly-workspace-ui'
 const MAX_RECENT_SESSIONS = 8
 
 function loadCommandHistory() {
@@ -83,6 +85,19 @@ function loadPinnedProjects() {
   } catch {
     return []
   }
+}
+
+function loadNightlyWorkspaceUi() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(NIGHTLY_WORKSPACE_UI_KEY) ?? '{}')
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveNightlyWorkspaceUi(map) {
+  try { localStorage.setItem(NIGHTLY_WORKSPACE_UI_KEY, JSON.stringify(map || {})) } catch {}
 }
 
 let nextTabId = 1
@@ -106,11 +121,26 @@ function normalizePathKey(cwd) {
   return String(cwd ?? '').replace(/[\\/]+$/, '').toLowerCase()
 }
 
+function nightlyWorkspaceKey(tab) {
+  if (!tab) return null
+  const cwd = normalizePathKey(tab.workspaceCwd || tab.cwd)
+  if (cwd) return `cwd:${cwd}`
+  if (tab.groupId) return `group:${tab.groupId}`
+  return tab.id ? `tab:${tab.id}` : null
+}
+
+function nightlySessionKey(tab) {
+  if (!tab) return null
+  if (tab.tag) return `tag:${tab.tag}`
+  if (tab.startedAt) return `started:${tab.startedAt}`
+  return tabKey(tab)
+}
+
 function tabKey(tab) {
   if (!tab) return 'none'
   const shell = tab.shell || 'powershell'
   const profileId = tab.profileId || 'powershell'
-  const cwd = normalizePathKey(tab.cwd)
+  const cwd = normalizePathKey(tab.sessionRootCwd || tab.cwd)
   if (!cwd) {
     const unique = tab.tag || tab.startedAt || tab.id
     return `${profileId}:${shell}:new:${unique}`
@@ -153,8 +183,12 @@ function makeTab(profile, options = {}) {
     shell,
     shellLabel: options.shellLabel ?? null,
     cwd,
+    workspaceCwd: options.workspaceCwd ?? cwd,
+    sessionRootCwd: options.sessionRootCwd ?? cwd,
     bootCommand: options.command ?? null,
     agentId: options.agentId ?? null,
+    model: options.model ?? null,
+    effort: options.effort ?? null,
     tag: options.tag ?? null,
     groupId: options.groupId ?? null,
     groupLabel: options.groupLabel ?? null,
@@ -217,7 +251,7 @@ function loadRecentSessions() {
 // boot command. Plain shells (no agent / no command) stay bare.
 function restoreBootCommand(item) {
   const agent = item.agentId && item.agentId !== 'shell' ? agentById(item.agentId) : null
-  if (agent) return agent.resumeCommand ?? agent.command ?? item.bootCommand ?? null
+  if (agent) return buildAgentCommand(agent, { model: item.model, effort: item.effort, resume: true }) ?? item.bootCommand ?? null
   return item.bootCommand ?? null
 }
 
@@ -241,9 +275,13 @@ function loadSessionLayout(profiles) {
         profileLabel: item.profileLabel,
         shell: item.shell,
         shellLabel: item.shellLabel,
-        cwd: item.cwd,
+        cwd: item.sessionRootCwd ?? item.cwd,
+        workspaceCwd: item.workspaceCwd ?? item.sessionRootCwd ?? item.cwd,
+        sessionRootCwd: item.sessionRootCwd ?? item.cwd,
         command: resumeAgents ? restoreBootCommand(item) : null,
         agentId: item.agentId,
+        model: item.model,
+        effort: item.effort,
         tag: item.tag,
         groupId: item.groupId,
         groupLabel: item.groupLabel,
@@ -306,7 +344,6 @@ export default function App() {
   const terminalSaver = effectiveSaver || zenMode
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
-  const [showMission, setShowMission] = useState(false)
   const [showUserManager, setShowUserManager] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showPlans, setShowPlans] = useState(false)   // standalone pricing page
@@ -355,6 +392,8 @@ export default function App() {
   const [showHunt, setShowHunt] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
   const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem('sush-right-width') || '360', 10))
+  const [paneDock, setPaneDock] = useState('right')
+  const [bottomPaneHeight, setBottomPaneHeight] = useState(() => parseInt(localStorage.getItem('sush-bottom-pane-height') || '300', 10))
   const [renamingId, setRenamingId] = useState(null)
   const [handoffSource, setHandoffSource] = useState(null)
   const [showSushrc, setShowSushrc] = useState(false)
@@ -375,7 +414,7 @@ export default function App() {
   const [sleeping, setSleeping] = useState(false)
   const blockingShortcutSurface = Boolean(
     showProfiles || showSettings || showLauncher || showPalette || showShortcuts ||
-    showMission || showUserManager || showProfile || showPlans || showChangelog ||
+    showUserManager || showProfile || showPlans || showChangelog ||
     showHunt || handoffSource || showSushrc || splash || sleeping
   )
   // Lazy boot: restored tabs are rail entries only until first viewed — their
@@ -533,10 +572,11 @@ export default function App() {
   }, [identity.ready, settings.cliLimitPolicy])
 
   const rememberSession = useCallback((session) => {
-    if (!session?.cwd) return
+    const rootCwd = session?.workspaceCwd || session?.cwd
+    if (!rootCwd) return
 
     const record = normalizeRecentSession({
-      cwd: session.cwd,
+      cwd: rootCwd,
       label: pathLabel(session.cwd),
       profileId: session.profileId,
       profileLabel: session.profileLabel,
@@ -563,6 +603,15 @@ export default function App() {
   }, [])
 
   const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
+
+  // Nightly workspace UI is keyed by the stable project root. Hydration lives
+  // beside the layout hooks below so pane + snap-layout state move together.
+  const activeNightlyWorkspaceKey = nightlyWorkspaceKey(activeTab)
+  const activeWorkspaceTabs = activeNightlyWorkspaceKey
+    ? tabs.filter(t => nightlyWorkspaceKey(t) === activeNightlyWorkspaceKey)
+    : []
+
+  const nightlyProviderMeta = useNightlyProviderMeta(view === 'terminal' ? activeTab : null, !zenMode)
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
   const runningSessionCount = tabs.filter(t => t.status === 'running').length
 
@@ -586,14 +635,14 @@ export default function App() {
         kind: 'project',
         groupId: activeTab.groupId,
         label: activeTab.groupLabel || pathLabel(activeTab.cwd || '') || 'Workspace',
-        cwd: activeTab.cwd || null,
+        cwd: activeTab.workspaceCwd || activeTab.cwd || null,
         focusedLabel
       }
     }
     return { kind: 'main', focusedLabel }
   }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
 
-  // Mission Control: live per-session state inferred from the PTY stream.
+  // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
   // Ref mirror so long-lived closures (launchSessions' brief waiter) can read
   // the latest classification without re-subscribing.
@@ -635,10 +684,10 @@ export default function App() {
       if (!stats?.error) setSessionMetrics(stats?.sessions || {})
     } catch {}
   }, [settings.sessionResourceMeter, terminalSaver])
-  usePolling(pollSessionMetrics, 5000, showMission && settings.sessionResourceMeter === true && !terminalSaver)
+  usePolling(pollSessionMetrics, 5000, view === 'overview' && settings.sessionResourceMeter === true && !terminalSaver)
   useEffect(() => {
-    if (!settings.sessionResourceMeter || terminalSaver || !showMission) setSessionMetrics({})
-  }, [settings.sessionResourceMeter, terminalSaver, showMission])
+    if (!settings.sessionResourceMeter || terminalSaver || view !== 'overview') setSessionMetrics({})
+  }, [settings.sessionResourceMeter, terminalSaver, view])
 
   // Auto-alias miner: tally omnibar commands; suggest a .sushrc alias once one
   // is run often enough. `cmdTick` bumps on each run to re-evaluate the table.
@@ -730,14 +779,6 @@ export default function App() {
     setRightOpen(true)
   }, [])
 
-  // Esc closes Mission Control (the board has no focused input to catch it).
-  useEffect(() => {
-    if (!showMission) return
-    const onEsc = (e) => { if (e.key === 'Escape') { e.preventDefault(); setShowMission(false) } }
-    window.addEventListener('keydown', onEsc)
-    return () => window.removeEventListener('keydown', onEsc)
-  }, [showMission])
-
   // NOTE: every chord handled below (and in the session-shortcut effect
   // further down) must be registered in lib/keymap.js — that's the one list
   // useTerminal consults to keep these keys out of the PTY.
@@ -765,8 +806,11 @@ export default function App() {
       }
       // Ctrl+Shift+B → broadcast mode
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
-      // Ctrl+Shift+M → Mission Control (Ctrl+M alone is Enter in a terminal)
-      if (ctrl && e.shiftKey && key === 'm') { e.preventDefault(); setShowMission(prev => !prev) }
+      // Ctrl+Shift+M → Nightly Overview (Ctrl+M alone is Enter in a terminal)
+      if (ctrl && e.shiftKey && key === 'm') {
+        e.preventDefault()
+        setView(prev => prev === 'overview' ? 'terminal' : 'overview')
+      }
       // Ctrl+Shift+S → Hush dictation toggle
       if (ctrl && e.shiftKey && key === 's') { e.preventDefault(); window.dispatchEvent(new CustomEvent('sush:hush-toggle')) }
       // Ctrl+Shift+F → Hunt overlay (cross-session output search)
@@ -786,16 +830,12 @@ export default function App() {
       // Ctrl+Shift+G → grid layout (all sessions tiled)
       if (ctrl && e.shiftKey && key === 'g') {
         e.preventDefault()
-        setGridMode(prev => {
-          if (!prev && tabsRef.current.length < 2) return prev
-          if (!prev) setView('terminal')
-          return !prev
-        })
+        toggleWorkspaceGrid()
       }
       // Ctrl+Shift+D → duplicate active tab
       if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
       // Ctrl+\ → toggle 2-up split (active + most recent other session)
-      if (ctrl && e.key === '\\') { e.preventDefault(); toggleSplit() }
+      if (ctrl && e.key === '\\') { e.preventDefault(); toggleWorkspaceSplit() }
       // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
       if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); openTab(profiles[0]) }
       // Ctrl+W → close active tab
@@ -843,6 +883,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('sush-right-open', rightOpen ? '1' : '0') }, [rightOpen])
   useEffect(() => { localStorage.setItem('sush-right-tab', rightTab) }, [rightTab])
   useEffect(() => { localStorage.setItem('sush-right-width', String(rightWidth)) }, [rightWidth])
+  useEffect(() => { localStorage.setItem('sush-bottom-pane-height', String(bottomPaneHeight)) }, [bottomPaneHeight])
 
   // Panel resize. The teardown is kept in a ref and also run on unmount: a drag
   // that was still in progress when the panel closed (or the app hot-reloaded)
@@ -874,6 +915,28 @@ export default function App() {
     rightDragCleanup.current = stop
   }, [rightWidth])
 
+  const startBottomPaneDrag = useCallback((e) => {
+    e.preventDefault()
+    rightDragCleanup.current?.()
+    const startY = e.clientY
+    const startHeight = bottomPaneHeight
+    const onMove = (ev) => {
+      const delta = startY - ev.clientY
+      const max = Math.max(220, Math.round(window.innerHeight * 0.58))
+      setBottomPaneHeight(Math.max(180, Math.min(max, startHeight + delta)))
+    }
+    const stop = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', stop)
+      window.removeEventListener('blur', stop)
+      rightDragCleanup.current = null
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', stop)
+    window.addEventListener('blur', stop)
+    rightDragCleanup.current = stop
+  }, [bottomPaneHeight])
+
   useEffect(() => {
     const compactTabs = dedupeTabs(tabs)
     localStorage.setItem(SESSION_LAYOUT_KEY, JSON.stringify({
@@ -885,8 +948,12 @@ export default function App() {
         shell: tab.shell,
         shellLabel: tab.shellLabel,
         cwd: tab.cwd,
+        workspaceCwd: tab.workspaceCwd || tab.cwd,
+        sessionRootCwd: tab.sessionRootCwd || tab.cwd,
         bootCommand: tab.bootCommand,
         agentId: tab.agentId,
+        model: tab.model,
+        effort: tab.effort,
         tag: tab.tag,
         groupId: tab.groupId,
         groupLabel: tab.groupLabel,
@@ -986,7 +1053,8 @@ export default function App() {
         return { label: t.label, agentId: t.agentId || 'shell', text: stripAnsi(text) }
       }))
       const label = members[0].groupLabel || (groupId ? 'Workspace' : 'Solo sessions')
-      const cwd = members.find(t => t.cwd)?.cwd || null
+      const anchor = members.find(t => t.workspaceCwd || t.sessionRootCwd || t.cwd)
+      const cwd = anchor?.workspaceCwd || anchor?.sessionRootCwd || anchor?.cwd || null
       let summary = null
       try { summary = await cliComplete(digestSummaryPrompt(label, sessions), { cwd: cwd || undefined }) } catch {}
       const md = buildDigestMarkdown({ label, cwd, sessions, summary })
@@ -998,7 +1066,135 @@ export default function App() {
   }, [digestBusy])
 
   // 2-up split (Ctrl+\): state + toggle live in useSplitView.
-  const { splitId, setSplitId, toggleSplit } = useSplitView({ tabs, tabsRef, mruRef, activeIdRef, setBootedIds, setView })
+  const { splitId, setSplitId } = useSplitView({ tabs, tabsRef, mruRef, activeIdRef, setBootedIds, setView })
+
+  const currentWorkspaceTabs = useCallback(() => {
+    const anchor = tabsRef.current.find(t => t.id === activeIdRef.current)
+    const key = nightlyWorkspaceKey(anchor)
+    return key ? tabsRef.current.filter(t => nightlyWorkspaceKey(t) === key) : []
+  }, [])
+
+  const toggleWorkspaceSplit = useCallback(() => {
+    setSplitId(prev => {
+      if (prev) return null
+      const activeNow = activeIdRef.current
+      const eligible = currentWorkspaceTabs().filter(t => t.id !== activeNow)
+      const partnerId = mruRef.current.find(id => eligible.some(t => t.id === id)) || eligible[0]?.id
+      if (!partnerId) return null
+      setBootedIds(prevBooted => prevBooted.has(partnerId) ? prevBooted : new Set(prevBooted).add(partnerId))
+      setView('terminal')
+      return partnerId
+    })
+  }, [currentWorkspaceTabs, setSplitId])
+
+  const toggleWorkspaceGrid = useCallback(() => {
+    setSplitId(null)
+    setGridMode(prev => {
+      if (!prev && currentWorkspaceTabs().length < 2) return prev
+      setView('terminal')
+      return !prev
+    })
+  }, [currentWorkspaceTabs, setSplitId])
+
+
+  // Pane + snap-layout state is remembered per project. Split stores a stable
+  // tabKey rather than a runtime tab id so a restored workspace can reconstruct
+  // the same pair after session ids are regenerated.
+  const nightlyWorkspaceUiRef = useRef(null)
+  const nightlyWorkspaceUiHydratingRef = useRef(false)
+
+  useEffect(() => {
+    const key = activeNightlyWorkspaceKey
+    if (!key) return
+
+    const map = loadNightlyWorkspaceUi()
+    const previousKey = nightlyWorkspaceUiRef.current
+
+    if (previousKey && previousKey !== key) {
+      const previousTabs = tabsRef.current.filter(t => nightlyWorkspaceKey(t) === previousKey)
+      const previousPartner = splitId
+        ? previousTabs.find(t => t.id === splitId)
+        : null
+      map[previousKey] = {
+        ...(map[previousKey] || {}),
+        tab: rightTab,
+        open: rightOpen,
+        dock: paneDock,
+        layout: gridMode && previousTabs.length > 1
+          ? 'grid'
+          : previousPartner
+            ? 'split'
+            : 'focus',
+        splitKey: previousPartner ? nightlySessionKey(previousPartner) : null
+      }
+    }
+
+    nightlyWorkspaceUiRef.current = key
+    nightlyWorkspaceUiHydratingRef.current = true
+    saveNightlyWorkspaceUi(map)
+
+    const saved = map[key]
+    if (saved) {
+      setRightTab(typeof saved.tab === 'string' ? saved.tab : 'agent')
+      setRightOpen(saved.open === true)
+      setPaneDock(saved.dock === 'bottom' ? 'bottom' : 'right')
+    } else {
+      setRightTab('agent')
+      setRightOpen(false)
+      setPaneDock('right')
+    }
+
+    const scopedTabs = tabsRef.current.filter(t => nightlyWorkspaceKey(t) === key)
+    if (saved?.layout === 'grid' && scopedTabs.length > 1) {
+      setSplitId(null)
+      setGridMode(true)
+      return
+    }
+
+    if (saved?.layout === 'split' && scopedTabs.length > 1) {
+      const activeNow = activeIdRef.current
+      const partner = scopedTabs.find(t => t.id !== activeNow && nightlySessionKey(t) === saved.splitKey)
+        || scopedTabs.find(t => t.id !== activeNow)
+      if (partner) {
+        setGridMode(false)
+        setSplitId(partner.id)
+        setBootedIds(prev => prev.has(partner.id) ? prev : new Set(prev).add(partner.id))
+        return
+      }
+    }
+
+    setGridMode(false)
+    setSplitId(null)
+  // Workspace changes are the hydration boundary. UI state changes are saved
+  // by the effect below and must not re-run hydration.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNightlyWorkspaceKey])
+
+  useEffect(() => {
+    if (nightlyWorkspaceUiHydratingRef.current) {
+      nightlyWorkspaceUiHydratingRef.current = false
+      return
+    }
+
+    const key = nightlyWorkspaceUiRef.current
+    if (!key) return
+    const scopedTabs = tabsRef.current.filter(t => nightlyWorkspaceKey(t) === key)
+    const partner = splitId ? scopedTabs.find(t => t.id === splitId) : null
+    const map = loadNightlyWorkspaceUi()
+    map[key] = {
+      ...(map[key] || {}),
+      tab: rightTab,
+      open: rightOpen,
+      dock: paneDock,
+      layout: gridMode && scopedTabs.length > 1
+        ? 'grid'
+        : partner
+          ? 'split'
+          : 'focus',
+      splitKey: partner ? nightlySessionKey(partner) : null
+    }
+    saveNightlyWorkspaceUi(map)
+  }, [activeNightlyWorkspaceKey, rightTab, rightOpen, paneDock, gridMode, splitId])
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
@@ -1006,6 +1202,9 @@ export default function App() {
   }, [activeId, rememberSession, tabs])
 
   const selectTab = useCallback((id) => {
+    // The workspace hydration effect owns layout transitions. Leaving the old
+    // Split/Grid state intact for this render lets it persist the outgoing
+    // project before applying the incoming project's saved/default preset.
     setActiveId(id)
     setView('terminal')
   }, [])
@@ -1079,6 +1278,7 @@ export default function App() {
     const label = existing
       ? (existing.groupLabel || groupLabel || (targetCwd ? pathLabel(targetCwd) : 'Workspace'))
       : (groupLabel || `${targetCwd ? pathLabel(targetCwd) : 'Workspace'}${total >= 2 ? ` · ${total}` : ''}`)
+    const workspaceCwd = existing?.workspaceCwd || existing?.cwd || targetCwd || null
 
     // Flatten the crew into one session spec per PTY, so worktree creation and
     // labeling share the same numbering.
@@ -1130,8 +1330,12 @@ export default function App() {
         }
         const tab = openTab(prof, {
           cwd: sessionCwd,
-          command: spec.agent.command || undefined,
+          workspaceCwd: workspaceCwd || sessionCwd,
+          sessionRootCwd: sessionCwd,
+          command: buildAgentCommand(spec.agent, { model: spec.agent.model, effort: spec.agent.effort }) || undefined,
           agentId: spec.agent.id,
+          model: spec.agent.model || null,
+          effort: spec.agent.effort || null,
           tag: `sess-${nextSessionTag++}`,
           groupId,
           groupLabel: label,
@@ -1208,7 +1412,7 @@ export default function App() {
     setView('terminal')
   }, [liveTargets])
 
-  // Mission Control: send raw input to one specific session (e.g. answering a
+  // Workspace action: send raw input to one specific session (e.g. answering a
   // blocked agent with "y" + Enter). Queues if the PTY hasn't booted yet.
   const promptSession = useCallback((tabId, data) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -1241,9 +1445,11 @@ export default function App() {
   // matches an existing one (openTab otherwise dedupes by cwd).
   const addToGroup = useCallback((block) => {
     if (!block?.id) return
-    const cwd = block.tabs?.find(t => t.cwd)?.cwd ?? null
+    const anchor = block.tabs?.find(t => t.workspaceCwd || t.cwd)
+    const cwd = anchor?.workspaceCwd || anchor?.cwd || null
     openTab(profiles[0], {
       cwd,
+      workspaceCwd: cwd,
       groupId: block.id,
       groupLabel: block.label,
       tag: `sess-${nextSessionTag++}`
@@ -1326,17 +1532,26 @@ export default function App() {
     })
   }, [])
 
-  const closeTab = useCallback((id) => {
+  const closeTab = useCallback((id, { rememberClosed = true, returnHome = true } = {}) => {
     const closing = tabsRef.current.find(t => t.id === id)
     if (closing?.cwd) rememberSession(closing)
-    // Remember enough to reopen this session with Ctrl+Shift+T.
-    if (closing) {
+    // Remember enough to reopen a USER-CLOSED session with Ctrl+Shift+T.
+    // Internal restarts (model/account changes) deliberately skip this stack.
+    if (closing && rememberClosed) {
       lastClosedRef.current.push({
         cwd: closing.cwd,
+        workspaceCwd: closing.workspaceCwd || closing.cwd,
+        sessionRootCwd: closing.sessionRootCwd || closing.cwd,
         profileId: closing.profileId,
         shell: closing.shell,
         shellLabel: closing.shellLabel,
-        label: closing.label
+        label: closing.label,
+        bootCommand: closing.bootCommand || null,
+        agentId: closing.agentId || null,
+        model: closing.model || null,
+        effort: closing.effort || null,
+        groupId: closing.groupId || null,
+        groupLabel: closing.groupLabel || null
       })
       if (lastClosedRef.current.length > 10) lastClosedRef.current.shift()
     }
@@ -1363,9 +1578,9 @@ export default function App() {
       return next
     })
 
-    // Closing the active session (or the last one) returns to the Home screen
-    // instead of auto-opening / switching into another terminal.
-    if (wasActive) { setHomeView('dashboard'); setView('home') }
+    // User closes return to Home; internal restarts keep the workspace canvas
+    // stable while the replacement PTY is created.
+    if (wasActive && returnHome) { setHomeView('dashboard'); setView('home') }
   }, [rememberSession])
 
   useEffect(() => {
@@ -1376,12 +1591,76 @@ export default function App() {
   // cascade can't reach): switch this CLI to the account that's rested longest
   // and relaunch the session in resume mode, so the conversation continues on
   // the fresh account (claude --continue, codex resume --last). Explicit, one
-  // click from Mission Control — never automatic, so a live session is never
+  // click from Overview — never automatic, so a live session is never
   // yanked out from under you.
+  const restartSessionWithModel = useCallback(async (tabId, next = {}) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    const provider = tab?.agentId
+    const agent = agentById(provider)
+    if (!tab || !provider || !agent?.resumeCommand) return { ok: false }
+
+    const requestedModel = next.model ?? null
+    const requestedEffort = next.effort ?? null
+    const model = requestedModel == null ? null : normalizeModel(provider, requestedModel)
+    const effort = requestedEffort == null ? null : normalizeEffort(provider, requestedEffort, model || requestedModel)
+    if (requestedModel && !model) return { ok: false, error: 'invalid-model' }
+    if (requestedEffort && !effort) return { ok: false, error: 'invalid-effort' }
+    const command = buildAgentCommand(agent, { model, effort, resume: true })
+    if (!command) return { ok: false, error: 'unsupported-provider' }
+
+    const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel } = tab
+    closeTab(tabId, { rememberClosed: false, returnHome: false })
+    openTab(profiles[0], {
+      cwd: sessionRootCwd || cwd,
+      workspaceCwd: workspaceCwd || sessionRootCwd || cwd,
+      sessionRootCwd: sessionRootCwd || cwd,
+      agentId: provider,
+      model,
+      effort,
+      command,
+      label,
+      groupId,
+      groupLabel,
+      tag: `sess-${nextSessionTag++}`
+    })
+    return { ok: true }
+  }, [closeTab, openTab, profiles])
+
+  const switchToAccountAndResume = useCallback(async (tabId, slotId) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    const provider = tab?.agentId
+    const agent = agentById(provider)
+    if (!tab || !provider || !agent?.resumeCommand || !slotId) return { ok: false }
+    try {
+      const sw = await window.sush.accountsSwitch({ provider, slotId })
+      if (!sw?.ok) return sw || { ok: false }
+      const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, model, effort } = tab
+      closeTab(tabId, { rememberClosed: false, returnHome: false })
+      openTab(profiles[0], {
+        cwd: sessionRootCwd || cwd,
+        workspaceCwd: workspaceCwd || sessionRootCwd || cwd,
+        sessionRootCwd: sessionRootCwd || cwd,
+        agentId: provider,
+        model: model || null,
+        effort: effort || null,
+        command: buildAgentCommand(agent, { model, effort, resume: true }) || agent.resumeCommand,
+        label,
+        groupId,
+        groupLabel,
+        tag: `sess-${nextSessionTag++}`
+      })
+      return { ok: true, label: sw.label || null }
+    } catch {
+      return { ok: false }
+    }
+  }, [closeTab, openTab, profiles])
+
+  // Pick the best alternate account automatically for limit-hit recovery.
   const switchAndResume = useCallback(async (tabId) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
     const provider = tab?.agentId
-    if (!tab || (provider !== 'claude' && provider !== 'codex')) return
+    const agent = agentById(provider)
+    if (!tab || !provider || !agent?.resumeCommand) return
     try {
       const list = await window.sush.accountsList?.()
       const st = list?.providers?.[provider]
@@ -1389,21 +1668,9 @@ export default function App() {
       const alt = st.slots
         .filter(s => s.id !== st.active)
         .sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
-      if (!alt) return
-      const sw = await window.sush.accountsSwitch({ provider, slotId: alt.id })
-      if (!sw?.ok) return
-      const agent = agentById(provider)
-      const { cwd, label } = tab
-      closeTab(tabId)
-      openTab(profiles[0], {
-        cwd,
-        agentId: provider,
-        command: agent?.resumeCommand ?? agent?.command,
-        label,
-        tag: `sess-${nextSessionTag++}`
-      })
+      if (alt) await switchToAccountAndResume(tabId, alt.id)
     } catch {}
-  }, [closeTab, openTab, profiles])
+  }, [switchToAccountAndResume])
 
   const handleSessionState = useCallback((tabId, state) => {
     setTabs(prev => prev.map(tab => {
@@ -1417,6 +1684,10 @@ export default function App() {
       return {
         ...tab,
         cwd,
+        // Sessions opened without an explicit project latch the first cwd the
+        // PTY reports. Later OSC7 directory changes update cwd, not project identity.
+        workspaceCwd: tab.workspaceCwd || cwd || null,
+        sessionRootCwd: tab.sessionRootCwd || cwd || null,
         shell,
         shellLabel,
         status: state.status ?? tab.status,
@@ -1468,13 +1739,29 @@ export default function App() {
   const reopenLastClosed = useCallback(() => {
     const last = lastClosedRef.current.pop()
     if (!last) { openTab(profiles[0]); return }
-    if (last.cwd) {
-      findOrOpenCwd(last.cwd, { label: last.label, profileId: last.profileId, shell: last.shell, shellLabel: last.shellLabel })
-    } else {
-      const prof = profiles.find(p => p.id === last.profileId) ?? profiles[0]
-      openTab(prof, { shell: last.shell, label: last.label })
-    }
-  }, [findOrOpenCwd, openTab, profiles])
+
+    const prof = profiles.find(p => p.id === last.profileId) ?? profiles[0]
+    const agent = last.agentId && last.agentId !== 'shell' ? agentById(last.agentId) : null
+    const command = agent
+      ? (buildAgentCommand(agent, { model: last.model, effort: last.effort, resume: true }) || last.bootCommand || undefined)
+      : (last.bootCommand || undefined)
+
+    openTab(prof, {
+      cwd: last.sessionRootCwd || last.cwd || null,
+      workspaceCwd: last.workspaceCwd || last.sessionRootCwd || last.cwd || null,
+      sessionRootCwd: last.sessionRootCwd || last.cwd || null,
+      shell: last.shell,
+      shellLabel: last.shellLabel,
+      label: last.label,
+      command,
+      agentId: last.agentId || null,
+      model: last.model || null,
+      effort: last.effort || null,
+      groupId: last.groupId || null,
+      groupLabel: last.groupLabel || null,
+      tag: `reopen-${Date.now()}`
+    })
+  }, [openTab, profiles])
 
   const queuePtyCommand = useCallback((input, cwd) => {
     const target = cwd ? findOrOpenCwd(cwd) : (tabsRef.current.find(tab => tab.id === activeId) ?? tabsRef.current[0])
@@ -1497,7 +1784,23 @@ export default function App() {
     const tab = tabsRef.current.find(t => t.id === id)
     if (!tab) return
     const prof = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
-    openTab(prof, { cwd: tab.cwd, shell: tab.shell, label: `${tab.label} (copy)`, tag: `copy-${Date.now()}` })
+    const agent = tab.agentId && tab.agentId !== 'shell' ? agentById(tab.agentId) : null
+    openTab(prof, {
+      cwd: tab.sessionRootCwd || tab.cwd,
+      workspaceCwd: tab.workspaceCwd || tab.sessionRootCwd || tab.cwd,
+      sessionRootCwd: tab.sessionRootCwd || tab.cwd,
+      shell: tab.shell,
+      label: `${tab.label} (copy)`,
+      command: agent
+        ? (buildAgentCommand(agent, { model: tab.model, effort: tab.effort }) || tab.bootCommand || undefined)
+        : (tab.bootCommand || undefined),
+      agentId: tab.agentId || null,
+      model: tab.model || null,
+      effort: tab.effort || null,
+      groupId: tab.groupId || null,
+      groupLabel: tab.groupLabel || null,
+      tag: `copy-${Date.now()}`
+    })
   }, [profiles, openTab])
 
   // ── Usage Guard (Pro+) ─────────────────────────────────────────────────────
@@ -1568,7 +1871,7 @@ export default function App() {
   // A limited Claude (or any agent) session's work continues on another model:
   // summarize the session with a NON-limited CLI, then launch the fallback
   // agent in the same directory with the summary as its brief — so hitting a
-  // limit never cuts the task off mid-flight. Used by Mission Control's
+  // limit never cuts the task off mid-flight. Used by Nightly Overview's
   // "Hand off →" and by the Usage Guard's hands-free mode.
   const performLimitHandoff = useCallback(async (tabId) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -1601,7 +1904,7 @@ export default function App() {
     performHandoff({
       openNew: true,
       agentId: fallback,
-      sourceCwd: tab.cwd || null,
+      sourceCwd: tab.workspaceCwd || tab.cwd || null,
       fullText: `# Sush limit handoff\nFrom: ${from} — "${tab.label}"\nDir: ${tab.cwd || 'unknown'}\n\n${summary || scroll.slice(-2000)}`,
       injectText: brief
     })
@@ -1686,8 +1989,10 @@ export default function App() {
     else if (action === 'open-seducia') { setSeduciaOpen(true) }
     else if (action === 'settings') setShowSettings(true)
     else if (action === 'toggle-panel') setRightOpen(prev => !prev)
+    else if (action === 'pane-right') { setPaneDock('right'); setRightOpen(true) }
+    else if (action === 'pane-bottom') { setPaneDock('bottom'); setRightOpen(true) }
     else if (action === 'zen') setZenMode(prev => !prev)
-    else if (action === 'mission') setShowMission(true)
+    else if (action === 'mission') setView('overview')
     else if (action === 'shortcuts') setShowShortcuts(true)
     else if (action === 'home') { setHomeView('dashboard'); setView('home') }
     else if (action === 'handoff') { if (activeIdRef.current) setHandoffSource(activeIdRef.current) }
@@ -1697,7 +2002,7 @@ export default function App() {
     else if (action === 'export-md') exportSessionOutput(undefined, 'md')
     else if (action === 'copy-output') copySessionOutput()
     else if (action === 'reopen') reopenLastClosed()
-    else if (action === 'split') toggleSplit()
+    else if (action === 'split') toggleWorkspaceSplit()
     else if (action === 'hunt') setShowHunt(true)
     else if (action === 'digest') {
       const active = tabsRef.current.find(t => t.id === activeIdRef.current)
@@ -1710,13 +2015,7 @@ export default function App() {
     else if (action === 'manage-users') setShowUserManager(true)
     else if (action === 'broadcast') setBroadcastMode(prev => !prev)
     else if (action === 'feather') saveSettings(withFeather(settings, !isFeather(settings)))
-    else if (action === 'grid') {
-      setGridMode(prev => {
-        if (!prev && tabsRef.current.length < 2) return prev
-        if (!prev) setView('terminal')
-        return !prev
-      })
-    }
+    else if (action === 'grid') toggleWorkspaceGrid()
     else if (action?.startsWith?.('session:')) {
       const id = action.slice('session:'.length)
       setActiveId(id); setView('terminal')
@@ -1736,18 +2035,21 @@ export default function App() {
       const id = action.slice('crew:'.length)
       const crew = loadCrews().find(c => c.id === id)
       if (crew) launchSessions({
-        cwd: crew.cwd || activeIdRef.current && tabsRef.current.find(t => t.id === activeIdRef.current)?.cwd || null,
+        cwd: crew.cwd || activeIdRef.current && (() => {
+          const active = tabsRef.current.find(t => t.id === activeIdRef.current)
+          return active?.workspaceCwd || active?.cwd || null
+        })(),
         agents: crewToAgents(crew, agentById),
         groupLabel: crew.name,
         prompt: crew.brief || undefined
       })
     }
-  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleSplit, launchSessions, buildWorkspaceDigest])
+  }, [settings, recentSessions, openRecentSession, identity, exportSessionOutput, copySessionOutput, reopenLastClosed, toggleWorkspaceSplit, toggleWorkspaceGrid, launchSessions, buildWorkspaceDigest])
 
   // Dynamic palette entries: new actions + a jump-to-session for every open tab.
   const paletteActions = useCallback(() => {
     const base = [
-      { id: 'act-mission', label: 'Mission Control', description: 'Live board of every agent session (Ctrl+Shift+M)', icon: 'activity', action: 'mission' },
+      { id: 'act-mission', label: 'Workspace Overview', description: 'Project and agent status (Ctrl+Shift+M)', icon: 'activity', action: 'mission' },
       { id: 'act-handoff', label: 'Hand Off Session', description: 'Pass this session\'s context to another', icon: 'send', action: 'handoff' },
       { id: 'act-rename', label: 'Rename Session', description: 'Rename the active session (F2)', icon: 'edit', action: 'rename' },
       { id: 'act-sushrc', label: 'Edit .sushrc Profile', description: 'Your shell-agnostic Sush profile', icon: 'fileText', action: 'sushrc' },
@@ -1757,7 +2059,9 @@ export default function App() {
       { id: 'act-reopen', label: 'Reopen Closed Session', description: 'Bring back the last session you closed (Ctrl+Shift+T)', icon: 'clock', action: 'reopen' },
       { id: 'act-hunt', label: 'Hunt Session Output', description: 'Search every session\'s output, live and saved (Ctrl+Shift+F)', icon: 'search', action: 'hunt' },
       { id: 'act-digest', label: 'Workspace Digest', description: 'AI crew report of this workspace\'s sessions, saved as Markdown', icon: 'fileText', action: 'digest' },
-      { id: 'act-split', label: 'Toggle Split View', description: 'Active session + the previous one, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
+      { id: 'act-split', label: 'Toggle Split View', description: 'Two sessions from this project, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
+      { id: 'act-pane-right', label: 'Dock Workspace Pane Right', description: 'Show the active tool pane beside the terminal', icon: 'panel', action: 'pane-right' },
+      { id: 'act-pane-bottom', label: 'Stack Workspace Pane Bottom', description: 'Show the active tool pane below the terminal', icon: 'layout', action: 'pane-bottom' },
       { id: 'act-plans', label: 'Plans & Upgrade', description: 'Compare tiers, redeem an unlock code', icon: 'star', action: 'plans' },
       { id: 'act-changelog', label: 'What’s New', description: 'Recent changes and release notes', icon: 'sparkles', action: 'changelog' },
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
@@ -1904,81 +2208,64 @@ export default function App() {
           : theme.xterm.background
       }}
     >
-      {!zenMode && (
-        <TitleBar
-          accent={accent}
-          onSettings={() => setShowSettings(true)}
-          sessionCount={runningSessionCount}
-          themeId={themeId}
-          onThemeChange={(id) => saveSettings({ ...settings, themeId: id })}
-          user={identity.currentUser}
-          onLock={identity.lock}
-          onSignOut={identity.signOut}
-          onManageUsers={() => setShowUserManager(true)}
-          onViewProfile={() => setShowProfile(true)}
-          minimizeToTray={settings.minimizeToTray === true}
-          trafficLightSide={settings.trafficLightSide === 'left' ? 'left' : 'right'}
-        />
-      )}
-
       <div className="flex flex-1 min-h-0">
         {!zenMode && (
-        <div data-glass className={!mounted ? 'sush-slide-right' : undefined} style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <SessionRail
-          tabs={tabs}
-          activeId={activeId}
-          view={view}
-          accent={accent}
-          profiles={profiles}
-          onHome={() => { setHomeView('dashboard'); setView('home') }}
-          onSelect={selectTab}
-          onNew={({ profile }) => openTab(profile)}
-          onNewSession={() => setShowLauncher(true)}
-          onClose={closeTab}
-          onCloseGroup={closeGroup}
-          onAddToGroup={addToGroup}
-          onClearExited={clearExitedSessions}
-          onRenameGroup={renameGroup}
-          onReorder={reorderTabs}
-          onProfiles={() => setShowProfiles(true)}
-          onRename={renameTab}
-          onDuplicate={duplicateTab}
-          renamingId={renamingId}
-          onRenameStart={setRenamingId}
-          onRenameEnd={() => setRenamingId(null)}
-          onHandoff={(id) => setHandoffSource(id)}
-          activity={agentStates}
-        />
-        </div>
+          <NightlyWorkspaceRail
+            tabs={tabs}
+            activeId={activeId}
+            accent={accent}
+            activity={agentStates}
+            onHome={() => { setHomeView('dashboard'); setView('home') }}
+            onOverview={() => setView('overview')}
+            onSelect={selectTab}
+            onNewSession={() => setShowLauncher(true)}
+            onHunt={() => setShowHunt(true)}
+            onSettings={() => setShowSettings(true)}
+            user={identity.currentUser}
+            onLock={identity.lock}
+            onSignOut={identity.signOut}
+            onManageUsers={() => setShowUserManager(true)}
+            onViewProfile={() => setShowProfile(true)}
+          />
         )}
 
         <div className="flex flex-col flex-1 min-w-0">
           {!zenMode && (
-          <div data-glass className={!mounted ? 'sush-slide-down' : undefined}>
-          <SmartCommandBar
-            activeTab={activeTab}
-            accent={accent}
-            onRun={runSmartInput}
-            onSeducia={() => setSeduciaOpen(true)}
-            onTogglePanel={() => setRightOpen(prev => !prev)}
-            rightOpen={rightOpen}
-            busy={smartBusy}
-            broadcastMode={broadcastMode}
-            onToggleBroadcast={() => setBroadcastMode(prev => !prev)}
-            broadcastScope={broadcastScope}
-            onToggleBroadcastScope={() => setBroadcastScope(prev => prev === 'all' ? 'workspace' : 'all')}
-            broadcastCount={broadcastTargets?.length ?? 0}
-            gridMode={gridMode}
-            onToggleGrid={() => {
-              setGridMode(prev => {
-                if (!prev && tabsRef.current.length < 2) return prev
-                if (!prev) setView('terminal')
-                return !prev
-              })
-            }}
-            settings={settings}
-          />
-          </div>
+            <NightlyTopbar
+              activeTab={view === 'home' ? null : activeTab}
+              tabs={tabs}
+              accent={accent}
+              activity={agentStates}
+              limited={!!agentLimits[activeId]}
+              guardTrip={guardTrip}
+              providerMeta={nightlyProviderMeta}
+              rightOpen={rightOpen}
+              onHome={() => { setHomeView('dashboard'); setView('home') }}
+              onHunt={() => setShowHunt(true)}
+              onMission={() => setView(prev => prev === 'overview' ? 'terminal' : 'overview')}
+              onSeducia={() => setSeduciaOpen(true)}
+              onSwitchAccount={(slotId) => activeId && switchToAccountAndResume(activeId, slotId)}
+              layoutMode={view === 'overview'
+                ? 'overview'
+                : gridMode
+                  ? 'grid'
+                  : splitId && activeWorkspaceTabs.some(t => t.id === splitId)
+                    ? 'split'
+                    : 'focus'}
+              canSplit={activeWorkspaceTabs.length > 1}
+              onLayoutFocus={() => { setGridMode(false); setSplitId(null); setView('terminal') }}
+              onLayoutSplit={() => { setGridMode(false); toggleWorkspaceSplit() }}
+              onLayoutGrid={toggleWorkspaceGrid}
+              onLayoutOverview={() => setView('overview')}
+              activePane={rightTab}
+              paneDock={paneDock}
+              onPaneDockChange={setPaneDock}
+              onOpenPane={(pane) => {
+                setRightTab(pane)
+                setRightOpen(true)
+              }}
+              onTogglePanel={() => setRightOpen(prev => !prev)}
+            />
           )}
 
           <div className="flex-1 relative overflow-hidden">
@@ -1999,11 +2286,11 @@ export default function App() {
                 // session plus its pinned partner, reusing the same keyed
                 // wrappers so neither terminal remounts.
                 const splitPartner = !gridMode && !zenMode && splitId && splitId !== activeId
-                  ? tabs.find(t => t.id === splitId) : null
+                  ? activeWorkspaceTabs.find(t => t.id === splitId) : null
                 const layoutGridMode = (gridMode || !!splitPartner) && !zenMode
                 const GRID_CAP = entitlements.limit('gridCap') || 4
                 const gridTabs = gridMode && !zenMode
-                  ? tabs.slice(0, GRID_CAP)
+                  ? activeWorkspaceTabs.slice(0, GRID_CAP)
                   : splitPartner
                     ? [tabs.find(t => t.id === activeId), splitPartner].filter(Boolean)
                     : tabs.filter(tab => bootedIds.has(tab.id))
@@ -2022,6 +2309,9 @@ export default function App() {
                       return (
                         <div
                           key={tab.id}
+                          data-nightly-tile={layoutGridMode ? '1' : undefined}
+                          data-nightly-workspace={nightlyWorkspaceKey(tab) || undefined}
+                          data-tab-id={tab.id}
                           onMouseDown={layoutGridMode ? () => {
                             if (!booted) setBootedIds(prev => new Set(prev).add(tab.id))
                             // In split view, focusing the partner swaps the panes
@@ -2079,7 +2369,7 @@ export default function App() {
                           {layoutGridMode && (() => {
                             // Live state dot, same classifier the rail uses, so a
                             // tile that needs you (amber) or errored (red) stands
-                            // out in the grid without opening Mission Control.
+                            // out in the grid without opening Overview.
                             const st = tab.status === 'exited' ? null : (booted ? STATES[agentStates[tab.id]] : null)
                             const dot = tab.status === 'exited' ? '#ff5370' : (st?.dot ?? '#42d392')
                             const pulse = st && (agentStates[tab.id] === 'working' || agentStates[tab.id] === 'waiting')
@@ -2106,9 +2396,9 @@ export default function App() {
                     })}
                     {/* Grid only — split view always shows exactly 2 tiles, so
                         the "showing X of N" cap note would be wrong there. */}
-                    {gridMode && !zenMode && tabs.length > GRID_CAP && (
+                    {gridMode && !zenMode && activeWorkspaceTabs.length > GRID_CAP && (
                       <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 70, fontSize: 10.5, fontWeight: 700, color: '#8a939c', background: 'rgba(5,7,10,0.85)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '4px 12px' }}>
-                        showing {GRID_CAP} of {tabs.length} (CPU guard)
+                        showing {GRID_CAP} of {activeWorkspaceTabs.length} in this project (CPU guard)
                       </div>
                     )}
                   </div>
@@ -2133,6 +2423,22 @@ export default function App() {
                 onNewSession={() => setShowLauncher(true)}
                 onSeducia={() => setSeduciaOpen(true)}
               />
+              </div>
+            )}
+
+            {view === 'overview' && (
+              <div key="nightly-overview" className="sush-reveal" style={{ position: 'absolute', inset: 0, zIndex: 20 }}>
+                <NightlyOverview
+                  tabs={tabs}
+                  states={agentStates}
+                  limits={agentLimits}
+                  metrics={sessionMetrics}
+                  summary={agentSummary}
+                  accent={accent}
+                  onFocus={(id) => { setActiveId(id); setView('terminal') }}
+                  onHandoff={(id) => performLimitHandoff(id)}
+                  onNewSession={() => setShowLauncher(true)}
+                />
               </div>
             )}
 
@@ -2185,9 +2491,65 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {view === 'terminal' && !zenMode && (
+            <NightlyComposer
+              activeTab={activeTab}
+              providerMeta={nightlyProviderMeta}
+              accent={accent}
+              disabled={guardBlocked && activeTab?.agentId === 'claude'}
+              onOpenLauncher={() => setShowLauncher(true)}
+              onChangeSessionModel={(next) => activeId ? restartSessionWithModel(activeId, next) : { ok: false }}
+              onSend={(text) => {
+                if (!activeTab) return
+                promptSession(activeTab.id, `${text}\r`)
+              }}
+            />
+          )}
+
+          {rightOpen && !zenMode && paneDock === 'bottom' && (
+            <div
+              data-glass
+              className={!mounted ? 'sush-slide-up' : undefined}
+              style={{ position: 'relative', display: 'flex', flexShrink: 0, height: bottomPaneHeight, minHeight: 180 }}
+            >
+              <div
+                onMouseDown={startBottomPaneDrag}
+                title="Resize stacked pane"
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 5, cursor: 'row-resize', zIndex: 12 }}
+              />
+              <RightPanel
+                accent={accent}
+                tab={rightTab}
+                onTab={setRightTab}
+                activeCwd={activeTab?.sessionRootCwd || activeTab?.cwd}
+                activeTab={activeTab}
+                providerMeta={nightlyProviderMeta}
+                tabs={tabs}
+                recentSessions={recentSessions}
+                seduciaScope={seduciaScope}
+                seduciaControls={seduciaControls}
+                onLaunch={launchSessions}
+                onRun={runSmartInput}
+                onPrompt={sendAgentPrompt}
+                onFocus={focusAgent}
+                onOpenLauncher={() => setShowLauncher(true)}
+                onClose={() => setRightOpen(false)}
+                onNewTab={(options) => openTab(profiles[0], options)}
+                sshShellId={profileShell(profiles[0])}
+                settings={settings}
+                commandHistory={commandHistory}
+                ghNotifCount={ghNotifCount}
+                onManageUsers={() => setShowUserManager(true)}
+                nightly
+                dock="bottom"
+                style={{ width: '100%', height: bottomPaneHeight }}
+              />
+            </div>
+          )}
         </div>
 
-        {rightOpen && !zenMode && (
+        {rightOpen && !zenMode && paneDock === 'right' && (
           <div data-glass className={!mounted ? 'sush-slide-left' : undefined} style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
             {/* Drag handle */}
             <div
@@ -2198,7 +2560,9 @@ export default function App() {
               accent={accent}
               tab={rightTab}
               onTab={setRightTab}
-              activeCwd={activeTab?.cwd}
+              activeCwd={activeTab?.sessionRootCwd || activeTab?.cwd}
+              activeTab={activeTab}
+              providerMeta={nightlyProviderMeta}
               tabs={tabs}
               recentSessions={recentSessions}
               seduciaScope={seduciaScope}
@@ -2215,30 +2579,13 @@ export default function App() {
               commandHistory={commandHistory}
               ghNotifCount={ghNotifCount}
               onManageUsers={() => setShowUserManager(true)}
+              nightly
+              dock="right"
               style={{ width: rightWidth }}
             />
           </div>
         )}
       </div>
-
-      {!zenMode && (
-        <StatusBar
-          accent={accent}
-          activeTab={view === 'home' ? null : activeTab}
-          view={view}
-          sessionCount={tabs.length}
-          workspaceCount={new Set(tabs.map(t => t.groupId).filter(Boolean)).size}
-          broadcastMode={broadcastMode}
-          gridMode={gridMode}
-          agentSummary={agentSummary}
-          onOpenMission={() => setShowMission(true)}
-          battery={battery}
-          saverActive={terminalSaver}
-          saverAuto={autoSaverActive || quietHoursActive}
-          saverReason={ecoMode ? 'eco' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : manualSaver ? 'manual' : zenMode ? 'focus' : ''}
-          online={online}
-        />
-      )}
 
       {!zenMode && !ecoMode && (
         <SeduciaOrb
@@ -2247,7 +2594,7 @@ export default function App() {
           onOpenChange={setSeduciaOpen}
           tabs={tabs}
           recentSessions={recentSessions}
-          activeCwd={activeTab?.cwd}
+          activeCwd={activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
           scope={seduciaScope}
           controls={seduciaControls}
           onLaunch={launchSessions}
@@ -2320,7 +2667,7 @@ export default function App() {
       {showLauncher && (
         <NewSessionModal
           accent={accent}
-          activeCwd={activeTab?.cwd}
+          activeCwd={activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
           recentSessions={recentSessions}
           onLaunch={launchSessions}
           onClose={() => setShowLauncher(false)}
@@ -2341,26 +2688,6 @@ export default function App() {
         <ShortcutsHelp
           accent={accent}
           onClose={() => setShowShortcuts(false)}
-        />
-      )}
-
-      {showMission && (
-        <MissionControl
-          accent={accent}
-          tabs={tabs}
-          states={agentStates}
-          limits={agentLimits}
-          summary={agentSummary}
-          metrics={sessionMetrics}
-          onFocus={(id) => { setActiveId(id); setView('terminal'); setShowMission(false) }}
-          onClose={closeTab}
-          onCloseGroup={closeGroup}
-          onPrompt={promptSession}
-          onSwitchResume={switchAndResume}
-          onLimitHandoff={(id) => performLimitHandoff(id)}
-          onDigest={buildWorkspaceDigest}
-          digestBusy={digestBusy}
-          onDismiss={() => setShowMission(false)}
         />
       )}
 
@@ -2386,10 +2713,10 @@ export default function App() {
             {guardMode === 'block' ? ' — input to Claude sessions paused' : guardMode === 'handoff' ? ' — handing work to your next model' : ''}
           </span>
           <button
-            onClick={() => setShowMission(true)}
+            onClick={() => setView('overview')}
             style={{ fontSize: 10.5, fontWeight: 800, color: '#ffcb9b', background: 'rgba(255,159,67,0.14)', border: '1px solid rgba(255,159,67,0.4)', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
           >
-            Mission Control
+            Overview
           </button>
           <button
             title="Dismiss until the next threshold crossing"
