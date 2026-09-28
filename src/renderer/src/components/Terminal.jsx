@@ -6,6 +6,7 @@ import { quoteShellPath } from '../lib/shellQuote'
 
 export default function Terminal({
   tabId,
+  agentId,
   theme,
   profile,
   shellId,
@@ -46,6 +47,7 @@ export default function Terminal({
   const { fit, focus, pasteText, search, searchPrev, clearSearch, getSelection, clear } = useTerminal({
     containerRef,
     tabId,
+    agentId,
     theme,
     profile,
     initialCwd,
