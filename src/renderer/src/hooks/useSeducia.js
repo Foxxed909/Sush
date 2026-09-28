@@ -3,6 +3,8 @@ import { getStreamer, parseAIResponse } from '../lib/ai'
 import { VoiceEngine, speechRecognitionSupported } from '../lib/voice'
 import { applyAction, formatReadout } from '../lib/seduciaActions'
 import { pathLabel, describeSessions, parseIntent } from '../lib/seducia'
+import { agentById } from '../lib/agents'
+import { describeGatedIntent, needsApproval } from '../lib/seduciaSafety'
 
 const INTRO = "I'm Seducia. Say my name or tap the orb, then tell me what to do -- 'build a team here', 'tell claude to run the tests', or 'focus codex'."
 
@@ -35,6 +37,9 @@ export function useSeducia({
   const [voiceState, setVoiceState] = useState('idle') // idle|listening|thinking|speaking
   const [partial, setPartial] = useState('')
   const [voiceError, setVoiceError] = useState('')
+  // Actions a model asked for that need a click: { items, resolve } | null.
+  const [approval, setApproval] = useState(null)
+  const approvalRef = useRef(null)
 
   const idRef = useRef(1)
   const abortRef = useRef(null)
@@ -99,6 +104,23 @@ export function useSeducia({
     else engine?.setThinking(false)
   }, [ttsOn])
 
+  // Ask the user to approve a batch of model-requested actions. Resolves true
+  // (run them) or false (skip); Stop, a new request or unmount resolves false.
+  const requestApproval = useCallback((intents) => new Promise(resolve => {
+    approvalRef.current?.resolve(false)
+    const items = intents.map(i => describeGatedIntent(i, { label: id => agentById(id)?.label || id }))
+    const entry = {
+      items,
+      resolve: (ok) => {
+        if (approvalRef.current === entry) { approvalRef.current = null; setApproval(null) }
+        resolve(ok)
+      }
+    }
+    approvalRef.current = entry
+    setApproval(entry)
+  }), [])
+  useEffect(() => () => approvalRef.current?.resolve(false), [])
+
   // One AI turn. When the model asks to read session output, the readout is
   // fed back as a hidden user turn and she answers again — a bounded review
   // loop (depth ≤ 2), so "launch 3 codexes, then check on them" really checks.
@@ -135,9 +157,20 @@ export function useSeducia({
     // parsed out of a partial response.
     const actions = abort.signal.aborted ? [] : parsedActions
 
+    // Model output is untrusted (it reads terminal text an attacker can
+    // influence): anything that executes or closes things waits for a click,
+    // unless the user turned confirmation off in Settings.
+    const gated = actions.filter(needsApproval)
+    const confirmOn = stateRef.current.settings?.seduciaConfirm !== false
+    const approved = !gated.length || !confirmOn || await requestApproval(gated)
+
     const feedback = []
     const readouts = []
     for (const act of actions) {
+      if (needsApproval(act) && !approved) {
+        feedback.push(`Skipped (not approved): ${describeGatedIntent(act).kind.toLowerCase()} ${describeGatedIntent(act).text}`.trim())
+        continue
+      }
       const res = await applyIntent(act)
       if (res?.text && res.text !== display) feedback.push(res.text)
       if (res?.readout?.length) readouts.push(...res.readout)
@@ -158,7 +191,7 @@ export function useSeducia({
     setAiMessages(nextHistory)
     speakReply(display)
     return true
-  }, [push, updateMsg, applyIntent, speakReply])
+  }, [push, updateMsg, applyIntent, speakReply, requestApproval])
 
   const runAI = useCallback(async (command) => {
     const { settings, aiMessages } = stateRef.current
@@ -188,6 +221,7 @@ export function useSeducia({
   handleRef.current = handle
 
   const stop = useCallback(() => {
+    approvalRef.current?.resolve(false)
     abortRef.current?.abort()
     setStreaming(false)
     engineRef.current?.stopSpeaking()
@@ -226,7 +260,7 @@ export function useSeducia({
   }, [voiceState])
 
   return {
-    log, streaming, handle, stop, applyIntent,
+    log, streaming, handle, stop, applyIntent, approval,
     voiceState, partial, listen,
     aiEnabled, hasAI, ttsOn, voiceError,
     micSupported: speechRecognitionSupported

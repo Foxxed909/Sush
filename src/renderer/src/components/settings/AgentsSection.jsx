@@ -40,6 +40,19 @@ export default function AgentsSection({ accent, ent, settings, set }) {
       </Row>
 
       <Row>
+        <Label>Ask before Seducia acts</Label>
+        <Segment
+          accent={accent}
+          value={settings.seduciaConfirm === false ? 'off' : 'on'}
+          options={[['on', 'Ask first'], ['off', 'Act immediately']]}
+          onChange={(v) => set('seduciaConfirm', v === 'on')}
+        />
+        <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5, marginTop: 8 }}>
+          Seducia reads terminal output, which can contain text from the web or other people's repos. With this on, anything she wants to <strong style={{ color: 'var(--text-2)' }}>launch, run or close</strong> waits for your click, even when you asked for it, because her reply passes through a model. Turn this off if you trust everything she can read.
+        </div>
+      </Row>
+
+      <Row>
         <Label>Custom agents</Label>
         <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 12 }}>
           {BUILTIN_AGENTS.length - 1} agent CLIs ship built in (Claude Code, Codex, Gemini, …).

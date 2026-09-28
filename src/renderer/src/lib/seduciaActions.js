@@ -1,4 +1,7 @@
 import { pathLabel, runningTargets, targetName, describeSessions, summarize } from './seducia'
+import { agentById } from './agents'
+import { normalizeEffort, normalizeModel } from './nightlyModels'
+import { sanitizeLaunchAgents } from './seduciaSafety'
 
 // Resolve a launch directory to one that actually exists. The AI guesses at
 // relative paths ("Sandbox\ClaudeSandbox"); guessing wrong used to silently
@@ -68,9 +71,15 @@ export async function applyAction(intent, ctx) {
         return { text: `I couldn't find a directory called "${resolved.requested}" (checked it as given, under the current directory, and under home). Give me the full path and I'll launch there.` }
       }
       const cwd = resolved.cwd || scope?.cwd || activeCwd
+      // The agent list may have been written by a model: keep only catalogued
+      // ids with validated count/model/effort; it can never supply a command.
+      const { agents: safeAgents, dropped } = sanitizeLaunchAgents(intent.agents, { lookup: agentById, normalizeModel, normalizeEffort })
+      if (!safeAgents.length) {
+        return { text: `I can only launch agents Sush knows about${dropped.length ? ` (couldn't use: ${dropped.join(', ')})` : ''}. Add a custom agent in Settings first.` }
+      }
       onLaunch?.({
         cwd,
-        agents: intent.agents,
+        agents: safeAgents,
         groupLabel: intent.groupLabel,
         prompt: intent.prompt,
         // Project Seducia grows her own workspace instead of opening a new one.
@@ -78,7 +87,7 @@ export async function applyAction(intent, ctx) {
       })
       const tail = intent.prompt ? ' and briefing them' : ''
       const into = scope?.kind === 'project' ? ` into "${scope.label}"` : ` in ${pathLabel(cwd)}`
-      return { text: `Spinning up ${summarize(intent.agents || [])}${into}${tail}.` }
+      return { text: `Spinning up ${summarize(safeAgents.map(a => ({ ...a, label: agentById(a.id)?.label || a.id })))}${into}${tail}.` }
     }
 
     case 'close-session': {

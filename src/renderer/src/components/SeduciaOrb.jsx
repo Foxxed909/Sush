@@ -40,7 +40,10 @@ export default function SeduciaOrb({
   launcher = true
 }) {
   const brain = useSeducia({ tabs, activeCwd, recentSessions, settings, scope, controls, onLaunch, onRun, onPrompt, onFocus, onOpenLauncher })
-  const { log, streaming, handle, stop, voiceState, partial, listen, aiEnabled, hasAI, micSupported, voiceError } = brain
+  const { log, streaming, handle, stop, approval, voiceState, partial, listen, aiEnabled, hasAI, micSupported, voiceError } = brain
+
+  // A pending approval must be seen: open the card if she asked while collapsed.
+  useEffect(() => { if (approval && !open) onOpenChange(true) }, [approval]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [value, setValue] = useState('')
   const scrollRef = useRef(null)
@@ -257,6 +260,29 @@ export default function SeduciaOrb({
               </div>
             )}
           </div>
+
+          {approval && (
+            <div className="seducia-approval" role="alertdialog" aria-label="Seducia needs your approval">
+              <div className="seducia-approval-head">
+                <Icon name="bell" size={14} />
+                <strong>Seducia wants to</strong>
+                <small>from model output — review first</small>
+              </div>
+              <ul>
+                {approval.items.map((item, i) => (
+                  <li key={i}>
+                    <span>{item.kind}</span>
+                    <code className={item.mono ? 'is-command' : undefined}>{item.text}</code>
+                    {item.detail && <small>{item.detail}</small>}
+                  </li>
+                ))}
+              </ul>
+              <div className="seducia-approval-actions">
+                <button type="button" onClick={() => approval.resolve(false)}>Skip</button>
+                <button type="button" className="is-primary" onClick={() => approval.resolve(true)} autoFocus>Approve{approval.items.length > 1 ? ' all' : ''}</button>
+              </div>
+            </div>
+          )}
 
           {/* Quick actions */}
           <div className="flex" style={{ gap: 6, flexWrap: 'wrap', padding: '0 14px 10px' }}>
