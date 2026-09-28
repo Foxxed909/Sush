@@ -101,6 +101,42 @@ them; show `installed: false` / version in the launcher; then Phase 2 (Thread
 bridge research — Claude's `--output-format stream-json` is print-mode only and
 does not bind to the interactive session).
 
+## 0.2 Second session (same day) — features, safety and cleanup
+
+Everything below is on `claude/roadmap-development-continue-i32p2l`; the visual
+walk (`tools/shot.mjs`) asserts each of these, and unit tests cover the pure
+parts (180 tests).
+
+- **Seducia no longer trusts model output.** `lib/seduciaSafety.js`: launches
+  keep only `{id, count, model, effort}` for catalogued agents (the model can
+  never supply a command line); launch/run/close-* wait for an Approve/Skip
+  card showing the literal command. Setting: *Ask before Seducia acts*
+  (default on). Voice and typed requests are covered too, because her reply
+  still passes through a model.
+- **Session management with the mouse:** rail row hover ×, double-click rename,
+  right-click menu (rename, duplicate, hand off, copy path, reveal, close),
+  project menu (new session here, open Files, close N sessions with a confirm).
+- **One workspace identity** (`lib/workspaces.js`) replaces four divergent
+  copies; folderless sessions are one project per tab everywhere.
+- **Status strip + attention:** offline / eco-saver-quiet-battery reason /
+  battery in the rail (silent when normal; CPU+mem opt-in), and a topbar bell
+  listing sessions that hit a limit, wait, or errored (worst first) with a
+  window-title count and an optional chime.
+- **Handoff lineage** (`lib/lineage.js`), **launch recipes with model/effort**,
+  **per-file diffs + Send to agent** (fills the composer, never submits),
+  **multi-line composer sends as one bracketed paste**, capability probes cached
+  on disk.
+- **Bugs found by the walk and fixed:** handoff opened a new project after a
+  `cd`; account/model restart lost focus; every new terminal was torn down and
+  rebuilt right after starting; Split/Grid unmounted terminals outside the
+  layout; branch went stale; model ids shaped like flags were accepted.
+- **Cleanup:** 1,824 lines of unreachable classic shell removed (still on
+  `main`), renderer bundle 1.13 MB -> 0.70 MB via lazy surfaces, dead CSS.
+
+Deliberately NOT done: the structured Thread view (no trustworthy same-session
+bridge exists yet), and deleting `.github/skills/impeccable` (agent tooling the
+repo owner may rely on — remove it separately if unwanted).
+
 ---
 
 # 1. Product direction

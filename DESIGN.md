@@ -100,3 +100,9 @@ topbar, terminals, composer, docked inspector.
   on the left, Hush mic docked on the right; no duplicate account/quota text.
 - **Floating controls**: none over the rail or composer. The Seducia orb only
   appears while she is listening/speaking (the topbar has her button).
+- **Untrusted output needs a click.** Anything a model asks the app to launch,
+  run or close appears on an approval card with the literal command; the card
+  is amber, never accent, and Skip is always one click.
+- **Quiet until relevant.** The rail status strip and the attention bell render
+  nothing while everything is normal; offline, saver and battery notices name
+  their reason.

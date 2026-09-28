@@ -25,7 +25,7 @@ import { STATES, stripAnsi } from './lib/agentActivity'
 import { isMultiline, pasteAndSubmit } from './lib/terminalRegistry'
 import { attentionItems, attentionTitle, newlyNeedingAttention } from './lib/attention'
 import { playChime } from './lib/chime'
-import { normalizePathKey, workspaceKey } from './lib/workspaces'
+import { normalizePathKey, workspaceKey, workspaceLabel } from './lib/workspaces'
 import { useAutoAlias } from './hooks/useAutoAlias'
 import { useSplitView } from './hooks/useSplitView'
 import { useUsageGuard } from './hooks/useUsageGuard'
@@ -2147,8 +2147,9 @@ export default function App() {
     )
     const sessions = tabs.map(t => ({
       id: `sess-${t.id}`,
-      label: `Go to: ${t.label}`,
-      description: t.cwd || t.profileLabel || t.shell,
+      // Ctrl+P is the project switcher too: search by project or session name.
+      label: `Go to: ${workspaceLabel(t)} / ${t.label}`,
+      description: [t.agentId && t.agentId !== 'shell' ? agentById(t.agentId)?.label : null, t.model, t.workspaceCwd || t.cwd].filter(Boolean).join(' · ') || t.profileLabel || t.shell,
       icon: 'terminal',
       action: `session:${t.id}`
     }))
