@@ -2436,6 +2436,7 @@ export default function App() {
                             <Suspense fallback={<div className="flex items-center justify-center" style={{ position: 'absolute', inset: 0, color: '#8a939c', fontSize: 12 }}>Starting terminal…</div>}>
                               <Terminal
                                 tabId={tab.id}
+                                agentId={tab.agentId}
                                 theme={t}
                                 profile={prof}
                                 shellId={tab.shell}
