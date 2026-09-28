@@ -137,9 +137,16 @@ export default function NightlyTopbar({
               {providerMeta?.model && <strong>· {providerMeta.model}</strong>}
               {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
             </span>
-            <span className="nightly-chip nightly-meta-context" title={providerMeta?.contextTokens != null ? 'Provider-reported input context for the latest observed turn' : 'This CLI has not exposed context telemetry for this workspace yet'}>
+            <button
+              type="button"
+              className="nightly-chip nightly-meta-context nightly-context-chip"
+              onClick={() => onOpenPane?.('context')}
+              title={providerMeta?.contextTokens != null
+                ? 'Provider-reported input context · Open Context inspector'
+                : 'Context-window usage is not exposed by this CLI · Open observed Context inspector'}
+            >
               Context <strong>{compactTokens(providerMeta?.contextTokens)}</strong>
-            </span>
+            </button>
             {providerMeta?.accountLabel && (
               <NightlyAccountMenu
                 provider={providerMeta.provider}
