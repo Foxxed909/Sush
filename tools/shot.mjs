@@ -655,6 +655,16 @@ if (await paneButton.count()) {
     throw new Error('Nightly Context bundle omitted its model-context disclaimer')
   }
   await page.locator('.nightly-inspector').getByRole('button', { name: 'Context bundle copied' }).waitFor({ state: 'visible' })
+  await page.locator('.nightly-inspector').getByRole('button', { name: 'Send context to agent' }).click()
+  const contextFilled = await page.locator('.nightly-composer textarea').inputValue()
+  if (!contextFilled.includes('Use this observed Sush workspace context') || !contextFilled.includes('# Sush workspace context')) {
+    throw new Error('Nightly Context Send did not fill the active composer with the bounded bundle')
+  }
+  if (!contextFilled.includes('- Project root: /home/taylor/sush') || !contextFilled.includes('- Live cwd: /home/taylor/sush/src')) {
+    throw new Error('Nightly Context Send lost project/live cwd identity')
+  }
+  await page.waitForFunction(() => document.activeElement?.closest?.('.nightly-composer'), null, { timeout: 3000 }).catch(() => { throw new Error('Nightly Context Send did not focus the composer') })
+  await page.locator('.nightly-composer textarea').fill('')
   await shot('02g-context')
 }
 
