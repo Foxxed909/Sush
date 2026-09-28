@@ -82,6 +82,34 @@ describe('Claude thread bridge', () => {
     expect(items.find(x => x.type === 'tool_result')).toMatchObject({ toolUseId: 'tool-1', text: '177 passed', isError: false })
   })
 
+
+  it('preserves assistant block order while skipping private reasoning blocks', () => {
+    const rows = [
+      {
+        type: 'assistant',
+        uuid: 'ordered',
+        message: {
+          role: 'assistant',
+          model: 'claude-sonnet-5',
+          content: [
+            { type: 'text', text: 'Before tool.' },
+            { type: 'tool_use', id: 'tool-ordered', name: 'Read', input: { file_path: 'a.js' } },
+            { type: 'redacted_thinking', data: 'never render this' },
+            { type: 'text', text: 'After tool.' }
+          ]
+        }
+      }
+    ].map(JSON.stringify).join('\n')
+
+    const items = parseClaudeTranscript(rows)
+    expect(items.map(item => [item.type, item.text || item.name])).toEqual([
+      ['assistant', 'Before tool.'],
+      ['tool_use', 'Read'],
+      ['assistant', 'After tool.']
+    ])
+    expect(JSON.stringify(items)).not.toContain('never render this')
+  })
+
   it('accepts only transcript paths structurally tied to the captured session id', () => {
     expect(validClaudeTranscriptPath(`/home/me/.claude/projects/repo/${SID}.jsonl`, SID)).toBe(true)
     expect(validClaudeTranscriptPath(`/home/me/.claude/projects/repo/${SID}/main.jsonl`, SID)).toBe(true)
