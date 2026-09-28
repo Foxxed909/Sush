@@ -107,7 +107,9 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
       agentId: targetId === null ? agentId : undefined,
       fullText,
       injectText: inject,
-      sourceCwd: source?.cwd || null
+      // Project root, not the live shell cwd: after a `cd src` the handoff
+      // must land in the same project, not open a new one called "src".
+      sourceCwd: source?.workspaceCwd || source?.sessionRootCwd || source?.cwd || null
     })
   }
 

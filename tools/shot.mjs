@@ -373,6 +373,28 @@ await shot('02-terminal')
   if (await page.locator('.nightly-ctx').count()) throw new Error('Escape did not close the rail menu')
 }
 
+// Handoff lineage: a session started by a handoff points back at its source.
+{
+  const source = page.locator('.nightly-thread-row', { hasText: 'Claude Code' }).first()
+  await source.click({ button: 'right' })
+  await page.locator('.nightly-ctx').getByRole('menuitem', { name: /Hand off/ }).click()
+  const submit = page.getByRole('button', { name: 'Hand off', exact: true })
+  await submit.waitFor({ state: 'visible' })
+  await submit.click()
+  const child = page.locator('.nightly-thread-row').filter({ has: page.locator('small.is-lineage', { hasText: '←' }) })
+  await child.first().waitFor({ state: 'visible', timeout: 8000 }).catch(() => {})
+  if (!(await child.count())) throw new Error('Nightly handoff did not mark the new session with its source')
+  if (!(await page.locator('small.is-lineage', { hasText: '→' }).count())) throw new Error('Nightly handoff did not mark the source session')
+  // The handoff must stay inside the project even though the source shell has cd'd.
+  if (await page.locator('.nightly-workspace').count() !== 2) throw new Error('Nightly handoff opened a new project instead of staying in the source project')
+  await shot('02k-handoff-lineage')
+  await child.first().hover()
+  await child.first().locator('.nightly-thread-close').click()
+  await page.waitForTimeout(400)
+  await page.keyboard.press('Control+1').catch(() => {})
+  await page.waitForTimeout(500)
+}
+
 // Agent lifecycle regression: duplicate + close + reopen must preserve the
 // provider/model/effort identity instead of degrading into a plain shell.
 const baseThreadCount = await page.locator('.nightly-thread-row').count()
