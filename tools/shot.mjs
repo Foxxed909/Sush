@@ -135,9 +135,19 @@ const stub = `
     dockerPs: async () => ({ ok: true, containers: [] }),
     getTabMeta: async () => ({}),
     newTab: async ({ cwd } = {}) => ({ cwd: cwd || '/home/taylor' }),
-    readFile: async ({ path } = {}) => String(path || '').replace(/\\\\/g, '/').endsWith('.sush/crew.json')
-      ? { ok: true, content: JSON.stringify({ name: 'Sush dev crew', counts: { claude: 2, shell: 1 }, brief: 'Fix the flaky scrollback test, then run the suite.' }) }
-      : { ok: false, error: 'not found' },
+    readFile: async ({ path } = {}) => {
+      const normalized = String(path || '').replace(/\\\\/g, '/')
+      if (normalized.endsWith('.sush/crew.json')) {
+        return { ok: true, content: JSON.stringify({ name: 'Sush dev crew', counts: { claude: 2, shell: 1 }, brief: 'Fix the flaky scrollback test, then run the suite.' }) }
+      }
+      if (normalized.endsWith('/AGENTS.md')) {
+        return { ok: true, content: '# Agent instructions\nKeep renderer changes small. Run tests before merge. Preserve the PTY engine.' }
+      }
+      if (normalized.endsWith('/README.md')) {
+        return { ok: true, content: '# Sush\nA local-first multi-agent terminal workspace.' }
+      }
+      return { ok: false, error: 'not found' }
+    },
     huntSearch: async ({ term } = {}) => ({ ok: true, results: term && term.length >= 2 ? [
       { tabId: 'tab-1', label: 'sush', lines: [ { line: 12, text: '✓ test suite passed — ' + term + ' ok' }, { line: 31, text: 'claude: searching for ' + term + ' in src/' } ] },
       { key: 'u:u1:powershell:powershell:c:/users/taylor/docs', saved: true, label: 'docs', lines: [ { line: 3, text: 'npm ERR! ' + term + ' script missing' } ] }
@@ -286,17 +296,7 @@ await page.waitForTimeout(450)
 await page.keyboard.press('Control+1').catch(() => {})
 await page.waitForTimeout(500)
 
-// 2b — Live model + reasoning control for the active agent session.
-const modelButton = page.locator('.nightly-model-pill').first()
-if (await modelButton.count()) {
-  await modelButton.click()
-  await page.locator('.nightly-model-popover').waitFor({ state: 'visible' })
-  await shot('02b-model-menu')
-  await page.keyboard.press('Escape')
-  await page.locator('.nightly-model-popover').waitFor({ state: 'detached' }).catch(() => {})
-}
-
-// 2c — Account / usage popover in the Nightly title chrome.
+// 2b — Account / usage popover in the Nightly title chrome.
 const accountChip = page.locator('.nightly-account-chip').first()
 if (await accountChip.count()) {
   await accountChip.click()
@@ -308,7 +308,7 @@ if (await accountChip.count()) {
       throw new Error('Nightly account popover is mounted but clipped/off-screen')
     }
   }
-  await shot('02c-account-usage')
+  await shot('02b-account-usage')
   await page.keyboard.press('Escape').catch(() => {})
   await page.mouse.click(800, 500)
 }
@@ -383,6 +383,18 @@ if (await layoutButton.count()) {
   await layoutButton.click()
   await page.locator('.nightly-layout-popover').getByText('Focus', { exact: true }).click()
   await page.waitForTimeout(350)
+}
+
+// 2g — Factual Context inspector: model/settings + detected docs + Git + PTY tail.
+const paneButton = page.locator('.nightly-pane-menu > button').first()
+if (await paneButton.count()) {
+  await paneButton.click()
+  await page.locator('.nightly-pane-popover').waitFor({ state: 'visible' })
+  await page.locator('.nightly-pane-popover').getByText('Context', { exact: true }).click()
+  await page.waitForTimeout(650)
+  const contextPane = page.locator('.nightly-inspector').getByText('Context', { exact: true }).first()
+  if (!(await contextPane.count())) throw new Error('Nightly Context pane did not open')
+  await shot('02g-context')
 }
 
 // 3 — Command palette
