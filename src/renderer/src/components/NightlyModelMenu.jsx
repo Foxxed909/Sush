@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
-import { modelSpecFor } from '../lib/nightlyModels'
+import { effortOptionsFor, modelSpecFor } from '../lib/nightlyModels'
 import { rgba } from '../lib/ui'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
@@ -26,6 +26,8 @@ export default function NightlyModelMenu({
     setNextEffort(effort || '')
     setError('')
   }, [open, model, effort])
+
+  const effortOptions = effortOptionsFor(provider, nextModel || model)
 
   const dirty = useMemo(
     () => String(nextModel || '').trim() !== String(model || '').trim()
@@ -92,7 +94,7 @@ export default function NightlyModelMenu({
             <label>
               <span>{spec.effort.label}</span>
               <select value={nextEffort} onChange={e => setNextEffort(e.target.value)}>
-                {spec.effort.options.map(v => (
+                {effortOptions.map(v => (
                   <option key={v || 'default'} value={v}>{v || 'Provider default'}</option>
                 ))}
               </select>
