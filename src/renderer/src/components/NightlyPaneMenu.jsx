@@ -5,6 +5,7 @@ import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
 const PANES = [
   { id: 'agent', label: 'Agent', hint: 'Seducia + workspace agent', icon: 'sparkles' },
+  { id: 'context', label: 'Context', hint: 'Observed session + project context', icon: 'layers' },
   { id: 'changes', label: 'Changes', hint: 'Git diff and commit flow', icon: 'gitBranch' },
   { id: 'files', label: 'Files', hint: 'Workspace tree', icon: 'file' },
   { id: 'browser', label: 'Browser', hint: 'Persistent web pane', icon: 'globe' },
