@@ -12,14 +12,23 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
   const [open, setOpen] = useState(false)
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const anchorRef = useRef(null)
 
   useEffect(() => {
     if (!open || !provider || provider === 'shell') return
     let live = true
+    setLoading(true)
+    setError('')
     window.sush?.accountsList?.()
-      .then(r => { if (live && r?.ok) setState(r.providers?.[provider] || null) })
-      .catch(() => {})
+      .then(r => {
+        if (!live) return
+        if (r?.ok) setState(r.providers?.[provider] || null)
+        else setError('Could not load connected accounts.')
+      })
+      .catch(() => { if (live) setError('Could not load connected accounts.') })
+      .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
   }, [open, provider])
 
@@ -54,7 +63,9 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
             <span>Accounts</span>
             <small>{provider}</small>
           </div>
-          {!slots.length && <div className="nightly-account-empty">No account slots found.</div>}
+          {loading && <div className="nightly-account-empty">Loading accounts…</div>}
+          {!loading && !slots.length && !error && <div className="nightly-account-empty">No account slots found.</div>}
+          {error && <div className="nightly-account-error">{error}</div>}
           {slots.map(slot => {
             const active = slot.id === activeId
             const usage = usageOf(slot)
@@ -65,9 +76,21 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
                 onClick={async () => {
                   if (active || busy) return
                   setBusy(slot.id)
-                  const r = await onSwitch?.(slot.id)
+                  setError('')
+                  let r
+                  try {
+                    r = await onSwitch?.(slot.id)
+                  } catch {
+                    r = { ok: false }
+                  }
                   setBusy(null)
-                  if (r?.ok !== false) setOpen(false)
+                  if (r?.ok !== false) {
+                    setOpen(false)
+                  } else {
+                    setError(r?.error
+                      ? `Could not switch account: ${r.error}`
+                      : 'Could not switch account. The current session was left unchanged.')
+                  }
                 }}
                 className={`nightly-account-row${active ? ' is-active' : ''}`}
               >
