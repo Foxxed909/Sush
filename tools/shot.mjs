@@ -313,6 +313,23 @@ const sushWorkspace = page.locator('.nightly-workspace').filter({ hasText: 'sush
 if (await sushWorkspace.locator('.nightly-thread-row').count() !== 2) {
   throw new Error('Nightly split one project into multiple rail groups after cd')
 }
+
+// Project pinning: rail and Home share one persisted source of truth.
+await sushWorkspace.locator('.nightly-workspace-head').click({ button: 'right' })
+const projectMenu = page.locator('.nightly-ctx')
+await projectMenu.waitFor({ state: 'visible' })
+await projectMenu.getByRole('menuitem', { name: 'Pin project' }).click()
+await page.waitForTimeout(200)
+if (!(await sushWorkspace.evaluate(el => el.classList.contains('is-pinned')))) {
+  throw new Error('Nightly project rail did not reflect a pinned project')
+}
+if (!(await sushWorkspace.locator('[aria-label="Pinned project"]').count())) {
+  throw new Error('Nightly project rail did not expose the pinned marker')
+}
+const pinnedState = await page.evaluate(() => JSON.parse(localStorage.getItem('sush-pinned-projects') || '[]'))
+if (!pinnedState.some(item => String(item.cwd || '').includes('/home/taylor/sush'))) {
+  throw new Error('Nightly rail pinning did not persist to the shared Home pin store')
+}
 {
   const rows = await page.locator('[data-tab-id] .xterm-rows').first().innerText().catch(() => '')
   if (!rows.replace(/\s+/g, '').includes('testsuitepassed')) {
