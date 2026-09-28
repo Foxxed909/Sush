@@ -1420,3 +1420,21 @@ p { text-wrap: pretty; }
   max-width: none !important;
   box-shadow: 0 -8px 28px rgba(0,0,0,.12);
 }
+
+
+/* Nightly project rail hierarchy ------------------------------------------- */
+.nightly-workspace-head {
+  width: 100%; border: 0; background: transparent; font: inherit;
+  text-align: left; cursor: pointer;
+}
+.nightly-workspace-head:hover { background: rgba(255,255,255,.028); }
+.nightly-project-state {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.nightly-workspace-chevron {
+  width: 14px; height: 18px; display: grid; place-items: center;
+  color: var(--text-5); flex-shrink: 0;
+  transition: transform .14s ease;
+}
+.nightly-workspace.is-collapsed .nightly-workspace-chevron { transform: rotate(-90deg); }
+.nightly-workspace.is-collapsed .nightly-workspace-head { margin-bottom: 1px; }
