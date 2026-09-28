@@ -283,6 +283,24 @@ if (await sushWorkspace.locator('.nightly-thread-row').count() !== 2) {
 }
 await shot('02-terminal')
 
+// Git chrome must be functional, not decorative: branch + working-tree count
+// opens the same Changes inspector used by the pane system.
+const gitChip = page.locator('.nightly-git-chip').first()
+if (!(await gitChip.count())) throw new Error('Nightly Git/change chip is missing for a git workspace')
+const gitText = await gitChip.innerText()
+if (!gitText.includes('main') || !gitText.includes('2')) {
+  throw new Error('Nightly Git/change chip did not surface branch + working-tree count')
+}
+await gitChip.click()
+await page.waitForTimeout(450)
+const changesInspector = page.locator('.nightly-inspector')
+if (!(await changesInspector.getByText('2 changes', { exact: true }).count())) {
+  throw new Error('Nightly Git/change chip did not open the Changes inspector')
+}
+await shot('02-git-changes')
+await page.keyboard.press('Control+b')
+await page.waitForTimeout(250)
+
 // Agent lifecycle regression: duplicate + close + reopen must preserve the
 // provider/model/effort identity instead of degrading into a plain shell.
 const baseThreadCount = await page.locator('.nightly-thread-row').count()
