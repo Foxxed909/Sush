@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
+import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
 export default function NightlyLayoutMenu({
   accent,
@@ -12,14 +13,7 @@ export default function NightlyLayoutMenu({
   onOverview
 }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
-  }, [open])
+  const anchorRef = useRef(null)
 
   const items = [
     { id: 'focus', label: 'Focus', hint: 'One active session', icon: 'maximize', run: onFocus },
@@ -29,16 +23,22 @@ export default function NightlyLayoutMenu({
   ]
 
   return (
-    <div ref={ref} className="nightly-layout-menu">
+    <div className="nightly-layout-menu">
       <button
+        ref={anchorRef}
         className={`nightly-icon-btn${mode !== 'focus' ? ' is-active' : ''}`}
         onClick={() => setOpen(v => !v)}
         title="Workspace layout"
       >
         <Icon name={mode === 'grid' ? 'grid' : mode === 'overview' ? 'activity' : mode === 'split' ? 'panel' : 'layout'} size={14} />
       </button>
-      {open && (
-        <div className="nightly-layout-popover">
+      <NightlyAnchoredPopover
+        open={open}
+        anchorRef={anchorRef}
+        align="right"
+        className="nightly-layout-popover"
+        onClose={() => setOpen(false)}
+      >
           <div className="nightly-layout-title">Workspace layout</div>
           {items.map(item => (
             <button
@@ -62,8 +62,7 @@ export default function NightlyLayoutMenu({
             </button>
           ))}
           <div className="nightly-layout-foot">Ctrl+\ split · Ctrl+Shift+G grid</div>
-        </div>
-      )}
+      </NightlyAnchoredPopover>
     </div>
   )
 }
