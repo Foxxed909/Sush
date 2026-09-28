@@ -7,6 +7,7 @@ import NightlyAccountMenu from './NightlyAccountMenu'
 import NightlyLayoutMenu from './NightlyLayoutMenu'
 
 function compactTokens(value) {
+  if (value == null || value === '') return '—'
   const n = Number(value)
   if (!Number.isFinite(n) || n < 0) return '—'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}m`
