@@ -65,6 +65,13 @@ export function normalizeModel(provider, value) {
   return SAFE_MODEL.test(v) ? v : null
 }
 
+export function effortLabelFor(provider, value, fallback = 'Provider default') {
+  const v = String(value || '')
+  if (!v) return fallback
+  if (provider === 'claude' && v === 'ultracode') return 'ultracode · xhigh + workflows'
+  return v
+}
+
 export function effortOptionsFor(provider, model = null) {
   const spec = modelSpecFor(provider)?.effort
   if (!spec) return []
