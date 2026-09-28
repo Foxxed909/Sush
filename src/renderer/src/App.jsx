@@ -593,41 +593,12 @@ export default function App() {
 
   const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
 
-  // Secondary pane state belongs to the project, not the whole application.
-  // Repo A can keep Files open while repo B keeps Notes open.
+  // Nightly workspace UI is keyed by the stable project root. Hydration lives
+  // beside the layout hooks below so pane + snap-layout state move together.
   const activeNightlyWorkspaceKey = nightlyWorkspaceKey(activeTab)
   const activeWorkspaceTabs = activeNightlyWorkspaceKey
     ? tabs.filter(t => nightlyWorkspaceKey(t) === activeNightlyWorkspaceKey)
     : []
-  const nightlyWorkspaceKeyRef = useRef(null)
-  useEffect(() => {
-    if (!activeNightlyWorkspaceKey) return
-    const map = loadNightlyWorkspaceUi()
-    const previousKey = nightlyWorkspaceKeyRef.current
-
-    if (previousKey && previousKey !== activeNightlyWorkspaceKey) {
-      map[previousKey] = { tab: rightTab, open: rightOpen }
-    }
-
-    nightlyWorkspaceKeyRef.current = activeNightlyWorkspaceKey
-    saveNightlyWorkspaceUi(map)
-
-    const saved = map[activeNightlyWorkspaceKey]
-    if (!saved) return
-    if (typeof saved.tab === 'string' && saved.tab !== rightTab) setRightTab(saved.tab)
-    if (typeof saved.open === 'boolean' && saved.open !== rightOpen) setRightOpen(saved.open)
-  // Only workspace changes trigger hydration. Including pane state would let
-  // the outgoing workspace overwrite the incoming workspace's saved choice.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeNightlyWorkspaceKey])
-
-  useEffect(() => {
-    const key = nightlyWorkspaceKeyRef.current
-    if (!key) return
-    const map = loadNightlyWorkspaceUi()
-    map[key] = { tab: rightTab, open: rightOpen }
-    saveNightlyWorkspaceUi(map)
-  }, [rightTab, rightOpen])
 
   const nightlyProviderMeta = useNightlyProviderMeta(view === 'terminal' ? activeTab : null, !zenMode)
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
@@ -1088,6 +1059,102 @@ export default function App() {
       return !prev
     })
   }, [currentWorkspaceTabs, setSplitId])
+
+
+  // Pane + snap-layout state is remembered per project. Split stores a stable
+  // tabKey rather than a runtime tab id so a restored workspace can reconstruct
+  // the same pair after session ids are regenerated.
+  const nightlyWorkspaceUiRef = useRef(null)
+  const nightlyWorkspaceUiHydratingRef = useRef(false)
+
+  useEffect(() => {
+    const key = activeNightlyWorkspaceKey
+    if (!key) return
+
+    const map = loadNightlyWorkspaceUi()
+    const previousKey = nightlyWorkspaceUiRef.current
+
+    if (previousKey && previousKey !== key) {
+      const previousTabs = tabsRef.current.filter(t => nightlyWorkspaceKey(t) === previousKey)
+      const previousPartner = splitId
+        ? previousTabs.find(t => t.id === splitId)
+        : null
+      map[previousKey] = {
+        ...(map[previousKey] || {}),
+        tab: rightTab,
+        open: rightOpen,
+        layout: gridMode && previousTabs.length > 1
+          ? 'grid'
+          : previousPartner
+            ? 'split'
+            : 'focus',
+        splitKey: previousPartner ? tabKey(previousPartner) : null
+      }
+    }
+
+    nightlyWorkspaceUiRef.current = key
+    nightlyWorkspaceUiHydratingRef.current = true
+    saveNightlyWorkspaceUi(map)
+
+    const saved = map[key]
+    if (saved) {
+      setRightTab(typeof saved.tab === 'string' ? saved.tab : 'agent')
+      setRightOpen(saved.open === true)
+    } else {
+      setRightTab('agent')
+      setRightOpen(false)
+    }
+
+    const scopedTabs = tabsRef.current.filter(t => nightlyWorkspaceKey(t) === key)
+    if (saved?.layout === 'grid' && scopedTabs.length > 1) {
+      setSplitId(null)
+      setGridMode(true)
+      return
+    }
+
+    if (saved?.layout === 'split' && scopedTabs.length > 1) {
+      const activeNow = activeIdRef.current
+      const partner = scopedTabs.find(t => t.id !== activeNow && tabKey(t) === saved.splitKey)
+        || scopedTabs.find(t => t.id !== activeNow)
+      if (partner) {
+        setGridMode(false)
+        setSplitId(partner.id)
+        setBootedIds(prev => prev.has(partner.id) ? prev : new Set(prev).add(partner.id))
+        return
+      }
+    }
+
+    setGridMode(false)
+    setSplitId(null)
+  // Workspace changes are the hydration boundary. UI state changes are saved
+  // by the effect below and must not re-run hydration.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNightlyWorkspaceKey])
+
+  useEffect(() => {
+    if (nightlyWorkspaceUiHydratingRef.current) {
+      nightlyWorkspaceUiHydratingRef.current = false
+      return
+    }
+
+    const key = nightlyWorkspaceUiRef.current
+    if (!key) return
+    const scopedTabs = tabsRef.current.filter(t => nightlyWorkspaceKey(t) === key)
+    const partner = splitId ? scopedTabs.find(t => t.id === splitId) : null
+    const map = loadNightlyWorkspaceUi()
+    map[key] = {
+      ...(map[key] || {}),
+      tab: rightTab,
+      open: rightOpen,
+      layout: gridMode && scopedTabs.length > 1
+        ? 'grid'
+        : partner
+          ? 'split'
+          : 'focus',
+      splitKey: partner ? tabKey(partner) : null
+    }
+    saveNightlyWorkspaceUi(map)
+  }, [rightTab, rightOpen, gridMode, splitId, activeId, tabs])
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
