@@ -12,6 +12,7 @@ import { registerTerminal, unregisterTerminal } from '../lib/terminalRegistry'
 export function useTerminal({
   containerRef,
   tabId,
+  agentId,
   theme,
   profile,
   initialCwd,
@@ -311,6 +312,7 @@ export function useTerminal({
         rows: term.rows,
         cwd: initialCwdRef.current,
         bootCommand: bootCommandRef.current,
+        agentId,
         shellId: spawnProfileRef.current.shell,
         profileId: spawnProfileRef.current.id,
         restoreKey,
@@ -354,7 +356,7 @@ export function useTerminal({
     // Listing transparentBg here disposed and recreated the whole xterm on a
     // wallpaper/eco toggle, wiping every terminal's visible buffer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, resizePty, sendPtyInput, tabId])
+  }, [agentId, containerRef, resizePty, sendPtyInput, tabId])
 
   useEffect(() => {
     if (transparentBg || powerSaver) {
