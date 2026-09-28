@@ -11,8 +11,10 @@ const SID = '123e4567-e89b-42d3-a456-426614174000'
 
 describe('Claude thread bridge', () => {
   it('adds a Sush hook settings source only to Claude commands', () => {
-    expect(augmentClaudeCommand('claude --model sonnet', '/tmp/sush hooks.json'))
-      .toBe('claude --model sonnet --settings "/tmp/sush hooks.json"')
+    expect(augmentClaudeCommand('claude --model sonnet', '/tmp/sush hooks.json', { shellId: 'bash', platform: 'linux' }))
+      .toBe("claude --model sonnet --settings '/tmp/sush hooks.json'")
+    expect(augmentClaudeCommand('claude', "C:\\Users\\Taylor\\Sush Data\\hooks.json", { shellId: 'powershell', platform: 'win32' }))
+      .toBe("claude --settings 'C:\\Users\\Taylor\\Sush Data\\hooks.json'")
     expect(augmentClaudeCommand('codex', '/tmp/hooks.json')).toBe('codex')
     expect(augmentClaudeCommand('claude --settings mine.json', '/tmp/hooks.json')).toBe('claude --settings mine.json')
   })
