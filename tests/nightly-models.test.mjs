@@ -33,6 +33,8 @@ describe('Nightly model launch adapter', () => {
       .toEqual(['', 'low', 'medium', 'high', 'xhigh'])
     expect(normalizeEffort('codex', 'minimal', 'gpt-5.3-codex')).toBeNull()
     expect(normalizeEffort('codex', 'xhigh', 'gpt-5.3-codex')).toBe('xhigh')
+    expect(buildAgentCommand(agent('codex', 'codex'), { model: 'gpt-5.3-codex', effort: 'minimal' }))
+      .toBe('codex --model gpt-5.3-codex')
   })
 
   it('does not append model text for providers without a verified model flag', () => {
