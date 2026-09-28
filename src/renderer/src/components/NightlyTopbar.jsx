@@ -58,13 +58,14 @@ export default function NightlyTopbar({
   }, [activeTab?.cwd])
 
   const workspaceTabs = useMemo(() => {
-    if (!activeTab?.cwd) return activeTab ? [activeTab] : []
-    const key = String(activeTab.cwd).replace(/[\\/]+$/, '').toLowerCase()
-    return tabs.filter(t => String(t.cwd || '').replace(/[\\/]+$/, '').toLowerCase() === key)
+    const root = activeTab?.workspaceCwd || activeTab?.cwd
+    if (!root) return activeTab ? [activeTab] : []
+    const key = String(root).replace(/[\\/]+$/, '').toLowerCase()
+    return tabs.filter(t => String(t.workspaceCwd || t.cwd || '').replace(/[\\/]+$/, '').toLowerCase() === key)
   }, [tabs, activeTab])
 
   const workspaceCount = useMemo(() => {
-    const keys = new Set(tabs.map(t => String(t.cwd || t.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()))
+    const keys = new Set(tabs.map(t => String(t.workspaceCwd || t.cwd || t.groupId || 'unassigned').replace(/[\\/]+$/, '').toLowerCase()))
     return keys.size
   }, [tabs])
   const hasSession = !!activeTab?.id
@@ -82,7 +83,7 @@ export default function NightlyTopbar({
         <button className="nightly-icon-btn" onClick={onHome} title="Home"><Icon name="home" size={13} /></button>
         {hasSession ? (
           <>
-            <span className="nightly-project-name">{projectName(activeTab?.cwd)}</span>
+            <span className="nightly-project-name">{projectName(activeTab?.workspaceCwd || activeTab?.cwd)}</span>
             <span className="nightly-slash">/</span>
             <span className="nightly-thread-name">{activeTab?.label || 'Session'}</span>
             {branch && <span className="nightly-chip nightly-branch"><Icon name="gitBranch" size={10} />{branch}</span>}
