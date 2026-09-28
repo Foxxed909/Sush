@@ -93,7 +93,8 @@ const stub = `
         }
         drip()
       }, 250)
-      return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: cwd || '/home/taylor/sush', profileId: 'powershell', status: 'running', lastActiveAt: now }
+      const liveCwd = tabId === 'tab-1' && cwd ? `${cwd}/src` : (cwd || '/home/taylor/sush')
+      return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: liveCwd, profileId: 'powershell', status: 'running', lastActiveAt: now }
     },
     getScrollback: async () => ({ text: 'npm test\\ntest suite passed\\n' }),
     snippetsList: async () => ({ ok: true, snippets: [ { name: 'deploy', command: 'npm run deploy' }, { name: 'wtree', command: 'git worktree list' } ] }),
@@ -265,6 +266,15 @@ await shot('01-home')
 // 2 — Terminal view: click the first session in the rail
 await page.keyboard.press('Control+1').catch(() => {})
 await page.waitForTimeout(1400)
+// The PTY stub deliberately reports /sush/src for tab-1. Project grouping must
+// remain rooted at /sush, so the rail still has exactly two projects.
+if (await page.locator('.nightly-workspace').count() !== 2) {
+  throw new Error('Nightly project identity changed when the live PTY cwd moved')
+}
+const sushWorkspace = page.locator('.nightly-workspace').filter({ hasText: 'sush' }).first()
+if (await sushWorkspace.locator('.nightly-thread-row').count() !== 2) {
+  throw new Error('Nightly split one project into multiple rail groups after cd')
+}
 await shot('02-terminal')
 
 // Agent lifecycle regression: duplicate + close + reopen must preserve the
