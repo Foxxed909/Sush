@@ -73,7 +73,9 @@ function providerName(tab) {
 
 export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpenFile }) {
   const [data, setData] = useState({ loading: true, git: null, docs: [], tail: '' })
+  const [copied, setCopied] = useState(false)
   const requestRef = useRef(0)
+  const copyTimerRef = useRef(null)
 
   const load = useCallback(async () => {
     const requestId = ++requestRef.current
@@ -112,7 +114,10 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
 
   useEffect(() => {
     load()
-    return () => { requestRef.current += 1 }
+    return () => {
+      requestRef.current += 1
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+    }
   }, [load])
 
   const changed = data.git?.files || []
@@ -143,12 +148,17 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
         right={
           <button
             type="button"
-            onClick={() => copyToClipboard(contextBundle({ cwd, activeTab, providerMeta, data }))}
-            title="Copy bounded context bundle"
+            onClick={() => {
+              copyToClipboard(contextBundle({ cwd, activeTab, providerMeta, data }))
+              setCopied(true)
+              if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+              copyTimerRef.current = setTimeout(() => setCopied(false), 1400)
+            }}
+            title={copied ? 'Context bundle copied' : 'Copy bounded context bundle'}
             className="sush-icon-btn flex items-center justify-center"
-            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--border-2)', background: 'var(--surface-1)', color: 'var(--text-3)', cursor: 'pointer' }}
+            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--border-2)', background: copied ? rgba(accent, .10) : 'var(--surface-1)', color: copied ? accent : 'var(--text-3)', cursor: 'pointer' }}
           >
-            <Icon name="copy" size={12} />
+            <Icon name={copied ? "check" : "copy"} size={12} />
           </button>
         }
       />
