@@ -56,6 +56,7 @@ const stub = `
   const credits = { tier: 'enterprise', allowanceSec: 600000, usedSec: 4200, remainingSec: 595800, resetAt: now + 20 * 86400e3, period: '2026-07' }
   const ptyListeners = []
   const stateListeners = []
+  let activeClaudeSlot = 'default'
   const DEMO = [
     '\\u001b[38;2;255;107;157m\\u001b[1m   _____ _    _  _____ _    _\\r\\n  / ____| |  | |/ ____| |  | |\\r\\n | (___ | |  | | (___ | |__| |\\r\\n  \\\\___ \\\\| |  | |\\\\___ \\\\|  __  |\\r\\n  ____) | |__| |____) | |  | |\\r\\n |_____/ \\\\____/|_____/|_|  |_|\\u001b[0m\\r\\n',
     '\\u001b[2m  v${appVersion} · Helm  ·  bash · sush\\u001b[0m\\r\\n\\r\\n',
@@ -100,13 +101,18 @@ const stub = `
     snippetsList: async () => ({ ok: true, snippets: [ { name: 'deploy', command: 'npm run deploy' }, { name: 'wtree', command: 'git worktree list' } ] }),
     checkClis: async ({ names } = {}) => ({ found: Object.fromEntries((names || []).map(n => [n, n === 'claude' || n === 'codex'])) }),
     accountsList: async () => ({ ok: true, providers: {
-      claude: { active: 'default', limitPolicy: 'ask', slots: [ { id: 'default', label: 'Personal', lastLimitAt: null, usage: { status: 'allowed', sessionPct: 42, weekPct: 18, at: now }, usageHistory: [] }, { id: 'acct-2', label: 'Work', lastLimitAt: now - 7200e3, usage: null, usageHistory: [] } ] },
+      claude: { active: activeClaudeSlot, limitPolicy: 'ask', slots: [ { id: 'default', label: 'Personal', lastLimitAt: null, usage: { status: 'allowed', sessionPct: 42, weekPct: 18, at: now }, usageHistory: [] }, { id: 'acct-2', label: 'Work', lastLimitAt: now - 7200e3, usage: { status: 'allowed', sessionPct: 12, weekPct: 9, at: now }, usageHistory: [] } ] },
       codex: { active: 'default', limitPolicy: 'auto', slots: [ { id: 'default', label: 'Default', lastLimitAt: null, usage: null, usageHistory: [] } ] },
       gemini: { active: 'default', limitPolicy: 'ask', slots: [ { id: 'default', label: 'Default', lastLimitAt: null, usage: null, usageHistory: [] } ] },
       opencode: { active: 'default', limitPolicy: 'ask', slots: [ { id: 'default', label: 'Default', lastLimitAt: null, usage: null, usageHistory: [] } ] }
     } }),
+    accountsSwitch: async ({ provider, slotId } = {}) => {
+      if (provider !== 'claude' || !['default', 'acct-2'].includes(slotId)) return { ok: false, error: 'unknown account' }
+      activeClaudeSlot = slotId
+      return { ok: true, label: slotId === 'acct-2' ? 'Work' : 'Personal' }
+    },
     usageSnapshot: async () => ({ ok: true, signedIn: true,
-      claude: { installed: true, account: { label: 'Personal', lastLimitAt: null, count: 2, usage: { status: 'allowed', sessionPct: 42, weekPct: 18, at: now } }, limits: { ok: true, limits: { status: 'allowed', sessionPct: 42, weekPct: 18, resetsAt: now + 3600e3, at: now } } },
+      claude: { installed: true, account: { label: activeClaudeSlot === 'acct-2' ? 'Work' : 'Personal', lastLimitAt: null, count: 2, usage: activeClaudeSlot === 'acct-2' ? { status: 'allowed', sessionPct: 12, weekPct: 9, at: now } : { status: 'allowed', sessionPct: 42, weekPct: 18, at: now } }, limits: { ok: true, limits: { status: 'allowed', sessionPct: activeClaudeSlot === 'acct-2' ? 12 : 42, weekPct: activeClaudeSlot === 'acct-2' ? 9 : 18, resetsAt: now + 3600e3, at: now } } },
       codex: { installed: true, account: { label: 'Default', lastLimitAt: null, count: 1 } },
       gemini: { installed: false, account: null },
       opencode: { installed: false, account: null } }),
@@ -319,6 +325,33 @@ if (await accountChip.count()) {
     }
   }
   await shot('02b-account-usage')
+
+  // Explicit account rotation restarts + resumes the active CLI. The session
+  // must stay inside the same project and keep its model/reasoning selection.
+  const beforeRotateThreads = await page.locator('.nightly-thread-row').count()
+  await accountPopover.getByText('Work', { exact: true }).click()
+  await page.waitForTimeout(900)
+  if (await page.locator('.nightly-thread-row').count() !== beforeRotateThreads) {
+    throw new Error('Nightly account rotation changed the live session count')
+  }
+  chromeText = await page.locator('.nightly-topbar').innerText()
+  if (!chromeText.includes('sonnet') || !chromeText.includes('high')) {
+    throw new Error('Nightly account rotation lost model/reasoning metadata')
+  }
+  const activeWorkspace = page.locator('.nightly-workspace.is-active')
+  if (!((await activeWorkspace.locator('.nightly-workspace-name').innerText()).toLowerCase().includes('sush'))) {
+    throw new Error('Nightly account rotation moved the session out of its project')
+  }
+
+  // Re-open and verify the account source of truth actually moved to Work.
+  const rotatedChip = page.locator('.nightly-account-chip').first()
+  await rotatedChip.click()
+  const rotatedPopover = page.locator('.nightly-account-popover')
+  await rotatedPopover.waitFor({ state: 'visible' })
+  const workRow = rotatedPopover.locator('.nightly-account-row').filter({ hasText: 'Work' })
+  if (!(await workRow.evaluate(el => el.classList.contains('is-active')))) {
+    throw new Error('Nightly account rotation did not activate the selected account')
+  }
   await page.keyboard.press('Escape').catch(() => {})
   await page.mouse.click(800, 500)
 }
