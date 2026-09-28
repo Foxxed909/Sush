@@ -1330,11 +1330,12 @@ export default function App() {
     })
   }, [])
 
-  const closeTab = useCallback((id) => {
+  const closeTab = useCallback((id, { rememberClosed = true, returnHome = true } = {}) => {
     const closing = tabsRef.current.find(t => t.id === id)
     if (closing?.cwd) rememberSession(closing)
-    // Remember enough to reopen this session with Ctrl+Shift+T.
-    if (closing) {
+    // Remember enough to reopen a USER-CLOSED session with Ctrl+Shift+T.
+    // Internal restarts (model/account changes) deliberately skip this stack.
+    if (closing && rememberClosed) {
       lastClosedRef.current.push({
         cwd: closing.cwd,
         profileId: closing.profileId,
@@ -1373,9 +1374,9 @@ export default function App() {
       return next
     })
 
-    // Closing the active session (or the last one) returns to the Home screen
-    // instead of auto-opening / switching into another terminal.
-    if (wasActive) { setHomeView('dashboard'); setView('home') }
+    // User closes return to Home; internal restarts keep the workspace canvas
+    // stable while the replacement PTY is created.
+    if (wasActive && returnHome) { setHomeView('dashboard'); setView('home') }
   }, [rememberSession])
 
   useEffect(() => {
@@ -1404,7 +1405,7 @@ export default function App() {
     if (!command) return { ok: false, error: 'unsupported-provider' }
 
     const { cwd, label, groupId, groupLabel } = tab
-    closeTab(tabId)
+    closeTab(tabId, { rememberClosed: false, returnHome: false })
     openTab(profiles[0], {
       cwd,
       agentId: provider,
@@ -1428,7 +1429,7 @@ export default function App() {
       const sw = await window.sush.accountsSwitch({ provider, slotId })
       if (!sw?.ok) return sw || { ok: false }
       const { cwd, label, groupId, groupLabel, model, effort } = tab
-      closeTab(tabId)
+      closeTab(tabId, { rememberClosed: false, returnHome: false })
       openTab(profiles[0], {
         cwd,
         agentId: provider,
