@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
-import { rgba } from '../lib/ui'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
 function usageOf(slot) {
@@ -33,6 +32,8 @@ export default function NightlyAccountMenu({ provider, label, count = 0, accent,
       <button
         ref={anchorRef}
         className="nightly-chip nightly-account-chip"
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen(v => !v)}
         title={count > 1 ? `${count} connected account slots` : 'Active CLI account'}
       >
