@@ -184,6 +184,7 @@ function makeTab(profile, options = {}) {
     shellLabel: options.shellLabel ?? null,
     cwd,
     workspaceCwd: options.workspaceCwd ?? cwd,
+    sessionRootCwd: options.sessionRootCwd ?? cwd,
     bootCommand: options.command ?? null,
     agentId: options.agentId ?? null,
     model: options.model ?? null,
@@ -276,6 +277,7 @@ function loadSessionLayout(profiles) {
         shellLabel: item.shellLabel,
         cwd: item.cwd,
         workspaceCwd: item.workspaceCwd ?? item.cwd,
+        sessionRootCwd: item.sessionRootCwd ?? item.cwd,
         command: resumeAgents ? restoreBootCommand(item) : null,
         agentId: item.agentId,
         model: item.model,
@@ -922,6 +924,7 @@ export default function App() {
         shellLabel: tab.shellLabel,
         cwd: tab.cwd,
         workspaceCwd: tab.workspaceCwd || tab.cwd,
+        sessionRootCwd: tab.sessionRootCwd || tab.cwd,
         bootCommand: tab.bootCommand,
         agentId: tab.agentId,
         model: tab.model,
@@ -1303,6 +1306,7 @@ export default function App() {
         const tab = openTab(prof, {
           cwd: sessionCwd,
           workspaceCwd: workspaceCwd || sessionCwd,
+          sessionRootCwd: sessionCwd,
           command: buildAgentCommand(spec.agent, { model: spec.agent.model, effort: spec.agent.effort }) || undefined,
           agentId: spec.agent.id,
           model: spec.agent.model || null,
@@ -1512,6 +1516,7 @@ export default function App() {
       lastClosedRef.current.push({
         cwd: closing.cwd,
         workspaceCwd: closing.workspaceCwd || closing.cwd,
+        sessionRootCwd: closing.sessionRootCwd || closing.cwd,
         profileId: closing.profileId,
         shell: closing.shell,
         shellLabel: closing.shellLabel,
@@ -1578,11 +1583,12 @@ export default function App() {
     const command = buildAgentCommand(agent, { model, effort, resume: true })
     if (!command) return { ok: false, error: 'unsupported-provider' }
 
-    const { cwd, workspaceCwd, label, groupId, groupLabel } = tab
+    const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel } = tab
     closeTab(tabId, { rememberClosed: false, returnHome: false })
     openTab(profiles[0], {
       cwd,
       workspaceCwd: workspaceCwd || cwd,
+      sessionRootCwd: sessionRootCwd || cwd,
       agentId: provider,
       model,
       effort,
@@ -1603,11 +1609,12 @@ export default function App() {
     try {
       const sw = await window.sush.accountsSwitch({ provider, slotId })
       if (!sw?.ok) return sw || { ok: false }
-      const { cwd, workspaceCwd, label, groupId, groupLabel, model, effort } = tab
+      const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, model, effort } = tab
       closeTab(tabId, { rememberClosed: false, returnHome: false })
       openTab(profiles[0], {
         cwd,
         workspaceCwd: workspaceCwd || cwd,
+        sessionRootCwd: sessionRootCwd || cwd,
         agentId: provider,
         model: model || null,
         effort: effort || null,
@@ -1655,6 +1662,7 @@ export default function App() {
         // Sessions opened without an explicit project latch the first cwd the
         // PTY reports. Later OSC7 directory changes update cwd, not project identity.
         workspaceCwd: tab.workspaceCwd || cwd || null,
+        sessionRootCwd: tab.sessionRootCwd || cwd || null,
         shell,
         shellLabel,
         status: state.status ?? tab.status,
@@ -1716,6 +1724,7 @@ export default function App() {
     openTab(prof, {
       cwd: last.cwd || null,
       workspaceCwd: last.workspaceCwd || last.cwd || null,
+      sessionRootCwd: last.sessionRootCwd || last.cwd || null,
       shell: last.shell,
       shellLabel: last.shellLabel,
       label: last.label,
@@ -1754,6 +1763,7 @@ export default function App() {
     openTab(prof, {
       cwd: tab.cwd,
       workspaceCwd: tab.workspaceCwd || tab.cwd,
+      sessionRootCwd: tab.sessionRootCwd || tab.cwd,
       shell: tab.shell,
       label: `${tab.label} (copy)`,
       command: agent
