@@ -1989,6 +1989,8 @@ export default function App() {
     else if (action === 'open-seducia') { setSeduciaOpen(true) }
     else if (action === 'settings') setShowSettings(true)
     else if (action === 'toggle-panel') setRightOpen(prev => !prev)
+    else if (action === 'pane-right') { setPaneDock('right'); setRightOpen(true) }
+    else if (action === 'pane-bottom') { setPaneDock('bottom'); setRightOpen(true) }
     else if (action === 'zen') setZenMode(prev => !prev)
     else if (action === 'mission') setView('overview')
     else if (action === 'shortcuts') setShowShortcuts(true)
@@ -2058,6 +2060,8 @@ export default function App() {
       { id: 'act-hunt', label: 'Hunt Session Output', description: 'Search every session\'s output, live and saved (Ctrl+Shift+F)', icon: 'search', action: 'hunt' },
       { id: 'act-digest', label: 'Workspace Digest', description: 'AI crew report of this workspace\'s sessions, saved as Markdown', icon: 'fileText', action: 'digest' },
       { id: 'act-split', label: 'Toggle Split View', description: 'Two sessions from this project, side by side (Ctrl+\\)', icon: 'grid', action: 'split' },
+      { id: 'act-pane-right', label: 'Dock Workspace Pane Right', description: 'Show the active tool pane beside the terminal', icon: 'panel', action: 'pane-right' },
+      { id: 'act-pane-bottom', label: 'Stack Workspace Pane Bottom', description: 'Show the active tool pane below the terminal', icon: 'layout', action: 'pane-bottom' },
       { id: 'act-plans', label: 'Plans & Upgrade', description: 'Compare tiers, redeem an unlock code', icon: 'star', action: 'plans' },
       { id: 'act-changelog', label: 'What’s New', description: 'Recent changes and release notes', icon: 'sparkles', action: 'changelog' },
       { id: 'act-lock', label: 'Lock Sush', description: 'Lock the app — sessions keep running', icon: 'lock', action: 'lock' },
