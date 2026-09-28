@@ -11,10 +11,10 @@ const PANES = [
   { id: 'browser', label: 'Browser', hint: 'Persistent web pane', icon: 'globe' },
   { id: 'tasks', label: 'Tasks', hint: 'Workspace task list', icon: 'check' },
   { id: 'memory', label: 'Notes', hint: 'Local markdown · .sushmemory', icon: 'book' },
-  { id: 'thread', label: 'Thread', hint: 'Same-session structured turns', icon: 'terminal', disabled: true }
+  { id: 'thread', label: 'Thread', hint: 'Same-session structured Claude turns', icon: 'fileText', requiresThread: true }
 ]
 
-export default function NightlyPaneMenu({ accent, activePane, panelOpen, dock = 'right', onDockChange, onOpen }) {
+export default function NightlyPaneMenu({ accent, activePane, panelOpen, threadAvailable = false, dock = 'right', onDockChange, onOpen }) {
   const [open, setOpen] = useState(false)
   const anchorRef = useRef(null)
 
@@ -62,13 +62,14 @@ export default function NightlyPaneMenu({ accent, activePane, panelOpen, dock = 
           </div>
           {PANES.map(pane => {
             const selected = panelOpen && activePane === pane.id
+            const disabled = pane.disabled || (pane.requiresThread && !threadAvailable)
             return (
               <button
                 key={pane.id}
-                disabled={pane.disabled}
+                disabled={disabled}
                 className={selected ? 'is-active' : ''}
                 onClick={() => {
-                  if (pane.disabled) return
+                  if (disabled) return
                   setOpen(false)
                   onOpen?.(pane.id)
                 }}
@@ -83,8 +84,8 @@ export default function NightlyPaneMenu({ accent, activePane, panelOpen, dock = 
                   <strong>{pane.label}</strong>
                   <small>{pane.hint}</small>
                 </span>
-                {pane.disabled
-                  ? <span className="nightly-pane-soon">soon</span>
+                {disabled
+                  ? <span className="nightly-pane-soon">{pane.requiresThread ? 'Claude' : 'soon'}</span>
                   : selected
                     ? <Icon name="check" size={12} color={accent} />
                     : null}
@@ -92,7 +93,7 @@ export default function NightlyPaneMenu({ accent, activePane, panelOpen, dock = 
             )
           })}
           <div className="nightly-pane-foot">
-            Thread stays gated until Sush can bind structured turns to the same live interactive CLI session.
+            Thread uses Claude's own hook-reported session ID and structured transcript. Other providers stay gated until they expose an equivalent same-session bridge.
           </div>
       </NightlyAnchoredPopover>
     </div>
