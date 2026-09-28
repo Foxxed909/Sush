@@ -97,7 +97,7 @@ const stub = `
         }
         drip()
       }, 250)
-      const liveCwd = tabId === 'tab-1' && cwd ? `${cwd}/src` : (cwd || '/home/taylor/sush')
+      const liveCwd = cwd === '/home/taylor/sush' ? cwd + '/src' : (cwd || '/home/taylor/sush')
       return { pid: 4242, shell: 'bash -l', shellId: 'bash', shellLabel: 'bash', cwd: liveCwd, profileId: 'powershell', status: 'running', lastActiveAt: now }
     },
     getScrollback: async () => ({ text: 'npm test\\ntest suite passed\\n' }),
@@ -151,10 +151,10 @@ const stub = `
         return { ok: true, content: JSON.stringify({ name: 'Sush dev crew', counts: { claude: 2, shell: 1 }, brief: 'Fix the flaky scrollback test, then run the suite.' }) }
       }
       if (normalized.endsWith('/AGENTS.md')) {
-        return { ok: true, content: '# Agent instructions\nKeep renderer changes small. Run tests before merge. Preserve the PTY engine.' }
+        return { ok: true, content: '# Agent instructions\\nKeep renderer changes small. Run tests before merge. Preserve the PTY engine.' }
       }
       if (normalized.endsWith('/README.md')) {
-        return { ok: true, content: '# Sush\nA local-first multi-agent terminal workspace.' }
+        return { ok: true, content: '# Sush\\nA local-first multi-agent terminal workspace.' }
       }
       return { ok: false, error: 'not found' }
     },
@@ -250,6 +250,15 @@ if (!browserPath) {
 }
 const browser = await chromium.launch({ executablePath: browserPath })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
+// Headless Chromium hands xterm a WebGL context whose frames never reach
+// page.screenshot(), so every terminal photographed blank. Deny WebGL here so
+// xterm falls back to its DOM renderer and the shots show real output.
+await page.addInitScript(() => {
+  const getContext = HTMLCanvasElement.prototype.getContext
+  HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+    return /webgl/i.test(String(type)) ? null : getContext.call(this, type, ...rest)
+  }
+})
 await page.addInitScript(stub)
 page.on('pageerror', e => console.error('[pageerror]', e.message))
 await page.goto(url, { waitUntil: 'networkidle' })
@@ -257,6 +266,13 @@ await page.waitForTimeout(1800)
 
 const shot = async (name) => {
   await page.waitForTimeout(450)
+  // A live terminal must never remount: a second pty-start for the same tab id
+  // means xterm was disposed and rebuilt (buffer lost, restore banner shown).
+  {
+    const starts = await page.evaluate(() => (window.__sushStartRequests || []).map(r => r.tabId))
+    const twice = starts.filter((id, i) => starts.indexOf(id) !== i)
+    if (twice.length) throw new Error(`Nightly terminal remounted before ${name}: ${[...new Set(twice)].join(', ')}`)
+  }
   await page.screenshot({ path: join(outDir, `${name}.png`) })
   console.log('✓', name)
 }
@@ -275,7 +291,7 @@ await shot('01-home')
 // 2 — Terminal view: click the first session in the rail
 await page.keyboard.press('Control+1').catch(() => {})
 await page.waitForTimeout(1400)
-// The PTY stub deliberately reports /sush/src for tab-1. Project grouping must
+// The PTY stub deliberately reports /sush/src for every session started in /sush. Project grouping must
 // remain rooted at /sush, so the rail still has exactly two projects.
 if (await page.locator('.nightly-workspace').count() !== 2) {
   throw new Error('Nightly project identity changed when the live PTY cwd moved')
@@ -283,6 +299,12 @@ if (await page.locator('.nightly-workspace').count() !== 2) {
 const sushWorkspace = page.locator('.nightly-workspace').filter({ hasText: 'sush' }).first()
 if (await sushWorkspace.locator('.nightly-thread-row').count() !== 2) {
   throw new Error('Nightly split one project into multiple rail groups after cd')
+}
+{
+  const rows = await page.locator('[data-tab-id] .xterm-rows').first().innerText().catch(() => '')
+  if (!rows.replace(/\s+/g, '').includes('testsuitepassed')) {
+    throw new Error('Nightly terminal mounted but rendered no PTY output')
+  }
 }
 await shot('02-terminal')
 
@@ -362,7 +384,7 @@ if (await accountChip.count()) {
   if (!chromeText.includes('sonnet') || !chromeText.includes('high')) {
     throw new Error('Nightly account rotation lost model/reasoning metadata')
   }
-  if (!chromeText.includes('Work') || !chromeText.includes('Usage 12%')) {
+  if (!chromeText.includes('Work') || !/Usage\s+12%/.test(chromeText)) {
     throw new Error('Nightly account rotation left stale account/usage metadata in the titlebar')
   }
   const activeWorkspace = page.locator('.nightly-workspace.is-active')
