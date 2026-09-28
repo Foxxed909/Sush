@@ -4,7 +4,9 @@
 // aliases we can verify across provider CLIs; users can enter a concrete model
 // id without Sush having to ship a constantly-stale catalog.
 
-const SAFE_MODEL = /^[A-Za-z0-9._:/-]{1,120}$/
+// Must start alphanumeric: a value like `--dangerously-skip-permissions` is
+// shell-safe but would be read by the CLI as a flag, not a model id.
+const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/
 
 export const NIGHTLY_MODEL_SPECS = {
   claude: {

@@ -312,6 +312,13 @@ if (await sushWorkspace.locator('.nightly-thread-row').count() !== 2) {
     throw new Error('Nightly terminal mounted but rendered no PTY output')
   }
 }
+// Broadcast types into several sessions at once: it must always be visible.
+await page.keyboard.press('Control+Shift+b')
+if (!(await page.locator('.nightly-broadcast').isVisible({ timeout: 2000 }).catch(() => false))) {
+  throw new Error('Nightly topbar hides Broadcast mode while it is on')
+}
+await page.locator('.nightly-broadcast').click()
+if (await page.locator('.nightly-broadcast').count()) throw new Error('Nightly Broadcast pill did not turn broadcast off')
 await shot('02-terminal')
 
 // Agent lifecycle regression: duplicate + close + reopen must preserve the

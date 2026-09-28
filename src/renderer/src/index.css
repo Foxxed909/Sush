@@ -1547,3 +1547,26 @@ p { text-wrap: pretty; }
 .nightly-launch-model-who > strong { color: var(--text-1); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nightly-launch-model-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .nightly-launch-model-fields.has-effort { grid-template-columns: minmax(0, 1fr) 150px; }
+
+
+/* Broadcast: typing goes to several sessions, so it must be impossible to miss. */
+.nightly-broadcast {
+  height: 26px; display: inline-flex; align-items: center; gap: 7px; padding: 0 10px; margin-right: 6px;
+  border: 1px solid rgba(255,83,112,.35); border-radius: 8px; cursor: pointer;
+  background: rgba(255,83,112,.1); color: #ff8da0; font: 600 12px/1 var(--font-ui);
+}
+.nightly-broadcast > span { width: 6px; height: 6px; border-radius: 50%; background: #ff5370; }
+.nightly-broadcast:hover { background: rgba(255,83,112,.16); }
+
+/* Keyboard focus: this chrome removed default outlines everywhere (inline
+   outline:none, custom buttons) and had a single focus-visible rule. */
+.nightly-rail button:focus-visible,
+.nightly-topbar button:focus-visible,
+.nightly-inspector button:focus-visible,
+.nightly-composer button:focus-visible,
+.nightly-overview button:focus-visible,
+.nightly-model-popover button:focus-visible,
+.nightly-account-popover button:focus-visible,
+.nightly-tile-head button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}

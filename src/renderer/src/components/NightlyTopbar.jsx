@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
+import { usePolling } from '../hooks/usePolling'
 import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
 import { agentById } from '../lib/agents'
@@ -31,6 +32,8 @@ export default function NightlyTopbar({
   guardTrip,
   providerMeta,
   rightOpen,
+  broadcast = false,
+  onToggleBroadcast,
   onHome,
   onHunt,
   onMission,
@@ -51,14 +54,15 @@ export default function NightlyTopbar({
   const [branch, setBranch] = useState(null)
 
   const gitRoot = activeTab?.sessionRootCwd || activeTab?.workspaceCwd || activeTab?.cwd
-  useEffect(() => {
+  // Focus-gated poll (usePolling reads immediately on activation): the branch
+  // changes from inside the terminal (`git switch`), which no React state sees.
+  const readBranch = useCallback(() => {
     if (!gitRoot) { setBranch(null); return }
-    let cancelled = false
     window.sush.gitStatus?.({ cwd: gitRoot })
-      .then(g => { if (!cancelled) setBranch(g?.repo ? g.branch : null) })
-      .catch(() => { if (!cancelled) setBranch(null) })
-    return () => { cancelled = true }
+      .then(g => setBranch(g?.repo ? g.branch : null))
+      .catch(() => setBranch(null))
   }, [gitRoot])
+  usePolling(readBranch, 8000, !!gitRoot)
 
   const workspaceTabs = useMemo(() => {
     const root = activeTab?.workspaceCwd || activeTab?.cwd
@@ -147,6 +151,12 @@ export default function NightlyTopbar({
       </div>
 
       <div className="nightly-topbar-actions">
+        {broadcast && (
+          <button className="nightly-broadcast" onClick={onToggleBroadcast} title="Broadcast is on: everything you type goes to every targeted session. Click to turn off (Ctrl+Shift+B).">
+            <span aria-hidden />
+            Broadcasting
+          </button>
+        )}
         <button className="nightly-icon-btn" onClick={onHunt} title="Search all output"><Icon name="search" size={14} /></button>
         <NightlyLayoutMenu
           accent={accent}

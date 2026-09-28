@@ -57,4 +57,13 @@ describe('Nightly model launch adapter', () => {
     expect(normalizeModel('gemini', '')).toBeNull()
     expect(buildAgentCommand(agent('gemini', 'gemini'), { model: '' })).toBe('gemini')
   })
+
+  it('rejects model ids that the CLI would parse as flags', () => {
+    expect(normalizeModel('claude', '--dangerously-skip-permissions')).toBeNull()
+    expect(normalizeModel('claude', '-p')).toBeNull()
+    expect(buildAgentCommand(agent('claude', 'claude'), { model: '--dangerously-skip-permissions' }))
+      .toBe('claude')
+    expect(normalizeModel('opencode', 'anthropic/claude-sonnet-4-5')).toBe('anthropic/claude-sonnet-4-5')
+    expect(normalizeModel('codex', 'gpt-5.3-codex')).toBe('gpt-5.3-codex')
+  })
 })
