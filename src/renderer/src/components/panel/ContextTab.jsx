@@ -32,17 +32,20 @@ function providerName(tab) {
 export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpenFile }) {
   const [data, setData] = useState({ loading: true, git: null, docs: [], tail: '' })
   const requestRef = useRef(0)
+  const projectRoot = activeTab?.workspaceCwd || cwd || null
+  const checkoutRoot = activeTab?.sessionRootCwd || cwd || projectRoot
+  const liveCwd = activeTab?.cwd || checkoutRoot
 
   const load = useCallback(async () => {
     const requestId = ++requestRef.current
-    if (!cwd) {
+    if (!checkoutRoot) {
       setData({ loading: false, git: null, docs: [], tail: '' })
       return
     }
 
     setData(prev => ({ ...prev, loading: true }))
     const docsPromise = Promise.all(PROJECT_DOCS.map(async doc => {
-      const path = joinPath(cwd, doc.name)
+      const path = joinPath(checkoutRoot, doc.name)
       try {
         const res = await window.sush?.readFile?.({ path })
         if (!res?.ok || !res.content) return null
@@ -52,7 +55,7 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
       }
     }))
 
-    const gitPromise = window.sush?.gitStatus?.({ cwd }).catch?.(() => null) ?? Promise.resolve(null)
+    const gitPromise = window.sush?.gitStatus?.({ cwd: checkoutRoot }).catch?.(() => null) ?? Promise.resolve(null)
     const tailPromise = activeTab?.id
       ? window.sush?.getScrollback?.({ tabId: activeTab.id, chars: 5000 }).catch?.(() => null)
       : Promise.resolve(null)
@@ -66,7 +69,7 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
       docs: docs.filter(Boolean),
       tail: stripAnsi(tail?.text || '').replace(/\r/g, '').trim()
     })
-  }, [cwd, activeTab?.id])
+  }, [checkoutRoot, activeTab?.id])
 
   useEffect(() => {
     load()
@@ -82,7 +85,7 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
     return pieces.length ? pieces.join(' · ') : 'No observed sources yet'
   }, [data.docs.length, changed.length, data.tail])
 
-  if (!cwd) {
+  if (!checkoutRoot) {
     return (
       <PanelEmpty icon="layers" accent={accent} hint="Open a project session to inspect the context Sush can actually observe.">
         No project context
@@ -127,7 +130,22 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
             <span>Project</span>
             <small>{data.git?.repo ? data.git.branch || 'git' : 'workspace'}</small>
           </div>
-          <div className="nightly-context-path" title={cwd}>{cwd}</div>
+          <div className="nightly-context-kv">
+            <span>Project root</span>
+            <strong className="nightly-context-path" title={projectRoot || ''}>{projectRoot || '—'}</strong>
+          </div>
+          {checkoutRoot && checkoutRoot !== projectRoot && (
+            <div className="nightly-context-kv">
+              <span>Checkout</span>
+              <strong className="nightly-context-path" title={checkoutRoot}>{checkoutRoot}</strong>
+            </div>
+          )}
+          {liveCwd && liveCwd !== checkoutRoot && (
+            <div className="nightly-context-kv">
+              <span>Live cwd</span>
+              <strong className="nightly-context-path" title={liveCwd}>{liveCwd}</strong>
+            </div>
+          )}
           {changed.length > 0 && (
             <div className="nightly-context-files">
               {changed.slice(0, 8).map(file => (
@@ -147,7 +165,7 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
             <small>{data.loading ? 'reading…' : data.docs.length}</small>
           </div>
           {!data.loading && !data.docs.length && (
-            <div className="nightly-context-muted">No AGENTS.md, CLAUDE.md, GEMINI.md, README.md, or Copilot instructions detected at the project root.</div>
+            <div className="nightly-context-muted">No AGENTS.md, CLAUDE.md, GEMINI.md, README.md, or Copilot instructions detected at this checkout root.</div>
           )}
           {data.docs.map(doc => (
             <div key={doc.path} className="nightly-context-doc">
