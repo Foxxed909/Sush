@@ -106,7 +106,7 @@ export default function NightlyTopbar({
           <>
             <span className="nightly-chip nightly-meta-provider" title={providerMeta?.model ? `Model: ${providerMeta.model}` : undefined}>
               <span style={{ color: agent?.color || accent, fontWeight: 900 }}>{agent?.mono || '>_'}</span>
-              {providerLabel}
+              <span className="nightly-provider-label">{providerLabel}</span>
               {providerMeta?.model && <strong>· {providerMeta.model}</strong>}
               {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
             </span>
