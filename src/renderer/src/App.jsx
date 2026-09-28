@@ -50,7 +50,7 @@ import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
 import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
 import NightlyOverview from './components/NightlyOverview'
-import { buildAgentCommand, normalizeEffort, normalizeModel } from './lib/nightlyModels'
+import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
@@ -435,6 +435,22 @@ export default function App() {
 
   useEffect(() => { tabsRef.current = tabs }, [tabs])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
+
+  // Installed provider CLI capabilities (model flag, resume, reasoning values).
+  // Probed once in main and cached per binary, so this is one IPC call at
+  // start; the bump re-renders the menus that read the adapter.
+  const [, setProviderCapsVersion] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    window.sush.providerCapabilities?.()
+      .then(result => {
+        if (cancelled || !result?.ok) return
+        setProviderCapabilities(result.providers)
+        setProviderCapsVersion(v => v + 1)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   // Shared activity clock: when the user last touched the app. Tracked
   // unconditionally (the listeners are passive and cheap) because BOTH idle
@@ -1602,6 +1618,8 @@ export default function App() {
     const provider = tab?.agentId
     const agent = agentById(provider)
     if (!tab || !provider || !agent?.resumeCommand) return { ok: false }
+    // Restarting a CLI that cannot resume would silently drop the conversation.
+    if (!supportsResume(provider)) return { ok: false, error: 'resume-unsupported' }
 
     const requestedModel = next.model ?? null
     const requestedEffort = next.effort ?? null
@@ -1635,6 +1653,10 @@ export default function App() {
     const provider = tab?.agentId
     const agent = agentById(provider)
     if (!tab || !provider || !agent?.resumeCommand || !slotId) return { ok: false }
+    // Checked before switching, so a refusal leaves the account untouched too.
+    if (!supportsResume(provider)) {
+      return { ok: false, error: 'this CLI version cannot resume the conversation on another account' }
+    }
     try {
       const sw = await window.sush.accountsSwitch({ provider, slotId })
       if (!sw?.ok) return sw || { ok: false }

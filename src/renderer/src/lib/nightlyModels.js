@@ -54,12 +54,34 @@ export const NIGHTLY_MODEL_SPECS = {
   }
 }
 
+// Capabilities discovered from the installed CLIs (main process probes
+// `--version`/`--help`; see src/main/provider-capabilities.js). They only ever
+// NARROW or REPLACE the verified fallback above with what the CLI itself
+// advertises; `null` fields mean "not observed" and leave the fallback alone.
+// Kept module-level so the launcher, live menus, validators and the command
+// builder all read the same answer.
+let discovered = {}
+
+export function setProviderCapabilities(map) {
+  discovered = map && typeof map === 'object' ? { ...map } : {}
+}
+
+export function providerCapabilities(provider) {
+  return discovered[provider] || null
+}
+
+// false only when the installed CLI's help positively lacks the resume flag.
+export function supportsResume(provider) {
+  return providerCapabilities(provider)?.resume !== false
+}
+
 export function modelSpecFor(provider) {
   return NIGHTLY_MODEL_SPECS[provider] || null
 }
 
 export function normalizeModel(provider, value) {
   if (!modelSpecFor(provider)) return null
+  if (providerCapabilities(provider)?.models?.flag === false) return null
   const v = String(value ?? '').trim()
   if (!v) return null
   return SAFE_MODEL.test(v) ? v : null
@@ -75,6 +97,16 @@ export function effortLabelFor(provider, value, fallback = 'Provider default') {
 export function effortOptionsFor(provider, model = null) {
   const spec = modelSpecFor(provider)?.effort
   if (!spec) return []
+
+  const reasoning = providerCapabilities(provider)?.reasoning
+  // The installed CLI has no such flag: offering a level would only make the
+  // launch fail, so offer none.
+  if (reasoning?.flag === false) return []
+  // The installed CLI enumerates its accepted values: that list is the truth
+  // for this version, including values newer than our fallback.
+  if (Array.isArray(reasoning?.choices) && reasoning.choices.length) {
+    return ['', ...reasoning.choices]
+  }
 
   // Codex publishes supported reasoning efforts per model. Until Sush has a
   // live model-catalog bridge, narrow the picker only for model slugs whose

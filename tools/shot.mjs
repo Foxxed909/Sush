@@ -102,6 +102,12 @@ const stub = `
     },
     getScrollback: async () => ({ text: 'npm test\\ntest suite passed\\n' }),
     snippetsList: async () => ({ ok: true, snippets: [ { name: 'deploy', command: 'npm run deploy' }, { name: 'wtree', command: 'git worktree list' } ] }),
+    providerCapabilities: async () => ({ ok: true, providers: {
+      claude: { provider: 'claude', installed: true, version: '2.1.14', models: { flag: true }, resume: true, reasoning: { flag: true, choices: ['low', 'medium', 'high', 'xhigh', 'max'] }, usageTelemetry: 'rate-limits', contextTelemetry: false, threadBridge: false },
+      codex: { provider: 'codex', installed: true, version: '0.46.0', models: { flag: true }, resume: true, reasoning: { flag: true, choices: null }, usageTelemetry: 'health', contextTelemetry: false, threadBridge: false },
+      gemini: { provider: 'gemini', installed: false, version: null, models: { flag: null }, resume: null, reasoning: null, contextTelemetry: false, threadBridge: false },
+      opencode: { provider: 'opencode', installed: false, version: null, models: { flag: null }, resume: null, reasoning: null, contextTelemetry: false, threadBridge: false }
+    } }),
     checkClis: async ({ names } = {}) => ({ found: Object.fromEntries((names || []).map(n => [n, n === 'claude' || n === 'codex'])) }),
     accountsList: async () => ({ ok: true, providers: {
       claude: { active: activeClaudeSlot, limitPolicy: 'ask', slots: [ { id: 'default', label: 'Personal', lastLimitAt: null, usage: { status: 'allowed', sessionPct: 42, weekPct: 18, at: now }, usageHistory: [] }, { id: 'acct-2', label: 'Work', lastLimitAt: now - 7200e3, usage: { status: 'allowed', sessionPct: 12, weekPct: 9, at: now }, usageHistory: [] } ] },

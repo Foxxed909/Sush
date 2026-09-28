@@ -135,7 +135,9 @@ export default function NightlyModelMenu({
                     ? 'Use a provider model ID without spaces or shell characters.'
                     : result?.error === 'invalid-effort'
                       ? 'That reasoning level is not supported by this provider.'
-                      : 'This session cannot be resumed with that setting.')
+                      : result?.error === 'resume-unsupported'
+                        ? 'This CLI version cannot resume a conversation, so the session was left running.'
+                        : 'This session cannot be resumed with that setting.')
                 }
               }}
             >
