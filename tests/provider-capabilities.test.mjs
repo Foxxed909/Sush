@@ -258,6 +258,25 @@ describe('provider capability persistence', () => {
     expect(calls).toHaveLength(2)
   })
 
+  it('re-probes an old cache schema even when the CLI binary itself is unchanged', async () => {
+    const saved = {
+      claude: {
+        // This was the exact old binary stamp before Thread capability existed.
+        stamp: '/usr/bin/claude|10|1000',
+        caps: { provider: 'claude', installed: true, version: '2.1.14', threadBridge: false }
+      }
+    }
+    const calls = []
+    const cache = createCapabilityCache({
+      ...base,
+      spawn: fakeSpawn({ '--version': '2.1.14', '--help': COMMANDER_HELP }, calls),
+      store: { read: () => saved, write: () => {} }
+    })
+    const caps = await cache.get('claude')
+    expect(calls).toHaveLength(2)
+    expect(caps.threadBridge).toBe(true)
+  })
+
   it('ignores a corrupt or hostile store file', async () => {
     const calls = []
     for (const junk of ['nope', 42, [], { claude: 'x' }, { claude: { stamp: 's', caps: { provider: 'codex' } } }]) {
