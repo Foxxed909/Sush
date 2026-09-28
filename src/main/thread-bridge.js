@@ -231,6 +231,7 @@ export function readClaudeThread(userData, tabId) {
     transcriptPath: null,
     transcriptAvailable: false,
     transcriptTruncated: false,
+    hookPrompts: meta.prompts,
     items: []
   }
 
