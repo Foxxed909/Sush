@@ -1406,3 +1406,31 @@ p { text-wrap: pretty; }
   color: var(--text-5); font-size: 8px; line-height: 1.45;
   background: var(--accent-a03);
 }
+
+.nightly-git-chip {
+  font: inherit;
+  cursor: pointer;
+  max-width: 190px;
+}
+.nightly-git-chip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nightly-git-chip:hover {
+  border-color: rgba(119,183,152,.28);
+  background: rgba(119,183,152,.06);
+}
+.nightly-git-count {
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255,203,107,.10);
+  color: #ffcb6b !important;
+  font-size: 8px;
+  font-weight: 850;
+}
