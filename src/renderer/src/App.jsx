@@ -723,7 +723,8 @@ export default function App() {
   const themeId = theme.id
   const accent = theme.ui.accent
   const fontSize = settings.fontSize ?? 14
-  const fontFamily = settings.fontFamily ?? "'Cascadia Code'"
+  const fontFamily = settings.fontFamily ?? "'Cascadia Code', 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace"
+  const terminalLineHeight = settings.lineHeight ?? 1.28
   const cursorStyle = settings.cursorStyle ?? 'block'
 
   // "Show wallpaper through terminals": when a wallpaper is set and the user
@@ -2195,6 +2196,7 @@ export default function App() {
                                 bootCommand={tab.bootCommand}
                                 fontSize={layoutGridMode ? Math.max(10, fontSize - 2) : fontSize}
                                 fontFamily={fontFamily}
+                                lineHeight={terminalLineHeight}
                                 cursorStyle={cursorStyle}
                                 broadcastTabIds={broadcastTargets}
                                 restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
