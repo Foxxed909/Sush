@@ -1566,15 +1566,19 @@ export default function App() {
     window.sush.closeTab({ tabId: id })
     setTabs(prev => {
       const next = prev.filter(t => t.id !== id)
+      // This updater runs at render time, AFTER anything queued in the same
+      // batch — e.g. the replacement tab an account/model restart opens right
+      // after closing. Only move focus if it still points at the closed tab,
+      // or the restart's new session loses focus to an unrelated project.
       if (!next.length) {
         // Last session closed: don't eagerly spawn a replacement terminal.
         // Leave the workspace empty and let the user re-open from Home.
-        setActiveId(null)
+        setActiveId(cur => (cur === id ? null : cur))
         return next
       }
       // Keep a sensible session selected for when the user returns, but we drop
       // to Home below rather than throwing them into it.
-      if (wasActive) setActiveId(next[next.length - 1].id)
+      if (wasActive) setActiveId(cur => (cur === id ? next[next.length - 1].id : cur))
       return next
     })
 
