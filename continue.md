@@ -222,6 +222,44 @@ Current limitations are deliberate:
   session is live; Thread reports this instead of guessing.
 - No private reasoning/thinking display.
 
+Additional hardening after the initial bridge:
+
+- Thread availability is now recorded on each live PTY and propagated through
+  normal session state. Provider capability alone is not enough to unlock the
+  pane.
+- If a Claude command already supplies its own explicit `--settings`, Sush
+  does not override it and that PTY does not claim Thread support.
+- The Sush settings path is passed through a PTY environment variable instead
+  of embedding a user-data path directly into the shell command.
+- Hook event files survive Claude process exit so an exited tab remains
+  inspectable, then are deleted when the Sush tab itself closes.
+- Transcript parsing preserves Claude's persisted block order and skips both
+  `thinking` and `redacted_thinking` blocks.
+- Hook-captured user prompts are merged only when the corresponding persisted
+  user record has not appeared yet, including repeated identical prompts.
+- The inspector tab strip hides Thread outside a successfully bridged Claude
+  PTY, matching the pane picker.
+
+### Codex Thread research
+
+Do **not** enable Codex Thread by choosing the newest rollout by cwd.
+
+Current Codex does persist canonical rollout JSONL under `CODEX_HOME/sessions`
+and its app-server exposes structured `thread/read`, `thread/turns/list` and
+`thread/items/list` APIs. That is promising. However, Sush still needs a
+guaranteed way to correlate one existing interactive TUI PTY with the exact
+Codex thread id before displaying it as "same session".
+
+An internal `CODEX_INTERNAL_ORIGINATOR_OVERRIDE` marker exists, but upstream
+documents reliability limitations around when that override is observed. Treat
+it as research material, not an identity guarantee.
+
+A future Codex adapter should use a provider-supported exact correlation
+primitive or deliberately restructure Codex launch ownership around an
+app-server thread only after proving that the visible interactive TUI resumes
+that exact durable thread without injecting a hidden turn. Until then, Codex
+Thread stays gated.
+
 Next Thread work should be provider research + adapters, not relaxing these
 truthfulness constraints.
 
