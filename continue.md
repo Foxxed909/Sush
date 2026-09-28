@@ -55,6 +55,54 @@ Do not assume this file is more current than the branch itself. If the branch ha
 
 ---
 
+## 0.1 Latest session (2026-09-28, branch `claude/roadmap-development-continue-i32p2l`)
+
+This branch = `main` (this file) merged with `nightly/quiet-nights-shell-v1` at
+`a68775f`, plus the work below. Fold it into PR #15 or open a follow-up PR.
+
+Findings / fixes:
+
+- **The visual harness had never run on the current branch.** The page stub in
+  `tools/shot.mjs` did not parse (nested template literal, unescaped `\n`), so
+  every walk died before its first assertion. Fixed. It also now denies WebGL
+  so xterm uses its DOM renderer — headless screenshots were blank before —
+  and asserts real PTY output is visible.
+- **Terminals remounted after every new session start** (pre-existing on
+  `main`): `useTerminal`'s create-effect depended on `profile.shell`, which
+  changes when the PTY reports its real shell. Now held in a ref. The harness
+  fails any shot where a tab id was pty-started twice.
+- **Split/Grid unmounted every off-layout terminal** (other projects, tiles
+  past the cap) and rebuilt it on return to Focus. They now stay mounted,
+  hidden, out of the grid flow; tiles are placed with CSS `order`.
+- **Account/model restart lost focus to another project**: `closeTab`'s
+  `setTabs` updater picked a fallback tab at render time, after the
+  replacement had been focused. Now only moves focus if it still points at the
+  closed tab.
+- **Topbar chips overlapped crumbs/actions with the inspector docked.** Centre
+  column may shrink; chips drop out whole in priority order (one-row wrap) and
+  container queries use the topbar's own width. Account chip font fixed.
+- **Provider capability discovery (§C) — first slice landed.**
+  `src/main/provider-capabilities.js` probes `--version`/`--help` once per
+  binary stamp (path+size+mtime), exposed as `sush:provider-capabilities`.
+  `nightlyModels.js` narrows its fallback with discovered facts
+  (`setProviderCapabilities`, `supportsResume`). Verified live against Claude
+  Code **2.1.284**: `--effort` accepts `low, medium, high, xhigh, max` —
+  `ultracode` is not a flag value, matching the fallback. Codex/Gemini/OpenCode
+  were not installed in that environment, so their tables remain unverified.
+- **CI**: the GitHub-hosted jobs on PR #15 fail in 2–5 s with zero steps and no
+  downloadable logs (HTTP 404). That pattern points at account-level Actions
+  limits/billing, not the code; tests, build, Air and the visual walk all pass
+  locally.
+
+Local visual walk: `npm run build && PLAYWRIGHT_CHROMIUM_EXECUTABLE=<chrome> node tools/shot.mjs <outDir>`.
+
+Next suggested steps: capability-driven *model* catalogs where a CLI can list
+them; show `installed: false` / version in the launcher; then Phase 2 (Thread
+bridge research — Claude's `--output-format stream-json` is print-mode only and
+does not bind to the interactive session).
+
+---
+
 # 1. Product direction
 
 The goal for Quiet Nights is a **project-first AI development workspace** that feels calmer and more coherent than a wall of terminal tabs.
