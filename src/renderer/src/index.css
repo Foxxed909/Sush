@@ -897,6 +897,25 @@ p { text-wrap: pretty; }
 }
 .nightly-topbar.is-inspector-open .nightly-chip { padding-left: 6px; padding-right: 6px; }
 .nightly-topbar.is-inspector-open .nightly-action-btn { padding-left: 8px; padding-right: 8px; }
+/* The topbar's width depends on the rail and the docked inspector, not the
+   viewport, so shed chips by the topbar's own width. The centre column may
+   also shrink below its content: when space runs out it clips instead of
+   painting over the crumbs and actions (its popovers render in a portal). */
+.nightly-topbar { container: nightly-topbar / inline-size; }
+.nightly-topbar { grid-template-columns: minmax(220px, 1fr) minmax(0, auto) minmax(max-content, 1fr); }
+.nightly-topbar.is-inspector-open { grid-template-columns: minmax(160px, 1fr) minmax(0, auto) minmax(max-content, 1fr); }
+.nightly-topbar-center {
+  /* One chip-high row: chips that do not fit wrap onto a hidden second line
+     and drop out whole, in DOM (priority) order, instead of being cut. */
+  flex-wrap: wrap; align-content: flex-start; row-gap: 12px;
+  height: 24px; overflow: hidden;
+}
+@container nightly-topbar (max-width: 1320px) {
+  .nightly-meta-context, .nightly-meta-count { display: none; }
+}
+@container nightly-topbar (max-width: 760px) {
+  .nightly-topbar-center { display: none; }
+}
 .nightly-chip {
   height: 24px; padding: 0 8px; border: 1px solid var(--border-1); border-radius: 7px;
   display: inline-flex; align-items: center; gap: 5px; color: var(--text-3);
@@ -1089,7 +1108,7 @@ p { text-wrap: pretty; }
 
 /* Nightly account popover --------------------------------------------------- */
 .nightly-account-menu { position: relative; -webkit-app-region: no-drag; }
-.nightly-account-chip { cursor: pointer; font: inherit; }
+.nightly-account-chip { cursor: pointer; font-family: inherit; }
 .nightly-account-chip:hover { border-color: var(--border-2); color: var(--text-2); }
 .nightly-account-count {
   min-width: 14px; height: 14px; padding: 0 3px; border-radius: 999px;
