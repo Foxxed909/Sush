@@ -12,6 +12,13 @@ const PROJECT_DOCS = [
   { name: '.github/copilot-instructions.md', kind: 'Copilot instructions' }
 ]
 
+function projectPath(cwd, relative) {
+  return String(relative || '')
+    .split('/')
+    .filter(Boolean)
+    .reduce((path, segment) => joinPath(path, segment), cwd)
+}
+
 function preview(text, max = 460) {
   const value = String(text || '').replace(/\r/g, '').trim()
   if (!value) return ''
@@ -77,7 +84,7 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
 
     setData(prev => ({ ...prev, loading: true }))
     const docsPromise = Promise.all(PROJECT_DOCS.map(async doc => {
-      const path = joinPath(cwd, doc.name)
+      const path = projectPath(cwd, doc.name)
       try {
         const res = await window.sush?.readFile?.({ path })
         if (!res?.ok || !res.content) return null
