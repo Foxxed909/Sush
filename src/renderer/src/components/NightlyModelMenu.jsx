@@ -27,7 +27,7 @@ export default function NightlyModelMenu({
     setError('')
   }, [open, model, effort])
 
-  const effortOptions = effortOptionsFor(provider, nextModel || model)
+  const effortOptions = useMemo(() => effortOptionsFor(provider, nextModel || model), [provider, nextModel, model])
 
   useEffect(() => {
     if (nextEffort && !effortOptions.includes(nextEffort)) setNextEffort('')
