@@ -56,6 +56,8 @@ const stub = `
   const credits = { tier: 'enterprise', allowanceSec: 600000, usedSec: 4200, remainingSec: 595800, resetAt: now + 20 * 86400e3, period: '2026-07' }
   const ptyListeners = []
   const stateListeners = []
+  const startRequests = []
+  window.__sushStartRequests = startRequests
   let activeClaudeSlot = 'default'
   const DEMO = [
     '\\u001b[38;2;255;107;157m\\u001b[1m   _____ _    _  _____ _    _\\r\\n  / ____| |  | |/ ____| |  | |\\r\\n | (___ | |  | | (___ | |__| |\\r\\n  \\\\___ \\\\| |  | |\\\\___ \\\\|  __  |\\r\\n  ____) | |__| |____) | |  | |\\r\\n |_____/ \\\\____/|_____/|_|  |_|\\u001b[0m\\r\\n',
@@ -85,6 +87,7 @@ const stub = `
     claudeLimitsGet: async () => ({ ok: true, limits: { status: 'allowed', rateLimitType: '', resetsAt: now + 3600e3, sessionPct: 42, weekPct: 18, at: now } }),
     batteryStatus: async () => ({ ok: true, hasBattery: true, percent: 74, charging: false }),
     startPty: async ({ tabId, cwd }) => {
+      startRequests.push({ tabId, cwd: cwd || null })
       setTimeout(() => {
         let i = 0
         const drip = () => {
@@ -288,6 +291,13 @@ await shot('02-terminal')
 const baseThreadCount = await page.locator('.nightly-thread-row').count()
 await page.keyboard.press('Control+Shift+d')
 await page.waitForTimeout(700)
+{
+  const starts = await page.evaluate(() => window.__sushStartRequests || [])
+  const latest = starts[starts.length - 1]
+  if (latest?.cwd !== '/home/taylor/sush') {
+    throw new Error(`Nightly duplicate spawned from transient cwd: ${latest?.cwd || 'missing'}`)
+  }
+}
 if (await page.locator('.nightly-thread-row').count() !== baseThreadCount + 1) {
   throw new Error('Nightly duplicate did not create a second session')
 }
@@ -299,6 +309,13 @@ await page.keyboard.press('Control+w')
 await page.waitForTimeout(450)
 await page.keyboard.press('Control+Shift+t')
 await page.waitForTimeout(750)
+{
+  const starts = await page.evaluate(() => window.__sushStartRequests || [])
+  const latest = starts[starts.length - 1]
+  if (latest?.cwd !== '/home/taylor/sush') {
+    throw new Error(`Nightly reopen spawned from transient cwd: ${latest?.cwd || 'missing'}`)
+  }
+}
 if (await page.locator('.nightly-thread-row').count() !== baseThreadCount + 1) {
   throw new Error('Nightly reopen did not restore the closed agent session')
 }
