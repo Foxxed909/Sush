@@ -2167,6 +2167,9 @@ export default function App() {
                       return (
                         <div
                           key={tab.id}
+                          data-nightly-tile={layoutGridMode ? '1' : undefined}
+                          data-nightly-workspace={nightlyWorkspaceKey(tab) || undefined}
+                          data-tab-id={tab.id}
                           onMouseDown={layoutGridMode ? () => {
                             if (!booted) setBootedIds(prev => new Set(prev).add(tab.id))
                             // In split view, focusing the partner swaps the panes
