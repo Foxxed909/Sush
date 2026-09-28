@@ -5,6 +5,7 @@ import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
 import NightlyAccountMenu from './NightlyAccountMenu'
 import NightlyLayoutMenu from './NightlyLayoutMenu'
+import NightlyPaneMenu from './NightlyPaneMenu'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
@@ -41,6 +42,8 @@ export default function NightlyTopbar({
   onLayoutSplit,
   onLayoutGrid,
   onLayoutOverview,
+  activePane,
+  onOpenPane,
   onTogglePanel
 }) {
   const [branch, setBranch] = useState(null)
@@ -120,8 +123,14 @@ export default function NightlyTopbar({
           onOverview={onLayoutOverview || onMission}
         />
         <button className="nightly-icon-btn" onClick={onMission} title="Overview"><Icon name="activity" size={14} /></button>
+        <NightlyPaneMenu
+          accent={accent}
+          activePane={activePane}
+          panelOpen={rightOpen}
+          onOpen={onOpenPane}
+        />
         <button className="nightly-action-btn" onClick={onSeducia}><Icon name="sparkles" size={13} /> Seducia</button>
-        <button className={`nightly-icon-btn${rightOpen ? ' is-active' : ''}`} onClick={onTogglePanel} title="Toggle inspector"><Icon name="panel" size={14} /></button>
+        <button className={`nightly-icon-btn${rightOpen ? ' is-active' : ''}`} onClick={onTogglePanel} title="Toggle current pane"><Icon name="panel" size={14} /></button>
         <span className="nightly-window-divider" />
         <button className="nightly-window-btn" onClick={() => windowControl('minimize')} title="Minimize">−</button>
         <button className="nightly-window-btn" onClick={() => windowControl('maximize')} title="Maximize">□</button>
