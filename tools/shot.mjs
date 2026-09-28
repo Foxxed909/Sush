@@ -314,6 +314,14 @@ await page.waitForTimeout(500)
 
 // 5 — Focused right inspector
 await page.keyboard.press('Control+b')
+await page.waitForTimeout(250)
+{
+  const center = await page.locator('.nightly-topbar-center').boundingBox()
+  const actions = await page.locator('.nightly-topbar-actions').boundingBox()
+  if (center && actions && center.x + center.width > actions.x + 1) {
+    throw new Error('Nightly topbar metadata overlaps its action controls with the inspector open')
+  }
+}
 await shot('05-inspector')
 await page.keyboard.press('Control+b')
 
