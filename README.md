@@ -103,6 +103,7 @@ Settings ▸ Plan, or run `unlock SUSH-...` in any session.
 | [`learning.md`](learning.md) | Engineering lessons carried across cycles |
 | [`GRAVEYARD.md`](GRAVEYARD.md) | Retired features and why — and what has risen |
 | [`REVIEW.md`](REVIEW.md) | 2026-07-24 codebase review: bugs found, what was left alone |
+| [`continue.md`](continue.md) | Claude/agent handoff: Quiet Nights state, architecture constraints, roadmap, testing and next steps |
 | [`air/README.md`](air/README.md) | Sush Air — the separate application, and its import flow |
 
 ## License
