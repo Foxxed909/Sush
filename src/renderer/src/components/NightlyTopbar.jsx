@@ -6,7 +6,6 @@ import { rgba } from '../lib/ui'
 import NightlyAccountMenu from './NightlyAccountMenu'
 import NightlyLayoutMenu from './NightlyLayoutMenu'
 import NightlyPaneMenu from './NightlyPaneMenu'
-import NightlyPaneMenu from './NightlyPaneMenu'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
