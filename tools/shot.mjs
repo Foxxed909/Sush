@@ -147,10 +147,10 @@ const stub = `
       if (normalized.endsWith('.sush/crew.json')) {
         return { ok: true, content: JSON.stringify({ name: 'Sush dev crew', counts: { claude: 2, shell: 1 }, brief: 'Fix the flaky scrollback test, then run the suite.' }) }
       }
-      if (normalized.endsWith('/AGENTS.md')) {
+      if (normalized === '/home/taylor/sush/AGENTS.md') {
         return { ok: true, content: '# Agent instructions\nKeep renderer changes small. Run tests before merge. Preserve the PTY engine.' }
       }
-      if (normalized.endsWith('/README.md')) {
+      if (normalized === '/home/taylor/sush/README.md') {
         return { ok: true, content: '# Sush\nA local-first multi-agent terminal workspace.' }
       }
       return { ok: false, error: 'not found' }
@@ -469,8 +469,16 @@ if (await paneButton.count()) {
   await page.locator('.nightly-pane-popover').waitFor({ state: 'visible' })
   await page.locator('.nightly-pane-popover').getByText('Context', { exact: true }).click()
   await page.waitForTimeout(650)
-  const contextPane = page.locator('.nightly-inspector').getByText('Context', { exact: true }).first()
+  const contextInspector = page.locator('.nightly-inspector')
+  const contextPane = contextInspector.getByText('Context', { exact: true }).first()
   if (!(await contextPane.count())) throw new Error('Nightly Context pane did not open')
+  if (!(await contextInspector.getByText('/home/taylor/sush', { exact: true }).count())) {
+    throw new Error('Nightly Context drifted from the workspace root after the PTY changed cwd')
+  }
+  if (!(await contextInspector.getByText('AGENTS.md', { exact: true }).count())
+      || !(await contextInspector.getByText('README.md', { exact: true }).count())) {
+    throw new Error('Nightly Context did not load project-root guidance documents')
+  }
   await shot('02g-context')
 }
 
