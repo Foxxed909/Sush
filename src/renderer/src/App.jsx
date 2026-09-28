@@ -1162,9 +1162,17 @@ export default function App() {
   }, [activeId, rememberSession, tabs])
 
   const selectTab = useCallback((id) => {
+    const next = tabsRef.current.find(t => t.id === id)
+    const current = tabsRef.current.find(t => t.id === activeIdRef.current)
+    if (nightlyWorkspaceKey(next) !== nightlyWorkspaceKey(current)) {
+      // Split/Grid are transient arrangements of one project. Crossing a
+      // project boundary starts focused instead of leaking the old layout.
+      setGridMode(false)
+      setSplitId(null)
+    }
     setActiveId(id)
     setView('terminal')
-  }, [])
+  }, [setSplitId])
 
   const openTab = useCallback((profile, options = {}) => {
     const prof = profile ?? profiles[0]
