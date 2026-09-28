@@ -27,6 +27,7 @@ Options:
   --model <model>                Model for the current session
   --effort <level>               Effort level for the current session (choices:
                                  "low", "medium", "high", "xhigh", "max")
+  --settings <file-or-json>       Load additional settings from a file or JSON
   -h, --help                     Display help for command
 `
 
@@ -53,6 +54,8 @@ const CLAUDE_2_1_284_HELP = `Options:
                                         an alias for the latest model (e.g.
                                         'fable', 'opus', or 'sonnet') or a
                                         model's full name.
+  --settings <file-or-json>              Path to a settings JSON file or a JSON
+                                        string to load additional settings from
 `
 
 const agent = (id, command, resumeCommand) => ({ id, command, resumeCommand })
@@ -129,16 +132,27 @@ describe('provider capability records', () => {
       resume: true,
       reasoning: { flag: true, choices: ['low', 'medium', 'high', 'xhigh', 'max'] },
       contextTelemetry: false,
-      threadBridge: false
+      threadBridge: true
     })
     const blind = buildCapabilities('claude', { installed: true, help: null })
     expect(blind.models.flag).toBeNull()
     expect(blind.resume).toBeNull()
     expect(blind.reasoning).toBeNull()
+    expect(blind.threadBridge).toBeNull()
   })
 
-  it('never claims context telemetry or a Thread bridge for any provider', () => {
-    for (const provider of ['claude', 'codex', 'gemini', 'opencode', 'grok']) {
+  it('claims a Thread bridge only when Claude advertises the settings hook surface', () => {
+    const claude = buildCapabilities('claude', { installed: true, help: COMMANDER_HELP })
+    expect(claude.contextTelemetry).toBe(false)
+    expect(claude.threadBridge).toBe(true)
+
+    const claudeWithoutSettings = buildCapabilities('claude', {
+      installed: true,
+      help: COMMANDER_HELP.replace(/.*--settings.*\n/, '')
+    })
+    expect(claudeWithoutSettings.threadBridge).toBe(false)
+
+    for (const provider of ['codex', 'gemini', 'opencode', 'grok']) {
       const caps = buildCapabilities(provider, { installed: true, help: COMMANDER_HELP })
       expect(caps.contextTelemetry).toBe(false)
       expect(caps.threadBridge).toBe(false)
