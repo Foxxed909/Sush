@@ -190,6 +190,22 @@ const stub = `
         groupLabel: 'Sush dev',
         startedAt: now - 120000,
         lastActiveAt: now - 12000
+      }, {
+        label: 'Other project shell',
+        profileId: 'powershell',
+        profileLabel: 'PowerShell',
+        shell: 'powershell',
+        shellLabel: 'PowerShell',
+        cwd: '/home/taylor/other-project',
+        bootCommand: null,
+        agentId: 'shell',
+        model: null,
+        effort: null,
+        tag: 'sess-other',
+        groupId: 'grp-other',
+        groupLabel: 'Other project',
+        startedAt: now - 90000,
+        lastActiveAt: now - 20000
       }]
     }))
   } catch {}
@@ -230,6 +246,9 @@ const shot = async (name) => {
 const homeChrome = await page.locator('.nightly-topbar').innerText()
 if (homeChrome.includes('Context') || /\bShell\b/.test(homeChrome)) {
   throw new Error('Nightly Home leaked session telemetry into the global header')
+}
+if (!homeChrome.includes('2 projects') || !homeChrome.includes('3 live sessions')) {
+  throw new Error('Nightly Home did not summarize global project/session state')
 }
 await shot('01-home')
 
@@ -325,11 +344,27 @@ if (await layoutButton.count()) {
   await shot('02d-layout-menu')
   await page.locator('.nightly-layout-popover').getByText('Split', { exact: true }).click()
   await page.waitForTimeout(500)
+  {
+    const tiles = page.locator('[data-nightly-tile="1"]')
+    if (await tiles.count() !== 2) throw new Error('Nightly Split escaped the active project boundary')
+    const workspaces = await tiles.evaluateAll(nodes => [...new Set(nodes.map(n => n.getAttribute('data-nightly-workspace')))])
+    if (workspaces.length !== 1 || !String(workspaces[0] || '').includes('/home/taylor/sush')) {
+      throw new Error('Nightly Split mixed sessions from unrelated projects')
+    }
+  }
   await shot('02e-split')
 
   await layoutButton.click()
   await page.locator('.nightly-layout-popover').getByText('Grid', { exact: true }).click()
   await page.waitForTimeout(500)
+  {
+    const tiles = page.locator('[data-nightly-tile="1"]')
+    if (await tiles.count() !== 2) throw new Error('Nightly Grid should tile only the two active-project sessions')
+    const workspaces = await tiles.evaluateAll(nodes => [...new Set(nodes.map(n => n.getAttribute('data-nightly-workspace')))])
+    if (workspaces.length !== 1 || !String(workspaces[0] || '').includes('/home/taylor/sush')) {
+      throw new Error('Nightly Grid mixed sessions from unrelated projects')
+    }
+  }
   await shot('02f-grid')
 
   await layoutButton.click()
