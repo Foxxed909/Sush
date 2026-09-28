@@ -901,7 +901,7 @@ await page.waitForTimeout(250)
 {
   const claudeCard = launcher.locator('.sush-row').filter({ hasText: 'Claude Code' }).first()
   const claudeText = await claudeCard.innerText()
-  if (!claudeText.includes('v2.1.14') || !claudeText.includes('resume') || !claudeText.includes('reasoning')) {
+  if (!claudeText.includes('v2.1.14') || !claudeText.includes('resume') || !claudeText.includes('reasoning') || !claudeText.includes('Thread')) {
     throw new Error('Nightly launcher did not surface detected Claude capabilities')
   }
   const geminiCard = launcher.locator('.sush-row').filter({ hasText: 'Gemini' }).first()
