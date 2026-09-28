@@ -212,3 +212,44 @@ describe('Nightly adapter with discovered capabilities', () => {
     expect(supportsResume('claude')).toBe(true)
   })
 })
+
+describe('provider capability persistence', () => {
+  const base = {
+    resolveExecutable: name => (name === 'claude' ? '/usr/bin/claude' : null),
+    statSync: () => ({ size: 10, mtimeMs: 1000 }),
+    shimSpawnSpec: (bin, args) => ({ file: bin, args })
+  }
+
+  it('a second launch reads the saved probe and spawns nothing', async () => {
+    let saved = null
+    const calls = []
+    const first = createCapabilityCache({ ...base, spawn: fakeSpawn({ '--version': '2.1.14', '--help': COMMANDER_HELP }, calls), store: { read: () => saved, write: d => { saved = JSON.parse(JSON.stringify(d)) } } })
+    await first.get('claude')
+    expect(calls).toHaveLength(2)
+    expect(saved.claude.caps.version).toBe('2.1.14')
+
+    const secondCalls = []
+    const second = createCapabilityCache({ ...base, spawn: fakeSpawn({}, secondCalls), store: { read: () => saved, write: () => {} } })
+    const caps = await second.get('claude')
+    expect(caps.version).toBe('2.1.14')
+    expect(secondCalls).toHaveLength(0)
+  })
+
+  it('re-probes when the saved stamp no longer matches the binary', async () => {
+    const saved = { claude: { stamp: '/usr/bin/claude|10|999', caps: { provider: 'claude', installed: true, version: '1.0.0' } } }
+    const calls = []
+    const cache = createCapabilityCache({ ...base, spawn: fakeSpawn({ '--version': '2.1.14', '--help': COMMANDER_HELP }, calls), store: { read: () => saved, write: () => {} } })
+    const caps = await cache.get('claude')
+    expect(caps.version).toBe('2.1.14')
+    expect(calls).toHaveLength(2)
+  })
+
+  it('ignores a corrupt or hostile store file', async () => {
+    const calls = []
+    for (const junk of ['nope', 42, [], { claude: 'x' }, { claude: { stamp: 's', caps: { provider: 'codex' } } }]) {
+      const cache = createCapabilityCache({ ...base, spawn: fakeSpawn({ '--version': '2.1.14', '--help': COMMANDER_HELP }, calls), store: { read: () => junk, write: () => {} } })
+      expect((await cache.get('claude')).version).toBe('2.1.14')
+    }
+  })
+})
+

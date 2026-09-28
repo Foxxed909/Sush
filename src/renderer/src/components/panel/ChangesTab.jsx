@@ -15,6 +15,18 @@ async function aiSuggestCommit(files, cwd) {
   return text ? text.split('\n')[0].trim() : null
 }
 
+function DiffView({ text }) {
+  return (
+    <pre className="changes-diff">
+      {String(text).split('\n').map((line, i) => {
+        const kind = line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('index ') ? 'meta'
+          : line.startsWith('@@') ? 'hunk' : line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : ''
+        return <span key={i} className={kind ? `is-${kind}` : undefined}>{line || ' '}{'\n'}</span>
+      })}
+    </pre>
+  )
+}
+
 function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -24,6 +36,9 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
   const [suggesting, setSuggesting] = useState(false)
   const [diff, setDiff] = useState(null)
   const [diffLoading, setDiffLoading] = useState(false)
+  // Per-file inline diff: { key, path, text, loading, truncated, error }
+  const [fileDiff, setFileDiff] = useState(null)
+  const fileDiffRequestRef = useRef(0)
   const loadRequestRef = useRef(0)
   const diffRequestRef = useRef(0)
   const commitRequestRef = useRef(0)
@@ -68,6 +83,45 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
     setSuggesting(false)
     load()
   }, [load])
+
+  const toggleFileDiff = async (file, staged) => {
+    const key = `${staged ? 's' : 'u'}:${file.path}`
+    if (fileDiff?.key === key) { setFileDiff(null); return }
+    const targetCwd = data?.dir || cwd
+    const requestId = ++fileDiffRequestRef.current
+    setFileDiff({ key, path: file.path, text: '', loading: true })
+    const res = await window.sush?.gitDiffFile?.({ cwd: targetCwd, path: file.path, staged, untracked: file.status === '??' }).catch(() => null)
+    if (requestId !== fileDiffRequestRef.current) return
+    setFileDiff({
+      key, path: file.path, loading: false,
+      text: res?.diff || '',
+      truncated: !!res?.truncated,
+      error: res?.ok ? (res.diff ? '' : 'No textual changes to show.') : (res?.error || 'Could not read the diff')
+    })
+  }
+  // Fill the composer; the user reads it and presses Enter. Nothing is sent on its own.
+  const sendDiffToAgent = () => {
+    if (!fileDiff?.text) return
+    const body = fileDiff.text.length > 12000 ? `${fileDiff.text.slice(0, 12000)}\n… (diff truncated)` : fileDiff.text
+    window.dispatchEvent(new CustomEvent('sush:composer-fill', {
+      detail: { text: `Please review my changes to ${fileDiff.path}:\n\n\`\`\`diff\n${body.trimEnd()}\n\`\`\`\n` }
+    }))
+  }
+
+  const renderFileDiff = () => (
+    <div className="changes-file-diff">
+      {fileDiff.loading && <div className="changes-diff-note">Loading diff…</div>}
+      {!fileDiff.loading && fileDiff.text && <DiffView text={fileDiff.text} />}
+      {!fileDiff.loading && fileDiff.error && <div className="changes-diff-note">{fileDiff.error}</div>}
+      {!fileDiff.loading && fileDiff.truncated && <div className="changes-diff-note">Diff truncated at 80,000 characters.</div>}
+      {!fileDiff.loading && fileDiff.text && (
+        <div className="changes-diff-actions">
+          <button type="button" onClick={sendDiffToAgent}>Send to agent</button>
+          <small>Fills the message box — you review it, then press Enter.</small>
+        </div>
+      )}
+    </div>
+  )
 
   const toggleDiff = async () => {
     if (diff !== null) { setDiff(null); return }
@@ -188,11 +242,15 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
             {stagedFiles.map(f => {
               const meta = statusMeta(f.status)
               return (
-                <div key={`s-${f.path}`} className="flex items-center" style={{ gap: 6, borderRadius: 8, background: 'rgba(195,232,141,0.06)', padding: '4px 6px', marginBottom: 2 }}>
+                <React.Fragment key={`s-${f.path}`}>
+                <div className="flex items-center" style={{ gap: 6, borderRadius: 8, background: 'rgba(195,232,141,0.06)', padding: '4px 6px', marginBottom: 2 }}>
                   <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
                   <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0, fontWeight: 700 }}>{f.path}</button>
+                  <button onClick={() => toggleFileDiff(f, true)} title="View diff" aria-label={`View diff of ${f.path}`} aria-expanded={fileDiff?.key === `s:${f.path}`} className="changes-diff-btn"><Icon name="code" size={12} /></button>
                   <button onClick={() => setFileStaged(f, false)} title="Unstage" style={{ fontSize: 10, color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>−</button>
                 </div>
+                {fileDiff?.key === `s:${f.path}` && renderFileDiff()}
+                </React.Fragment>
               )
             })}
           </>
@@ -206,11 +264,15 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
             {unstagedFiles.map(f => {
               const meta = statusMeta(f.status)
               return (
-                <div key={`u-${f.path}`} className="flex items-center" style={{ gap: 6, padding: '4px 6px', marginBottom: 2 }}>
+                <React.Fragment key={`u-${f.path}`}>
+                <div className="flex items-center" style={{ gap: 6, padding: '4px 6px', marginBottom: 2 }}>
                   <span style={{ width: 16, textAlign: 'center', fontSize: 10.5, fontWeight: 900, color: meta.c, flexShrink: 0 }}>{meta.t}</span>
                   <button onClick={() => onOpenFile(joinPath(data.dir || cwd, f.path))} title={f.path} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: 0 }}>{f.path}</button>
+                  <button onClick={() => toggleFileDiff(f, false)} title="View diff" aria-label={`View diff of ${f.path}`} aria-expanded={fileDiff?.key === `u:${f.path}`} className="changes-diff-btn"><Icon name="code" size={12} /></button>
                   <button onClick={() => setFileStaged(f, true)} title="Stage" style={{ fontSize: 10, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0, fontWeight: 800 }}>+</button>
                 </div>
+                {fileDiff?.key === `u:${f.path}` && renderFileDiff()}
+                </React.Fragment>
               )
             })}
           </>

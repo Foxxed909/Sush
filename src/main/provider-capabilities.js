@@ -200,12 +200,31 @@ export async function probeProvider(provider, deps = {}) {
 }
 
 // Cached registry: one probe per provider per binary stamp.
+// `deps.store` ({ read(): object|null, write(obj) }) persists probe results
+// across launches. It is keyed by the same binary stamp, so an upgraded CLI is
+// still re-probed, but a normal start spawns nothing.
 export function createCapabilityCache(deps = {}) {
   const cache = new Map() // provider -> { stamp, caps }
   const inflight = new Map()
   const resolve = deps.resolveExecutable || resolveExecutable
+  let hydrated = false
+
+  function hydrate() {
+    if (hydrated) return
+    hydrated = true
+    try {
+      const saved = deps.store?.read?.()
+      for (const [provider, entry] of Object.entries(saved && typeof saved === 'object' ? saved : {})) {
+        if (PROVIDER_PROBES[provider] && entry?.stamp && entry?.caps?.provider === provider) cache.set(provider, entry)
+      }
+    } catch {}
+  }
+  function persist() {
+    try { deps.store?.write?.(Object.fromEntries(cache)) } catch {}
+  }
 
   async function get(provider, { refresh = false } = {}) {
+    hydrate()
     const probe = PROVIDER_PROBES[provider]
     if (!probe) return buildCapabilities(provider, { installed: false, error: 'unknown provider' })
     const bin = resolve(probe.bin)
@@ -214,7 +233,7 @@ export function createCapabilityCache(deps = {}) {
     if (!refresh && hit && hit.stamp === stamp) return hit.caps
     if (inflight.has(provider)) return inflight.get(provider)
     const job = probeProvider(provider, { ...deps, resolveExecutable: () => bin })
-      .then(caps => { cache.set(provider, { stamp, caps }); return caps })
+      .then(caps => { cache.set(provider, { stamp, caps }); persist(); return caps })
       .finally(() => inflight.delete(provider))
     inflight.set(provider, job)
     return job

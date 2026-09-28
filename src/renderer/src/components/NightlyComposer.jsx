@@ -28,6 +28,24 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  // Other panes (Changes, Files) can drop text into the message box. It only
+  // fills it: the user always presses Enter themselves.
+  useEffect(() => {
+    const onFill = (e) => {
+      const text = String(e.detail?.text ?? '')
+      if (!text) return
+      setValue(prev => (prev ? `${prev.replace(/\s+$/, '')}\n\n${text}` : text))
+      requestAnimationFrame(() => {
+        const el = ref.current
+        if (!el) return
+        el.focus()
+        el.setSelectionRange(el.value.length, el.value.length)
+      })
+    }
+    window.addEventListener('sush:composer-fill', onFill)
+    return () => window.removeEventListener('sush:composer-fill', onFill)
+  }, [])
+
   const submit = () => {
     const text = value.trim()
     if (!text || disabled || !activeTab) return

@@ -36,6 +36,7 @@ import { licensePublic, redeemCode, clearLicense, featuresOf, can, setLicenseCha
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { createCapabilityCache } from './provider-capabilities'
 import { parseGitPorcelainZ } from './git-porcelain'
+import { clipDiff, diffArgs } from './git-diff'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
@@ -1228,7 +1229,16 @@ let mainWin = null
 const cliPresence = new Map()   // CLI name -> found on PATH (see sush:check-clis)
 // Provider CLI capabilities (flags/version from --version/--help). Probed once
 // per installed binary; a CLI upgrade changes its stat and re-probes.
-const providerCaps = createCapabilityCache()
+const providerCaps = createCapabilityCache({
+  store: {
+    read: () => {
+      try { return JSON.parse(readFileSync(join(app.getPath('userData'), 'provider-capabilities.json'), 'utf8')) } catch { return null }
+    },
+    write: (data) => {
+      try { writeFileSync(join(app.getPath('userData'), 'provider-capabilities.json'), JSON.stringify(data)) } catch {}
+    }
+  }
+})
 
 // ── Tray (minimize-to-tray, opt-in via Settings) ─────────────────────────────
 // Created lazily on the first tray-minimize; the icon is a tiny embedded PNG
@@ -2115,6 +2125,23 @@ export function registerIpcHandlers(win) {
       return { ok: true, diff: stdout.trim() }
     } catch (e) {
       return { ok: false, diff: '', error: e.message }
+    }
+  })
+
+  // One file's diff for the Changes pane. Path is validated (repo-relative,
+  // no traversal, never option-shaped) and output is size-capped.
+  ipcMain.handle('sush:git-diff-file', async (event, { cwd, path, staged, untracked } = {}) => {
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, diff: '', error: 'Working directory does not exist' }
+    const args = diffArgs({ path, staged: staged === true, untracked: untracked === true, nullDevice: process.platform === 'win32' ? 'NUL' : '/dev/null' })
+    if (!args) return { ok: false, diff: '', error: 'Invalid file path' }
+    try {
+      const { stdout } = await execFileAsync('git', args, { cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 })
+      return { ok: true, ...clipDiff(stdout) }
+    } catch (e) {
+      // `git diff --no-index` exits 1 when the files differ; the diff is on stdout.
+      if (untracked === true && typeof e?.stdout === 'string' && e.stdout) return { ok: true, ...clipDiff(e.stdout) }
+      return { ok: false, diff: '', error: e?.message || 'git diff failed' }
     }
   })
 
