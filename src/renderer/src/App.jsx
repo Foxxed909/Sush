@@ -214,6 +214,7 @@ function makeTab(profile, options = {}) {
     agentId: options.agentId ?? null,
     model: options.model ?? null,
     effort: options.effort ?? null,
+    threadBridge: options.threadBridge ?? null,
     handoffFrom: options.handoffFrom ?? null,
     tag: options.tag ?? null,
     groupId: options.groupId ?? null,
@@ -1758,6 +1759,7 @@ export default function App() {
         sessionRootCwd: tab.sessionRootCwd || cwd || null,
         shell,
         shellLabel,
+        threadBridge: state.threadBridge ?? tab.threadBridge ?? null,
         status: state.status ?? tab.status,
         label: state.label && shouldRename ? state.label : shouldRename ? pathLabel(cwd) : tab.label,
         lastActiveAt: state.lastActiveAt ?? Date.now()
