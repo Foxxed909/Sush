@@ -9,6 +9,7 @@ import NightlyLayoutMenu from './NightlyLayoutMenu'
 import NightlyPaneMenu from './NightlyPaneMenu'
 import NightlyAttention from './NightlyAttention'
 import { tabsInWorkspace, workspaceKey, workspaceLabel } from '../lib/workspaces'
+import { providerCapabilities } from '../lib/nightlyModels'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
@@ -164,7 +165,7 @@ export default function NightlyTopbar({
           accent={accent}
           activePane={activePane}
           panelOpen={rightOpen}
-          threadAvailable={activeTab?.agentId === 'claude'}
+          threadAvailable={activeTab?.agentId === 'claude' && providerCapabilities('claude')?.threadBridge !== false}
           dock={paneDock}
           onDockChange={onPaneDockChange}
           onOpen={onOpenPane}
