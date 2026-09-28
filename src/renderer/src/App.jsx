@@ -1194,7 +1194,7 @@ export default function App() {
       splitKey: partner ? nightlySessionKey(partner) : null
     }
     saveNightlyWorkspaceUi(map)
-  }, [rightTab, rightOpen, paneDock, gridMode, splitId])
+  }, [activeNightlyWorkspaceKey, rightTab, rightOpen, paneDock, gridMode, splitId])
 
   useEffect(() => {
     const current = tabs.find(t => t.id === activeId)
@@ -1202,17 +1202,12 @@ export default function App() {
   }, [activeId, rememberSession, tabs])
 
   const selectTab = useCallback((id) => {
-    const next = tabsRef.current.find(t => t.id === id)
-    const current = tabsRef.current.find(t => t.id === activeIdRef.current)
-    if (nightlyWorkspaceKey(next) !== nightlyWorkspaceKey(current)) {
-      // Split/Grid are transient arrangements of one project. Crossing a
-      // project boundary starts focused instead of leaking the old layout.
-      setGridMode(false)
-      setSplitId(null)
-    }
+    // The workspace hydration effect owns layout transitions. Leaving the old
+    // Split/Grid state intact for this render lets it persist the outgoing
+    // project before applying the incoming project's saved/default preset.
     setActiveId(id)
     setView('terminal')
-  }, [setSplitId])
+  }, [])
 
   const openTab = useCallback((profile, options = {}) => {
     const prof = profile ?? profiles[0]
@@ -2523,7 +2518,7 @@ export default function App() {
                 accent={accent}
                 tab={rightTab}
                 onTab={setRightTab}
-                activeCwd={activeTab?.cwd}
+                activeCwd={activeTab?.sessionRootCwd || activeTab?.cwd}
                 activeTab={activeTab}
                 providerMeta={nightlyProviderMeta}
                 tabs={tabs}
