@@ -3,7 +3,6 @@ import Icon from '../Icons'
 import { usePolling } from '../../hooks/usePolling'
 import { rgba } from '../../lib/ui'
 import { PanelEmpty, TabHeader } from './shared'
-import { providerCapabilities } from '../../lib/nightlyModels'
 
 function clip(value, max = 1600) {
   const text = String(value ?? '')
@@ -12,7 +11,10 @@ function clip(value, max = 1600) {
 
 function prettyInput(input) {
   if (!input || typeof input !== 'object') return ''
-  try { return clip(JSON.stringify(input, null, 2), 2200) } catch { return ''
+  try {
+    return clip(JSON.stringify(input, null, 2), 2200)
+  } catch {
+    return ''
   }
 }
 
@@ -61,7 +63,7 @@ export default function ThreadTab({ accent, activeTab }) {
   const [state, setState] = useState(null)
   const [error, setError] = useState('')
 
-  const supported = activeTab?.agentId === 'claude' && !!activeTab?.id && providerCapabilities('claude')?.threadBridge !== false
+  const supported = activeTab?.agentId === 'claude' && !!activeTab?.id && activeTab?.threadBridge === true
   const read = useCallback(async () => {
     if (!supported) return
     try {
