@@ -78,9 +78,10 @@ export default function NightlyModelMenu({
             <small>restart + resume</small>
           </div>
 
-          <label>
+          <label className="nightly-field">
             <span>Model</span>
             <input
+              className="nightly-field-input"
               list={listId}
               value={nextModel}
               onChange={e => setNextModel(e.target.value)}
@@ -95,9 +96,9 @@ export default function NightlyModelMenu({
           </label>
 
           {spec.effort && (
-            <label>
+            <label className="nightly-field">
               <span>{spec.effort.label}</span>
-              <select value={nextEffort} onChange={e => setNextEffort(e.target.value)}>
+              <select className="nightly-field-select" value={nextEffort} onChange={e => setNextEffort(e.target.value)}>
                 {effortOptions.map(v => (
                   <option key={v || 'default'} value={v}>{effortLabelFor(provider, v)}</option>
                 ))}

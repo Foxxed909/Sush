@@ -51,16 +51,16 @@ export function PanelEmpty({ icon, accent, children, hint }) {
 
 export function TabHeader({ accent, icon, title, sub, onRefresh, right }) {
   return (
-    <div className="flex items-center" style={{ gap: 9, padding: '10px 12px', borderBottom: '1px solid var(--surface-2)' }}>
-      <Icon name={icon} size={14} color={accent} strokeWidth={2} />
+    <div className="flex items-center" style={{ gap: 11, padding: '12px 14px', borderBottom: '1px solid var(--border-1)' }}>
+      <Icon name={icon} size={15} color="var(--text-3)" strokeWidth={2} />
       <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-        {sub && <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span>}
+        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+        {sub && <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-4)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</span>}
       </span>
       {right}
       {onRefresh && (
-        <button onClick={onRefresh} title="Refresh" className="sush-icon-btn flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--border-2)', background: 'var(--surface-1)', color: 'var(--text-3)', cursor: 'pointer' }}>
-          <Icon name="refresh" size={13} />
+        <button onClick={onRefresh} title="Refresh" className="sush-icon-btn flex items-center justify-center" style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-1)', background: 'transparent', color: 'var(--text-3)', cursor: 'pointer' }}>
+          <Icon name="refresh" size={14} />
         </button>
       )}
     </div>

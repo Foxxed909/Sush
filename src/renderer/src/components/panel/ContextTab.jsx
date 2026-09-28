@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icons'
 import { stripAnsi } from '../../lib/agentActivity'
 import { rgba } from '../../lib/ui'
+import { agentById } from '../../lib/agents'
 import { PanelEmpty, TabHeader, copyToClipboard, joinPath } from './shared'
 
 const PROJECT_DOCS = [
@@ -35,6 +36,9 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
   const projectRoot = activeTab?.workspaceCwd || cwd || null
   const checkoutRoot = activeTab?.sessionRootCwd || cwd || projectRoot
   const liveCwd = activeTab?.cwd || checkoutRoot
+  const agent = agentById(activeTab?.agentId)
+  const model = providerMeta?.model || activeTab?.model || 'Provider default'
+  const effort = providerMeta?.effort || activeTab?.effort || ''
 
   const load = useCallback(async () => {
     const requestId = ++requestRef.current
@@ -105,24 +109,47 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
 
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
         <section className="nightly-context-card">
-          <div className="nightly-context-card-title">
-            <span>Session</span>
-            <small>observed</small>
+          <div className="nightly-context-hero">
+            <span className="nightly-context-mono" style={{ color: agent?.color || accent, background: rgba(agent?.color || accent, 0.1), borderColor: rgba(agent?.color || accent, 0.22) }}>{agent?.mono || '>_'}</span>
+            <span className="nightly-context-hero-copy">
+              <strong>{providerName(activeTab)}</strong>
+              <small>{model}{effort ? ` · ${effort}` : ''}</small>
+            </span>
+            <span className="nightly-context-badge" title="Read from the running CLI and Sush's own records; nothing here is estimated.">observed</span>
           </div>
-          <div className="nightly-context-kv"><span>Provider</span><strong>{providerName(activeTab)}</strong></div>
-          <div className="nightly-context-kv"><span>Model</span><strong>{providerMeta?.model || activeTab?.model || 'Provider default'}</strong></div>
-          <div className="nightly-context-kv"><span>Reasoning</span><strong>{providerMeta?.effort || activeTab?.effort || 'Provider default'}</strong></div>
-          <div className="nightly-context-kv"><span>Account</span><strong>{providerMeta?.accountLabel || '—'}</strong></div>
-          <div className="nightly-context-kv">
-            <span>Context window</span>
-            <strong>{providerMeta?.contextTokens != null ? providerMeta.contextTokens.toLocaleString() + ' tokens' : 'Not exposed by active CLI'}</strong>
-          </div>
-          {providerMeta?.usagePct != null && (
-            <div className="nightly-context-kv">
-              <span>Subscription usage</span>
-              <strong>{providerMeta.usagePct}%</strong>
+
+          <div className="nightly-context-facts">
+            <div className="nightly-context-fact">
+              <span>Model</span>
+              <strong className={providerMeta?.model || activeTab?.model ? '' : 'is-muted'}>{model}</strong>
             </div>
-          )}
+            <div className="nightly-context-fact">
+              <span>Reasoning</span>
+              <strong className={providerMeta?.effort || activeTab?.effort ? '' : 'is-muted'}>{effort || 'Provider default'}</strong>
+            </div>
+            <div className="nightly-context-fact">
+              <span>Account</span>
+              <strong className={providerMeta?.accountLabel ? '' : 'is-muted'}>{providerMeta?.accountLabel || 'Not detected'}</strong>
+            </div>
+            <div className="nightly-context-fact">
+              <span>Subscription usage</span>
+              {providerMeta?.usagePct != null ? (
+                <strong className="nightly-context-usage">
+                  <span className="nightly-usage-bar"><span style={{ width: `${Math.max(3, Math.min(100, providerMeta.usagePct))}%` }} /></span>
+                  {providerMeta.usagePct}%
+                </strong>
+              ) : <strong className="is-muted">Not available</strong>}
+            </div>
+          </div>
+
+          <div className={`nightly-context-window${providerMeta?.contextTokens != null ? '' : ' is-unavailable'}`}>
+            <span>Context window</span>
+            <strong>
+              {providerMeta?.contextTokens != null
+                ? `${providerMeta.contextTokens.toLocaleString()} tokens`
+                : 'This CLI does not report it'}
+            </strong>
+          </div>
         </section>
 
         <section className="nightly-context-card">
@@ -130,24 +157,27 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
             <span>Project</span>
             <small>{data.git?.repo ? data.git.branch || 'git' : 'workspace'}</small>
           </div>
-          <div className="nightly-context-kv">
-            <span>Project root</span>
-            <strong className="nightly-context-path" title={projectRoot || ''}>{projectRoot || '—'}</strong>
+          <div className="nightly-context-paths">
+            <div>
+              <span>Project root</span>
+              <code title={projectRoot || ''}>{projectRoot || '—'}</code>
+            </div>
+            {checkoutRoot && checkoutRoot !== projectRoot && (
+              <div>
+                <span>Checkout</span>
+                <code title={checkoutRoot}>{checkoutRoot}</code>
+              </div>
+            )}
+            {liveCwd && liveCwd !== checkoutRoot && (
+              <div>
+                <span>Live cwd</span>
+                <code title={liveCwd}>{liveCwd}</code>
+              </div>
+            )}
           </div>
-          {checkoutRoot && checkoutRoot !== projectRoot && (
-            <div className="nightly-context-kv">
-              <span>Checkout</span>
-              <strong className="nightly-context-path" title={checkoutRoot}>{checkoutRoot}</strong>
-            </div>
-          )}
-          {liveCwd && liveCwd !== checkoutRoot && (
-            <div className="nightly-context-kv">
-              <span>Live cwd</span>
-              <strong className="nightly-context-path" title={liveCwd}>{liveCwd}</strong>
-            </div>
-          )}
           {changed.length > 0 && (
             <div className="nightly-context-files">
+              <div className="nightly-context-files-title">Changes <small>{changed.length}</small></div>
               {changed.slice(0, 8).map(file => (
                 <div key={file.path}>
                   <span>{file.status || file.rawStatus || '·'}</span>
@@ -198,7 +228,7 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
             : <div className="nightly-context-muted">No captured terminal output yet.</div>}
         </section>
 
-        <div className="nightly-context-disclaimer" style={{ borderColor: rgba(accent, .16) }}>
+        <div className="nightly-context-disclaimer">
           This pane shows context Sush can observe. It does not claim that every detected file is loaded into the provider's model context.
         </div>
       </div>
