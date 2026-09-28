@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
-import Icon from './Icons'
+import React, { useEffect, useState, useCallback } from 'react'
 import { rgba } from '../lib/ui'
 import { POOL_PROVIDERS } from '../lib/agents'
 
-// Account pool capacity. Default chrome is a quiet circle; click opens a
-// popover: total remaining (sum across slots) plus one row per account.
-// Settings uses variant="provider-panel" for the same content always expanded.
+// Account pool capacity for one provider: total remaining (sum across slots)
+// plus one row per account. Rendered always-expanded in Settings > Usage.
+// (The old status-bar ring + popover variant went with the classic shell.)
 
 const STATE = {
   ok: '#5fd3a8',
@@ -170,36 +169,11 @@ export default function UsageBar({
   provider,
   providers,
   accent,
-  variant = 'icon',
+  variant = 'provider-panel',
   style = {}
 }) {
   const providerList = providers || (provider ? [provider] : POOL_PROVIDERS)
   const { pools } = usePoolData(providerList)
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDoc)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  const anySlots = providerList.some(p => (pools[p]?.slotCount || 0) > 0)
-  const worstAvg = providerList.reduce((acc, p) => {
-    const a = pools[p]?.avgRemaining
-    if (a == null) return acc
-    return acc == null ? a : Math.min(acc, a)
-  }, null)
-  const ringColor = barColor(worstAvg)
-
   if (variant === 'provider-panel' || variant === 'panel') {
     const single = provider || providerList[0]
     const pool = pools[single]
@@ -222,71 +196,5 @@ export default function UsageBar({
     )
   }
 
-  if (!anySlots) return null
-
-  return (
-    <div ref={rootRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', height: '100%', ...style }}>
-      <button
-        type="button"
-        className="sush-press"
-        aria-label="Account usage pool"
-        aria-expanded={open}
-        title="Account usage"
-        onClick={() => setOpen(v => !v)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 22,
-          height: 22,
-          borderRadius: '50%',
-          border: `1.5px solid ${open ? (accent || 'var(--accent)') : ringColor}`,
-          background: open ? rgba(accent || '#ff6b9d', 0.12) : 'transparent',
-          color: open ? (accent || 'var(--accent)') : ringColor,
-          cursor: 'pointer',
-          padding: 0,
-          boxShadow: open ? `0 0 0 2px ${rgba(accent || '#ff6b9d', 0.15)}` : 'none'
-        }}
-      >
-        <Icon name="activity" size={11} strokeWidth={2.2} />
-      </button>
-
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Account usage pool"
-          className="sush-pop"
-          style={{
-            position: 'absolute',
-            bottom: 'calc(100% + 8px)',
-            right: 0,
-            zIndex: 400,
-            padding: '12px 14px',
-            borderRadius: 12,
-            border: '1px solid var(--border-2)',
-            background: 'var(--surface-3)',
-            boxShadow: 'var(--shadow-float)',
-            maxWidth: 320,
-            maxHeight: 420,
-            overflowY: 'auto'
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {providerList.map(p => {
-              const pool = pools[p]
-              if (!pool || pool.slotCount < 1) return null
-              return (
-                <div key={p}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>
-                    {pool.label || providerLabel(p)}
-                  </div>
-                  <PoolBreakdown pool={pool} accent={accent} />
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  )
+  return null
 }

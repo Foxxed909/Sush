@@ -1,24 +1,13 @@
 import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import ProfileManager, { useProfiles } from './components/ProfileManager'
-import Settings from './components/Settings'
 import HomeDashboard from './components/HomeDashboard'
-import NewSessionModal from './components/NewSessionModal'
-import RightPanel from './components/RightPanel'
 import SeduciaOrb from './components/SeduciaOrb'
 import Hush from './components/Hush'
 import AliasNudge from './components/AliasNudge'
 import CommandPalette from './components/CommandPalette'
-import ShortcutsHelp from './components/ShortcutsHelp'
-import HandoffModal from './components/HandoffModal'
-import HuntOverlay from './components/HuntOverlay'
-import SushrcEditor from './components/SushrcEditor'
 import QuickSwitcher from './components/QuickSwitcher'
 import SplashScreen from './components/SplashScreen'
 import LockScreen from './components/LockScreen'
-import UserManager from './components/UserManager'
-import ProfileViewer from './components/ProfileViewer'
-import PlansPage from './components/PlansPage'
-import ChangelogPage from './components/ChangelogPage'
 import { LATEST_VERSION } from './lib/changelog'
 import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
@@ -53,7 +42,6 @@ import Icon from './components/Icons'
 import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
 import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
-import NightlyOverview from './components/NightlyOverview'
 import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 
@@ -61,6 +49,49 @@ import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 // opens on Home and restores terminals only on demand, so keep that code out
 // of the first renderer payload until a terminal is actually shown.
 const Terminal = React.lazy(() => import('./components/Terminal'))
+
+// Heavy, rarely-open surfaces load on demand instead of inflating the first
+// paint. Each keeps its own Suspense boundary so a chunk loading never blanks
+// (or re-suspends) the terminals behind it.
+function lazySurface(load) {
+  const Lazy = React.lazy(load)
+  return function LazySurface(props) {
+    return <Suspense fallback={null}><Lazy {...props} /></Suspense>
+  }
+}
+const surfaceLoaders = {
+  Settings: () => import('./components/Settings'),
+  NewSessionModal: () => import('./components/NewSessionModal'),
+  RightPanel: () => import('./components/RightPanel'),
+  ShortcutsHelp: () => import('./components/ShortcutsHelp'),
+  HandoffModal: () => import('./components/HandoffModal'),
+  HuntOverlay: () => import('./components/HuntOverlay'),
+  SushrcEditor: () => import('./components/SushrcEditor'),
+  UserManager: () => import('./components/UserManager'),
+  ProfileViewer: () => import('./components/ProfileViewer'),
+  PlansPage: () => import('./components/PlansPage'),
+  ChangelogPage: () => import('./components/ChangelogPage'),
+  NightlyOverview: () => import('./components/NightlyOverview'),
+}
+const Settings = lazySurface(surfaceLoaders.Settings)
+const NewSessionModal = lazySurface(surfaceLoaders.NewSessionModal)
+const RightPanel = lazySurface(surfaceLoaders.RightPanel)
+const ShortcutsHelp = lazySurface(surfaceLoaders.ShortcutsHelp)
+const HandoffModal = lazySurface(surfaceLoaders.HandoffModal)
+const HuntOverlay = lazySurface(surfaceLoaders.HuntOverlay)
+const SushrcEditor = lazySurface(surfaceLoaders.SushrcEditor)
+const UserManager = lazySurface(surfaceLoaders.UserManager)
+const ProfileViewer = lazySurface(surfaceLoaders.ProfileViewer)
+const PlansPage = lazySurface(surfaceLoaders.PlansPage)
+const ChangelogPage = lazySurface(surfaceLoaders.ChangelogPage)
+const NightlyOverview = lazySurface(surfaceLoaders.NightlyOverview)
+// Warm the ones people open constantly once the app is idle.
+if (typeof window !== 'undefined') {
+  const warm = () => ['NewSessionModal', 'RightPanel', 'Settings'].forEach(n => surfaceLoaders[n]().catch(() => {}))
+  if ('requestIdleCallback' in window) window.requestIdleCallback(warm, { timeout: 4000 })
+  else setTimeout(warm, 2000)
+}
+
 
 const RECENT_SESSIONS_KEY = 'sush-recent-sessions'
 const OLD_COMMAND_RECENTS_KEY = 'sush-recents'

@@ -201,19 +201,7 @@ pre, code, kbd, .sush-mono,
 .sush-backdrop { animation: sush-backdrop-in 0.18s ease-out both; }
 
 /* Panel entrance — slide from left (SessionRail) */
-@keyframes sush-slide-right {
-  from { opacity: 0; transform: translateX(-14px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-.sush-slide-right { animation: sush-slide-right 0.36s var(--ease-sheet) both; }
-
 /* Panel entrance — slide from top (SmartCommandBar) */
-@keyframes sush-slide-down {
-  from { opacity: 0; transform: translateY(-10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.sush-slide-down { animation: sush-slide-down 0.32s var(--ease-sheet) both; }
-
 /* Panel entrance — slide from right (RightPanel) */
 @keyframes sush-slide-left {
   from { opacity: 0; transform: translateX(16px); }
@@ -233,16 +221,6 @@ pre, code, kbd, .sush-mono,
   flex-shrink: 0;
 }
 /* Skeleton shimmer for rows/cards that are still fetching. */
-@keyframes sush-shimmer {
-  from { background-position: -200% 0; }
-  to   { background-position: 200% 0; }
-}
-.sush-skeleton {
-  border-radius: var(--r-sm);
-  background: linear-gradient(90deg, rgba(255,255,255,0.045) 25%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.045) 75%);
-  background-size: 200% 100%;
-  animation: sush-shimmer 1.4s ease-in-out infinite;
-}
 /* Indeterminate hairline progress (splash / busy bars). */
 @keyframes sush-progress-slide {
   from { transform: translateX(-100%); }
@@ -267,11 +245,6 @@ pre, code, kbd, .sush-mono,
 .sush-lite .sush-skeleton, .sush-lite .sush-progress::after { animation-duration: 2.4s; }
 
 /* Splash letter stagger */
-@keyframes sush-letter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 /* Splash exit */
 @keyframes sush-splash-out {
   from { opacity: 1; transform: scale(1); }
@@ -296,20 +269,10 @@ pre, code, kbd, .sush-mono,
 @keyframes sush-beat-out {
   to { opacity: 0; transform: scale(0.84); filter: blur(3px); }
 }
-@keyframes sush-cursor-in-left {
-  from { opacity: 0; transform: translateX(-78px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes sush-cursor-in-right {
-  from { opacity: 0; transform: translateX(78px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
 @keyframes sush-type-in {
   from { opacity: 0; transform: translateY(10px) scale(0.8); }
   to   { opacity: 1; transform: none; }
 }
-@keyframes sush-cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-
 /* ---- Glassmorphism UI ----
    Frosted panels: a stronger blur + saturation lift makes the terminal read
    through the chrome as a soft wash of colour. A 1px top highlight gives every
@@ -502,13 +465,6 @@ pre, code, kbd, .sush-mono,
 .sush-mini-btn { transition: border-color .14s ease, color .14s ease, background .14s ease; }
 .sush-mini-btn:hover { border-color: var(--accent-a55) !important; color: var(--accent) !important; background: var(--accent-a06) !important; }
 
-/* ---- Session rail items ---- */
-.sush-session { transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease; }
-.sush-session:hover { border-color: var(--accent-a35) !important; }
-.sush-session-close { opacity: 0; transition: opacity .14s ease, background .14s ease, color .14s ease; }
-.sush-session:hover .sush-session-close { opacity: 1; }
-.sush-session-close:hover { background: var(--accent-a16) !important; color: var(--accent) !important; }
-
 /* ---- Theme switcher swatches (in-shell quick toggle) ---- */
 .sush-swatch {
   position: relative;
@@ -524,19 +480,9 @@ pre, code, kbd, .sush-mono,
   border-color: rgba(255,255,255,0.9);
   box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 0 10px var(--swatch-glow, transparent);
 }
-.sush-swatch-pop {
-  animation: sush-fade-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
 
 /* Faint lit top-edge for glass surfaces — adds depth without a hard border. */
 .sush-glass-ui [data-glass] { box-shadow: inset 0 1px 0 rgba(255,255,255,0.045); }
-
-/* ---- Mission Control board ---- */
-.sush-mc-row { transition: border-color .14s ease, background .14s ease; }
-.sush-mc-row:hover { border-color: var(--accent-a35) !important; background: var(--accent-a06); }
-.sush-mc-btn { transition: border-color .14s ease, background .14s ease, color .14s ease, transform .12s ease; }
-.sush-mc-btn:hover { border-color: var(--accent-a55) !important; color: var(--accent) !important; background: var(--accent-a10); }
-.sush-mc-btn:active { transform: scale(0.93); }
 @keyframes sush-pulse-dot {
   0%   { box-shadow: 0 0 0 0 var(--pulse, rgba(255,255,255,0.5)); }
   70%  { box-shadow: 0 0 0 5px rgba(0,0,0,0); }
@@ -630,7 +576,6 @@ pre, code, kbd, .sush-mono,
   60% { transform: translateX(-4px); }
   80% { transform: translateX(3px); }
 }
-.sush-lock-shake { animation: sush-lock-shake 0.4s ease; }
 
 /* ── PIN dots (the dots ARE the input display) ──────────────────────────────
    Each digit pops as it lands; busy pulses the filled dots in a stagger wave;
@@ -698,39 +643,9 @@ body[data-sleeping] *:not(.sush-sleep-breathe) {
 @media (prefers-reduced-motion: reduce) {
   .sush-sleep-breathe { animation: none; }
 }
-
-/* ── Apple-style polish (Wave 2) ────────────────────────────────────────────
-   A single interactive-lift curve, a responsive pricing grid, and an explicit
-   reduce-motion switch that goes further than lite/saver: it flattens EVERY
-   animation and transition app-wide for people who find motion distracting or
-   are on very weak hardware. Toggled from Settings ▸ Appearance. */
-
-/* Interactive lift: cards/buttons rise a hair and deepen their shadow on hover,
-   settle on press. GPU-cheap (transform + shadow only). */
-.sush-lift {
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
-  will-change: transform;
-}
-.sush-lift:hover { transform: translateY(-1px); }
-.sush-lift:active { transform: translateY(0) scale(0.99); }
-
-/* Pricing wall: three cards that fold to one column when the settings pane is
-   narrow, with a gentle hover lift on the non-current plans. */
-.sush-plan-card { transition: transform 260ms var(--ease-sheet), box-shadow 260ms var(--ease-out), border-color 200ms ease; }
-.sush-plan-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,0.34); }
 @media (max-width: 620px) {
   .sush-plan-grid { grid-template-columns: 1fr !important; }
 }
-
-/* Staggered entrance for a row of cards/tiles: add .sush-stagger to the parent;
-   children fade-up in sequence. Caps at 8 so a long list doesn't crawl in. */
-.sush-stagger > * { animation: sush-fade-up var(--dur-med) var(--ease-sheet) both; }
-.sush-stagger > *:nth-child(1) { animation-delay: 0.02s; }
-.sush-stagger > *:nth-child(2) { animation-delay: 0.06s; }
-.sush-stagger > *:nth-child(3) { animation-delay: 0.10s; }
-.sush-stagger > *:nth-child(4) { animation-delay: 0.14s; }
-.sush-stagger > *:nth-child(5) { animation-delay: 0.18s; }
-.sush-stagger > *:nth-child(n+6) { animation-delay: 0.22s; }
 
 /* Explicit reduce-motion: user opt-in (Settings) OR the OS preference. Collapses
    every animation/transition to an imperceptible tick — nothing is disabled
@@ -1152,11 +1067,6 @@ p { text-wrap: pretty; }
 .nightly-usage-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--text-3); }
 .nightly-account-chip.is-limit .nightly-usage-bar > span { background: #ff9f43; }
 .nightly-account-chip.is-limit strong { color: #ffb56e; }
-.nightly-account-count {
-  min-width: 14px; height: 14px; padding: 0 3px; border-radius: 999px;
-  display: inline-grid; place-items: center; background: var(--accent-a10);
-  color: var(--accent); font-size: 10px; font-weight: 650;
-}
 .nightly-account-popover {
   position: absolute; z-index: 1250; top: calc(100% + 8px); left: 50%;
   width: 272px; transform: translateX(-50%); padding: 5px;
