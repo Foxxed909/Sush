@@ -50,7 +50,7 @@ import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
 import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
 import NightlyOverview from './components/NightlyOverview'
-import { buildAgentCommand } from './lib/nightlyModels'
+import { buildAgentCommand, normalizeEffort, normalizeModel } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
@@ -1394,10 +1394,14 @@ export default function App() {
     const agent = agentById(provider)
     if (!tab || !provider || !agent?.resumeCommand) return { ok: false }
 
-    const model = next.model ?? null
-    const effort = next.effort ?? null
+    const requestedModel = next.model ?? null
+    const requestedEffort = next.effort ?? null
+    const model = requestedModel == null ? null : normalizeModel(provider, requestedModel)
+    const effort = requestedEffort == null ? null : normalizeEffort(provider, requestedEffort)
+    if (requestedModel && !model) return { ok: false, error: 'invalid-model' }
+    if (requestedEffort && !effort) return { ok: false, error: 'invalid-effort' }
     const command = buildAgentCommand(agent, { model, effort, resume: true })
-    if (!command) return { ok: false }
+    if (!command) return { ok: false, error: 'unsupported-provider' }
 
     const { cwd, label, groupId, groupLabel } = tab
     closeTab(tabId)
