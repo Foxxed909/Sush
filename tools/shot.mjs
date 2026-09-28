@@ -537,6 +537,9 @@ if (plansOnly) {
 // a stale backdrop can never mask the next visual assertion.
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForTimeout(1200)
+if (await page.locator('.nightly-workspace').count() !== 2) {
+  throw new Error('Nightly project root was not preserved across persisted session reload')
+}
 
 // 8 — New session launcher with provider model/reasoning controls visible.
 await page.keyboard.press('Control+Shift+n')
