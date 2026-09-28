@@ -1388,6 +1388,33 @@ export default function App() {
   // the fresh account (claude --continue, codex resume --last). Explicit, one
   // click from Overview — never automatic, so a live session is never
   // yanked out from under you.
+  const restartSessionWithModel = useCallback(async (tabId, next = {}) => {
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    const provider = tab?.agentId
+    const agent = agentById(provider)
+    if (!tab || !provider || !agent?.resumeCommand) return { ok: false }
+
+    const model = next.model ?? null
+    const effort = next.effort ?? null
+    const command = buildAgentCommand(agent, { model, effort, resume: true })
+    if (!command) return { ok: false }
+
+    const { cwd, label, groupId, groupLabel } = tab
+    closeTab(tabId)
+    openTab(profiles[0], {
+      cwd,
+      agentId: provider,
+      model,
+      effort,
+      command,
+      label,
+      groupId,
+      groupLabel,
+      tag: `sess-${nextSessionTag++}`
+    })
+    return { ok: true }
+  }, [closeTab, openTab, profiles])
+
   const switchToAccountAndResume = useCallback(async (tabId, slotId) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
     const provider = tab?.agentId
@@ -2241,6 +2268,7 @@ export default function App() {
               accent={accent}
               disabled={guardBlocked && activeTab?.agentId === 'claude'}
               onOpenLauncher={() => setShowLauncher(true)}
+              onChangeSessionModel={(next) => activeId ? restartSessionWithModel(activeId, next) : { ok: false }}
               onSend={(text) => {
                 if (!activeTab) return
                 promptSession(activeTab.id, `${text}\r`)
