@@ -26,6 +26,7 @@ function ThreadItem({ item, accent }) {
         <header>
           <span>{assistant ? 'Agent' : 'You'}</span>
           {assistant && item.model && <small>{item.model}</small>}
+          {!assistant && item.live && <small>live hook · transcript pending</small>}
         </header>
         <div className="nightly-thread-text">{item.text}</div>
       </article>
@@ -82,14 +83,36 @@ export default function ThreadTab({ accent, activeTab }) {
   usePolling(read, 1200, supported)
 
   const items = useMemo(() => {
-    if (state?.items?.length) return state.items
-    // UserPromptSubmit hooks are authoritative for the live user turn and can
-    // arrive before Claude flushes its structured transcript to disk.
-    return (state?.hookPrompts || []).map((prompt, index) => ({
-      id: `hook-prompt-${index}`,
-      type: 'user',
-      text: prompt.text
-    }))
+    const persisted = Array.isArray(state?.items) ? state.items : []
+    const hooks = Array.isArray(state?.hookPrompts) ? state.hookPrompts : []
+    if (!hooks.length) return persisted
+
+    // UserPromptSubmit can arrive before Claude flushes the corresponding user
+    // record. Compare occurrence counts rather than a Set so repeated prompts
+    // such as "continue" remain truthful.
+    const persistedCounts = new Map()
+    for (const item of persisted) {
+      if (item?.type !== 'user') continue
+      const key = String(item.text || '')
+      persistedCounts.set(key, (persistedCounts.get(key) || 0) + 1)
+    }
+
+    const seenHooks = new Map()
+    const live = []
+    hooks.forEach((prompt, index) => {
+      const key = String(prompt?.text || '')
+      if (!key) return
+      const nth = (seenHooks.get(key) || 0) + 1
+      seenHooks.set(key, nth)
+      if (nth <= (persistedCounts.get(key) || 0)) return
+      live.push({
+        id: `hook-prompt-${index}`,
+        type: 'user',
+        text: key,
+        live: true
+      })
+    })
+    return [...persisted, ...live]
   }, [state])
 
   if (!supported) {
