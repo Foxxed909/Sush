@@ -425,14 +425,24 @@ if (!(await page.locator('.nightly-inspector').getByText('Memory', { exact: true
 }
 await shot('05b-notes-pane')
 
-// Files should route through the same persistent secondary host.
+// The other project chooses Files.
+await page.locator('.nightly-thread-row').filter({ hasText: 'Other project shell' }).click()
+await page.waitForTimeout(350)
 await paneButton.click()
 await page.locator('.nightly-pane-popover').getByText('Files', { exact: true }).click()
 await page.waitForTimeout(300)
 if (!(await page.locator('.nightly-inspector [data-tab="files"]').count())) {
-  throw new Error('Nightly Files pane did not become the active workspace pane')
+  throw new Error('Nightly Files pane did not become active for the other project')
 }
 await shot('05c-files-pane')
+
+// Switching back to Sush must restore its Notes pane, not inherit Files.
+await page.locator('.nightly-thread-row').filter({ hasText: 'Claude Code' }).click()
+await page.waitForTimeout(450)
+if (!(await page.locator('.nightly-inspector').getByText('Memory', { exact: true }).count())) {
+  throw new Error('Nightly did not restore the Sush workspace Notes pane')
+}
+await shot('05d-pane-restore')
 await page.keyboard.press('Control+b')
 await page.waitForTimeout(200)
 
