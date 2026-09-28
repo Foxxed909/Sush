@@ -17,7 +17,7 @@ export const NIGHTLY_MODEL_SPECS = {
     placeholder: 'sonnet, opus, or full model id',
     effort: {
       label: 'Effort',
-      options: ['', 'low', 'medium', 'high', 'xhigh', 'max'],
+      options: ['', 'low', 'medium', 'high', 'xhigh', 'max', 'ultracode'],
       // Claude Code exposes low/medium/high/xhigh/max; exact availability can
       // still vary by model/version, so Sush never invents provider-specific
       // values beyond the CLI's own effort vocabulary.
@@ -65,10 +65,26 @@ export function normalizeModel(provider, value) {
   return SAFE_MODEL.test(v) ? v : null
 }
 
-export function normalizeEffort(provider, value) {
+export function effortOptionsFor(provider, model = null) {
   const spec = modelSpecFor(provider)?.effort
+  if (!spec) return []
+
+  // Codex publishes supported reasoning efforts per model. Until Sush has a
+  // live model-catalog bridge, narrow the picker only for model slugs whose
+  // current supported set we can verify; unknown models keep the CLI enum so
+  // we don't block newer provider values.
+  const modelId = String(model || '').trim().toLowerCase()
+  if (provider === 'codex' && modelId === 'gpt-5.3-codex') {
+    return ['', 'low', 'medium', 'high', 'xhigh']
+  }
+
+  return spec.options
+}
+
+export function normalizeEffort(provider, value, model = null) {
   const v = String(value ?? '').trim().toLowerCase()
-  if (!spec || !v || !spec.options.includes(v)) return null
+  const options = effortOptionsFor(provider, model)
+  if (!v || !options.includes(v)) return null
   return v
 }
 
@@ -83,7 +99,7 @@ export function buildAgentCommand(agent, { model, effort, resume = false } = {})
   const safeModel = normalizeModel(agent.id, model)
   if (safeModel) parts.push(spec.flag, safeModel)
 
-  const safeEffort = normalizeEffort(agent.id, effort)
+  const safeEffort = normalizeEffort(agent.id, effort, model)
   if (safeEffort && spec.effort?.command) parts.push(spec.effort.command(safeEffort))
 
   return parts.join(' ')
