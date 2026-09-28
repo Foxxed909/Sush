@@ -19,7 +19,7 @@ import { resolveExecutable, shimSpawnSpec } from './exec.js'
 // must mention for Sush to use it. These are search targets, not assertions
 // that the flag exists — the probe decides.
 export const PROVIDER_PROBES = {
-  claude: { bin: 'claude', modelFlag: '--model', resume: { flag: '--continue' }, effortFlag: '--effort' },
+  claude: { bin: 'claude', modelFlag: '--model', resume: { flag: '--continue' }, effortFlag: '--effort', settingsFlag: '--settings' },
   codex: { bin: 'codex', modelFlag: '--model', resume: { subcommand: 'resume' }, configFlag: '--config' },
   gemini: { bin: 'gemini', modelFlag: '--model', resume: { flag: '--resume' } },
   opencode: { bin: 'opencode', modelFlag: '--model', resume: { flag: '--continue' } },
@@ -28,10 +28,11 @@ export const PROVIDER_PROBES = {
 
 // Telemetry Sush itself implements per provider (see readAccountUsage). This
 // is about Sush's own bridges, so it is static — and deliberately honest:
-// no provider exposes same-session context-window telemetry to Sush today,
-// and no structured Thread bridge exists yet for any interactive session.
+// no provider exposes same-session context-window telemetry to Sush today.
+// Claude Thread is capability-gated below because it depends on the installed
+// CLI accepting an additional --settings source for Sush's per-session hooks.
 const SUSH_BRIDGES = {
-  claude: { usageTelemetry: 'rate-limits', contextTelemetry: false, threadBridge: false },
+  claude: { usageTelemetry: 'rate-limits', contextTelemetry: false, threadBridge: null },
   codex: { usageTelemetry: 'health', contextTelemetry: false, threadBridge: false },
   gemini: { usageTelemetry: 'health', contextTelemetry: false, threadBridge: false },
   opencode: { usageTelemetry: 'health', contextTelemetry: false, threadBridge: false },
@@ -139,7 +140,11 @@ export function buildCapabilities(provider, { installed, version = null, help = 
     reasoning = { flag: helpHasFlag(help, probe.configFlag), choices: null }
   }
 
-  return { ...base, models, reasoning, resume }
+  const threadBridge = provider === 'claude' && probe.settingsFlag
+    ? (hasHelp ? helpHasFlag(help, probe.settingsFlag) : null)
+    : base.threadBridge
+
+  return { ...base, models, reasoning, resume, threadBridge }
 }
 
 function runProbe(file, args, { spawnImpl = spawn, env = process.env, timeoutMs = PROBE_TIMEOUT_MS } = {}) {
