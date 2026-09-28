@@ -170,9 +170,60 @@ executes the workflow.
 
 PR #17 (`nightly/context-density-v3`) is still open but diverged from the now
 mainlined architecture. Do not merge it wholesale. Its bounded Context-bundle
-idea has been reimplemented on current `main`; its experimental Claude
-"Thread" presentation must still satisfy the same-session truthfulness rule
-before any equivalent feature lands.
+idea has been reimplemented on current `main`.
+
+### Claude same-session Thread bridge — now landed on main
+
+The first trustworthy structured Thread implementation is now in `main` for
+Claude Code only.
+
+Architecture:
+
+- Sush does **not** ANSI-scrape the terminal to invent turns.
+- Sush does **not** use a second API conversation and call it the same session.
+- On a Claude PTY whose installed CLI positively advertises `--settings`, Sush
+  adds an extra per-launch settings source containing lightweight Claude hooks.
+- The hooks inherit a Sush-tab-specific event path and report Claude's own
+  interactive `session_id`, `transcript_path`, cwd and lifecycle events.
+- The renderer asks main by Sush tab id only. It never supplies an arbitrary
+  transcript filename.
+- Main validates that the captured transcript filename is structurally tied to
+  the hook-captured session id, reads bounded tails, and parses only structural
+  user / assistant-text / tool-use / tool-result records.
+- Claude `thinking` blocks are intentionally ignored and never rendered.
+- If Claude has identified the live session but has not flushed transcript JSONL
+  yet, Thread shows that state and can show the hook-captured user prompt; it
+  does not fabricate an assistant reply.
+- Raw terminal remains the source of truth.
+- Thread availability is **per PTY**, not merely per installed provider. A
+  custom Claude launch with its own explicit `--settings` source is left
+  untouched and does not falsely advertise Thread.
+- Provider capability caches are schema-versioned so pre-Thread cached
+  `threadBridge: false` records re-probe even when the Claude binary itself
+  has not changed.
+
+Files:
+
+- `src/main/thread-bridge.js`
+- `src/renderer/src/components/panel/ThreadTab.jsx`
+- `tests/thread-bridge.test.mjs`
+- capability detection in `src/main/provider-capabilities.js`
+- PTY binding in `src/main/ipc.js`
+- visual coverage in `tools/shot.mjs`
+
+Current limitations are deliberate:
+
+- Claude only. Codex/Gemini/OpenCode/Grok remain gated until Sush can bind an
+  equivalent structured stream/transcript to the exact same interactive
+  session.
+- Claude's local transcript JSONL is treated as version-sensitive and parsed
+  conservatively.
+- Some Claude Code builds can delay transcript persistence while the interactive
+  session is live; Thread reports this instead of guessing.
+- No private reasoning/thinking display.
+
+Next Thread work should be provider research + adapters, not relaxing these
+truthfulness constraints.
 
 ---
 
