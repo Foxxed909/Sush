@@ -24,6 +24,7 @@ describe('Nightly model launch adapter', () => {
     expect(buildAgentCommand(agent('codex', 'codex', 'codex resume --last'), { model: 'gpt-5.3-codex', effort: 'xhigh' }))
       .toBe('codex --model gpt-5.3-codex --config "model_reasoning_effort=\'xhigh\'"')
     expect(normalizeEffort('claude', 'banana')).toBeNull()
+    expect(normalizeEffort('claude', 'ultracode')).toBeNull()
     expect(normalizeEffort('gemini', 'high')).toBeNull()
   })
 
