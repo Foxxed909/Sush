@@ -18,6 +18,7 @@ import EnvManagerTab from './panel/EnvTab'
 import SshTab from './panel/SshTab'
 import MarkdownTab from './panel/MarkdownTab'
 import ContextTab from './panel/ContextTab'
+import ThreadTab from './panel/ThreadTab'
 import { TAB_GROUPS, TABS, DEFAULT_HIDDEN_TABS } from '../lib/panelTabs'
 
 // The right panel SHELL: tab strip + routing only. Every tab body lives in
@@ -107,6 +108,12 @@ export default function RightPanel({
             onOpenFile={handleOpenFile}
           />
         )}
+        {safeTab === 'thread' && (
+          <ThreadTab
+            accent={accent}
+            activeTab={activeTab}
+          />
+        )}
         {safeTab === 'agent' && (
           <Seducia
             docked
@@ -166,7 +173,7 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = 
   // A tab shows when it isn't hidden, OR when it's the active one (so you can
   // always navigate away from a tab the palette opened while it's hidden).
   const hidden = new Set(hiddenTabs)
-  const nightlyPrimary = new Set(['agent', 'context', 'changes', 'files', 'browser', 'tasks'])
+  const nightlyPrimary = new Set(['agent', 'context', 'thread', 'changes', 'files', 'browser', 'tasks'])
   const visibleGroups = TAB_GROUPS
     .map(g => ({
       ...g,
