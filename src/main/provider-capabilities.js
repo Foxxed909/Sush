@@ -39,6 +39,7 @@ const SUSH_BRIDGES = {
   grok: { usageTelemetry: 'health', contextTelemetry: false, threadBridge: false }
 }
 
+const CAPABILITY_SCHEMA_VERSION = 2
 const PROBE_TIMEOUT_MS = 8000
 const MAX_OUTPUT = 64 * 1024
 const SAFE_CHOICE = /^[a-z][a-z0-9_-]{0,31}$/
@@ -233,7 +234,12 @@ export function createCapabilityCache(deps = {}) {
     const probe = PROVIDER_PROBES[provider]
     if (!probe) return buildCapabilities(provider, { installed: false, error: 'unknown provider' })
     const bin = resolve(probe.bin)
-    const stamp = bin ? binaryStamp(bin, deps.statSync) : 'missing'
+    const rawStamp = bin ? binaryStamp(bin, deps.statSync) : 'missing'
+    // Include Sush's probe schema so capability semantics can evolve (for
+    // example adding the Claude same-session Thread bridge) without stale
+    // persisted records surviving forever simply because the CLI binary did
+    // not change.
+    const stamp = `v${CAPABILITY_SCHEMA_VERSION}|${rawStamp}`
     const hit = cache.get(provider)
     if (!refresh && hit && hit.stamp === stamp) return hit.caps
     if (inflight.has(provider)) return inflight.get(provider)
