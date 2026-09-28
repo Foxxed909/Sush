@@ -2399,7 +2399,7 @@ export default function App() {
               accent={accent}
               tab={rightTab}
               onTab={setRightTab}
-              activeCwd={activeTab?.cwd}
+              activeCwd={activeTab?.workspaceCwd || activeTab?.cwd}
               activeTab={activeTab}
               providerMeta={nightlyProviderMeta}
               tabs={tabs}
@@ -2432,7 +2432,7 @@ export default function App() {
           onOpenChange={setSeduciaOpen}
           tabs={tabs}
           recentSessions={recentSessions}
-          activeCwd={activeTab?.cwd}
+          activeCwd={activeTab?.workspaceCwd || activeTab?.cwd}
           scope={seduciaScope}
           controls={seduciaControls}
           onLaunch={launchSessions}
@@ -2505,7 +2505,7 @@ export default function App() {
       {showLauncher && (
         <NewSessionModal
           accent={accent}
-          activeCwd={activeTab?.cwd}
+          activeCwd={activeTab?.workspaceCwd || activeTab?.cwd}
           recentSessions={recentSessions}
           onLaunch={launchSessions}
           onClose={() => setShowLauncher(false)}
