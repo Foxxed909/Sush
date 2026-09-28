@@ -267,7 +267,17 @@ await page.waitForTimeout(450)
 await page.keyboard.press('Control+1').catch(() => {})
 await page.waitForTimeout(500)
 
-// 2b — Account / usage popover in the Nightly title chrome.
+// 2b — Live model + reasoning control for the active agent session.
+const modelButton = page.locator('.nightly-model-pill').first()
+if (await modelButton.count()) {
+  await modelButton.click()
+  await page.locator('.nightly-model-popover').waitFor({ state: 'visible' })
+  await shot('02b-model-menu')
+  await page.keyboard.press('Escape')
+  await page.locator('.nightly-model-popover').waitFor({ state: 'detached' }).catch(() => {})
+}
+
+// 2c — Account / usage popover in the Nightly title chrome.
 const accountChip = page.locator('.nightly-account-chip').first()
 if (await accountChip.count()) {
   await accountChip.click()
@@ -279,7 +289,7 @@ if (await accountChip.count()) {
       throw new Error('Nightly account popover is mounted but clipped/off-screen')
     }
   }
-  await shot('02b-account-usage')
+  await shot('02c-account-usage')
   await page.keyboard.press('Escape').catch(() => {})
   await page.mouse.click(800, 500)
 }
