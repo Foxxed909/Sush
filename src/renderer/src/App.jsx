@@ -6,7 +6,6 @@ import NewSessionModal from './components/NewSessionModal'
 import RightPanel from './components/RightPanel'
 import SeduciaOrb from './components/SeduciaOrb'
 import Hush from './components/Hush'
-import MissionControl from './components/MissionControl'
 import AliasNudge from './components/AliasNudge'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsHelp from './components/ShortcutsHelp'
@@ -312,7 +311,6 @@ export default function App() {
   const terminalSaver = effectiveSaver || zenMode
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
-  const [showMission, setShowMission] = useState(false)
   const [showUserManager, setShowUserManager] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showPlans, setShowPlans] = useState(false)   // standalone pricing page
@@ -381,7 +379,7 @@ export default function App() {
   const [sleeping, setSleeping] = useState(false)
   const blockingShortcutSurface = Boolean(
     showProfiles || showSettings || showLauncher || showPalette || showShortcuts ||
-    showMission || showUserManager || showProfile || showPlans || showChangelog ||
+    showUserManager || showProfile || showPlans || showChangelog ||
     showHunt || handoffSource || showSushrc || splash || sleeping
   )
   // Lazy boot: restored tabs are rail entries only until first viewed — their
@@ -642,10 +640,10 @@ export default function App() {
       if (!stats?.error) setSessionMetrics(stats?.sessions || {})
     } catch {}
   }, [settings.sessionResourceMeter, terminalSaver])
-  usePolling(pollSessionMetrics, 5000, showMission && settings.sessionResourceMeter === true && !terminalSaver)
+  usePolling(pollSessionMetrics, 5000, view === 'overview' && settings.sessionResourceMeter === true && !terminalSaver)
   useEffect(() => {
-    if (!settings.sessionResourceMeter || terminalSaver || !showMission) setSessionMetrics({})
-  }, [settings.sessionResourceMeter, terminalSaver, showMission])
+    if (!settings.sessionResourceMeter || terminalSaver || view !== 'overview') setSessionMetrics({})
+  }, [settings.sessionResourceMeter, terminalSaver, view])
 
   // Auto-alias miner: tally omnibar commands; suggest a .sushrc alias once one
   // is run often enough. `cmdTick` bumps on each run to re-evaluate the table.
@@ -737,14 +735,6 @@ export default function App() {
     setRightOpen(true)
   }, [])
 
-  // Esc closes Mission Control (the board has no focused input to catch it).
-  useEffect(() => {
-    if (!showMission) return
-    const onEsc = (e) => { if (e.key === 'Escape') { e.preventDefault(); setShowMission(false) } }
-    window.addEventListener('keydown', onEsc)
-    return () => window.removeEventListener('keydown', onEsc)
-  }, [showMission])
-
   // NOTE: every chord handled below (and in the session-shortcut effect
   // further down) must be registered in lib/keymap.js — that's the one list
   // useTerminal consults to keep these keys out of the PTY.
@@ -772,8 +762,11 @@ export default function App() {
       }
       // Ctrl+Shift+B → broadcast mode
       if (ctrl && e.shiftKey && key === 'b') { e.preventDefault(); setBroadcastMode(prev => !prev) }
-      // Ctrl+Shift+M → Mission Control (Ctrl+M alone is Enter in a terminal)
-      if (ctrl && e.shiftKey && key === 'm') { e.preventDefault(); setShowMission(prev => !prev) }
+      // Ctrl+Shift+M → Nightly Overview (Ctrl+M alone is Enter in a terminal)
+      if (ctrl && e.shiftKey && key === 'm') {
+        e.preventDefault()
+        setView(prev => prev === 'overview' ? 'terminal' : 'overview')
+      }
       // Ctrl+Shift+S → Hush dictation toggle
       if (ctrl && e.shiftKey && key === 's') { e.preventDefault(); window.dispatchEvent(new CustomEvent('sush:hush-toggle')) }
       // Ctrl+Shift+F → Hunt overlay (cross-session output search)
@@ -2358,26 +2351,6 @@ export default function App() {
         <ShortcutsHelp
           accent={accent}
           onClose={() => setShowShortcuts(false)}
-        />
-      )}
-
-      {showMission && (
-        <MissionControl
-          accent={accent}
-          tabs={tabs}
-          states={agentStates}
-          limits={agentLimits}
-          summary={agentSummary}
-          metrics={sessionMetrics}
-          onFocus={(id) => { setActiveId(id); setView('terminal'); setShowMission(false) }}
-          onClose={closeTab}
-          onCloseGroup={closeGroup}
-          onPrompt={promptSession}
-          onSwitchResume={switchAndResume}
-          onLimitHandoff={(id) => performLimitHandoff(id)}
-          onDigest={buildWorkspaceDigest}
-          digestBusy={digestBusy}
-          onDismiss={() => setShowMission(false)}
         />
       )}
 
