@@ -9,7 +9,15 @@ import { TAB_GROUPS, DEFAULT_HIDDEN_TABS } from '../../lib/panelTabs'
 // Appearance/Usage: they're terminal concerns, not looks. The right-panel
 // tab visibility also lives here — every ornament gets an off-switch.
 
-const FONTS = ["'Cascadia Code'", "'Fira Code'", "Consolas", "'JetBrains Mono'", "'Courier New'"]
+const DEFAULT_FONT_STACK = "'Cascadia Code', 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace"
+const FONTS = [
+  [DEFAULT_FONT_STACK, 'System mono stack'],
+  ["'Cascadia Code'", 'Cascadia Code'],
+  ["'Fira Code'", 'Fira Code'],
+  ["'JetBrains Mono'", 'JetBrains Mono'],
+  ['Consolas', 'Consolas'],
+  ["'Courier New'", 'Courier New']
+]
 const CURSORS = ['block', 'bar', 'underline']
 
 // Right-panel tab chooser: tap a chip to show/hide that tab in the sidebar
@@ -69,9 +77,27 @@ export default function TerminalSection({ accent, settings, set }) {
       </Row>
       <Row>
         <Label>Font family</Label>
-        <select value={settings.fontFamily ?? FONTS[0]} onChange={e => set('fontFamily', e.target.value)} style={inputStyle}>
-          {FONTS.map(f => <option key={f} value={f}>{f.replace(/'/g, '')}</option>)}
+        <select value={settings.fontFamily ?? DEFAULT_FONT_STACK} onChange={e => set('fontFamily', e.target.value)} style={inputStyle}>
+          {FONTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
+      </Row>
+      <Row>
+        <Label>Line height</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="range"
+            min={1}
+            max={1.6}
+            step={0.02}
+            value={settings.lineHeight ?? 1.28}
+            onChange={e => set('lineHeight', Number(e.target.value))}
+            style={{ flex: 1, accentColor: accent }}
+          />
+          <span style={{ color: 'var(--text-2)', fontSize: 12, width: 34, textAlign: 'right', fontWeight: 700 }}>
+            {Number(settings.lineHeight ?? 1.28).toFixed(2)}
+          </span>
+        </div>
+        <Hint>Nightly defaults to a tighter 1.28 rhythm. Raise it if you prefer a more spacious classic terminal.</Hint>
       </Row>
       <Row>
         <Label>Cursor style</Label>
