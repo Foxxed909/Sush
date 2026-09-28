@@ -273,6 +273,7 @@ await page.waitForTimeout(500)
 const accountChip = page.locator('.nightly-account-chip').first()
 if (await accountChip.count()) {
   await accountChip.click()
+  await page.locator('.nightly-account-popover').waitFor({ state: 'visible' })
   await shot('02b-account-usage')
   await page.keyboard.press('Escape').catch(() => {})
   await page.mouse.click(800, 500)
@@ -282,6 +283,7 @@ if (await accountChip.count()) {
 const layoutButton = page.locator('.nightly-layout-menu > button').first()
 if (await layoutButton.count()) {
   await layoutButton.click()
+  await page.locator('.nightly-layout-popover').waitFor({ state: 'visible' })
   await shot('02c-layout-menu')
   await page.locator('.nightly-layout-popover').getByText('Split', { exact: true }).click()
   await page.waitForTimeout(500)
