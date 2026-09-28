@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
+import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 
 const PANES = [
   { id: 'files', label: 'Files', hint: 'Workspace tree', icon: 'file' },
@@ -11,20 +12,14 @@ const PANES = [
 
 export default function NightlyPaneMenu({ accent, activePane, panelOpen, onOpen }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
-  }, [open])
+  const anchorRef = useRef(null)
 
   const active = PANES.find(p => p.id === activePane)
 
   return (
-    <div ref={ref} className="nightly-pane-menu">
+    <div className="nightly-pane-menu">
       <button
+        ref={anchorRef}
         className={`nightly-icon-btn${panelOpen && active ? ' is-active' : ''}`}
         onClick={() => setOpen(v => !v)}
         title="Workspace panes"
@@ -32,8 +27,13 @@ export default function NightlyPaneMenu({ accent, activePane, panelOpen, onOpen 
         <Icon name={active?.icon || 'layers'} size={14} />
       </button>
 
-      {open && (
-        <div className="nightly-pane-popover">
+      <NightlyAnchoredPopover
+        open={open}
+        anchorRef={anchorRef}
+        align="right"
+        className="nightly-pane-popover"
+        onClose={() => setOpen(false)}
+      >
           <div className="nightly-pane-title">
             <span>Workspace panes</span>
             <small>secondary</small>
@@ -72,8 +72,7 @@ export default function NightlyPaneMenu({ accent, activePane, panelOpen, onOpen 
           <div className="nightly-pane-foot">
             Thread stays gated until Sush can bind structured turns to the same live interactive CLI session.
           </div>
-        </div>
-      )}
+      </NightlyAnchoredPopover>
     </div>
   )
 }
