@@ -18,6 +18,41 @@ function preview(text, max = 460) {
   return value.length > max ? `${value.slice(0, max).trimEnd()}…` : value
 }
 
+function contextBundle({ cwd, activeTab, providerMeta, data }) {
+  const lines = [
+    '# Sush workspace context',
+    '',
+    `- Project: ${cwd || '—'}`,
+    `- Provider: ${providerName(activeTab)}`,
+    `- Model: ${providerMeta?.model || activeTab?.model || 'provider default'}`,
+    `- Reasoning: ${providerMeta?.effort || activeTab?.effort || 'provider default'}`,
+    `- Account: ${providerMeta?.accountLabel || '—'}`
+  ]
+
+  if (data.git?.repo) {
+    lines.push(`- Git branch: ${data.git.branch || '—'}`)
+    const files = (data.git.files || []).slice(0, 20)
+    if (files.length) {
+      lines.push('', '## Working tree')
+      for (const file of files) lines.push(`- ${file.status || file.rawStatus || '·'} ${file.path}`)
+      if ((data.git.files || []).length > files.length) {
+        lines.push(`- … +${data.git.files.length - files.length} more`)
+      }
+    }
+  }
+
+  for (const doc of data.docs || []) {
+    lines.push('', `## ${doc.name}`, '', preview(doc.content, 2000))
+  }
+
+  if (data.tail) {
+    lines.push('', '## Recent terminal tail', '', preview(data.tail, 2500))
+  }
+
+  lines.push('', '> Generated from context Sush can observe; this does not imply every source is loaded into the provider context window.')
+  return lines.join('\n')
+}
+
 function providerName(tab) {
   const id = tab?.agentId
   if (!id || id === 'shell') return 'Shell'
@@ -98,6 +133,17 @@ export default function ContextTab({ accent, cwd, activeTab, providerMeta, onOpe
         title="Context"
         sub={contextSummary}
         onRefresh={load}
+        right={
+          <button
+            type="button"
+            onClick={() => copyToClipboard(contextBundle({ cwd, activeTab, providerMeta, data }))}
+            title="Copy bounded context bundle"
+            className="sush-icon-btn flex items-center justify-center"
+            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--border-2)', background: 'var(--surface-1)', color: 'var(--text-3)', cursor: 'pointer' }}
+          >
+            <Icon name="copy" size={12} />
+          </button>
+        }
       />
 
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
