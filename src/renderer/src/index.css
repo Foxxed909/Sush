@@ -1640,3 +1640,59 @@ p { text-wrap: pretty; }
 }
 .changes-diff-actions button:hover { background: rgba(255,255,255,.06); }
 .changes-diff-actions small { color: var(--text-4); font-size: 11.5px; }
+
+
+/* Nightly structured Thread ------------------------------------------------ */
+.nightly-thread-notice {
+  display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px;
+  border-bottom: 1px solid var(--border-1); color: var(--text-4);
+  font-size: 10.5px; line-height: 1.45; background: rgba(255,255,255,.012);
+}
+.nightly-thread-notice svg { flex-shrink: 0; margin-top: 1px; color: var(--text-3); }
+.nightly-thread-warning {
+  margin: 8px 10px 0; padding: 7px 9px; border-radius: 7px;
+  border: 1px solid rgba(255,203,107,.18); background: rgba(255,203,107,.055);
+  color: #d9bd82; font-size: 9.75px; line-height: 1.45;
+}
+.nightly-thread-warning.is-error {
+  border-color: rgba(255,107,129,.2); background: rgba(255,107,129,.06); color: #eba1ae;
+}
+.nightly-thread-empty {
+  margin: auto; max-width: 310px; padding: 26px 20px; text-align: center;
+  color: var(--text-4);
+}
+.nightly-thread-empty strong { display: block; color: var(--text-2); font-size: 12px; font-weight: 650; }
+.nightly-thread-empty span { display: block; margin-top: 7px; font-size: 10.5px; line-height: 1.55; }
+.nightly-thread-feed { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+.nightly-thread-turn { max-width: 92%; margin-bottom: 12px; }
+.nightly-thread-turn.is-user { margin-left: auto; }
+.nightly-thread-turn header {
+  display: flex; align-items: baseline; gap: 7px; margin-bottom: 5px;
+  color: var(--text-4); font-size: 9px; font-weight: 650; text-transform: uppercase; letter-spacing: .45px;
+}
+.nightly-thread-turn.is-user header { justify-content: flex-end; }
+.nightly-thread-turn header small { color: var(--text-5); font-size: 8.5px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.nightly-thread-text {
+  white-space: pre-wrap; overflow-wrap: anywhere; padding: 9px 10px; border-radius: 9px;
+  border: 1px solid var(--border-1); background: rgba(255,255,255,.018);
+  color: var(--text-2); font-size: 11.5px; line-height: 1.55;
+}
+.nightly-thread-turn.is-user .nightly-thread-text { background: var(--accent-a06); border-color: var(--accent-a12); }
+.nightly-thread-tool, .nightly-thread-result {
+  margin: 0 0 9px; border: 1px solid var(--border-1); border-radius: 8px;
+  background: rgba(255,255,255,.012); overflow: hidden;
+}
+.nightly-thread-tool header {
+  display: flex; align-items: center; gap: 7px; padding: 7px 9px;
+  color: var(--text-3); font-size: 10px;
+}
+.nightly-thread-tool header strong { color: var(--text-2); font-weight: 650; }
+.nightly-thread-tool header small { margin-left: auto; color: var(--text-5); }
+.nightly-thread-tool-icon { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; }
+.nightly-thread-tool pre, .nightly-thread-result pre {
+  margin: 0; padding: 8px 9px; border-top: 1px solid var(--border-1);
+  color: var(--text-4); font-size: 9.75px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.nightly-thread-result header { padding: 6px 9px; color: var(--text-4); font-size: 9px; font-weight: 650; text-transform: uppercase; letter-spacing: .4px; }
+.nightly-thread-result.is-error { border-color: rgba(255,107,129,.2); }
+.nightly-thread-result.is-error header { color: #e99aaa; }
