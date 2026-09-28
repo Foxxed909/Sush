@@ -907,7 +907,8 @@ function sendPtyState(win, session) {
     cwd: session.cwd,
     profileId: session.profileId,
     status: session.status,
-    lastActiveAt: session.lastActiveAt
+    lastActiveAt: session.lastActiveAt,
+    threadBridge: session.threadBridge === true
   })
 }
 
@@ -952,7 +953,8 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
       cwd: existing.cwd,
       profileId: existing.profileId,
       status: existing.status,
-      lastActiveAt: existing.lastActiveAt
+      lastActiveAt: existing.lastActiveAt,
+      threadBridge: existing.threadBridge === true
     }
   }
 
@@ -990,8 +992,14 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
       if (capabilities?.threadBridge === true) {
         const userData = app.getPath('userData')
         const settingsPath = ensureClaudeThreadSettings(userData, process.platform)
-        threadEventFile = prepareThreadEventFile(userData, tabId)
-        bridgedBootCommand = augmentClaudeCommand(bootCommand, settingsPath, { shellId: requestedShell.id, platform: process.platform })
+        const augmented = augmentClaudeCommand(bootCommand, settingsPath, { shellId: requestedShell.id, platform: process.platform })
+        // If the command already carries an explicit --settings source, Sush
+        // intentionally leaves it untouched. Do not claim Thread is attached
+        // or create an event sink that no hook will ever write to.
+        if (augmented && augmented !== bootCommand) {
+          threadEventFile = prepareThreadEventFile(userData, tabId)
+          bridgedBootCommand = augmented
+        }
       }
     } catch {
       // Thread is additive. A bridge setup/probe failure must never stop the
@@ -1033,6 +1041,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
     profileId,
     status: 'running',
     lastActiveAt: Date.now(),
+    threadBridge: !!threadEventFile,
     proc
   }
   session.restoreKey = restoreKey || null
@@ -1092,7 +1101,8 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
     cwd: session.cwd,
     profileId: session.profileId,
     status: session.status,
-    lastActiveAt: session.lastActiveAt
+    lastActiveAt: session.lastActiveAt,
+    threadBridge: session.threadBridge === true
   }
 }
 
