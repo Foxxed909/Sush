@@ -2300,11 +2300,21 @@ export default function App() {
                     : tabs.filter(tab => bootedIds.has(tab.id))
                 const n = gridTabs.length
                 const cols = gridMode && !zenMode ? Math.max(1, Math.ceil(Math.sqrt(n))) : splitPartner ? 2 : 1
+                // Booted sessions outside the Split/Grid (other projects, tiles
+                // past the cap) stay mounted but hidden and out of the grid
+                // flow; dropping them from the list unmounted their xterm and
+                // rebuilt it on the way back to Focus. Tile position comes from
+                // CSS `order`, so React never has to reorder the live nodes.
+                const layoutOrder = new Map(gridTabs.map((tab, i) => [tab.id, i]))
+                const mountedTabs = layoutGridMode
+                  ? tabs.filter(tab => layoutOrder.has(tab.id) || bootedIds.has(tab.id))
+                  : gridTabs
                 return (
                   <div style={layoutGridMode
                     ? { position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoRows: '1fr', gap: 7, padding: 8 }
                     : { position: 'absolute', inset: 0 }}>
-                    {gridTabs.map(tab => {
+                    {mountedTabs.map(tab => {
+                      const inLayout = layoutGridMode && layoutOrder.has(tab.id)
                       const booted = bootedIds.has(tab.id)
                       const baseProfile = profiles.find(p => p.id === tab.profileId) ?? profiles[0]
                       const prof = { ...baseProfile, shell: tab.shell ?? profileShell(baseProfile) }
@@ -2313,10 +2323,10 @@ export default function App() {
                       return (
                         <div
                           key={tab.id}
-                          data-nightly-tile={layoutGridMode ? '1' : undefined}
+                          data-nightly-tile={inLayout ? '1' : undefined}
                           data-nightly-workspace={nightlyWorkspaceKey(tab) || undefined}
                           data-tab-id={tab.id}
-                          onMouseDown={layoutGridMode ? () => {
+                          onMouseDown={inLayout ? () => {
                             if (!booted) setBootedIds(prev => new Set(prev).add(tab.id))
                             // In split view, focusing the partner swaps the panes
                             // instead of collapsing the split (active === splitId
@@ -2324,8 +2334,10 @@ export default function App() {
                             if (splitPartner && tab.id === splitId) setSplitId(activeIdRef.current)
                             setActiveId(tab.id)
                           } : undefined}
-                          style={layoutGridMode
-                            ? { position: 'relative', overflow: 'hidden', borderRadius: 10, border: `1px solid ${focused ? rgba(accent, 0.6) : 'rgba(255,255,255,0.08)'}`, boxShadow: focused ? `0 0 0 1px ${rgba(accent, 0.35)}` : 'none', background: wallpaperOnTerminals ? 'transparent' : '#07090b' }
+                          style={layoutGridMode && !inLayout
+                            ? { position: 'absolute', inset: 0, visibility: 'hidden', pointerEvents: 'none' }
+                            : inLayout
+                            ? { order: layoutOrder.get(tab.id), position: 'relative', overflow: 'hidden', borderRadius: 10, border: `1px solid ${focused ? rgba(accent, 0.6) : 'rgba(255,255,255,0.08)'}`, boxShadow: focused ? `0 0 0 1px ${rgba(accent, 0.35)}` : 'none', background: wallpaperOnTerminals ? 'transparent' : '#07090b' }
                             : { position: 'absolute', inset: 0 }}
                         >
                           {booted ? (
@@ -2336,10 +2348,10 @@ export default function App() {
                                 profile={prof}
                                 shellId={tab.shell}
                                 active={focused}
-                                splitVisible={layoutGridMode}
+                                splitVisible={inLayout}
                                 initialCwd={tab.cwd}
                                 bootCommand={tab.bootCommand}
-                                fontSize={layoutGridMode ? Math.max(10, fontSize - 2) : fontSize}
+                                fontSize={inLayout ? Math.max(10, fontSize - 2) : fontSize}
                                 fontFamily={fontFamily}
                                 cursorStyle={cursorStyle}
                                 broadcastTabIds={broadcastTargets}
@@ -2370,7 +2382,7 @@ export default function App() {
                               </div>
                             </div>
                           )}
-                          {layoutGridMode && (() => {
+                          {inLayout && (() => {
                             // Live state dot, same classifier the rail uses, so a
                             // tile that needs you (amber) or errored (red) stands
                             // out in the grid without opening Overview.
