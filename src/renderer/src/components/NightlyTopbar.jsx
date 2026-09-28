@@ -47,6 +47,7 @@ export default function NightlyTopbar({
   onTogglePanel
 }) {
   const [gitMeta, setGitMeta] = useState({ repo: false, branch: null, changes: 0 })
+  const [openingProject, setOpeningProject] = useState(false)
 
   useEffect(() => {
     const cwd = activeTab?.workspaceCwd || activeTab?.cwd
@@ -94,6 +95,20 @@ export default function NightlyTopbar({
   const providerLabel = agent?.label || activeTab?.agentId || 'Shell'
 
   const windowControl = (action) => window.sush?.windowControl?.(action)
+
+  const openProject = async () => {
+    const cwd = activeTab?.workspaceCwd || activeTab?.cwd
+    if (!cwd || openingProject) return
+    setOpeningProject(true)
+    try {
+      const editor = await window.sush?.openInEditor?.({ cwd })
+      if (!editor?.ok) await window.sush?.openPath?.({ path: cwd })
+    } catch {
+      try { await window.sush?.openPath?.({ path: cwd }) } catch {}
+    } finally {
+      setOpeningProject(false)
+    }
+  }
 
   return (
     <header className={`nightly-topbar${rightOpen ? ' is-inspector-open' : ''}`}>
@@ -176,6 +191,17 @@ export default function NightlyTopbar({
       </div>
 
       <div className="nightly-topbar-actions">
+        {hasSession && (activeTab?.workspaceCwd || activeTab?.cwd) && (
+          <button
+            className="nightly-action-btn nightly-open-btn"
+            onClick={openProject}
+            disabled={openingProject}
+            title="Open project in VS Code (falls back to the OS folder)"
+          >
+            <Icon name="code" size={13} />
+            <span className="nightly-open-label">{openingProject ? 'Opening…' : 'Open'}</span>
+          </button>
+        )}
         <button className="nightly-icon-btn" onClick={onHunt} title="Search all output"><Icon name="search" size={14} /></button>
         <NightlyLayoutMenu
           accent={accent}
