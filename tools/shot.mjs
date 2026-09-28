@@ -490,24 +490,40 @@ if (!(await page.locator('.nightly-inspector').getByText('Memory', { exact: true
 }
 await shot('05b-notes-pane')
 
-// The other project chooses Files.
-await page.locator('.nightly-thread-row').filter({ hasText: 'Other project shell' }).click()
+// Stack this project's Notes below the terminal.
+await paneButton.click()
+const panePopover = page.locator('.nightly-pane-popover')
+await panePopover.getByRole('button', { name: 'Bottom', exact: true }).click()
 await page.waitForTimeout(350)
+if (await page.locator('.nightly-inspector[data-nightly-dock="bottom"]').count() !== 1) {
+  throw new Error('Nightly did not stack the Sush pane below the terminal')
+}
+await shot('05c-notes-bottom')
+
+// The other project keeps a separate default/right dock and chooses Files.
+await page.locator('.nightly-thread-row').filter({ hasText: 'Other project shell' }).click()
+await page.waitForTimeout(450)
 await paneButton.click()
 await page.locator('.nightly-pane-popover').getByText('Files', { exact: true }).click()
 await page.waitForTimeout(300)
 if (!(await page.locator('.nightly-inspector [data-tab="files"]').count())) {
   throw new Error('Nightly Files pane did not become active for the other project')
 }
-await shot('05c-files-pane')
+if (await page.locator('.nightly-inspector[data-nightly-dock="right"]').count() !== 1) {
+  throw new Error('Nightly other project inherited the Sush bottom dock')
+}
+await shot('05d-files-right')
 
-// Switching back to Sush must restore its Notes pane, not inherit Files.
+// Switching back to Sush must restore Notes + Bottom, not inherit Files + Right.
 await page.locator('.nightly-thread-row').filter({ hasText: 'Claude Code' }).click()
-await page.waitForTimeout(450)
+await page.waitForTimeout(500)
 if (!(await page.locator('.nightly-inspector').getByText('Memory', { exact: true }).count())) {
   throw new Error('Nightly did not restore the Sush workspace Notes pane')
 }
-await shot('05d-pane-restore')
+if (await page.locator('.nightly-inspector[data-nightly-dock="bottom"]').count() !== 1) {
+  throw new Error('Nightly did not restore the Sush workspace bottom dock')
+}
+await shot('05e-pane-dock-restore')
 await page.keyboard.press('Control+b')
 await page.waitForTimeout(200)
 
