@@ -225,7 +225,12 @@ const shot = async (name) => {
   console.log('✓', name)
 }
 
-// 1 — Home dashboard (the default view)
+// 1 — Home dashboard (the default view). Home should use global chrome,
+ // not pretend a shell/session is active.
+const homeChrome = await page.locator('.nightly-topbar').innerText()
+if (homeChrome.includes('Context') || /\bShell\b/.test(homeChrome)) {
+  throw new Error('Nightly Home leaked session telemetry into the global header')
+}
 await shot('01-home')
 
 // 2 — Terminal view: click the first session in the rail
@@ -266,26 +271,56 @@ await page.waitForTimeout(500)
 const accountChip = page.locator('.nightly-account-chip').first()
 if (await accountChip.count()) {
   await accountChip.click()
-  await page.locator('.nightly-account-popover').waitFor({ state: 'visible' })
+  const accountPopover = page.locator('.nightly-account-popover')
+  await accountPopover.waitFor({ state: 'visible' })
+  {
+    const box = await accountPopover.boundingBox()
+    if (!box || box.height < 80 || box.y < 0 || box.y + box.height > 900) {
+      throw new Error('Nightly account popover is mounted but clipped/off-screen')
+    }
+  }
   await shot('02b-account-usage')
   await page.keyboard.press('Escape').catch(() => {})
   await page.mouse.click(800, 500)
 }
 
-// 2c — Workspace layout presets.
+// 2c — Active session model/reasoning control.
+const modelButton = page.locator('.nightly-model-menu > button').first()
+if (await modelButton.count()) {
+  await modelButton.click()
+  const modelPopover = page.locator('.nightly-model-popover')
+  await modelPopover.waitFor({ state: 'visible' })
+  {
+    const box = await modelPopover.boundingBox()
+    if (!box || box.height < 150 || box.x < 0 || box.x + box.width > 1440 || box.y + box.height > 900) {
+      throw new Error('Nightly model popover is mounted but clipped/off-screen')
+    }
+  }
+  await shot('02c-model-menu')
+  await page.keyboard.press('Escape')
+}
+
+// 2d — Workspace layout presets.
 const layoutButton = page.locator('.nightly-layout-menu > button').first()
 if (await layoutButton.count()) {
   await layoutButton.click()
-  await page.locator('.nightly-layout-popover').waitFor({ state: 'visible' })
-  await shot('02c-layout-menu')
+  const layoutPopover = page.locator('.nightly-layout-popover')
+  await layoutPopover.waitFor({ state: 'visible' })
+  {
+    const box = await layoutPopover.boundingBox()
+    if (!box || box.height < 120 || box.y < 0 || box.y + box.height > 900) {
+      throw new Error('Nightly layout popover is mounted but clipped/off-screen')
+    }
+  }
+  await shot('02d-layout-menu')
   await page.locator('.nightly-layout-popover').getByText('Split', { exact: true }).click()
   await page.waitForTimeout(500)
-  await shot('02d-split')
+  await shot('02e-split')
 
   await layoutButton.click()
   await page.locator('.nightly-layout-popover').getByText('Grid', { exact: true }).click()
   await page.waitForTimeout(500)
-  await shot('02e-grid')
+  await shot('02f-grid')
 
   await layoutButton.click()
   await page.locator('.nightly-layout-popover').getByText('Focus', { exact: true }).click()
