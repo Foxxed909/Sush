@@ -48,6 +48,11 @@ export function useTerminal({
   // visible buffer and re-running startPty.
   const initialCwdRef = useRef(initialCwd)
   const bootCommandRef = useRef(bootCommand)
+  // Same for the spawn profile: the PTY reports its real shell once ready
+  // (e.g. `bash` where the tab only knew a `powershell` fallback). Depending on
+  // those values directly re-ran the create-effect, disposing xterm right after
+  // every new session's first start.
+  const spawnProfileRef = useRef({ shell: profile?.shell, id: profile?.id })
 
   useEffect(() => {
     onAutoCopyRef.current = onAutoCopy
@@ -72,6 +77,10 @@ export function useTerminal({
   useEffect(() => {
     bootCommandRef.current = bootCommand
   }, [bootCommand])
+
+  useEffect(() => {
+    spawnProfileRef.current = { shell: profile?.shell, id: profile?.id }
+  }, [profile?.shell, profile?.id])
 
   useEffect(() => {
     broadcastTabIdsRef.current = broadcastTabIds
@@ -300,8 +309,8 @@ export function useTerminal({
         rows: term.rows,
         cwd: initialCwdRef.current,
         bootCommand: bootCommandRef.current,
-        shellId: profile?.shell,
-        profileId: profile?.id,
+        shellId: spawnProfileRef.current.shell,
+        profileId: spawnProfileRef.current.id,
         restoreKey,
         persistScrollback
       })
@@ -342,7 +351,7 @@ export function useTerminal({
     // Listing transparentBg here disposed and recreated the whole xterm on a
     // wallpaper/eco toggle, wiping every terminal's visible buffer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, profile?.id, profile?.shell, resizePty, sendPtyInput, tabId])
+  }, [containerRef, resizePty, sendPtyInput, tabId])
 
   useEffect(() => {
     if (transparentBg || powerSaver) {
