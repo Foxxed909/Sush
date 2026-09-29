@@ -4,9 +4,6 @@ import {
 } from '../src/renderer/src/lib/shellModes.js'
 import { isAppChord, setShellChords } from '../src/renderer/src/lib/keymap.js'
 import { describeToolUse, groupThreadTurns, workSummary } from '../src/renderer/src/lib/threadTurns.js'
-import {
-  buildOfficeLayout, moveWithCollisions, nearestInteractable, officeLayoutKey
-} from '../src/renderer/src/lib/officeLayout.js'
 
 const claude = { id: 't1', agentId: 'claude', threadBridge: true, cwd: '/repo/a', label: 'Claude' }
 const codex = { id: 't2', agentId: 'codex', cwd: '/repo/a', label: 'Codex' }
@@ -35,6 +32,8 @@ describe('Nightly shell modes', () => {
     expect(terminalPlacement({ ...base, mode: 'chat', activeTab: codex })).toBe('hidden')
     expect(terminalPlacement({ ...base, mode: 'office', activeTab: codex })).toBe('hidden')
     expect(terminalPlacement({ ...base, channel: 'stable', mode: 'office', activeTab: codex })).toBe('full')
+    expect(terminalPlacement({ ...base, mode: 'office', activeTab: codex, officeFocus: 't2' })).toBe('monitor')
+    expect(terminalPlacement({ ...base, mode: 'office', activeTab: codex, officeFocus: 't1' })).toBe('hidden')
   })
 
   it('maps Alt+1..5 to modes and ignores other chords', () => {
@@ -84,55 +83,90 @@ describe('Thread work logs', () => {
   })
 })
 
-describe('Sush Office layout', () => {
+describe('Sush Office campus + interiors', () => {
   const tabs = [
     claude,
     codex,
     { id: 't3', agentId: 'gemini', cwd: '/repo/b', label: 'Gemini' }
   ]
 
-  it('gives each project a room with a desk per session plus a new-session desk', () => {
-    const layout = buildOfficeLayout(tabs)
-    expect(layout.rooms).toHaveLength(2)
-    expect(layout.rooms[0].desks.map(d => d.tabId)).toEqual(['t1', 't2', null])
-    expect(layout.rooms[1].desks.map(d => d.tabId)).toEqual(['t3', null])
-    expect(layout.rooms[0].desks[2].cwd).toBeTruthy()
+  it('puts one building per project on the campus with a door you can use', async () => {
+    const { buildCampusLayout, nearestInteractable, moveWithCollisions } = await import('../src/renderer/src/lib/officeLayout.js')
+    const campus = buildCampusLayout(tabs)
+    expect(campus.buildings.map(b => b.tabIds)).toEqual([['t1', 't2'], ['t3']])
+    const b = campus.buildings[0]
+    expect(nearestInteractable({ x: b.door.x, z: b.door.z + 1 }, campus)).toMatchObject({ kind: 'enter', key: b.key })
+    // The spawn point is free and walls are solid.
+    expect(moveWithCollisions(campus.spawn, 0, 0, campus.colliders)).toEqual(campus.spawn)
+    let pos = { x: b.x, z: b.door.z + 2 }
+    for (let i = 0; i < 60; i++) pos = moveWithCollisions(pos, 0, -0.1, campus.colliders)
+    expect(pos.z).toBeGreaterThan(b.z + b.d / 2)
+    expect(nearestInteractable({ x: campus.kiosk.x, z: campus.kiosk.z + 1 }, campus)).toMatchObject({ kind: 'new-office' })
   })
 
-  it('still builds an empty room when nothing is running', () => {
-    const layout = buildOfficeLayout([])
-    expect(layout.rooms).toHaveLength(1)
-    expect(layout.rooms[0].desks).toEqual([expect.objectContaining({ tabId: null })])
+  it('an empty campus still has the kiosk, Seducia and the board', async () => {
+    const { buildCampusLayout } = await import('../src/renderer/src/lib/officeLayout.js')
+    const campus = buildCampusLayout([])
+    expect(campus.buildings).toEqual([])
+    expect(campus.interactables.map(i => i.kind)).toEqual(['new-office', 'chat', 'agents'])
   })
 
-  it('spawns the player somewhere free and blocks walking through walls', () => {
-    const layout = buildOfficeLayout(tabs)
-    const spawn = layout.spawn
-    expect(moveWithCollisions(spawn, 0, 0, layout.colliders)).toEqual(spawn)
-    // Walk straight back from the lobby into a solid part of a front wall.
-    const room = layout.rooms[0]
-    const start = { x: room.x - room.w / 2 + 1, z: 1 }
-    let pos = start
-    for (let i = 0; i < 40; i++) pos = moveWithCollisions(pos, 0, -0.1, layout.colliders)
-    expect(pos.z).toBeGreaterThan(0)
-    // Through the door is fine.
-    pos = { x: room.x, z: 1 }
-    for (let i = 0; i < 20; i++) pos = moveWithCollisions(pos, 0, -0.1, layout.colliders)
-    expect(pos.z).toBeLessThan(0)
+  it('builds an interior with a desk per session, a Hire desk and an exit', async () => {
+    const { buildCampusLayout, buildInteriorLayout, nearestInteractable } = await import('../src/renderer/src/lib/officeLayout.js')
+    const key = buildCampusLayout(tabs).buildings[0].key
+    const room = buildInteriorLayout(tabs, key)
+    expect(room.desks.map(d => d.tabId ?? 'hire')).toEqual(['t1', 't2', 'hire'])
+    const desk = room.desks[0]
+    expect(nearestInteractable({ x: desk.x, z: desk.z + 1 }, room)).toMatchObject({ kind: 'session', tabId: 't1' })
+    expect(nearestInteractable({ x: room.door.x, z: room.door.z - 0.4 }, room)).toMatchObject({ kind: 'exit' })
   })
 
-  it('finds the desk, Seducia or the board within reach', () => {
-    const layout = buildOfficeLayout(tabs)
-    const desk = layout.rooms[0].desks[0]
-    expect(nearestInteractable({ x: desk.x, z: desk.z + 1 }, layout)).toMatchObject({ kind: 'session', tabId: 't1' })
-    const s = layout.lobby.seducia
-    expect(nearestInteractable({ x: s.x, z: s.z + 1 }, layout)).toMatchObject({ kind: 'chat' })
-    expect(nearestInteractable({ x: 999, z: 999 }, layout)).toBeNull()
+  it('rebuild keys follow sessions, not their state', async () => {
+    const { campusLayoutKey } = await import('../src/renderer/src/lib/officeLayout.js')
+    expect(campusLayoutKey(tabs)).toBe(campusLayoutKey(tabs.map(t => ({ ...t, status: 'running' }))))
+    expect(campusLayoutKey(tabs)).not.toBe(campusLayoutKey(tabs.slice(1)))
+  })
+})
+
+describe('Office stats', () => {
+  it('counts heads per provider and state', async () => {
+    const { officeHeadcount } = await import('../src/renderer/src/lib/officeStats.js')
+    const h = officeHeadcount([claude, codex, { id: 'x', agentId: 'claude' }], { t1: 'working', t2: 'waiting' }, { x: true })
+    expect(h.providers).toEqual([{ agentId: 'claude', count: 2 }, { agentId: 'codex', count: 1 }])
+    expect([h.working, h.waiting, h.limit, h.idle]).toEqual([1, 1, 1, 0])
   })
 
-  it('changes its rebuild key when sessions change, not when state does', () => {
-    expect(officeLayoutKey(tabs)).toBe(officeLayoutKey(tabs.map(t => ({ ...t, status: 'running' }))))
-    expect(officeLayoutKey(tabs)).not.toBe(officeLayoutKey(tabs.slice(1)))
+  it('totals transcript tokens without estimating', async () => {
+    const { transcriptTokens } = await import('../src/renderer/src/lib/officeStats.js')
+    const t = transcriptTokens([
+      { type: 'assistant', usage: { input_tokens: 100, cache_read_input_tokens: 1000, output_tokens: 50 } },
+      { type: 'assistant', usage: { input_tokens: 20, cache_creation_input_tokens: 5, cache_read_input_tokens: 1100, output_tokens: 70 } }
+    ])
+    expect(t).toEqual({ input: 125, cached: 2100, output: 120, total: 2345, context: 1195 })
+    expect(transcriptTokens([]).context).toBeNull()
+  })
+
+  it('awards XP for observed work and levels on a square curve', async () => {
+    const { applyXpTick, levelFor } = await import('../src/renderer/src/lib/officeStats.js')
+    let { ledger } = applyXpTick({}, { tabKey: 'a', officeKey: 'o', prevState: 'idle', state: 'working', minutes: 3 })
+    ;({ ledger } = applyXpTick(ledger, { tabKey: 'a', officeKey: 'o', prevState: 'working', state: 'waiting' }))
+    ;({ ledger } = applyXpTick(ledger, { tabKey: 'a', officeKey: 'o', prevState: 'waiting', state: 'waiting', outputTokens: 2500 }))
+    expect(ledger.agents.a.xp).toBe(6 + 15 + 2)
+    expect(ledger.offices.o).toBe(23)
+    ;({ ledger } = applyXpTick(ledger, { tabKey: 'a', prevState: 'waiting', state: 'waiting', outputTokens: 3100 }))
+    expect(ledger.agents.a.xp).toBe(24)
+    expect(levelFor(0).level).toBe(0)
+    expect(levelFor(50).level).toBe(1)
+    expect(levelFor(199).level).toBe(1)
+    expect(levelFor(200).level).toBe(2)
+  })
+})
+
+describe('Office themes', () => {
+  it('falls back to Night Loft for unknown ids', async () => {
+    const { officeTheme, OFFICE_THEMES } = await import('../src/renderer/src/lib/officeThemes.js')
+    expect(officeTheme('nope').id).toBe('loft')
+    expect(OFFICE_THEMES.map(t => t.id)).toEqual(['loft', 'neon', 'forest', 'space', 'sunset'])
   })
 })
 

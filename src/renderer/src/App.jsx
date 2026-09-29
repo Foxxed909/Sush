@@ -44,6 +44,7 @@ import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
 import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
+import { useOfficeProgress } from './hooks/useOfficeProgress'
 import ShellHeader from './components/shell/ShellHeader'
 import ShellSidebar from './components/shell/ShellSidebar'
 import ProviderLogo from './components/ProviderLogo'
@@ -368,6 +369,8 @@ export default function App() {
   const [shellMode, setShellModeState] = useState(() => normalizeShellMode(localStorage.getItem(SHELL_MODE_KEY)))
   const [drawerOpen, setDrawerOpen] = useState(() => localStorage.getItem(SHELL_DRAWER_KEY) !== '0')
   const [drawerHeight, setDrawerHeight] = useState(260)
+  // Office: the desk whose monitor you zoomed into (its real terminal shows there).
+  const [officeFocus, setOfficeFocus] = useState(null)
   const entitlements = useEntitlements()
   const online = useOnline()
   // Performance ladder (lib/power): full < reduced < saver < eco, each rung
@@ -702,8 +705,14 @@ export default function App() {
     mode: currentShellMode,
     view,
     activeTab: tabs.length ? activeTab : null,
-    drawerOpen
+    drawerOpen,
+    officeFocus
   })
+  // Leaving the Office, or closing that session, ends the zoom.
+  useEffect(() => {
+    if (!officeFocus) return
+    if (currentShellMode !== 'office' || !tabs.some(t => t.id === officeFocus)) setOfficeFocus(null)
+  }, [officeFocus, currentShellMode, tabs])
   const threadInCenter = nightlyShell && view === 'terminal' && currentShellMode === 'thread' && threadCentered(activeTab)
   const coverSurface = nightlyShell && view !== 'overview' && (currentShellMode === 'chat' || currentShellMode === 'office')
     ? currentShellMode : null
@@ -771,6 +780,7 @@ export default function App() {
 
   // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
+  const officeProgress = useOfficeProgress(tabs, agentStates, agentLimits)
 
   // One list of sessions that need the user (limit, waiting, errored). Drives
   // the topbar bell, the window title count and the optional chime.
@@ -2749,8 +2759,14 @@ export default function App() {
                   limits={agentLimits}
                   accent={accent}
                   reduceMotion={!!(settings.reduceMotion || ecoMode)}
-                  onOpenSession={(id) => { selectTab(id); setShellMode('code') }}
-                  onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
+                  ledger={officeProgress.ledger}
+                  awardTokens={officeProgress.awardTokens}
+                  focusTabId={officeFocus}
+                  onFocusMonitor={(id) => { setOfficeFocus(id); setActiveId(id); setView('terminal') }}
+                  onExitMonitor={() => setOfficeFocus(null)}
+                  onEnterTerminal={(id) => { setOfficeFocus(null); selectTab(id); setShellMode('code') }}
+                  onNewOffice={() => { setLauncherCwd(null); setShowLauncher(true) }}
+                  onHire={({ cwd, groupId, agentId, model, count }) => launchSessions({ cwd, groupId: groupId || undefined, agents: [{ id: agentId, count, model: model || null }] })}
                   onChat={() => setShellMode('chat')}
                   onAgents={() => setShellMode('agents')}
                 />

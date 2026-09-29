@@ -38,9 +38,11 @@ export function threadCentered(tab) {
 // 'full'   — fills the work area (Code, or Thread for non-Claude sessions)
 // 'drawer' — docked under the Thread transcript
 // 'hidden' — covered by Chat / Agents / Office / Home, still mounted
-export function terminalPlacement({ channel, mode, view, activeTab, drawerOpen }) {
+// 'monitor' — framed inside an Office desk's screen after you zoom into it
+export function terminalPlacement({ channel, mode, view, activeTab, drawerOpen, officeFocus = null }) {
   if (normalizeChannel(channel) === 'stable') return 'full'
   if (view === 'home' || view === 'overview') return 'full'
+  if (mode === 'office' && officeFocus && activeTab?.id === officeFocus) return 'monitor'
   if (mode === 'chat' || mode === 'office') return 'hidden'
   if (mode === 'thread' && threadCentered(activeTab)) return drawerOpen ? 'drawer' : 'hidden'
   return 'full'

@@ -1833,16 +1833,6 @@ p { text-wrap: pretty; }
 .office { position: absolute; inset: 0; overflow: hidden; background: #08090a; }
 .office-host { position: absolute; inset: 0; outline: none; }
 .office-canvas { width: 100% !important; height: 100% !important; display: block; image-rendering: pixelated; cursor: crosshair; }
-.office-hud {
-  position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none;
-}
-.office-hud span {
-  padding: 5px 10px; border-radius: 999px; background: rgba(8,9,10,.78); border: 1px solid var(--border-2);
-  color: var(--text-3); font: 600 11px/1 var(--font-mono);
-}
-.office-hud b { color: var(--text-1); }
-.office-hud .is-waiting { color: #ffcb6b; border-color: rgba(255,203,107,.3); }
-.office-hud .office-keys { color: var(--text-4); }
 .office-hint {
   position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px;
@@ -1855,16 +1845,6 @@ p { text-wrap: pretty; }
 }
 .office-fallback { position: absolute; inset: 0; display: grid; place-content: center; gap: 8px; text-align: center; color: var(--text-3); font-size: 12.5px; }
 .office-fallback strong { color: var(--text-1); font-size: 14px; }
-.office-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.office-label {
-  position: absolute; left: 0; top: 0; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
-  padding: 3px 7px; border-radius: 6px; background: rgba(8,9,10,.78); border: 1px solid var(--border-2);
-  color: var(--text-1); font: 600 11px/1.2 var(--font-ui); will-change: transform;
-}
-.office-label.is-room { color: var(--accent); border-color: var(--accent-a22); font: 700 12.5px/1.2 var(--font-mono); letter-spacing: .3px; }
-.office-label.is-new { color: var(--accent); background: rgba(8,9,10,.5); border-style: dashed; font-size: 10.5px; }
-.office-label.is-seducia { color: var(--accent); border-color: var(--accent-a22); }
-.office-label.is-board { font: 700 12px/1.2 var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }
 
 /* ── Nightly thread sidebar (after T3 Code's Sidebar, MIT) ──────────────── */
 .ts-sidebar {
@@ -2338,3 +2318,101 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .ts-brand-channel:hover { background: rgba(255,255,255,.18); }
 .shell-msg.is-user .shell-msg-bubble { max-width: 70%; }
 .mp-shell { height: auto; max-height: min(346px, 60vh); min-height: 220px; }
+
+/* ── Office campus overlays ─────────────────────────────────────────────── */
+.shell-terminal-layer.is-monitor {
+  inset: 9% 13% 15% 13%; z-index: 40; border-radius: 12px; overflow: hidden;
+  border: 10px solid #15121c; box-shadow: 0 0 0 1px rgba(196,178,255,.18), 0 30px 80px rgba(0,0,0,.7);
+  background: var(--surface-0);
+}
+.office-monitor-scrim { position: absolute; inset: 0; z-index: 35; border: 0; background: rgba(6,5,10,.55); cursor: zoom-out; }
+.office-monitor-bar {
+  position: absolute; left: 50%; bottom: 4.5%; transform: translateX(-50%); z-index: 41;
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 12px;
+  background: rgba(17,15,25,.92); border: 1px solid var(--border-2); color: var(--text-1); font-size: 12.5px;
+}
+.office-monitor-bar > span { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; margin-right: 6px; }
+.office-monitor-bar button {
+  height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-2);
+  border-radius: 8px; background: var(--surface-2); color: var(--text-1); font: inherit; font-size: 12px; cursor: pointer;
+}
+.office-monitor-bar button:hover { background: var(--surface-3); }
+.office-labels > * { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.office-sign {
+  min-width: 150px; padding: 8px 10px; border-radius: 10px; display: grid; gap: 5px;
+  background: rgba(17,15,25,.9); border: 1px solid var(--border-2); box-shadow: 0 10px 28px rgba(0,0,0,.45);
+}
+.office-sign-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.office-sign-head strong { color: var(--text-1); font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.office-sign-crew { display: flex; flex-wrap: wrap; gap: 8px; color: var(--text-2); font: 600 11.5px/1 var(--font-mono); }
+.office-sign-crew span { display: inline-flex; align-items: center; gap: 4px; }
+.office-sign-states { display: flex; flex-wrap: wrap; gap: 6px; }
+.office-sign-states em, .office-chip.is-working, .office-chip.is-waiting { font-style: normal; font-size: 10.5px; color: var(--text-3); }
+.office-sign-states em.is-working, .office-chip.is-working { color: #5fd3a8; }
+.office-sign-states em.is-waiting, .office-chip.is-waiting { color: #ffcb6b; }
+.office-sign-states em.is-limit { color: #ff9f43; }
+.office-level {
+  padding: 2px 6px; border-radius: 999px; background: rgba(196,178,255,.12); color: #d9ccff;
+  font: 700 10px/1.2 var(--font-mono); white-space: nowrap;
+}
+.office-tag {
+  padding: 4px 9px; border-radius: 7px; background: rgba(17,15,25,.85); border: 1px solid var(--border-2);
+  color: var(--text-1); font: 600 11.5px/1.2 var(--font-ui); white-space: nowrap;
+}
+.office-tag.is-accent { color: var(--accent); border-color: var(--accent-a22); }
+.office-tag.is-dashed { border-style: dashed; }
+.office-desk-tag {
+  display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; max-width: 220px;
+  background: rgba(17,15,25,.88); border: 1px solid var(--border-2); color: var(--text-1); font-size: 11.5px; font-weight: 600;
+}
+.office-desk-tag.is-waiting { border-color: rgba(255,203,107,.45); }
+.office-desk-tag.is-limit, .office-desk-tag.is-error { border-color: rgba(255,107,129,.45); }
+.office-desk-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.office-desk-tokens { color: var(--text-3); font: 600 10.5px/1 var(--font-mono); }
+.office-desk-alert {
+  width: 16px; height: 16px; display: inline-grid; place-items: center; border-radius: 50%;
+  background: #ffcb6b; color: #0b0a10; font: 800 11px/1 var(--font-ui); font-style: normal;
+}
+.office-hud { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; pointer-events: none; }
+.office-chip {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border-radius: 999px;
+  background: rgba(17,15,25,.86); border: 1px solid var(--border-2); color: var(--text-2); font: 600 11.5px/1 var(--font-ui);
+}
+.office-chip.is-title { color: var(--text-1); font-weight: 700; }
+.office-chip.is-button { cursor: pointer; }
+.office-chip.is-button:hover { background: rgba(32,28,44,.95); color: var(--text-1); }
+.office-crew { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); }
+.office-theme select { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; outline: none; }
+.office-theme select option { background: #171420; }
+.office-xp i { display: inline-block; width: 56px; height: 4px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+.office-xp b { display: block; height: 100%; background: linear-gradient(90deg, #b99cff, var(--accent)); }
+.office-keys {
+  position: absolute; right: 12px; bottom: 12px; z-index: 5; padding: 5px 10px; border-radius: 999px;
+  background: rgba(17,15,25,.7); color: var(--text-4); font: 500 11px/1 var(--font-mono); pointer-events: none;
+}
+.office-hire {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 20; width: min(380px, calc(100% - 32px));
+  padding: 14px; border-radius: 14px; display: grid; gap: 12px;
+  background: rgba(17,15,25,.97); border: 1px solid var(--border-2); box-shadow: 0 24px 60px rgba(0,0,0,.6);
+}
+.office-hire header { display: flex; align-items: center; justify-content: space-between; }
+.office-hire header strong { color: var(--text-1); font-size: 13.5px; }
+.office-hire header button { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); cursor: pointer; }
+.office-hire-providers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.office-hire-providers button {
+  display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border-2); background: var(--surface-2); color: var(--text-3); font: inherit; font-size: 11px;
+}
+.office-hire-providers button.is-on { border-color: var(--accent-a40, rgba(255,107,157,.4)); background: var(--surface-3); color: var(--text-1); }
+.office-hire-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text-3); font-size: 12px; }
+.office-hire-row select { min-width: 180px; height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--surface-2); color: var(--text-1); font: inherit; }
+.office-hire-count { display: inline-flex; align-items: center; gap: 10px; }
+.office-hire-count button { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--surface-2); color: var(--text-1); cursor: pointer; }
+.office-hire-count strong { min-width: 16px; text-align: center; color: var(--text-1); }
+.office-hire-go { height: 36px; border: 0; border-radius: 10px; background: var(--accent); color: #0b0a10; font: 700 13px/1 var(--font-ui); cursor: pointer; }
+.office-hire small { color: var(--text-4); font-size: 11px; text-align: center; }
+.office .office-hint { z-index: 6; }
+
+.office-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 4; }
+.office-labels > .is-clickable { pointer-events: auto; cursor: pointer; }
+.office-labels > .is-clickable:hover { border-color: var(--border-3); }

@@ -176,6 +176,34 @@ Next: make Office desks show last Thread line on hover; drag threads between
 projects in the rail; per-turn diff filter in the Changes pane (T3); promote
 Nightly → Stable once the walk and a week of daily use are clean.
 
+## 0.6 Phase 2 — Office campus, logos, context, violet tint, review fixes
+
+- **Office campus** (`components/office/SushOffice.jsx`, `officeScene.js`,
+  `lib/officeLayout.js` campus + interior, `lib/officeThemes.js`,
+  `lib/officeStats.js`, `hooks/useOfficeProgress.js`): one building per
+  project folder (new folders "open" with a rise + ring), signs with provider
+  logos × counts and working/need-you/idle, a New office kiosk, Seducia statue,
+  Agents board. Inside: desk per session, monitors mirror the real terminal
+  tail (~1 Hz, via `terminalRegistry.terminalTail`), Hire desk → in-office
+  launcher (provider/model/count → `launchSessions`), hires walk in through the
+  door, per-office themes (Night Loft, Neon City, Forest Cabin, Space Station,
+  Rooftop Sunset). Clicking an agent flies the camera into its monitor and
+  App shows the **real** terminal layer in placement `monitor`; Enter terminal
+  → Code mode; Back / scrim → office. Claude desks show transcript token
+  totals; XP is local (`sush-office-xp`) from working minutes, finished turns,
+  recoveries and output tokens; levels are 50·n².
+- **Provider logos** (`components/ProviderLogo.jsx`, from T3's MIT icons)
+  everywhere in Nightly; composer = Provider · model ▾ · Context ▾ · ….
+- **Context control**: tokens in use from transcript usage vs the model's
+  window (current Claude models: 1M, already the max; Haiku 200K; other CLIs:
+  "set by the model"), plus each CLI's compact / clear command.
+- **Violet tint**: `.sush-t3` surface/border/text ramp; terminal background
+  = `NIGHTLY_CANVAS` in Nightly (opaque so WebGL stays on).
+- **Independent review fixes**: safe launch-brief delivery, shared Thread
+  feed store with stamps (`lib/threadFeedStore.js`), Office idle loop +
+  context loss, git-diff-head unborn HEAD/oversize/textconv, compound
+  commands never bridged, `fs-guard.js` write guard, stable sidebar order.
+
 ## 0.5 Phase 1 — T3 Code layout port (Nightly channel)
 
 Ported from T3 Code's source (MIT; notice in `THIRD_PARTY_NOTICES.md`, shipped
