@@ -99,7 +99,7 @@ const stub = `
         { id: 'result4', type: 'tool_result', toolUseId: 't4', text: 'ok', timestamp: '2026-09-29T09:02:31Z' },
         { id: 'tool5', type: 'tool_use', toolUseId: 't5', name: 'Bash', input: { command: 'npm test' }, timestamp: '2026-09-29T09:03:10Z' },
         { id: 'result5', type: 'tool_result', toolUseId: 't5', text: '178 tests passed', timestamp: '2026-09-29T09:03:40Z' },
-        { id: 'a4', type: 'assistant', model: 'claude-sonnet-5', text: 'Done. Restore is now idempotent:\\n\\n- A per-tab generation guards the restore\\n- New regression test covers the double mount\\n- All **178** tests pass', timestamp: '2026-09-29T09:03:47Z' }
+        { id: 'a4', type: 'assistant', model: 'claude-sonnet-5', usage: { input_tokens: 12, cache_read_input_tokens: 184000, cache_creation_input_tokens: 2100, output_tokens: 640 }, text: 'Done. Restore is now idempotent:\\n\\n- A per-tab generation guards the restore\\n- New regression test covers the double mount\\n- All **178** tests pass', timestamp: '2026-09-29T09:03:47Z' }
       ]
     }),
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
@@ -1043,6 +1043,16 @@ await shot('12-fresh-start')
   if (!(await page.locator('.t3-menu-item[role="menuitemradio"][aria-checked="true"]').count())) throw new Error('Reasoning menu shows no current level')
   await shot('n2c-composer-more')
   await page.keyboard.press('Escape')
+  // Context: real usage from the transcript against the model's full window.
+  {
+    const label = await page.locator('.ctx-trigger').innerText()
+    if (!/187K/.test(label) || !/1M/.test(label)) throw new Error(`Context control did not show transcript usage: ${label}`)
+    await page.locator('.ctx-trigger').click()
+    await page.locator('.ctx-menu').waitFor({ state: 'visible', timeout: 5000 })
+    await shot('n2d-context')
+    await page.keyboard.press('Escape')
+  }
+  if (await page.locator('.ts-provider svg').count() < 2) throw new Error('Sidebar rows do not show provider logos')
   await page.keyboard.press('Control+`')
   await page.waitForTimeout(300)
   if (!(await page.locator('.shell-terminal-layer.is-hidden').count())) throw new Error('Ctrl+` did not hide the terminal drawer')
@@ -1083,7 +1093,7 @@ await shot('12-fresh-start')
   // Channel switch is instant and keeps every terminal alive (shot() asserts).
   await page.keyboard.press('Alt+2')
   await page.waitForTimeout(500)
-  await page.locator('.shell-channel').click()
+  await page.locator('.ts-brand-channel').click()
   await page.locator('.nightly-topbar').waitFor({ state: 'visible', timeout: 5000 })
   await shot('n8-back-to-stable')
   await page.locator('.shell-channel.is-stable').click()

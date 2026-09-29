@@ -90,6 +90,9 @@ export function augmentClaudeCommand(command, settingsPath, shell = {}) {
   // Respect an explicit user-provided settings source rather than silently
   // changing its semantics. Built-in Sush Claude launches do not set one.
   if (/(?:^|\s)--settings(?:\s|=)/i.test(source)) return source
+  // A compound line (`claude | tee log`, `claude && npm test`) would get the
+  // flag on its last command, not on claude. Leave those unbridged.
+  if (/[|;&<>`$()]/.test(source)) return source
   const arg = settingsEnvArg(shell)
   if (!arg) return source
   return `${source} --settings ${arg}`
@@ -326,13 +329,12 @@ export function readClaudeThread(userData, tabId, { roots } = {}) {
     return cached.result
   }
   const result = readClaudeThreadUncached(eventsPath, roots || claudeConfigRoots(process.env))
+  const transcriptStamp = result.transcriptPath ? fileStamp(result.transcriptPath) : null
+  // Callers pass this back as `since` so an unchanged poll needn't re-send
+  // (and the renderer re-clone) a multi-MB transcript.
+  result.stamp = `${eventsStamp}|${transcriptStamp ?? '-'}`
   if (result.ok && !result.error) {
-    readCache.set(eventsPath, {
-      eventsStamp,
-      transcriptPath: result.transcriptPath,
-      transcriptStamp: result.transcriptPath ? fileStamp(result.transcriptPath) : null,
-      result
-    })
+    readCache.set(eventsPath, { eventsStamp, transcriptPath: result.transcriptPath, transcriptStamp, result })
   }
   return result
 }

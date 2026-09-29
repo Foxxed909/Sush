@@ -2283,3 +2283,58 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .t3-menu-radio i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-1); }
 .t3-menu-sep { height: 1px; margin: 4px 2px; background: var(--border-1); }
 .t3-menu-note { padding: 6px 8px; color: var(--text-3); font-size: 11.5px; line-height: 1.45; }
+
+/* Provider logos + context control */
+.provider-logo { display: inline-grid; place-items: center; flex-shrink: 0; color: var(--text-1); line-height: 0; }
+.provider-logo svg { display: block; }
+.ts-provider { border: 0 !important; min-width: 0; padding: 0; background: transparent; }
+.mp-rail-btn:not(.is-active) .provider-logo { opacity: .55; filter: grayscale(.35); }
+.mp-rail-btn:hover .provider-logo { opacity: .85; }
+.ts-project-mark svg, .shell-crumb-mark svg { color: var(--text-3); }
+.ts-project-mark, .shell-crumb-mark { background: transparent !important; }
+.nightly-tile-mono.provider-logo { margin-right: 2px; }
+.ctx-trigger em { font-style: normal; color: var(--text-4); }
+.ctx-ring { flex-shrink: 0; }
+.ctx-ring-track { fill: none; stroke: rgba(255,255,255,.12); stroke-width: 2; }
+.ctx-ring-fill { fill: none; stroke: var(--text-2); stroke-width: 2; stroke-linecap: round; }
+.ctx-trigger.is-mid .ctx-ring-fill { stroke: #ffcb6b; }
+.ctx-trigger.is-high .ctx-ring-fill { stroke: #ff6b81; }
+.ctx-menu { width: 270px; }
+.ctx-window { padding: 0 8px 8px; display: grid; gap: 3px; }
+.ctx-window strong { color: var(--text-1); font-size: 13px; font-weight: 600; }
+.ctx-window span { color: var(--text-4); font-size: 11.5px; }
+.ctx-bar { margin: 0 8px; height: 4px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.ctx-bar i { display: block; height: 100%; border-radius: inherit; background: var(--text-2); }
+.ctx-bar i.is-mid { background: #ffcb6b; } .ctx-bar i.is-high { background: #ff6b81; }
+.ctx-used { padding: 6px 8px 4px; color: var(--text-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.t3-menu-item small { margin-left: auto; color: var(--text-4); font: 500 11px/1 var(--font-mono); }
+.t3-menu-item.is-danger { color: #ff8da0; }
+
+/* ── Nightly violet tint ────────────────────────────────────────────────────
+   Same ramp as Linear-backbone, pushed a few degrees toward violet so the
+   whole shell reads as one lit room instead of flat grey. Accent unchanged. */
+.sush-t3 {
+  --surface-0: #0c0a12;
+  --surface-1: #110f19;
+  --surface-2: #171420;
+  --surface-3: #201c2c;
+  --border-1: rgba(196, 178, 255, 0.075);
+  --border-2: rgba(196, 178, 255, 0.12);
+  --border-3: rgba(196, 178, 255, 0.18);
+  --text-2: #d4d1e4;
+  --text-3: #908ca6;
+  --text-4: #7a7690;
+  --text-5: #3f3a50;
+}
+.sush-t3 .sush-app-bg, .sush-t3.sush-app-bg { background-color: var(--surface-0); }
+.sush-t3 .shell-cover, .sush-t3 .office { background: var(--surface-0); }
+.sush-t3 .ts-card-surface:hover { background: rgba(196, 178, 255, .045); }
+.sush-t3 .ts-card.is-active .ts-card-surface { background: rgba(196, 178, 255, .085); }
+.sush-t3 .mp-row.is-active, .sush-t3 .t3-menu-item:hover:not(:disabled) { background: rgba(196, 178, 255, .07); }
+.sush-t3 .t3-control:hover, .sush-t3 .t3-control[aria-expanded="true"] { background: rgba(196, 178, 255, .07); }
+.sush-t3 .sd-file-body { background: #0e0c15; }
+
+.ts-brand-channel { position: relative; z-index: 1; border: 0; cursor: pointer; -webkit-app-region: no-drag; }
+.ts-brand-channel:hover { background: rgba(255,255,255,.18); }
+.shell-msg.is-user .shell-msg-bubble { max-width: 70%; }
+.mp-shell { height: auto; max-height: min(346px, 60vh); min-height: 220px; }

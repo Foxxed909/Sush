@@ -4,6 +4,7 @@ import NightlyProfileMenu from '../NightlyProfileMenu'
 import NightlyContextMenu from '../NightlyContextMenu'
 import NightlyStatusStrip from '../NightlyStatusStrip'
 import StageBackdrop from './StageBackdrop'
+import ProviderLogo from '../ProviderLogo'
 import { usePolling } from '../../hooks/usePolling'
 import { agentById } from '../../lib/agents'
 import { lineageTag } from '../../lib/lineage'
@@ -102,7 +103,7 @@ function ThreadCard({ tab, tabs, active, stateId, limited, branch, pinned, settl
         onContextMenu={e => onMenu(e, tab)}
       >
         <div className="ts-card-top">
-          <span className="ts-project-mark">{(workspaceLabel(tab) || '?').slice(0, 1).toUpperCase()}</span>
+          <span className="ts-project-mark"><Icon name="folder" size={12} /></span>
           <span className="ts-project">{workspaceLabel(tab)}</span>
           <span className="ts-flex" />
           {pinned && (
@@ -141,9 +142,7 @@ function ThreadCard({ tab, tabs, active, stateId, limited, branch, pinned, settl
           )}
           <span className="ts-flex" />
           {tab.model && branch && <span className="ts-model">{tab.model}</span>}
-          <span className="ts-provider" title={agent?.label} style={{ color: agent?.color, borderColor: `${agent?.color || '#8b9bb0'}55` }}>
-            {agent?.mono || '>_'}
-          </span>
+          <ProviderLogo provider={tab.agentId} size={14} title={agent?.label} className="ts-provider" />
         </div>
       </div>
     </li>
@@ -173,6 +172,7 @@ export default function ShellSidebar({
   onHandoffSession,
   onNewInProject,
   onOpenPane,
+  onChannel,
   status = {}
 }) {
   const [pinned, setPinned] = useState(() => loadSet(PINNED_KEY))
@@ -272,7 +272,9 @@ export default function ShellSidebar({
         <button className="ts-brand" onClick={onHome} title="Home">
           <span className="ts-brand-mark" style={{ background: accent }} />
           <span className="ts-brand-word">Sush</span>
-          <span className="ts-brand-channel">Nightly</span>
+        </button>
+        <button className="ts-brand-channel" onClick={() => onChannel?.('stable')} title="You're on Sush Nightly — click to switch to Stable (Quiet Nights). Nothing restarts.">
+          Nightly
         </button>
       </div>
 

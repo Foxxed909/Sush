@@ -37,6 +37,7 @@ import { resolveExecutable, shimSpawnSpec } from './exec'
 import { createCapabilityCache } from './provider-capabilities'
 import { parseGitPorcelainZ } from './git-porcelain'
 import { clipDiff, diffArgs } from './git-diff'
+import { sensitiveWritePath } from './fs-guard'
 import {
   augmentClaudeCommand, claudeConfigRoots, cleanupThreadEventFile, ensureClaudeThreadSettings,
   prepareThreadEventFile, readClaudeThread, sweepThreadEventFiles
@@ -1850,9 +1851,11 @@ export function registerIpcHandlers(win) {
   // The renderer never supplies a transcript path. It asks by Sush tab id;
   // main resolves the path captured from Claude's own hook payload and only
   // reads a JSONL path structurally tied to that exact session id.
-  ipcMain.handle('sush:thread-read', (event, { tabId } = {}) => {
+  ipcMain.handle('sush:thread-read', (event, { tabId, since } = {}) => {
     try {
-      return readClaudeThread(app.getPath('userData'), tabId, { roots: threadRoots.get(tabId) })
+      const result = readClaudeThread(app.getPath('userData'), tabId, { roots: threadRoots.get(tabId) })
+      if (since && result?.stamp && result.stamp === since) return { ok: true, unchanged: true, stamp: result.stamp }
+      return result
     } catch (e) {
       return { ok: false, error: e?.message || 'thread read failed' }
     }
@@ -1940,6 +1943,9 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:write-file', async (event, payload = {}) => {
     const { path: filePath, content } = payload || {}
     const target = guardedFsTarget(filePath)
+    if (target.ok && sensitiveWritePath(target.path)) {
+      return { ok: false, error: 'Sush does not write credential or shell startup files — edit them in a terminal.' }
+    }
     if (!target.ok) return target
     const { writeFile: wf, stat } = await import('fs/promises')
     try {
@@ -2194,11 +2200,19 @@ export function registerIpcHandlers(win) {
     const dir = existingDirectory(cwd)
     if (!dir) return { ok: false, diff: '', error: 'Working directory does not exist' }
     try {
-      const { stdout } = await execFileAsync('git', ['-c', 'core.quotepath=false', 'diff', 'HEAD', '--no-color', '--no-ext-diff', '-M'], {
+      const run = (base) => execFileAsync('git', ['-c', 'core.quotepath=false', 'diff', ...base, '--no-color', '--no-ext-diff', '--no-textconv', '-M'], {
         cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024
       })
+      // A repo with no commits has no HEAD: show what is staged instead.
+      const hasHead = await execFileAsync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: dir, windowsHide: true })
+        .then(() => true, () => false)
+      const { stdout } = await run(hasHead ? ['HEAD'] : ['--cached'])
       return { ok: true, ...clipDiff(stdout, 300_000) }
     } catch (e) {
+      // Over the buffer: the diff is too large to show; say so rather than fail.
+      if (e?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' || /maxBuffer/i.test(String(e?.message))) {
+        return { ok: true, diff: '', truncated: true, tooLarge: true }
+      }
       return { ok: false, diff: '', error: e?.message || 'git diff failed' }
     }
   })

@@ -22,7 +22,7 @@ import { useEntitlements } from './hooks/useEntitlements'
 import { useBattery } from './hooks/useBattery'
 import { useOnline } from './hooks/useOnline'
 import { STATES, stripAnsi } from './lib/agentActivity'
-import { isMultiline, pasteAndSubmit } from './lib/terminalRegistry'
+import { agentFailedToStart, isMultiline, pasteAndSubmit, terminalTail } from './lib/terminalRegistry'
 import { attentionItems, attentionTitle, newlyNeedingAttention } from './lib/attention'
 import { playChime } from './lib/chime'
 import { normalizePathKey, workspaceKey, workspaceLabel } from './lib/workspaces'
@@ -46,6 +46,7 @@ import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabili
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 import ShellHeader from './components/shell/ShellHeader'
 import ShellSidebar from './components/shell/ShellSidebar'
+import ProviderLogo from './components/ProviderLogo'
 import { setShellChords } from './lib/keymap'
 import { activeShellMode, modeFromShortcut, normalizeChannel, normalizeShellMode, terminalPlacement, threadCentered } from './lib/shellModes'
 
@@ -111,6 +112,8 @@ const COMMAND_HISTORY_KEY = 'sush-command-history'
 const PINNED_PROJECTS_KEY = 'sush-pinned-projects'
 const NIGHTLY_WORKSPACE_UI_KEY = 'sush-nightly-workspace-ui'
 const SHELL_MODE_KEY = 'sush-shell-mode'
+// Nightly canvas — keep in sync with --surface-0 under .sush-t3 in index.css.
+const NIGHTLY_CANVAS = '#0c0a12'
 const SHELL_DRAWER_KEY = 'sush-shell-drawer'
 const MAX_RECENT_SESSIONS = 8
 
@@ -853,9 +856,13 @@ export default function App() {
   // transparent too (see grid render). Off → terminals keep their solid theme bg.
   const wallpaperOnTerminals = !!settings.bgImage && settings.terminalWallpaper === true && !ecoMode
   const termTheme = useCallback((base) => {
-    if (!wallpaperOnTerminals || !base?.xterm) return base
-    return { ...base, xterm: { ...base.xterm, background: 'rgba(0,0,0,0)' } }
-  }, [wallpaperOnTerminals])
+    if (!base?.xterm) return base
+    if (wallpaperOnTerminals) return { ...base, xterm: { ...base.xterm, background: 'rgba(0,0,0,0)' } }
+    // Nightly: terminals sit on the violet-tinted canvas; the theme keeps its
+    // text and ANSI colours. Opaque, so the WebGL renderer stays on.
+    if (nightlyShell) return { ...base, xterm: { ...base.xterm, background: NIGHTLY_CANVAS } }
+    return base
+  }, [wallpaperOnTerminals, nightlyShell])
 
   const zoomTimerRef = useRef(null)
   useEffect(() => {
@@ -1435,20 +1442,28 @@ export default function App() {
 
     // Type the brief into a session once its agent TUI actually settles (the
     // activity classifier reports waiting/idle after boot) instead of a blind
-    // timer. Hard fallback at 12s so a brief is never silently dropped.
+    // timer. If the agent never settles, or the terminal shows it failed to
+    // start, the shell — not the agent — would read the brief as commands; so
+    // it goes to the composer for the user to send instead. Never dropped,
+    // never executed blind.
     const briefSession = (tab, i) => {
       if (!brief) return
       const startedAt = Date.now()
+      const handBack = () => {
+        setActiveId(tab.id)
+        window.dispatchEvent(new CustomEvent('sush:composer-fill', { detail: { text: brief } }))
+      }
       const timer = setInterval(() => {
         const live = tabsRef.current.find(t => t.id === tab.id)
         if (!live || live.status === 'exited') { clearInterval(timer); return }
         const elapsed = Date.now() - startedAt
         const state = agentStatesRef.current[tab.id]
         const settled = elapsed >= 2500 + i * 300 && (state === 'waiting' || state === 'idle')
-        if (settled || elapsed >= 12000) {
-          clearInterval(timer)
-          if (live.status === 'running') window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
-        }
+        if (!settled && elapsed < 12000) return
+        clearInterval(timer)
+        if (live.status !== 'running') return
+        if (!settled || agentFailedToStart(terminalTail(tab.id, 30))) { handBack(); return }
+        window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
       }, 500)
     }
 
@@ -2365,6 +2380,7 @@ export default function App() {
       <div className="flex flex-1 min-h-0">
         {!zenMode && nightlyShell && (
           <ShellSidebar
+            onChannel={setUiChannel}
             tabs={tabs}
             activeId={view === 'home' ? null : activeId}
             accent={accent}
@@ -2667,7 +2683,7 @@ export default function App() {
                             const tileAgent = agentById(tab.agentId) || agentById('shell')
                             return (
                               <div className={`nightly-tile-head${focused ? ' is-focused' : ''}`}>
-                                <span className="nightly-tile-mono" style={{ color: tileAgent?.color || accent }}>{tileAgent?.mono || '>_'}</span>
+                                <ProviderLogo provider={tab.agentId} size={13} title={tileAgent?.label} className="nightly-tile-mono" />
                                 <span className="nightly-tile-label">{tab.label}</span>
                                 {tab.model && <span className="nightly-tile-model">{tab.model}{tab.effort ? ` · ${tab.effort}` : ''}</span>}
                                 <span className="nightly-tile-state" title={st?.label || 'Sleeping'}>

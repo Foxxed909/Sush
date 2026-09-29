@@ -61,9 +61,8 @@ export default function ThreadView({ accent, activeTab, onOpenDiff }) {
             }
             if (block.kind === 'assistant') {
               return (
-                <div key={block.id} className={`shell-msg is-assistant${block.item.error ? ' is-error' : ''}`}>
+                <div key={block.id} className={`shell-msg is-assistant${block.item.error ? ' is-error' : ''}`} title={block.item.model || undefined}>
                   <div className="shell-msg-body">{renderMarkdown(block.item.text, accent)}</div>
-                  {block.item.model && <small>{block.item.model}</small>}
                 </div>
               )
             }

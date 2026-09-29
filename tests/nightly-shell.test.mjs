@@ -172,11 +172,13 @@ describe('Thread sidebar', () => {
     const { sidebarSections, compactTimeLabel, rowStatus } = await import('../src/renderer/src/lib/shellSidebar.js')
     const now = Date.now()
     const tabs = [
-      { id: 'a', cwd: '/p/one', lastActiveAt: now - 1000 },
-      { id: 'b', cwd: '/p/one', lastActiveAt: now - 5000 },
-      { id: 'c', cwd: '/p/two', lastActiveAt: now - 2000, status: 'exited' },
-      { id: 'd', cwd: '/p/two', lastActiveAt: now - 9000 }
+      { id: 'a', cwd: '/p/one', startedAt: now - 1000, lastActiveAt: now - 100 },
+      { id: 'b', cwd: '/p/one', startedAt: now - 5000, lastActiveAt: now - 50 },
+      { id: 'c', cwd: '/p/two', startedAt: now - 2000, status: 'exited' },
+      { id: 'd', cwd: '/p/two', startedAt: now - 9000 }
     ]
+    // Output bumps lastActiveAt constantly; order must not follow it.
+    expect(sidebarSections(tabs).active.map(t => t.id)).toEqual(['a', 'b', 'd'])
     const s = sidebarSections(tabs, { activity: { b: 'waiting' }, pinned: new Set(['d']) })
     expect(s.pinned.map(t => t.id)).toEqual(['d'])
     expect(s.active.map(t => t.id)).toEqual(['b', 'a'])
@@ -259,5 +261,46 @@ describe('T3 model picker rows', () => {
     expect(favs.map(r => r.key)).toEqual(['codex:'])
     expect(pickerModelLabel('claude', 'opus')).toBe('Opus')
     expect(pickerModelLabel('claude', null)).toBe('Default')
+  })
+})
+
+describe('Composer context', () => {
+  it('reads context from the latest recorded usage and knows Claude windows', async () => {
+    const { latestContextTokens } = await import('../src/renderer/src/lib/threadTurns.js')
+    const { contextWindowFor, formatTokens } = await import('../src/renderer/src/lib/nightlyModels.js')
+    expect(latestContextTokens([{ type: 'user', text: 'x' }])).toBeNull()
+    expect(latestContextTokens([
+      { type: 'assistant', usage: { input_tokens: 10, cache_read_input_tokens: 40000, output_tokens: 500 } },
+      { type: 'tool_use' },
+      { type: 'assistant', usage: { input_tokens: 20, cache_read_input_tokens: 41000, cache_creation_input_tokens: 300, output_tokens: 80 } }
+    ])).toBe(41400)
+    expect(contextWindowFor('claude', 'sonnet')).toBe(1_000_000)
+    expect(contextWindowFor('claude', 'claude-haiku-4-5')).toBe(200_000)
+    expect(contextWindowFor('codex', 'gpt-5.3-codex')).toBeNull()
+    expect(formatTokens(41400)).toBe('41K')
+    expect(formatTokens(1_000_000)).toBe('1M')
+  })
+})
+
+describe('Launch brief safety', () => {
+  it('recognises a shell that never started the agent', async () => {
+    const { agentFailedToStart } = await import('../src/renderer/src/lib/terminalRegistry.js')
+    expect(agentFailedToStart('bash: claude: command not found')).toBe(true)
+    expect(agentFailedToStart("'codex' is not recognized as an internal or external command")).toBe(true)
+    expect(agentFailedToStart('codex : The term \'codex\' is not recognized as the name of a cmdlet')).toBe(true)
+    expect(agentFailedToStart('╭ Claude Code ready in ~/sush ╮\n> ')).toBe(false)
+  })
+})
+
+describe('Write guard', () => {
+  it('refuses credential stores and shell startup files under home', async () => {
+    const { sensitiveWritePath } = await import('../src/main/fs-guard.js')
+    const home = '/home/me'
+    expect(sensitiveWritePath('/home/me/.bashrc', home, 'linux')).toBe(true)
+    expect(sensitiveWritePath('/home/me/.ssh/authorized_keys', home, 'linux')).toBe(true)
+    expect(sensitiveWritePath('/home/me/.config/gh/hosts.yml', home, 'linux')).toBe(true)
+    expect(sensitiveWritePath('/home/me/projects/app/.env', home, 'linux')).toBe(false)
+    expect(sensitiveWritePath('/home/me/projects/app/README.md', home, 'linux')).toBe(false)
+    expect(sensitiveWritePath('/tmp/.bashrc', home, 'linux')).toBe(false)
   })
 })

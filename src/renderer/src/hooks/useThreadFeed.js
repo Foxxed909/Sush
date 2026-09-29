@@ -1,36 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { usePolling } from './usePolling'
+import { refreshThreadFeed, subscribeThreadFeed } from '../lib/threadFeedStore'
 import { threadCentered } from '../lib/shellModes'
 
 // Structured Thread for one live session: polls main by tab id (main owns the
 // transcript path) and merges hook-captured prompts Claude has not flushed yet.
 // Shared by the side pane and the Nightly shell's centred transcript.
 export function useThreadFeed(activeTab) {
-  const [state, setState] = useState(null)
-  const [error, setError] = useState('')
   const tabId = activeTab?.id
   const supported = !!tabId && threadCentered(activeTab)
+  const [snapshot, setSnapshot] = useState({ state: null, error: '', tabId: null })
 
-  // Never show one session's transcript under another while the next read is
-  // in flight.
-  useEffect(() => { setState(null); setError('') }, [tabId])
-
-  const read = useCallback(async () => {
-    if (!supported) return
-    try {
-      const result = await window.sush?.threadRead?.({ tabId })
-      if (!result?.ok) {
-        setError(result?.error || 'Could not read structured Thread data.')
-        return
-      }
-      setError('')
-      setState(result)
-    } catch (e) {
-      setError(e?.message || 'Could not read structured Thread data.')
-    }
+  useEffect(() => {
+    // Never show one session's transcript under another: reset, then only
+    // accept snapshots for the tab this effect subscribed to.
+    setSnapshot({ state: null, error: '', tabId })
+    if (!supported) return undefined
+    return subscribeThreadFeed(tabId, next => setSnapshot({ ...next, tabId }))
   }, [tabId, supported])
 
-  usePolling(read, 1200, supported)
+  const current = snapshot.tabId === tabId ? snapshot : { state: null, error: '' }
+  const state = current.state
+  const error = current.error
+  const read = useCallback(() => refreshThreadFeed(tabId), [tabId])
 
   const items = useMemo(() => {
     const persisted = Array.isArray(state?.items) ? state.items : []

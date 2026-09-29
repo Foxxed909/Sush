@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { agentById } from '../lib/agents'
 import NightlyModelMenu from './NightlyModelMenu'
-import { ShellComposerMore, ShellModelPicker } from './shell/ShellModelPicker'
+import { ShellComposerMore, ShellContextControl, ShellModelPicker } from './shell/ShellModelPicker'
+import { useThreadFeed } from '../hooks/useThreadFeed'
+import { latestContextTokens } from '../lib/threadTurns'
 import { useGitBranch } from '../hooks/useGitBranch'
 import { workspaceLabel } from '../lib/workspaces'
 
@@ -22,6 +24,9 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
   const t3 = variant === 't3'
   const branchRoot = t3 ? (activeTab?.sessionRootCwd || activeTab?.workspaceCwd || activeTab?.cwd || null) : null
   const branch = useGitBranch(branchRoot)
+  // Context in use, from the bridged transcript's recorded usage (Nightly).
+  const { items: threadItems } = useThreadFeed(t3 ? activeTab : null)
+  const usedTokens = t3 ? latestContextTokens(threadItems) : null
   const [value, setValue] = useState('')
   const ref = useRef(null)
   const agent = agentById(activeTab?.agentId) || agentById('shell')
@@ -90,6 +95,13 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
                 disabled={!activeTab?.id}
                 onApply={onChangeSessionModel}
                 onNewThread={({ agentId, model: nextModel } = {}) => onNewThread ? onNewThread({ agentId, model: nextModel }) : onOpenLauncher?.()}
+              />
+              <ShellContextControl
+                provider={activeTab?.agentId || 'shell'}
+                model={providerMeta?.model || activeTab?.model || null}
+                usedTokens={usedTokens}
+                disabled={!activeTab?.id || disabled}
+                onCommand={(command) => onSend?.(command)}
               />
               <ShellComposerMore
                 provider={activeTab?.agentId || 'shell'}

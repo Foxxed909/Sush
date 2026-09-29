@@ -54,7 +54,10 @@ export function sidebarSections(tabs = [], {
     if (!q) return true
     return [tab.label, workspaceLabel(tab), tab.agentId, tab.model].some(v => String(v || '').toLowerCase().includes(q))
   })
-  const byRecency = (a, b) => (Number(b.lastActiveAt) || 0) - (Number(a.lastActiveAt) || 0)
+  // Order by when a thread started, not by its last output byte: working
+  // agents print constantly, and rows that reshuffle under the pointer are
+  // unusable. Rows that need a human still float up (below).
+  const byRecency = (a, b) => (Number(b.startedAt) || 0) - (Number(a.startedAt) || 0)
   const out = { pinned: [], active: [], settled: [] }
   for (const tab of visible) {
     const key = threadKey(tab)

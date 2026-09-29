@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icons'
 import NightlyAnchoredPopover from '../NightlyAnchoredPopover'
+import ProviderLogo from '../ProviderLogo'
 import { agentById } from '../../lib/agents'
 import {
-  PICKER_PROVIDERS, effortLabelFor, effortOptionsFor, modelSpecFor, pickerModelLabel, pickerRows, providerCapabilities
+  CONTEXT_COMMANDS, contextWindowFor, formatTokens, PICKER_PROVIDERS, effortLabelFor, effortOptionsFor, modelSpecFor, pickerModelLabel, pickerRows, providerCapabilities
 } from '../../lib/nightlyModels'
 
 // Nightly composer model controls, after T3 Code's ProviderModelPicker,
@@ -25,16 +26,7 @@ function loadFavorites() {
 }
 
 function ProviderMark({ provider, size = 16 }) {
-  const agent = agentById(provider) || agentById('shell')
-  return (
-    <span
-      className="mp-mark"
-      style={{ width: size, height: size, color: agent?.color, background: `${agent?.color || '#8b9bb0'}1f`, fontSize: size <= 16 ? 8.5 : 10 }}
-      aria-hidden
-    >
-      {agent?.mono || '>_'}
-    </span>
-  )
+  return <ProviderLogo provider={provider} size={size} title={agentById(provider)?.label} />
 }
 
 function errorText(error) {
@@ -141,7 +133,7 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                 title={agentById(id)?.label || id}
                 aria-label={agentById(id)?.label || id}
               >
-                <ProviderMark provider={id} size={22} />
+                <ProviderMark provider={id} size={18} />
                 {id === provider && <i className="mp-rail-live" aria-label="This thread's provider" />}
               </button>
             ))}
@@ -175,10 +167,12 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                   >
                     <div className="mp-row-text">
                       <div className="mp-row-name">{row.label}</div>
-                      <div className="mp-row-sub">
-                        <ProviderMark provider={row.provider} size={12} />
-                        <span>{agent?.label || row.provider}{other ? ' · new thread' : ''}</span>
-                      </div>
+                      {(query || section === 'favorites' || other) && (
+                        <div className="mp-row-sub">
+                          <ProviderMark provider={row.provider} size={12} />
+                          <span>{agent?.label || row.provider}{other ? ' · new thread' : ''}</span>
+                        </div>
+                      )}
                     </div>
                     {busy === row.key && <span className="mp-row-note">Restarting…</span>}
                     {selected && <Icon name="check" size={14} />}
@@ -281,6 +275,81 @@ export function ShellComposerMore({ provider, model, effort, onApply, onNewThrea
             <div className="t3-menu-note">{error || 'Reasoning changes need resume, which this CLI does not advertise.'}</div>
           )}
           {busy && <div className="t3-menu-note">Restarting and resuming…</div>}
+        </div>
+      </NightlyAnchoredPopover>
+    </>
+  )
+}
+
+// Context: how much of the model's window this thread uses, and the CLI's own
+// ways to shrink or reset it. Numbers come only from the transcript's recorded
+// usage (bridged Claude threads); elsewhere the control says so plainly.
+export function ShellContextControl({ provider, model, usedTokens = null, onCommand, disabled = false }) {
+  const [open, setOpen] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const anchorRef = useRef(null)
+  const windowSize = contextWindowFor(provider, model)
+  const commands = CONTEXT_COMMANDS[provider] || null
+  const pct = windowSize && usedTokens != null ? Math.min(100, (usedTokens / windowSize) * 100) : null
+  const tone = pct == null ? '' : pct >= 85 ? ' is-high' : pct >= 60 ? ' is-mid' : ''
+  useEffect(() => { if (!open) setConfirmClear(false) }, [open])
+  if (!commands) return null
+
+  const run = (command) => {
+    setOpen(false)
+    onCommand?.(command)
+  }
+  const r = 6.5
+  const circ = 2 * Math.PI * r
+
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        className={`t3-control ctx-trigger${tone}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => setOpen(v => !v)}
+        title={pct != null ? `${Math.round(pct)}% of the ${formatTokens(windowSize)} context window` : 'Context'}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden className="ctx-ring">
+          <circle cx="8" cy="8" r={r} className="ctx-ring-track" />
+          {pct != null && (
+            <circle cx="8" cy="8" r={r} className="ctx-ring-fill" strokeDasharray={`${(pct / 100) * circ} ${circ}`} transform="rotate(-90 8 8)" />
+          )}
+        </svg>
+        <span>{usedTokens != null ? formatTokens(usedTokens) : 'Context'}{windowSize ? <em> / {formatTokens(windowSize)}</em> : null}</span>
+        <Icon name="chevronDown" size={12} />
+      </button>
+      <NightlyAnchoredPopover open={open} anchorRef={anchorRef} align="left" className="t3-menu" onClose={() => setOpen(false)}>
+        <div role="menu" className="t3-menu-body ctx-menu">
+          <div className="t3-menu-label">Context window</div>
+          <div className="ctx-window">
+            <strong>{windowSize ? `${formatTokens(windowSize)} tokens` : 'Set by the model'}</strong>
+            <span>{windowSize ? 'Full window — the maximum this model offers' : `${agentById(provider)?.label || provider} picks its window per model`}</span>
+          </div>
+          <div className="ctx-bar" aria-hidden>
+            <i style={{ width: `${pct ?? 0}%` }} className={tone.trim()} />
+          </div>
+          <div className="ctx-used">
+            {usedTokens != null
+              ? `${usedTokens.toLocaleString()} tokens in use${pct != null ? ` · ${pct.toFixed(pct < 10 ? 1 : 0)}%` : ''}`
+              : 'Usage appears once the transcript records a reply.'}
+          </div>
+          <div className="t3-menu-sep" />
+          <button role="menuitem" className="t3-menu-item" onClick={() => run(commands.compact)}>
+            <Icon name="layers" size={13} /> Compact conversation <small>{commands.compact}</small>
+          </button>
+          <button
+            role="menuitem"
+            className={`t3-menu-item${confirmClear ? ' is-danger' : ''}`}
+            onClick={() => (confirmClear ? run(commands.clear) : setConfirmClear(true))}
+          >
+            <Icon name="trash" size={13} /> {confirmClear ? 'Click again to clear' : 'Clear conversation'} <small>{commands.clear}</small>
+          </button>
+          <div className="t3-menu-note">Sent to the CLI as its own command — you'll see it in the terminal.</div>
         </div>
       </NightlyAnchoredPopover>
     </>

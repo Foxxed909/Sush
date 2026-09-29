@@ -29,6 +29,8 @@ describe('Claude thread bridge', () => {
       .toBe('claude --settings $env.SUSH_CLAUDE_THREAD_SETTINGS')
     expect(augmentClaudeCommand('claude', '/tmp/hooks.json', { shellId: 'xonsh', platform: 'linux' })).toBe('claude')
     expect(augmentClaudeCommand('codex', '/tmp/hooks.json')).toBe('codex')
+    expect(augmentClaudeCommand('claude | tee log', '/tmp/hooks.json', { shellId: 'bash' })).toBe('claude | tee log')
+    expect(augmentClaudeCommand('claude && npm test', '/tmp/hooks.json', { shellId: 'bash' })).toBe('claude && npm test')
     expect(augmentClaudeCommand('claude --settings mine.json', '/tmp/hooks.json')).toBe('claude --settings mine.json')
   })
 

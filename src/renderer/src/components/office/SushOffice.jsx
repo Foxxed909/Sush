@@ -330,6 +330,12 @@ export default function SushOffice({
       if (target) interact(target)
     }
     renderer.domElement.addEventListener('click', onClick)
+    // A GPU reset (driver update, sleep, too many contexts) loses the WebGL
+    // context; ask the browser to restore it and redraw instead of freezing.
+    const onLost = (e) => { e.preventDefault(); engine.lost = true }
+    const onRestored = () => { engine.lost = false; engine.dirty = true; engine.kick?.() }
+    renderer.domElement.addEventListener('webglcontextlost', onLost)
+    renderer.domElement.addEventListener('webglcontextrestored', onRestored)
 
     let raf = 0
     let timer = 0
@@ -408,7 +414,7 @@ export default function SushOffice({
         }
 
         const ambient = !reduceMotion && now - lastDraw > 1000 / IDLE_FPS
-        if (engine.dirty || moving || ambient) {
+        if (!engine.lost && (engine.dirty || moving || ambient)) {
           renderer.render(scene, camera)
           placeLabels(engine, camera, host)
           lastDraw = now
@@ -417,10 +423,12 @@ export default function SushOffice({
       }
       // Hidden window or idle under reduce-motion: poll slowly instead of
       // spinning requestAnimationFrame at display rate.
+      // Display-rate frames only while you're walking; otherwise wake at the
+      // ambient rate (or slower under reduce-motion / a hidden window).
       const active = keys.size > 0
-      if (hidden) timer = setTimeout(() => { raf = requestAnimationFrame(frame) }, 500)
-      else if (active || !reduceMotion) raf = requestAnimationFrame(frame)
-      else timer = setTimeout(() => { raf = requestAnimationFrame(frame) }, 200)
+      const wait = hidden ? 500 : active ? 0 : reduceMotion ? 250 : 1000 / IDLE_FPS
+      if (!wait) raf = requestAnimationFrame(frame)
+      else timer = setTimeout(() => { raf = requestAnimationFrame(frame) }, wait)
     }
     engine.kick = () => { if (!raf) { clearTimeout(timer); raf = requestAnimationFrame(frame) } }
     host.addEventListener('keydown', engine.kick)

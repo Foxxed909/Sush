@@ -77,7 +77,7 @@ export default function ShellHeader({
         {activeTab ? (
           <>
             <button className="shell-crumb-project" onClick={onHome} title={projectCwd || workspaceLabel(activeTab)}>
-              <span className="shell-crumb-mark">{(workspaceLabel(activeTab) || '?').slice(0, 1).toUpperCase()}</span>
+              <span className="shell-crumb-mark"><Icon name="folder" size={11} /></span>
               <span>{workspaceLabel(activeTab)}</span>
             </button>
             <span className="shell-crumb-slash">/</span>
@@ -135,7 +135,6 @@ export default function ShellHeader({
         <button className={`shell-menu-btn${branch?.dirty ? ' is-dirty' : ''}`} onClick={e => openMenuUnder(e, gitItems())} title={branch ? `Git · ${branch.name}` : 'Git'} aria-haspopup="menu">
           <Icon name="github" size={13} /><Icon name="chevronDown" size={10} />
         </button>
-        <button className="nightly-icon-btn" onClick={onHunt} title="Search all output (Ctrl+Shift+F)"><Icon name="search" size={14} /></button>
         {drawerRelevant && (
           <button
             className={`nightly-icon-btn${drawerOpen ? ' is-active' : ''}`}
@@ -156,9 +155,6 @@ export default function ShellHeader({
             </button>
           </>
         )}
-        <button className="shell-channel" onClick={() => onChannel('stable')} title="You are on Sush Nightly. Switch to Stable (the Quiet Nights shell).">
-          Nightly
-        </button>
         <span className="nightly-window-divider" />
         <button className="nightly-window-btn" onClick={() => windowControl('minimize')} title="Minimize">−</button>
         <button className="nightly-window-btn" onClick={() => windowControl('maximize')} title="Maximize">□</button>

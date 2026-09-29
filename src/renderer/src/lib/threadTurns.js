@@ -151,3 +151,17 @@ export function buildTurns(items = []) {
   }
   return blocks
 }
+
+// Context in use for the next turn, from the latest assistant record's own
+// usage (prompt incl. cache reads/writes + that reply). Null when the
+// transcript has not recorded usage yet — never estimated.
+export function latestContextTokens(items = []) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const usage = items[i]?.type === 'assistant' ? items[i].usage : null
+    if (!usage || typeof usage !== 'object') continue
+    const parts = [usage.input_tokens, usage.cache_creation_input_tokens, usage.cache_read_input_tokens, usage.output_tokens]
+    const total = parts.reduce((n, v) => n + (Number.isFinite(Number(v)) ? Number(v) : 0), 0)
+    if (total > 0) return total
+  }
+  return null
+}

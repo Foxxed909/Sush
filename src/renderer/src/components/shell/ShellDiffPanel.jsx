@@ -104,9 +104,15 @@ export default function ShellDiffPanel({ cwd, activeTab, onCommit }) {
   const [collapsed, setCollapsed] = useState(() => new Set())
   const [scope, setScope] = useState('all')
   const requestRef = useRef(0)
+  const inflightRef = useRef(null)
+  const lastTextRef = useRef(null)
 
   const load = useCallback(async () => {
     if (!cwd) { setFiles([]); setState({ loading: false, error: '', truncated: false, repo: false }); return }
+    // One git round at a time per folder: mount, the poller and a click can
+    // all ask at once.
+    if (inflightRef.current === cwd) return
+    inflightRef.current = cwd
     const id = ++requestRef.current
     try {
       const status = await window.sush?.gitStatus?.({ cwd })
@@ -118,13 +124,25 @@ export default function ShellDiffPanel({ cwd, activeTab, onCommit }) {
       const extra = await Promise.all(untracked.map(f => window.sush?.gitDiffFile?.({ cwd: dir, path: f.path, untracked: true }).catch(() => null)))
       if (id !== requestRef.current) return
       const text = [head?.diff || '', ...extra.map(r => r?.diff || '')].join('\n')
-      setFiles(parseUnifiedDiff(text))
-      setState({ loading: false, error: head?.ok === false ? head.error : '', truncated: !!head?.truncated, repo: true })
+      // Unchanged working tree: keep the parsed files (and every rendered row).
+      if (text !== lastTextRef.current) {
+        lastTextRef.current = text
+        setFiles(parseUnifiedDiff(text))
+      }
+      setState({
+        loading: false,
+        error: head?.ok === false ? head.error : '',
+        truncated: !!head?.truncated,
+        tooLarge: !!head?.tooLarge,
+        repo: true
+      })
     } catch (e) {
       if (id === requestRef.current) setState(s => ({ ...s, loading: false, error: e?.message || 'Could not read the diff' }))
+    } finally {
+      if (inflightRef.current === cwd) inflightRef.current = null
     }
   }, [cwd])
-  useEffect(() => { setScope('all'); setCollapsed(new Set()); load() }, [load])
+  useEffect(() => { setScope('all'); setCollapsed(new Set()); lastTextRef.current = null; load() }, [load])
   usePolling(load, 10000, !!cwd)
 
   // Turn scopes: the files each Thread turn edited (bridged Claude sessions).
@@ -182,7 +200,8 @@ export default function ShellDiffPanel({ cwd, activeTab, onCommit }) {
           <div className="sd-empty">{scope === 'all' ? 'No changes against HEAD.' : 'None of this turn’s files differ from HEAD any more.'}</div>
         )}
         {state.error && <div className="sd-empty is-error">{state.error}</div>}
-        {state.truncated && <div className="sd-gap">Diff truncated — showing the first 300,000 characters.</div>}
+        {state.tooLarge && <div className="sd-empty">These changes are too large to show here — use Commit… or a terminal `git diff`.</div>}
+        {state.truncated && !state.tooLarge && <div className="sd-gap">Diff truncated — showing the first 300,000 characters.</div>}
         {scoped.map(file => (
           <FileSection
             key={file.path}

@@ -35,3 +35,22 @@ export function pasteAndSubmit(tabId, text, sendEnter, { delayMs = 40, schedule 
 export function isMultiline(text) {
   return /\r|\n/.test(String(text ?? '').replace(/[\r\n]+$/, ''))
 }
+
+// Last `lines` rows of a live terminal's buffer as plain text ('' if unmounted).
+export function terminalTail(tabId, lines = 20) {
+  const term = terminals.get(tabId)
+  const buffer = term?.buffer?.active
+  if (!buffer) return ''
+  const end = buffer.baseY + buffer.cursorY
+  const out = []
+  for (let y = Math.max(0, end - lines + 1); y <= end; y++) {
+    out.push(buffer.getLine(y)?.translateToString(true) ?? '')
+  }
+  return out.join('\n')
+}
+
+// The shell, not the agent, is in front: the CLI was missing or exited at
+// launch. Typing a brief now would run prose as shell commands.
+export function agentFailedToStart(tail) {
+  return /command not found|is not recognized as (an internal|the name of)|No such file or directory|not found in PATH|cannot find|CommandNotFoundException|exited with code [1-9]/i.test(String(tail || ''))
+}

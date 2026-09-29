@@ -93,8 +93,10 @@ export function effortLabelFor(provider, value, fallback = 'Provider default') {
   const v = String(value || '')
   if (!v) return fallback
   if (provider === 'claude' && v === 'ultracode') return 'ultracode · xhigh + workflows'
-  return v
+  return EFFORT_LABELS[v] || v
 }
+
+const EFFORT_LABELS = { none: 'None', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' }
 
 export function effortOptionsFor(provider, model = null) {
   const spec = modelSpecFor(provider)?.effort
@@ -185,4 +187,29 @@ export function pickerModelLabel(provider, model) {
   const spec = modelSpecFor(provider)
   if (!model) return spec?.options.find(o => !o.value)?.label || 'Default'
   return spec?.options.find(o => o.value === model)?.label || model
+}
+
+// ── Context window (Nightly composer) ──────────────────────────────────────
+// Current Claude models run with a 1M-token window by default (Haiku: 200K);
+// there is no larger window to opt into, so "max" is what they already use.
+// Other CLIs choose their window per model; Sush does not guess it.
+export function contextWindowFor(provider, model) {
+  if (provider !== 'claude') return null
+  return /haiku/i.test(String(model || '')) ? 200_000 : 1_000_000
+}
+
+// Slash commands each CLI documents for shrinking or resetting its context.
+export const CONTEXT_COMMANDS = {
+  claude: { compact: '/compact', clear: '/clear' },
+  codex: { compact: '/compact', clear: '/new' },
+  gemini: { compact: '/compress', clear: '/clear' },
+  opencode: { compact: '/compact', clear: '/new' }
+}
+
+export function formatTokens(n) {
+  const v = Number(n)
+  if (!Number.isFinite(v) || v < 0) return '—'
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v % 1_000_000 ? 1 : 0).replace(/\.0$/, '')}M`
+  if (v >= 1000) return `${Math.round(v / 1000)}K`
+  return String(Math.round(v))
 }
