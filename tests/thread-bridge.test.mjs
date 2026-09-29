@@ -1,4 +1,4 @@
-import { mkdtempSync, existsSync, rmSync } from 'fs'
+import { mkdtempSync, existsSync, rmSync, appendFileSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
@@ -8,6 +8,7 @@ import {
   cleanupThreadEventFile,
   prepareThreadEventFile,
   parseClaudeTranscript,
+  readClaudeThread,
   parseThreadEvents,
   validClaudeTranscriptPath
 } from '../src/main/thread-bridge.js'
@@ -125,6 +126,38 @@ describe('Claude thread bridge', () => {
       expect(cleanupThreadEventFile(root, 'tab-42')).toBe(true)
       expect(existsSync(path)).toBe(false)
       expect(cleanupThreadEventFile(root, 'tab-42')).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('drops hook prompts from a previous Claude session after /clear', () => {
+    const OTHER = '223e4567-e89b-42d3-a456-426614174000'
+    const rows = [
+      { hook_event_name: 'SessionStart', session_id: SID, transcript_path: `/tmp/${SID}.jsonl` },
+      { hook_event_name: 'UserPromptSubmit', session_id: SID, prompt: 'old work' },
+      { hook_event_name: 'SessionStart', session_id: OTHER, transcript_path: `/tmp/${OTHER}.jsonl` },
+      { hook_event_name: 'UserPromptSubmit', session_id: OTHER, prompt: 'new work' }
+    ].map(JSON.stringify).join('\n')
+    const state = parseThreadEvents(rows)
+    expect(state.sessionId).toBe(OTHER)
+    expect(state.prompts.map(p => p.text)).toEqual(['new work'])
+  })
+
+  it('serves unchanged polls from cache and re-reads when either file changes', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sush-thread-'))
+    try {
+      const events = prepareThreadEventFile(root, 'tab-7')
+      const transcript = join(root, `${SID}.jsonl`)
+      writeFileSync(transcript, JSON.stringify({ type: 'user', uuid: 'u1', message: { content: 'hi' } }) + '\n')
+      appendFileSync(events, JSON.stringify({ hook_event_name: 'SessionStart', session_id: SID, transcript_path: transcript }) + '\n')
+      const first = readClaudeThread(root, 'tab-7')
+      expect(first.items.map(i => i.text)).toEqual(['hi'])
+      expect(readClaudeThread(root, 'tab-7')).toBe(first)
+      appendFileSync(transcript, JSON.stringify({ type: 'assistant', uuid: 'a1', message: { content: 'hello' } }) + '\n')
+      const second = readClaudeThread(root, 'tab-7')
+      expect(second).not.toBe(first)
+      expect(second.items.map(i => i.text)).toEqual(['hi', 'hello'])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

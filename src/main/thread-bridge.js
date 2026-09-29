@@ -57,12 +57,14 @@ export function prepareThreadEventFile(userData, tabId) {
   const path = threadEventPath(userData, tabId)
   if (!path) return null
   writeFileSync(path, '', { encoding: 'utf8', mode: 0o600 })
+  readCache.delete(path)
   return path
 }
 
 export function cleanupThreadEventFile(userData, tabId) {
   const path = threadEventPath(userData, tabId)
   if (!path) return false
+  readCache.delete(path)
   try {
     unlinkSync(path)
     return true
@@ -80,6 +82,20 @@ export function augmentClaudeCommand(command, settingsPath, shell = {}) {
   // changing its semantics. Built-in Sush Claude launches do not set one.
   if (/(?:^|\s)--settings(?:\s|=)/i.test(source)) return source
   return `${source} --settings ${settingsEnvArg(shell)}`
+}
+
+// Thread polls every ~1.2 s. Re-reading and re-parsing a multi-MB transcript
+// that has not changed is pure waste, so reads are memoised per tab on the
+// size+mtime of both files and a stamp-identical poll returns the cached result.
+const readCache = new Map()
+
+function fileStamp(path) {
+  try {
+    const stat = statSync(path)
+    return `${stat.size}:${stat.mtimeMs}`
+  } catch {
+    return 'missing'
+  }
 }
 
 function readTail(path, maxBytes) {
@@ -139,7 +155,11 @@ export function parseThreadEvents(text) {
     if (event === 'SessionEnd') state = 'ended'
   }
 
-  return { sessionId, transcriptPath, cwd, state, lastEvent, prompts, eventCount: rows.length }
+  // /clear and /resume start a new Claude session in the same PTY. Prompts
+  // from the previous session are not in the new transcript, so keeping them
+  // would render them forever as "not yet flushed" live prompts.
+  const current = prompts.filter(prompt => prompt.sessionId === sessionId)
+  return { sessionId, transcriptPath, cwd, state, lastEvent, prompts: current, eventCount: rows.length }
 }
 
 function textFromToolResult(content) {
@@ -248,6 +268,25 @@ export function readClaudeThread(userData, tabId) {
     return { ok: true, bound: false, provider: 'claude', items: [], eventCount: 0 }
   }
 
+  const eventsStamp = fileStamp(eventsPath)
+  const cached = readCache.get(eventsPath)
+  if (cached && cached.eventsStamp === eventsStamp &&
+      (!cached.transcriptPath || cached.transcriptStamp === fileStamp(cached.transcriptPath))) {
+    return cached.result
+  }
+  const result = readClaudeThreadUncached(eventsPath)
+  if (result.ok && !result.error) {
+    readCache.set(eventsPath, {
+      eventsStamp,
+      transcriptPath: result.transcriptPath,
+      transcriptStamp: result.transcriptPath ? fileStamp(result.transcriptPath) : null,
+      result
+    })
+  }
+  return result
+}
+
+function readClaudeThreadUncached(eventsPath) {
   let eventsTail
   try { eventsTail = readTail(eventsPath, THREAD_EVENT_LIMIT_BYTES) } catch (error) {
     return { ok: false, error: error.message }
