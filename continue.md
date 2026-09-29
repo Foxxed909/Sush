@@ -139,6 +139,43 @@ repo owner may rely on — remove it separately if unwanted).
 
 ---
 
+## 0.4 Channels + T3 shell + Office (2026-09-29, branch `ccr-77e59d72-njw4dy`)
+
+**Interface channels.** `settings.uiChannel`: `nightly` (default) or `stable`.
+Nightly is the T3 Code-style shell and gets every change first; Stable is the
+Quiet Nights shell (`NightlyTopbar` + inspector) and receives Nightly changes
+once they hold up. Toggle: header pill (both shells) or Settings ▸ Appearance.
+Switching never restarts a session.
+
+**Nightly shell** (`components/shell/`, `lib/shellModes.js`):
+- Modes: Chat · Code · Thread · Agents · Office (Alt+1..5; app-owned only on
+  Nightly via `keymap.setShellChords`). Agents *is* `view === 'overview'`.
+- Terminal layer is one node wrapped in `.shell-terminal-layer`; modes only
+  change its placement (`full` / `drawer` / `hidden`, see `terminalPlacement`).
+  The visual walk fails on any remount — keep it that way.
+- Thread centre (`ThreadView`) only for bridged Claude PTYs; others keep the
+  terminal centred. Work logs group tool calls (`lib/threadTurns.js`).
+  Polling lives in `hooks/useThreadFeed.js`, shared with the side pane.
+- Terminal drawer: Ctrl+` / header button, drag to resize.
+
+**Sush Office** (`components/office/SushOffice.jsx`, `lib/officeLayout.js`):
+three.js scene rendered at 1/3 resolution, pixel-upscaled. One room per
+project, desk per session (monitor colour + pose = live state; raised hand =
+needs you), empty desk launches in that project, Seducia at reception opens
+Chat, the board opens Agents. Labels are DOM overlays projected from 3D
+anchors (pixel-scaled canvas text was unreadable). Lazy chunk (~1 MB, three).
+
+**Hardening in the same branch:** Thread only reads transcripts under the
+PTY env's Claude config root; IPC refuses non-Sush senders; Browser webview on
+its own `persist:sush-browser` partition (deny-all permissions); stale Thread
+event files swept at startup; Thread reads cached on size+mtime; hook prompts
+from a previous `/clear`ed session dropped; `--settings` uses Nushell/Elvish
+syntax or skips unknown shells.
+
+Next: make Office desks show last Thread line on hover; drag threads between
+projects in the rail; per-turn diff filter in the Changes pane (T3); promote
+Nightly → Stable once the walk and a week of daily use are clean.
+
 ## 0.3 Mainline continuation after Claude handoff
 
 Claude's branch `claude/roadmap-development-continue-i32p2l` was fast-forwarded
