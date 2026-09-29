@@ -44,6 +44,9 @@ import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
 import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
+import ShellHeader from './components/shell/ShellHeader'
+import { setShellChords } from './lib/keymap'
+import { activeShellMode, modeFromShortcut, normalizeChannel, normalizeShellMode, terminalPlacement, threadCentered } from './lib/shellModes'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -72,6 +75,9 @@ const surfaceLoaders = {
   PlansPage: () => import('./components/PlansPage'),
   ChangelogPage: () => import('./components/ChangelogPage'),
   NightlyOverview: () => import('./components/NightlyOverview'),
+  SushOffice: () => import('./components/office/SushOffice'),
+  Seducia: () => import('./components/Seducia'),
+  ThreadView: () => import('./components/shell/ThreadView'),
 }
 const Settings = lazySurface(surfaceLoaders.Settings)
 const NewSessionModal = lazySurface(surfaceLoaders.NewSessionModal)
@@ -85,6 +91,9 @@ const ProfileViewer = lazySurface(surfaceLoaders.ProfileViewer)
 const PlansPage = lazySurface(surfaceLoaders.PlansPage)
 const ChangelogPage = lazySurface(surfaceLoaders.ChangelogPage)
 const NightlyOverview = lazySurface(surfaceLoaders.NightlyOverview)
+const SushOffice = lazySurface(surfaceLoaders.SushOffice)
+const SeduciaChat = lazySurface(surfaceLoaders.Seducia)
+const ThreadView = lazySurface(surfaceLoaders.ThreadView)
 // Warm the ones people open constantly once the app is idle.
 if (typeof window !== 'undefined') {
   const warm = () => ['NewSessionModal', 'RightPanel', 'Settings'].forEach(n => surfaceLoaders[n]().catch(() => {}))
@@ -100,6 +109,8 @@ const LAST_HOME_VIEW_KEY = 'sush-last-home-view'
 const COMMAND_HISTORY_KEY = 'sush-command-history'
 const PINNED_PROJECTS_KEY = 'sush-pinned-projects'
 const NIGHTLY_WORKSPACE_UI_KEY = 'sush-nightly-workspace-ui'
+const SHELL_MODE_KEY = 'sush-shell-mode'
+const SHELL_DRAWER_KEY = 'sush-shell-drawer'
 const MAX_RECENT_SESSIONS = 8
 
 function loadCommandHistory() {
@@ -347,6 +358,12 @@ export default function App() {
   const [seduciaOpen, setSeduciaOpen] = useState(false)
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
   const [settings, setSettings] = useState(loadSettings)
+  // Nightly channel (T3-style shell) vs Stable (Quiet Nights shell).
+  const uiChannel = normalizeChannel(settings.uiChannel)
+  const nightlyShell = uiChannel === 'nightly'
+  const [shellMode, setShellModeState] = useState(() => normalizeShellMode(localStorage.getItem(SHELL_MODE_KEY)))
+  const [drawerOpen, setDrawerOpen] = useState(() => localStorage.getItem(SHELL_DRAWER_KEY) !== '0')
+  const [drawerHeight, setDrawerHeight] = useState(260)
   const entitlements = useEntitlements()
   const online = useOnline()
   // Performance ladder (lib/power): full < reduced < saver < eco, each rung
@@ -650,6 +667,65 @@ export default function App() {
   }, [])
 
   const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
+
+  // ── Nightly shell modes ────────────────────────────────────────────────────
+  // Chat · Code · Thread · Agents · Office. Agents IS the Overview view; the
+  // others are layouts around the same mounted terminals.
+  const currentShellMode = activeShellMode(view, shellMode)
+  const setShellMode = useCallback((mode) => {
+    if (mode === 'agents') { setView('overview'); return }
+    const next = normalizeShellMode(mode)
+    setShellModeState(next)
+    try { localStorage.setItem(SHELL_MODE_KEY, next) } catch {}
+    setView(prev => (prev === 'overview' || (prev === 'home' && tabsRef.current.length && next !== 'chat' && next !== 'office')) ? 'terminal' : prev)
+  }, [])
+  const toggleDrawer = useCallback(() => {
+    setDrawerOpen(prev => {
+      const next = !prev
+      try { localStorage.setItem(SHELL_DRAWER_KEY, next ? '1' : '0') } catch {}
+      return next
+    })
+  }, [])
+  const setUiChannel = useCallback((channel) => {
+    setSettings(prev => {
+      const next = { ...prev, uiChannel: normalizeChannel(channel) }
+      try { localStorage.setItem('sush-settings', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [])
+  const placement = terminalPlacement({
+    channel: uiChannel,
+    mode: currentShellMode,
+    view,
+    activeTab: tabs.length ? activeTab : null,
+    drawerOpen
+  })
+  const threadInCenter = nightlyShell && view === 'terminal' && currentShellMode === 'thread' && threadCentered(activeTab)
+  const coverSurface = nightlyShell && view !== 'overview' && (currentShellMode === 'chat' || currentShellMode === 'office')
+    ? currentShellMode : null
+
+  useEffect(() => { setShellChords(nightlyShell) }, [nightlyShell])
+  useEffect(() => {
+    if (!nightlyShell) return undefined
+    const handler = (e) => {
+      if (!canHandleGlobalShortcut(identity.ready, blockingShortcutSurface)) return
+      const mode = modeFromShortcut(e)
+      if (mode) { e.preventDefault(); setShellMode(mode); return }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === '`') { e.preventDefault(); toggleDrawer() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [nightlyShell, identity.ready, blockingShortcutSurface, setShellMode, toggleDrawer])
+
+  const startDrawerDrag = useCallback((e) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const start = drawerHeight
+    const move = (ev) => setDrawerHeight(Math.max(140, Math.min(window.innerHeight * 0.7, start + (startY - ev.clientY))))
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }, [drawerHeight])
 
   // Nightly workspace UI is keyed by the stable project root. Hydration lives
   // beside the layout hooks below so pane + snap-layout state move together.
@@ -1265,6 +1341,8 @@ export default function App() {
     // project before applying the incoming project's saved/default preset.
     setActiveId(id)
     setView('terminal')
+    // T3: picking a thread shows it, so leave the covering Chat/Office modes.
+    setShellModeState(mode => (mode === 'chat' || mode === 'office') ? 'code' : mode)
   }, [])
 
   const openTab = useCallback((profile, options = {}) => {
@@ -2320,8 +2398,42 @@ export default function App() {
         )}
 
         <div className="flex flex-col flex-1 min-w-0">
-          {!zenMode && (
+          {!zenMode && nightlyShell && (
+            <ShellHeader
+              activeTab={view === 'home' || !tabs.length ? null : activeTab}
+              accent={accent}
+              activity={agentStates}
+              limited={!!agentLimits[activeId]}
+              guardTrip={guardTrip}
+              providerMeta={nightlyProviderMeta && {
+                ...nightlyProviderMeta,
+                onSwitch: (slotId) => activeId && switchToAccountAndResume(activeId, slotId)
+              }}
+              mode={view === 'home' ? null : currentShellMode}
+              onMode={setShellMode}
+              attention={attention}
+              onAttentionFocus={selectTab}
+              onAttentionHandoff={(id) => performLimitHandoff(id)}
+              broadcast={broadcastMode}
+              onToggleBroadcast={() => setBroadcastMode(false)}
+              rightOpen={rightOpen}
+              rightTab={rightTab}
+              drawerOpen={drawerOpen}
+              onToggleDrawer={toggleDrawer}
+              onOpenPane={(pane) => {
+                // T3 keeps review tools (diff, PRs) in the right panel.
+                if (pane === 'changes' || pane === 'github') setPaneDock('right')
+                setRightTab(pane)
+                setRightOpen(true)
+              }}
+              onTogglePanel={() => setRightOpen(prev => !prev)}
+              onHunt={() => setShowHunt(true)}
+              onChannel={setUiChannel}
+            />
+          )}
+          {!zenMode && !nightlyShell && (
             <NightlyTopbar
+              onChannel={setUiChannel}
               attention={attention}
               onAttentionFocus={selectTab}
               onAttentionHandoff={(id) => performLimitHandoff(id)}
@@ -2364,6 +2476,30 @@ export default function App() {
           )}
 
           <div className="flex-1 relative overflow-hidden">
+            {/* Nightly shell surfaces sit over or above the terminal layer; the
+                layer itself is always the same node, so no terminal remounts
+                when the mode, drawer or channel changes. */}
+            {threadInCenter && (
+              <div className="shell-thread-slot" style={{ bottom: drawerOpen ? drawerHeight : 0 }}>
+                <ThreadView accent={accent} activeTab={activeTab} />
+              </div>
+            )}
+            <div
+              className={`shell-terminal-layer is-${placement}`}
+              style={placement === 'drawer' ? { top: 'auto', height: drawerHeight } : undefined}
+              aria-hidden={placement === 'hidden' || undefined}
+            >
+            {placement === 'drawer' && (
+              <div className="shell-drawer-head" onMouseDown={startDrawerDrag} title="Drag to resize">
+                <Icon name="terminal" size={11} />
+                <span>Terminal</span>
+                <small>{activeTab?.label}</small>
+                <button onMouseDown={(e) => e.stopPropagation()} onClick={toggleDrawer} title="Hide terminal (Ctrl+`)">
+                  <Icon name="chevronDown" size={12} />
+                </button>
+              </div>
+            )}
+            <div className="shell-terminal-body">
             {(
               // One container for both layouts. Grid mode is a STYLE switch on
               // the same keyed wrappers — terminals never remount on toggle, so
@@ -2520,6 +2656,47 @@ export default function App() {
                 )
               })()
             )}
+            </div>
+            </div>
+
+            {coverSurface === 'chat' && (
+              <div key="shell-chat" className="shell-cover shell-chat">
+                <div className="shell-chat-column">
+                  <SeduciaChat
+                    docked
+                    accent={accent}
+                    tabs={tabs}
+                    recentSessions={recentSessions}
+                    activeCwd={activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
+                    scope={seduciaScope}
+                    controls={seduciaControls}
+                    onLaunch={launchSessions}
+                    onRun={runSmartInput}
+                    onPrompt={sendAgentPrompt}
+                    onFocus={(target, groupId) => { focusAgent(target, groupId); setShellMode('code') }}
+                    onOpenLauncher={() => setShowLauncher(true)}
+                    onClose={() => setShellMode('code')}
+                    settings={settings}
+                  />
+                </div>
+              </div>
+            )}
+
+            {coverSurface === 'office' && (
+              <div key="shell-office" className="shell-cover">
+                <SushOffice
+                  tabs={tabs}
+                  states={agentStates}
+                  limits={agentLimits}
+                  accent={accent}
+                  reduceMotion={!!(settings.reduceMotion || ecoMode)}
+                  onOpenSession={(id) => { selectTab(id); setShellMode('code') }}
+                  onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
+                  onChat={() => setShellMode('chat')}
+                  onAgents={() => setShellMode('agents')}
+                />
+              </div>
+            )}
 
             {view === 'home' && (
               <div key="home-view" className="sush-reveal" style={{ position: 'absolute', inset: 0 }}>
@@ -2607,7 +2784,7 @@ export default function App() {
             )}
           </div>
 
-          {view === 'terminal' && !zenMode && (
+          {view === 'terminal' && !zenMode && !coverSurface && (
             <NightlyComposer
               activeTab={activeTab}
               providerMeta={nightlyProviderMeta}

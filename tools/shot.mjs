@@ -208,6 +208,11 @@ const stub = `
     sessionStorage.setItem('sush-skip-splash', '1')
     localStorage.setItem('sush-active-user', 'u1')
     localStorage.setItem('u:u1::sush-last-seen-version', '${appVersion}')
+    // The main walk photographs the Stable (Quiet Nights) shell; the Nightly
+    // walk at the end switches channel itself.
+    if (!localStorage.getItem('u:u1::sush-settings')) {
+      localStorage.setItem('u:u1::sush-settings', JSON.stringify({ uiChannel: 'stable' }))
+    }
     localStorage.setItem('u:u1::sush-session-layout', JSON.stringify({
       activeKey: 'powershell:powershell:/home/taylor/sush:sess-demo',
       tabs: [{
@@ -288,7 +293,9 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, dev
 await page.addInitScript(() => {
   const getContext = HTMLCanvasElement.prototype.getContext
   HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
-    return /webgl/i.test(String(type)) ? null : getContext.call(this, type, ...rest)
+    // The Office walk opts back in: it is a real WebGL scene, not xterm.
+    if (/webgl/i.test(String(type)) && !window.__sushAllowWebgl) return null
+    return getContext.call(this, type, ...rest)
   }
 })
 await page.addInitScript(stub)
@@ -937,6 +944,83 @@ await page.getByText('Manage users…', { exact: true }).click()
 await shot('11-users')
 await page.getByText('Start fresh…', { exact: true }).click()
 await shot('12-fresh-start')
+
+// ── Nightly channel (T3-style shell) ────────────────────────────────────────
+// Same sessions, new arrangement: Chat · Code · Thread · Agents · Office, and
+// no terminal may remount while switching between them.
+{
+  await page.evaluate(() => {
+    const key = 'u:u1::sush-settings'
+    const prev = JSON.parse(localStorage.getItem(key) || '{}')
+    localStorage.setItem(key, JSON.stringify({ ...prev, uiChannel: 'nightly' }))
+    localStorage.setItem('u:u1::sush-shell-mode', 'code')
+    localStorage.setItem('u:u1::sush-right-open', '0')
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1800)
+  if (!(await page.locator('.shell-header').isVisible())) throw new Error('Nightly channel did not render the T3 shell header')
+  if (await page.locator('.nightly-topbar').count()) throw new Error('Nightly channel still rendered the Stable topbar')
+  await page.keyboard.press('Control+1')
+  await page.waitForTimeout(1400)
+  const modeActive = async (label) => (await page.locator('.shell-modes button.is-active').getAttribute('data-mode')) === label.toLowerCase()
+  if (!(await modeActive('Code'))) throw new Error('Nightly shell did not start in Code mode')
+  if (!(await page.locator('.shell-terminal-layer.is-full').count())) throw new Error('Code mode does not show the terminal full-size')
+  await page.locator('.shell-header [title="Toggle diff panel"]').click()
+  await page.waitForTimeout(600)
+  await shot('n1-code-diff')
+
+  await page.keyboard.press('Alt+3')
+  await page.waitForTimeout(900)
+  if (!(await modeActive('Thread'))) throw new Error('Alt+3 did not switch to Thread')
+  await page.locator('.shell-thread-slot').waitFor({ state: 'visible', timeout: 5000 })
+  if (!(await page.locator('.shell-terminal-layer.is-drawer').count())) throw new Error('Thread mode did not dock the terminal in the drawer')
+  await shot('n2-thread')
+  await page.keyboard.press('Control+`')
+  await page.waitForTimeout(300)
+  if (!(await page.locator('.shell-terminal-layer.is-hidden').count())) throw new Error('Ctrl+` did not hide the terminal drawer')
+  await page.keyboard.press('Control+`')
+  await page.waitForTimeout(300)
+
+  // A non-Claude session keeps its terminal in the centre in Thread mode.
+  await page.locator('.nightly-thread-row').filter({ hasText: 'Codex' }).first().click()
+  await page.waitForTimeout(700)
+  if (await page.locator('.shell-thread-slot').count()) throw new Error('Thread mode covered a non-Claude terminal')
+  if (!(await page.locator('.shell-terminal-layer.is-full').count())) throw new Error('Non-Claude session lost its centred terminal in Thread mode')
+  await shot('n3-thread-codex')
+
+  await page.keyboard.press('Alt+1')
+  await page.locator('.shell-chat').waitFor({ state: 'visible', timeout: 5000 })
+  await shot('n4-chat')
+
+  await page.keyboard.press('Alt+4')
+  await page.waitForTimeout(700)
+  if (!(await modeActive('Agents'))) throw new Error('Alt+4 did not open Agents')
+  await shot('n5-agents')
+
+  await page.evaluate(() => { window.__sushAllowWebgl = true })
+  await page.keyboard.press('Alt+5')
+  await page.locator('.office-canvas').waitFor({ state: 'attached', timeout: 10000 })
+  await page.waitForTimeout(1500)
+  await shot('n6-office')
+  await page.locator('.office-host').focus()
+  await page.keyboard.down('w')
+  await page.waitForTimeout(900)
+  await page.keyboard.up('w')
+  await page.keyboard.down('a')
+  await page.waitForTimeout(500)
+  await page.keyboard.up('a')
+  await page.waitForTimeout(500)
+  await shot('n7-office-walk')
+
+  // Channel switch is instant and keeps every terminal alive (shot() asserts).
+  await page.keyboard.press('Alt+2')
+  await page.waitForTimeout(500)
+  await page.locator('.shell-channel').click()
+  await page.locator('.nightly-topbar').waitFor({ state: 'visible', timeout: 5000 })
+  await shot('n8-back-to-stable')
+  await page.locator('.shell-channel.is-stable').click()
+  await page.locator('.shell-header').waitFor({ state: 'visible', timeout: 5000 })
+}
 
 await browser.close()
 server.close()
