@@ -9,6 +9,8 @@ import {
   prepareThreadEventFile,
   parseClaudeTranscript,
   readClaudeThread,
+  sweepThreadEventFiles,
+  transcriptWithinRoots,
   parseThreadEvents,
   validClaudeTranscriptPath
 } from '../src/main/thread-bridge.js'
@@ -23,6 +25,9 @@ describe('Claude thread bridge', () => {
       .toBe('claude --settings "$env:SUSH_CLAUDE_THREAD_SETTINGS"')
     expect(augmentClaudeCommand('claude', 'C:\\Temp\\hooks.json', { shellId: 'cmd', platform: 'win32' }))
       .toBe('claude --settings "%SUSH_CLAUDE_THREAD_SETTINGS%"')
+    expect(augmentClaudeCommand('claude', '/tmp/hooks.json', { shellId: 'nu', platform: 'linux' }))
+      .toBe('claude --settings $env.SUSH_CLAUDE_THREAD_SETTINGS')
+    expect(augmentClaudeCommand('claude', '/tmp/hooks.json', { shellId: 'xonsh', platform: 'linux' })).toBe('claude')
     expect(augmentClaudeCommand('codex', '/tmp/hooks.json')).toBe('codex')
     expect(augmentClaudeCommand('claude --settings mine.json', '/tmp/hooks.json')).toBe('claude --settings mine.json')
   })
@@ -151,13 +156,50 @@ describe('Claude thread bridge', () => {
       const transcript = join(root, `${SID}.jsonl`)
       writeFileSync(transcript, JSON.stringify({ type: 'user', uuid: 'u1', message: { content: 'hi' } }) + '\n')
       appendFileSync(events, JSON.stringify({ hook_event_name: 'SessionStart', session_id: SID, transcript_path: transcript }) + '\n')
-      const first = readClaudeThread(root, 'tab-7')
+      const opts = { roots: [root] }
+      const first = readClaudeThread(root, 'tab-7', opts)
       expect(first.items.map(i => i.text)).toEqual(['hi'])
-      expect(readClaudeThread(root, 'tab-7')).toBe(first)
+      expect(readClaudeThread(root, 'tab-7', opts)).toBe(first)
       appendFileSync(transcript, JSON.stringify({ type: 'assistant', uuid: 'a1', message: { content: 'hello' } }) + '\n')
-      const second = readClaudeThread(root, 'tab-7')
+      const second = readClaudeThread(root, 'tab-7', opts)
       expect(second).not.toBe(first)
       expect(second.items.map(i => i.text)).toEqual(['hi', 'hello'])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('only trusts transcripts under the PTY\'s Claude config roots', () => {
+    expect(transcriptWithinRoots(`/home/me/.claude/projects/r/${SID}.jsonl`, ['/home/me/.claude'], 'linux')).toBe(true)
+    expect(transcriptWithinRoots(`/tmp/${SID}.jsonl`, ['/home/me/.claude'], 'linux')).toBe(false)
+    expect(transcriptWithinRoots(`/home/me/.claude-evil/${SID}.jsonl`, ['/home/me/.claude'], 'linux')).toBe(false)
+    expect(transcriptWithinRoots(`/home/me/.claude/${SID}.jsonl`, [], 'linux')).toBe(false)
+  })
+
+  it('refuses a hook-supplied transcript outside the config roots', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sush-thread-'))
+    try {
+      const events = prepareThreadEventFile(root, 'tab-9')
+      const transcript = join(root, `${SID}.jsonl`)
+      writeFileSync(transcript, JSON.stringify({ type: 'user', uuid: 'u1', message: { content: 'secret' } }) + '\n')
+      appendFileSync(events, JSON.stringify({ hook_event_name: 'SessionStart', session_id: SID, transcript_path: transcript }) + '\n')
+      const result = readClaudeThread(root, 'tab-9', { roots: [join(root, 'claude-home')] })
+      expect(result.bound).toBe(true)
+      expect(result.transcriptAvailable).toBe(false)
+      expect(result.items).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('sweeps stale event files left by a crash', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sush-thread-'))
+    try {
+      const a = prepareThreadEventFile(root, 'tab-a')
+      const b = prepareThreadEventFile(root, 'tab-b')
+      expect(sweepThreadEventFiles(root)).toBe(2)
+      expect(existsSync(a) || existsSync(b)).toBe(false)
+      expect(sweepThreadEventFiles(join(root, 'missing'))).toBe(0)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

@@ -37,7 +37,10 @@ import { resolveExecutable, shimSpawnSpec } from './exec'
 import { createCapabilityCache } from './provider-capabilities'
 import { parseGitPorcelainZ } from './git-porcelain'
 import { clipDiff, diffArgs } from './git-diff'
-import { augmentClaudeCommand, cleanupThreadEventFile, ensureClaudeThreadSettings, prepareThreadEventFile, readClaudeThread } from './thread-bridge'
+import {
+  augmentClaudeCommand, claudeConfigRoots, cleanupThreadEventFile, ensureClaudeThreadSettings,
+  prepareThreadEventFile, readClaudeThread, sweepThreadEventFiles
+} from './thread-bridge'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
@@ -105,6 +108,7 @@ function formatBytes(n) {
 }
 const fileWatchers = new Map()
 const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
+const threadRoots = new Map() // tabId -> Claude config roots its PTY env points at
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
 let identityRuntimeGeneration = 0
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
@@ -1011,29 +1015,26 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
     }
   }
 
-  const { proc, shell } = spawnPty(requestedShell, {
-    cols,
-    rows,
-    cwd: shellCwd,
-    env: {
-      ...process.env,
-      ...sushrcEnv,
-      // Identity isolation: when a Sush user is signed in, point CLI config
-      // dirs (claude/codex/gh/XDG, optionally HOME itself) at their private
-      // tree so logins never bleed between users. Wins over .sushrc env.
-      ...activeUserEnv(),
-      TERM: 'xterm-256color',
-      COLORTERM: 'truecolor',
-      SUSH: '1',
-      SUSH_PROFILE_ID: profileId ?? '',
-      SUSH_SHELL_ID: requestedShell.id,
-      SUSH_TAB_ID: tabId,
-      ...(threadEventFile ? {
-        SUSH_THREAD_EVENT_PATH: threadEventFile,
-        SUSH_CLAUDE_THREAD_SETTINGS: threadSettingsFile
-      } : {})
-    }
-  })
+  const ptyEnv = {
+    ...process.env,
+    ...sushrcEnv,
+    // Identity isolation: when a Sush user is signed in, point CLI config
+    // dirs (claude/codex/gh/XDG, optionally HOME itself) at their private
+    // tree so logins never bleed between users. Wins over .sushrc env.
+    ...activeUserEnv(),
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    SUSH: '1',
+    SUSH_PROFILE_ID: profileId ?? '',
+    SUSH_SHELL_ID: requestedShell.id,
+    SUSH_TAB_ID: tabId,
+    ...(threadEventFile ? {
+      SUSH_THREAD_EVENT_PATH: threadEventFile,
+      SUSH_CLAUDE_THREAD_SETTINGS: threadSettingsFile
+    } : {})
+  }
+  const { proc, shell } = spawnPty(requestedShell, { cols, rows, cwd: shellCwd, env: ptyEnv })
+  if (threadEventFile) threadRoots.set(tabId, claudeConfigRoots(ptyEnv))
 
   const session = {
     tabId,
@@ -1339,6 +1340,7 @@ export function registerIpcHandlers(win) {
   handlersRegistered = true
 
   scrollback = new ScrollbackStore(app.getPath('userData'))
+  try { sweepThreadEventFiles(app.getPath('userData')) } catch {}
   // Late-bound refs so shell commands (hunt, credits…) can reach the live
   // stores without importing ipc.js (circular).
   runtime.scrollback = scrollback
@@ -1463,6 +1465,7 @@ export function registerIpcHandlers(win) {
       // Even if the PTY teardown throws, the per-tab maps must not leak.
       contexts.delete(tabId)
       tabMeta.delete(tabId)
+      threadRoots.delete(tabId)
       try { cleanupThreadEventFile(app.getPath('userData'), tabId) } catch {}
     }
   })
@@ -1849,7 +1852,7 @@ export function registerIpcHandlers(win) {
   // reads a JSONL path structurally tied to that exact session id.
   ipcMain.handle('sush:thread-read', (event, { tabId } = {}) => {
     try {
-      return readClaudeThread(app.getPath('userData'), tabId)
+      return readClaudeThread(app.getPath('userData'), tabId, { roots: threadRoots.get(tabId) })
     } catch (e) {
       return { ok: false, error: e?.message || 'thread read failed' }
     }

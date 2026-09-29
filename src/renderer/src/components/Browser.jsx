@@ -154,6 +154,7 @@ export default function Browser({ accent }) {
         <webview
           ref={webviewRef}
           src={initialSrc.current}
+          partition="persist:sush-browser"
           allowpopups="true"
           style={{ width: '100%', height: '100%', display: 'flex', border: 'none' }}
         />
