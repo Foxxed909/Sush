@@ -87,7 +87,19 @@ const stub = `
         { id: 'u1', type: 'user', text: 'Fix the flaky scrollback test' },
         { id: 'a1', type: 'assistant', model: 'claude-sonnet-5', text: 'I found the race in the scrollback restore path.' },
         { id: 'tool1', type: 'tool_use', name: 'Bash', input: { command: 'npm test' } },
-        { id: 'result1', type: 'tool_result', toolUseId: 'tool1', text: '177 tests passed', isError: false }
+        { id: 'result1', type: 'tool_result', toolUseId: 'tool1', text: '177 tests passed', isError: false },
+        { id: 'u2', type: 'user', text: 'Great, now make the restore idempotent and add a regression test.', timestamp: '2026-09-29T09:00:00Z' },
+        { id: 'a2', type: 'assistant', model: 'claude-sonnet-5', text: 'On it. I will guard the restore with a per-tab generation and cover the double-mount case.', timestamp: '2026-09-29T09:00:04Z' },
+        { id: 'tool2', type: 'tool_use', toolUseId: 't2', name: 'Read', input: { file_path: 'src/main/shell/scrollback.js' }, timestamp: '2026-09-29T09:00:09Z' },
+        { id: 'result2', type: 'tool_result', toolUseId: 't2', text: '146 lines', timestamp: '2026-09-29T09:00:10Z' },
+        { id: 'a3', type: 'assistant', model: 'claude-sonnet-5', text: 'The restore runs twice when the tab remounts.', timestamp: '2026-09-29T09:01:02Z' },
+        { id: 'tool3', type: 'tool_use', toolUseId: 't3', name: 'Edit', input: { file_path: 'src/main/shell/scrollback.js', old_string: 'restore(tabId)\\n  attach()', new_string: 'if (gen !== current) return\\n  restore(tabId)\\n  attach()\\n  current++' }, timestamp: '2026-09-29T09:01:40Z' },
+        { id: 'result3', type: 'tool_result', toolUseId: 't3', text: 'ok', timestamp: '2026-09-29T09:01:41Z' },
+        { id: 'tool4', type: 'tool_use', toolUseId: 't4', name: 'Write', input: { file_path: 'tests/scrollback-restore.test.mjs', content: 'import { it } from \\'vitest\\'\\n\\nit(\\'restores once\\', () => {})\\n' }, timestamp: '2026-09-29T09:02:30Z' },
+        { id: 'result4', type: 'tool_result', toolUseId: 't4', text: 'ok', timestamp: '2026-09-29T09:02:31Z' },
+        { id: 'tool5', type: 'tool_use', toolUseId: 't5', name: 'Bash', input: { command: 'npm test' }, timestamp: '2026-09-29T09:03:10Z' },
+        { id: 'result5', type: 'tool_result', toolUseId: 't5', text: '178 tests passed', timestamp: '2026-09-29T09:03:40Z' },
+        { id: 'a4', type: 'assistant', model: 'claude-sonnet-5', text: 'Done. Restore is now idempotent:\\n\\n- A per-tab generation guards the restore\\n- New regression test covers the double mount\\n- All **178** tests pass', timestamp: '2026-09-29T09:03:47Z' }
       ]
     }),
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
@@ -153,6 +165,7 @@ const stub = `
     githubNotifications: async () => ({ ok: true, notifications: [], unreadCount: 3, connected: true }),
     githubStatus: async () => ({ configured: { github: true, google: false }, safeStorage: true, connected: true, source: 'gh-cli', login: 'taylor' }),
     gitDiffFile: async ({ path } = {}) => ({ ok: true, truncated: false, diff: ['diff --git a/' + path + ' b/' + path, 'index 3f2a1c0..9b7e4d2 100644', '--- a/' + path, '+++ b/' + path, '@@ -12,7 +12,9 @@ export default function App() {', '   const [tabs, setTabs] = useState([])', '-  const legacy = true', '+  const nightly = true', '+  const quiet = true', '   return null', ' }', ''].join('\\n') }),
+    gitDiffHead: async () => ({ ok: true, truncated: false, diff: ["diff --git a/src/main/shell/scrollback.js b/src/main/shell/scrollback.js", "index 1a2b3c4..5d6e7f8 100644", "--- a/src/main/shell/scrollback.js", "+++ b/src/main/shell/scrollback.js", "@@ -38,9 +38,12 @@ export class ScrollbackStore {", "   attach(tabId, key, { persist }) {", "     const entry = this.entries.get(tabId)", "-    if (entry) entry.restore()", "-    this.bind(tabId, key)", "+    const gen = (this.generation.get(tabId) || 0) + 1", "+    this.generation.set(tabId, gen)", "+    if (entry && entry.gen !== gen) entry.restore()", "+    this.bind(tabId, key, gen)", "     this.persist = persist", "   }", " ", "   detach(tabId) {", "@@ -120,6 +123,7 @@ export class ScrollbackStore {", "   clear(tabId) {", "     this.entries.delete(tabId)", "+    this.generation.delete(tabId)", "   }", " }", "diff --git a/src/App.jsx b/src/App.jsx", "index 3f2a1c0..9b7e4d2 100644", "--- a/src/App.jsx", "+++ b/src/App.jsx", "@@ -12,7 +12,9 @@ export default function App() {", "   const [tabs, setTabs] = useState([])", "-  const legacy = true", "+  const nightly = true", "+  const quiet = true", "   return null", " }", ""].join('\\n') }),
     gitStatus: async () => ({ repo: true, dir: '/home/taylor/sush', branch: 'main', files: [ { status: 'M', rawStatus: ' M', path: 'src/App.jsx' }, { status: '??', rawStatus: '??', path: 'notes.md' } ] }),
     sttConfigGet: async () => ({ provider: 'local', model: '', hasKey: false, localBin: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/whisper-cli.exe', localModel: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/models/ggml-base.en.bin', localStatus: { ready: true, missing: [], managedBin: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/whisper-cli.exe', managedModel: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/models/ggml-base.en.bin' }, safeStorage: true, defaults: { openai: { model: 'whisper-1' }, local: { model: 'base.en' } }, credits }),
     ttsConfigGet: async () => ({ provider: 'system', hasKey: false, voice: '', model: '', safeStorage: true }),
@@ -960,19 +973,53 @@ await shot('12-fresh-start')
   await page.waitForTimeout(1800)
   if (!(await page.locator('.shell-header').isVisible())) throw new Error('Nightly channel did not render the T3 shell header')
   if (await page.locator('.nightly-topbar').count()) throw new Error('Nightly channel still rendered the Stable topbar')
+  // T3 thread sidebar: one flat list across projects, not project groups.
+  if (await page.locator('.ts-card').count() !== 3) throw new Error('Nightly sidebar does not list every thread as a card')
+  if (await page.locator('.nightly-workspace').count()) throw new Error('Nightly sidebar still groups threads under project headers')
+  await page.locator('.ts-filter-btn').click()
+  await page.locator('.ts-filter-menu button', { hasText: 'other-project' }).click()
+  if (await page.locator('.ts-card').count() !== 1) throw new Error('Project filter did not narrow the thread list')
+  await page.locator('.ts-filter-btn').click()
+  await page.locator('.ts-filter-menu button', { hasText: 'All projects' }).click()
   await page.keyboard.press('Control+1')
   await page.waitForTimeout(1400)
   const modeActive = async (label) => (await page.locator('.shell-modes button.is-active').getAttribute('data-mode')) === label.toLowerCase()
   if (!(await modeActive('Code'))) throw new Error('Nightly shell did not start in Code mode')
   if (!(await page.locator('.shell-terminal-layer.is-full').count())) throw new Error('Code mode does not show the terminal full-size')
-  await page.locator('.shell-header [title="Toggle diff panel"]').click()
-  await page.waitForTimeout(600)
+  await page.locator('.shell-header [title="Open diff panel"]').click()
+  await page.locator('.sd-file').first().waitFor({ state: 'visible', timeout: 5000 })
+  if (await page.locator('.sd-file').count() < 3) throw new Error('Diff panel did not list every changed file')
+  if (!(await page.locator('.t3-tab.is-active', { hasText: 'Diff' }).count())) throw new Error('Right panel is not showing the T3 Diff tab')
+  {
+    const gap = await page.locator('.sd-gap').first().innerText()
+    if (!/unmodified line/.test(gap)) throw new Error('Diff panel does not fold unmodified lines')
+  }
   await shot('n1-code-diff')
+  // Turn scope: Turn 2 edited scrollback.js (and wrote a test that is not in the diff).
+  await page.locator('.sd-scope select').selectOption({ label: 'Turn 2' })
+  await page.waitForTimeout(300)
+  {
+    const paths = await page.locator('.sd-path').allInnerTexts()
+    if (paths.length !== 1 || !paths[0].includes('scrollback.js')) throw new Error(`Turn scope did not narrow the diff: ${paths.join(', ')}`)
+  }
+  await page.locator('.sd-tool[title="Split"]').click()
+  await page.waitForTimeout(300)
+  if (!(await page.locator('.sd-split').count())) throw new Error('Split view did not render side-by-side rows')
+  await shot('n1b-diff-turn-split')
+  await page.locator('.sd-tool[title="Unified"]').click()
+  await page.locator('.sd-scope select').selectOption('all')
 
   await page.keyboard.press('Alt+3')
   await page.waitForTimeout(900)
   if (!(await modeActive('Thread'))) throw new Error('Alt+3 did not switch to Thread')
   await page.locator('.shell-thread-slot').waitFor({ state: 'visible', timeout: 5000 })
+  {
+    const text = await page.locator('.shell-thread-slot').innerText()
+    if (!text.includes('Worked for 3m 43s')) throw new Error('Thread did not fold turn work into "Worked for"')
+    if (!/2 changed files/.test(text)) throw new Error('Thread did not show the changed-files card')
+    if (!text.includes('Done. Restore is now idempotent')) throw new Error('Thread hid the final reply')
+    if (text.includes('The restore runs twice')) throw new Error('Thread showed middle narration outside the fold')
+  }
   if (!(await page.locator('.shell-terminal-layer.is-drawer').count())) throw new Error('Thread mode did not dock the terminal in the drawer')
   await shot('n2-thread')
   await page.keyboard.press('Control+`')
@@ -982,7 +1029,7 @@ await shot('12-fresh-start')
   await page.waitForTimeout(300)
 
   // A non-Claude session keeps its terminal in the centre in Thread mode.
-  await page.locator('.nightly-thread-row').filter({ hasText: 'Codex' }).first().click()
+  await page.locator('.ts-card').filter({ hasText: 'Codex' }).first().locator('.ts-card-surface').click()
   await page.waitForTimeout(700)
   if (await page.locator('.shell-thread-slot').count()) throw new Error('Thread mode covered a non-Claude terminal')
   if (!(await page.locator('.shell-terminal-layer.is-full').count())) throw new Error('Non-Claude session lost its centred terminal in Thread mode')

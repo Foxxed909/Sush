@@ -2188,6 +2188,21 @@ export function registerIpcHandlers(win) {
     }
   })
 
+  // Whole working tree against HEAD (staged + unstaged, tracked files) for the
+  // Nightly diff panel. Untracked files still go through sush:git-diff-file.
+  ipcMain.handle('sush:git-diff-head', async (event, { cwd } = {}) => {
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, diff: '', error: 'Working directory does not exist' }
+    try {
+      const { stdout } = await execFileAsync('git', ['-c', 'core.quotepath=false', 'diff', 'HEAD', '--no-color', '--no-ext-diff', '-M'], {
+        cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024
+      })
+      return { ok: true, ...clipDiff(stdout, 300_000) }
+    } catch (e) {
+      return { ok: false, diff: '', error: e?.message || 'git diff failed' }
+    }
+  })
+
   // One file's diff for the Changes pane. Path is validated (repo-relative,
   // no traversal, never option-shaped) and output is size-capped.
   ipcMain.handle('sush:git-diff-file', async (event, { cwd, path, staged, untracked } = {}) => {

@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { agentById } from '../lib/agents'
 import NightlyModelMenu from './NightlyModelMenu'
+import { useGitBranch } from '../hooks/useGitBranch'
+import { workspaceLabel } from '../lib/workspaces'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
@@ -12,7 +14,13 @@ function compactTokens(value) {
   return String(Math.round(n))
 }
 
-export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher, onChangeSessionModel, hushSlotRef }) {
+// variant="t3": the Nightly shell's composer, after T3 Code's ChatComposer
+// (MIT, (c) 2026 T3 Tools Inc.) — one card, round send, and a branch toolbar
+// under it. The default variant is the Stable (Quiet Nights) composer.
+export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher, onChangeSessionModel, hushSlotRef, variant = 'default', onOpenPane }) {
+  const t3 = variant === 't3'
+  const branchRoot = t3 ? (activeTab?.sessionRootCwd || activeTab?.workspaceCwd || activeTab?.cwd || null) : null
+  const branch = useGitBranch(branchRoot)
   const [value, setValue] = useState('')
   const ref = useRef(null)
   const agent = agentById(activeTab?.agentId) || agentById('shell')
@@ -54,7 +62,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
   }
 
   return (
-    <div className="nightly-composer-wrap">
+    <div className={`nightly-composer-wrap${t3 ? ' is-t3' : ''}`}>
       <div className="nightly-composer">
         <textarea
           ref={ref}
@@ -68,7 +76,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
           }}
           rows={1}
           disabled={disabled || !activeTab}
-          placeholder={activeTab ? `Message ${agent?.label || activeTab.label}…` : 'Open a session to start'}
+          placeholder={!activeTab ? 'Open a session to start' : t3 ? 'Ask for changes, send follow-ups, or paste context' : `Message ${agent?.label || activeTab.label}…`}
           spellCheck={false}
         />
         <div className="nightly-composer-meta">
@@ -90,7 +98,8 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
               Context {compactTokens(providerMeta.contextTokens)}
             </span>
           )}
-          <span className="nightly-composer-hint">Shift+Enter newline · Ctrl+J focus</span>
+          {!t3 && <span className="nightly-composer-hint">Shift+Enter newline · Ctrl+J focus</span>}
+          {t3 && <span className="nightly-composer-spacer" />}
           {/* Hush docks its mic here (portal) instead of floating over the rail. */}
           <span ref={hushSlotRef} className="nightly-hush-slot" />
           <button type="button" className="nightly-send" onClick={submit} disabled={!value.trim() || disabled || !activeTab} title="Send">
@@ -98,6 +107,22 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
           </button>
         </div>
       </div>
+      {t3 && activeTab?.id && (
+        <div className="t3-branch-toolbar">
+          <span className="t3-branch-env" title={activeTab.sessionRootCwd || activeTab.cwd}>
+            <Icon name="folder" size={11} />
+            {activeTab.sessionRootCwd && activeTab.workspaceCwd && activeTab.sessionRootCwd !== activeTab.workspaceCwd ? 'Worktree' : 'Local'} · {workspaceLabel(activeTab)}
+          </span>
+          <span className="nightly-composer-spacer" />
+          {branch && (
+            <button type="button" className="t3-branch-name" onClick={() => onOpenPane?.('changes')} title="Review changes on this branch">
+              <Icon name="gitBranch" size={11} />
+              <span>{branch.name}</span>
+              {branch.changes > 0 && <em>{branch.changes} changed</em>}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

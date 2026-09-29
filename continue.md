@@ -176,6 +176,32 @@ Next: make Office desks show last Thread line on hover; drag threads between
 projects in the rail; per-turn diff filter in the Changes pane (T3); promote
 Nightly → Stable once the walk and a week of daily use are clean.
 
+## 0.5 Phase 1 — T3 Code layout port (Nightly channel)
+
+Ported from T3 Code's source (MIT; notice in `THIRD_PARTY_NOTICES.md`, shipped
+as an extraResource). Nightly only — Stable is unchanged.
+
+- `components/shell/ShellSidebar.jsx` + `lib/shellSidebar.js`: flat thread
+  cards (project · status/time, title, branch · model · provider), search,
+  project filter, pin/settle, Settled shelf, icon footer.
+- `ShellHeader`: `project / title` breadcrumb, New ▾ and Git ▾ menus; diff and
+  panel toggles only while the panel is closed (the panel header owns them).
+- `NightlyComposer variant="t3"`: T3 card + round send + branch toolbar
+  (Local/Worktree · project · branch · N changed). `hooks/useGitBranch.js`.
+- `ThreadView` + `lib/threadTurns.buildTurns`: first + final reply visible,
+  tool work and middle narration fold into "Worked for Xm Ys", changed-files
+  card from the edit tools' inputs, Open diff.
+- `ShellDiffPanel` + `lib/unifiedDiff.js` + IPC `sush:git-diff-head`: working
+  tree vs HEAD, per-file sections, line numbers, "N unmodified lines", unified/
+  split, wrap, per-turn scope, Send to agent, Commit… (swaps in ChangesTab).
+- `RightPanel t3`: T3TabStrip (opened panels + "+" + close).
+- Harness asserts sidebar filter, diff files/gaps/turn scope/split, Worked-for,
+  files card, final reply visible and middle narration folded.
+
+Next: Phase 2 — Office campus (one office per folder), live monitors mirroring
+terminal tails, click-to-zoom into the real interactive terminal, office themes,
+Claude token totals from transcripts, locally stored XP.
+
 ## 0.3 Mainline continuation after Claude handoff
 
 Claude's branch `claude/roadmap-development-continue-i32p2l` was fast-forwarded

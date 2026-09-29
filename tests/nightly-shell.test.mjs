@@ -135,3 +135,112 @@ describe('Sush Office layout', () => {
     expect(officeLayoutKey(tabs)).not.toBe(officeLayoutKey(tabs.slice(1)))
   })
 })
+
+describe('T3 turns', () => {
+  it('keeps the first and final replies and folds work with its duration and files', async () => {
+    const { buildTurns, formatWorkedFor } = await import('../src/renderer/src/lib/threadTurns.js')
+    const at = s => `2026-09-29T09:0${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}Z`
+    const blocks = buildTurns([
+      { id: 'u', type: 'user', text: 'go', timestamp: at(0) },
+      { id: 'a1', type: 'assistant', text: 'On it', timestamp: at(2) },
+      { id: 'c1', type: 'tool_use', toolUseId: 'x', name: 'Edit', input: { file_path: 'a.js', old_string: 'a', new_string: 'b\nc' }, timestamp: at(10) },
+      { id: 'r1', type: 'tool_result', toolUseId: 'x', text: 'ok', timestamp: at(11) },
+      { id: 'mid', type: 'assistant', text: 'thinking out loud', timestamp: at(30) },
+      { id: 'c2', type: 'tool_use', toolUseId: 'y', name: 'Write', input: { file_path: 'b.js', content: '1\n2\n3' }, timestamp: at(40) },
+      { id: 'r2', type: 'tool_result', toolUseId: 'y', text: 'ok', timestamp: at(41) },
+      { id: 'a2', type: 'assistant', text: 'Done', timestamp: at(225) }
+    ])
+    expect(blocks.map(b => b.kind)).toEqual(['user', 'assistant', 'work', 'assistant'])
+    const work = blocks[2]
+    expect(work.narration.map(n => n.id)).toEqual(['mid'])
+    expect(formatWorkedFor(work.durationMs)).toBe('3m 43s')
+    expect(work.files).toEqual([
+      { path: 'a.js', added: 2, removed: 1 },
+      { path: 'b.js', added: 3, removed: 0 }
+    ])
+    expect(formatWorkedFor(8000)).toBe('8.0s')
+  })
+
+  it('does not count failed edits as changes', async () => {
+    const { changedFilesFromSteps } = await import('../src/renderer/src/lib/threadTurns.js')
+    expect(changedFilesFromSteps([{ use: { name: 'Edit', input: { file_path: 'a', new_string: 'x' } }, result: { isError: true } }])).toEqual([])
+  })
+})
+
+describe('Thread sidebar', () => {
+  it('floats threads that need you, shelves settled ones, and filters by project', async () => {
+    const { sidebarSections, compactTimeLabel, rowStatus } = await import('../src/renderer/src/lib/shellSidebar.js')
+    const now = Date.now()
+    const tabs = [
+      { id: 'a', cwd: '/p/one', lastActiveAt: now - 1000 },
+      { id: 'b', cwd: '/p/one', lastActiveAt: now - 5000 },
+      { id: 'c', cwd: '/p/two', lastActiveAt: now - 2000, status: 'exited' },
+      { id: 'd', cwd: '/p/two', lastActiveAt: now - 9000 }
+    ]
+    const s = sidebarSections(tabs, { activity: { b: 'waiting' }, pinned: new Set(['d']) })
+    expect(s.pinned.map(t => t.id)).toEqual(['d'])
+    expect(s.active.map(t => t.id)).toEqual(['b', 'a'])
+    expect(s.settled.map(t => t.id)).toEqual(['c'])
+    const { workspaceKey } = await import('../src/renderer/src/lib/workspaces.js')
+    const filtered = sidebarSections(tabs, { project: workspaceKey(tabs[0]) })
+    expect([...filtered.pinned, ...filtered.active, ...filtered.settled].map(t => t.id).sort()).toEqual(['a', 'b'])
+    expect(sidebarSections(tabs, { query: 'zzz' }).active).toEqual([])
+    expect(compactTimeLabel(now - 14 * 3600e3, now)).toBe('14h')
+    expect(compactTimeLabel(now - 3000, now)).toBe('now')
+    expect(rowStatus('waiting')).toMatchObject({ label: 'Needs input' })
+    expect(rowStatus('idle')).toBeNull()
+  })
+})
+
+describe('Unified diff parsing', () => {
+  const sample = [
+    'diff --git a/src/app.js b/src/app.js',
+    'index 1111111..2222222 100644',
+    '--- a/src/app.js',
+    '+++ b/src/app.js',
+    '@@ -10,4 +10,5 @@ function main() {',
+    ' const a = 1',
+    '-const b = 2',
+    '+const b = 3',
+    '+const c = 4',
+    ' ',
+    ' return a',
+    '@@ -40,2 +41,2 @@',
+    '-old()',
+    '+next()',
+    ' end()',
+    'diff --git a/notes.md b/notes.md',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/notes.md',
+    '@@ -0,0 +1,2 @@',
+    '+# Notes',
+    '+hello',
+    ''
+  ].join('\n')
+
+  it('numbers lines on both sides and counts changes per file', async () => {
+    const { parseUnifiedDiff, diffTotals } = await import('../src/renderer/src/lib/unifiedDiff.js')
+    const files = parseUnifiedDiff(sample)
+    expect(files.map(f => [f.path, f.status, f.added, f.removed])).toEqual([
+      ['src/app.js', 'modified', 3, 2],
+      ['notes.md', 'added', 2, 0]
+    ])
+    const [h1] = files[0].hunks
+    expect(h1.context).toBe('function main() {')
+    expect(h1.lines.map(l => [l.kind, l.old, l.new])).toEqual([
+      ['ctx', 10, 10], ['del', 11, null], ['add', null, 11], ['add', null, 12], ['ctx', 12, 13], ['ctx', 13, 14]
+    ])
+    expect(diffTotals(files)).toEqual({ added: 5, removed: 2 })
+  })
+
+  it('reports unmodified gaps and pairs split rows', async () => {
+    const { parseUnifiedDiff, gapBefore, splitRows } = await import('../src/renderer/src/lib/unifiedDiff.js')
+    const [file] = parseUnifiedDiff(sample)
+    expect(gapBefore(file.hunks, 0)).toBe(9)
+    expect(gapBefore(file.hunks, 1)).toBe(26)
+    const rows = splitRows(file.hunks[0])
+    expect(rows[1]).toMatchObject({ left: { kind: 'del' }, right: { kind: 'add', new: 11 } })
+    expect(rows[2]).toMatchObject({ left: null, right: { kind: 'add', new: 12 } })
+  })
+})

@@ -45,6 +45,7 @@ import NightlyComposer from './components/NightlyComposer'
 import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 import ShellHeader from './components/shell/ShellHeader'
+import ShellSidebar from './components/shell/ShellSidebar'
 import { setShellChords } from './lib/keymap'
 import { activeShellMode, modeFromShortcut, normalizeChannel, normalizeShellMode, terminalPlacement, threadCentered } from './lib/shellModes'
 
@@ -2362,7 +2363,44 @@ export default function App() {
       }}
     >
       <div className="flex flex-1 min-h-0">
-        {!zenMode && (
+        {!zenMode && nightlyShell && (
+          <ShellSidebar
+            tabs={tabs}
+            activeId={view === 'home' ? null : activeId}
+            accent={accent}
+            activity={agentStates}
+            limits={agentLimits}
+            onHome={() => { setHomeView('dashboard'); setView('home') }}
+            onOverview={() => setShellMode('agents')}
+            onSelect={selectTab}
+            onNewSession={() => setShowLauncher(true)}
+            onHunt={() => setShowHunt(true)}
+            onSettings={() => setShowSettings(true)}
+            user={identity.currentUser}
+            onLock={identity.lock}
+            onSignOut={identity.signOut}
+            onManageUsers={() => setShowUserManager(true)}
+            onViewProfile={() => setShowProfile(true)}
+            onCloseSession={(id) => closeTab(id)}
+            onRenameSession={renameTab}
+            onDuplicateSession={duplicateTab}
+            onHandoffSession={(id) => setHandoffSource(id)}
+            onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
+            onOpenPane={(pane, tabId) => {
+              if (tabId) selectTab(tabId)
+              if (pane === 'changes' || pane === 'github') setPaneDock('right')
+              setRightTab(pane)
+              setRightOpen(true)
+            }}
+            status={{
+              online,
+              battery,
+              saverReason: ecoMode ? 'eco' : manualSaver ? 'saver' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : null,
+              showStats: settings.showSystemStats === true
+            }}
+          />
+        )}
+        {!zenMode && !nightlyShell && (
           <NightlyWorkspaceRail
             tabs={tabs}
             activeId={view === 'home' ? null : activeId}
@@ -2429,6 +2467,11 @@ export default function App() {
               onTogglePanel={() => setRightOpen(prev => !prev)}
               onHunt={() => setShowHunt(true)}
               onChannel={setUiChannel}
+              onNewSession={() => setShowLauncher(true)}
+              onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
+              onNewTerminal={() => openTab(profiles[0], { cwd: activeTab?.workspaceCwd || activeTab?.cwd || undefined })}
+              onDuplicate={duplicateTab}
+              onHome={() => { setHomeView('dashboard'); setView('home') }}
             />
           )}
           {!zenMode && !nightlyShell && (
@@ -2481,7 +2524,7 @@ export default function App() {
                 when the mode, drawer or channel changes. */}
             {threadInCenter && (
               <div className="shell-thread-slot" style={{ bottom: drawerOpen ? drawerHeight : 0 }}>
-                <ThreadView accent={accent} activeTab={activeTab} />
+                <ThreadView accent={accent} activeTab={activeTab} onOpenDiff={() => { setPaneDock('right'); setRightTab('changes'); setRightOpen(true) }} />
               </div>
             )}
             <div
@@ -2786,6 +2829,8 @@ export default function App() {
 
           {view === 'terminal' && !zenMode && !coverSurface && (
             <NightlyComposer
+              variant={nightlyShell ? 't3' : 'default'}
+              onOpenPane={(pane) => { setPaneDock('right'); setRightTab(pane); setRightOpen(true) }}
               activeTab={activeTab}
               providerMeta={nightlyProviderMeta}
               accent={accent}
@@ -2839,6 +2884,7 @@ export default function App() {
                 ghNotifCount={ghNotifCount}
                 onManageUsers={() => setShowUserManager(true)}
                 nightly
+                t3={nightlyShell}
                 dock="bottom"
                 style={{ width: '100%', height: bottomPaneHeight }}
               />
@@ -2877,6 +2923,7 @@ export default function App() {
               ghNotifCount={ghNotifCount}
               onManageUsers={() => setShowUserManager(true)}
               nightly
+              t3={nightlyShell}
               dock="right"
               style={{ width: rightWidth }}
             />
