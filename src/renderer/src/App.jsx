@@ -2347,7 +2347,7 @@ export default function App() {
 
   return (
     <div
-      className={`sush-app-bg flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(reducedFx || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
+      className={`sush-app-bg flex flex-col h-screen${nightlyShell ? ' sush-t3' : ''}${theme.ui.glass ? ' sush-glass-ui' : ''}${(reducedFx || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
@@ -2359,7 +2359,7 @@ export default function App() {
         // translucent surface (via !important) so the OS material shows.
         background: settings.bgImage
           ? `linear-gradient(rgba(2,3,5,${(settings.bgDim ?? 62) / 100}), rgba(2,3,5,${(settings.bgDim ?? 62) / 100})), url(${JSON.stringify(settings.bgImage)}) center / cover no-repeat fixed, ${theme.xterm.background}`
-          : theme.xterm.background
+          : nightlyShell ? 'var(--surface-0)' : theme.xterm.background
       }}
     >
       <div className="flex flex-1 min-h-0">
@@ -2830,6 +2830,12 @@ export default function App() {
           {view === 'terminal' && !zenMode && !coverSurface && (
             <NightlyComposer
               variant={nightlyShell ? 't3' : 'default'}
+              onNewThread={({ agentId, model } = {}) => {
+                // T3: a different provider is a new thread in the same project.
+                const cwd = activeTab?.workspaceCwd || activeTab?.cwd || null
+                if (!agentId || !cwd) { setLauncherCwd(cwd); setShowLauncher(true); return }
+                launchSessions({ cwd, agents: [{ id: agentId, count: 1, model: model || null }], groupId: activeTab?.groupId })
+              }}
               onOpenPane={(pane) => { setPaneDock('right'); setRightTab(pane); setRightOpen(true) }}
               activeTab={activeTab}
               providerMeta={nightlyProviderMeta}

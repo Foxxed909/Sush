@@ -244,3 +244,20 @@ describe('Unified diff parsing', () => {
     expect(rows[2]).toMatchObject({ left: null, right: { kind: 'add', new: 12 } })
   })
 })
+
+describe('T3 model picker rows', () => {
+  it('lists a provider, spans providers when searching, and offers a typed id', async () => {
+    const { pickerRows, pickerModelLabel } = await import('../src/renderer/src/lib/nightlyModels.js')
+    expect(pickerRows({ section: 'claude' }).map(r => r.label)).toEqual(['Default', 'Sonnet', 'Opus'])
+    const search = pickerRows({ section: 'claude', query: 'flash' })
+    expect(search.every(r => r.provider === 'gemini')).toBe(true)
+    expect(search.map(r => r.label)).toContain('Flash')
+    const typed = pickerRows({ section: 'claude', query: 'claude-opus-5-5' })
+    expect(typed.at(-1)).toMatchObject({ custom: true, value: 'claude-opus-5-5', provider: 'claude' })
+    expect(pickerRows({ section: 'claude', query: '--dangerously' }).some(r => r.custom)).toBe(false)
+    const favs = pickerRows({ section: 'favorites', favorites: new Set(['codex:']) })
+    expect(favs.map(r => r.key)).toEqual(['codex:'])
+    expect(pickerModelLabel('claude', 'opus')).toBe('Opus')
+    expect(pickerModelLabel('claude', null)).toBe('Default')
+  })
+})

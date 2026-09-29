@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { agentById } from '../lib/agents'
 import NightlyModelMenu from './NightlyModelMenu'
+import { ShellComposerMore, ShellModelPicker } from './shell/ShellModelPicker'
 import { useGitBranch } from '../hooks/useGitBranch'
 import { workspaceLabel } from '../lib/workspaces'
 
@@ -17,7 +18,7 @@ function compactTokens(value) {
 // variant="t3": the Nightly shell's composer, after T3 Code's ChatComposer
 // (MIT, (c) 2026 T3 Tools Inc.) — one card, round send, and a branch toolbar
 // under it. The default variant is the Stable (Quiet Nights) composer.
-export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher, onChangeSessionModel, hushSlotRef, variant = 'default', onOpenPane }) {
+export default function NightlyComposer({ activeTab, providerMeta, accent, disabled = false, onSend, onOpenLauncher, onChangeSessionModel, hushSlotRef, variant = 'default', onOpenPane, onNewThread }) {
   const t3 = variant === 't3'
   const branchRoot = t3 ? (activeTab?.sessionRootCwd || activeTab?.workspaceCwd || activeTab?.cwd || null) : null
   const branch = useGitBranch(branchRoot)
@@ -80,6 +81,26 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
           spellCheck={false}
         />
         <div className="nightly-composer-meta">
+          {t3 ? (
+            <>
+              <ShellModelPicker
+                provider={activeTab?.agentId || 'shell'}
+                model={providerMeta?.model || activeTab?.model || null}
+                effort={providerMeta?.effort || activeTab?.effort || null}
+                disabled={!activeTab?.id}
+                onApply={onChangeSessionModel}
+                onNewThread={({ agentId, model: nextModel } = {}) => onNewThread ? onNewThread({ agentId, model: nextModel }) : onOpenLauncher?.()}
+              />
+              <ShellComposerMore
+                provider={activeTab?.agentId || 'shell'}
+                model={providerMeta?.model || activeTab?.model || null}
+                effort={providerMeta?.effort || activeTab?.effort || null}
+                disabled={!activeTab?.id}
+                onApply={onChangeSessionModel}
+                onNewThread={() => onOpenLauncher?.()}
+              />
+            </>
+          ) : (
           <span className="nightly-model-control">
             <span className="nightly-model-provider" style={{ color: agent?.color || accent }}>{agent?.mono || '>_'}</span>
             <NightlyModelMenu
@@ -91,9 +112,10 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
               onOpenLauncher={onOpenLauncher}
             />
           </span>
+          )}
           {/* Only real telemetry here: the topbar already carries account and
               quota, and an unavailable context window is simply not shown. */}
-          {providerMeta?.contextTokens != null && (
+          {!t3 && providerMeta?.contextTokens != null && (
             <span className="nightly-context-note" title="Provider-reported input context for the latest observed turn">
               Context {compactTokens(providerMeta.contextTokens)}
             </span>

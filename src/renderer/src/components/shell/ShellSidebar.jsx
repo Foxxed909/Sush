@@ -3,6 +3,7 @@ import Icon from '../Icons'
 import NightlyProfileMenu from '../NightlyProfileMenu'
 import NightlyContextMenu from '../NightlyContextMenu'
 import NightlyStatusStrip from '../NightlyStatusStrip'
+import StageBackdrop from './StageBackdrop'
 import { usePolling } from '../../hooks/usePolling'
 import { agentById } from '../../lib/agents'
 import { lineageTag } from '../../lib/lineage'
@@ -266,7 +267,8 @@ export default function ShellSidebar({
 
   return (
     <aside className="ts-sidebar">
-      <div className="ts-stage" style={{ '--stage-accent': accent }}>
+      <StageBackdrop />
+      <div className="ts-stage">
         <button className="ts-brand" onClick={onHome} title="Home">
           <span className="ts-brand-mark" style={{ background: accent }} />
           <span className="ts-brand-word">Sush</span>

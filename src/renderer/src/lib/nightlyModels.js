@@ -145,3 +145,44 @@ export function buildAgentCommand(agent, { model, effort, resume = false } = {})
 
   return parts.join(' ')
 }
+
+// ── Model picker rows (Nightly, after T3 Code's ModelPickerContent, MIT) ──
+export const PICKER_PROVIDERS = ['claude', 'codex', 'gemini', 'opencode']
+
+function modelKey(provider, value) {
+  return `${provider}:${value || ''}`
+}
+
+// Rows for one sidebar section: 'favorites' or a provider id. A search spans
+// every provider, like T3; a typed id that is a valid model for the provider
+// in view becomes a "Use …" row, because catalogs here are deliberately short.
+export function pickerRows({ section = 'claude', query = '', favorites = new Set() } = {}) {
+  const q = String(query || '').trim().toLowerCase()
+  const providers = q || section === 'favorites' ? PICKER_PROVIDERS : [section]
+  const rows = []
+  for (const provider of providers) {
+    const spec = modelSpecFor(provider)
+    if (!spec) continue
+    for (const option of spec.options) {
+      const key = modelKey(provider, option.value)
+      if (section === 'favorites' && !q && !favorites.has(key)) continue
+      const label = option.label || option.value
+      if (q && !`${label} ${option.value} ${provider}`.toLowerCase().includes(q)) continue
+      rows.push({ key, provider, value: option.value || null, label, favorite: favorites.has(key) })
+    }
+  }
+  if (q && section !== 'favorites') {
+    const custom = normalizeModel(section, query)
+    const known = rows.some(r => String(r.value || '').toLowerCase() === custom?.toLowerCase())
+    if (custom && !known) {
+      rows.push({ key: modelKey(section, custom), provider: section, value: custom, label: `Use “${custom}”`, custom: true, favorite: false })
+    }
+  }
+  return rows
+}
+
+export function pickerModelLabel(provider, model) {
+  const spec = modelSpecFor(provider)
+  if (!model) return spec?.options.find(o => !o.value)?.label || 'Default'
+  return spec?.options.find(o => o.value === model)?.label || model
+}

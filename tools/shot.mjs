@@ -1022,6 +1022,27 @@ await shot('12-fresh-start')
   }
   if (!(await page.locator('.shell-terminal-layer.is-drawer').count())) throw new Error('Thread mode did not dock the terminal in the drawer')
   await shot('n2-thread')
+  // T3 model picker: provider rail + searchable rows; another provider = new thread.
+  await page.locator('.mp-trigger').click()
+  await page.locator('.mp-shell').waitFor({ state: 'visible', timeout: 5000 })
+  {
+    const names = await page.locator('.mp-row-name').allInnerTexts()
+    if (!names.includes('Sonnet') || !names.includes('Opus')) throw new Error(`Model picker did not list Claude models: ${names.join(', ')}`)
+    if (await page.locator('.mp-rail-btn').count() < 5) throw new Error('Model picker is missing the provider rail')
+  }
+  await shot('n2b-model-picker')
+  await page.locator('.mp-search input').fill('flash')
+  await page.waitForTimeout(200)
+  {
+    const subs = await page.locator('.mp-row-sub').allInnerTexts()
+    if (!subs.length || !subs.every(t => /Gemini/.test(t) && /new thread/.test(t))) throw new Error(`Cross-provider search should offer Gemini as a new thread: ${subs.join(' | ')}`)
+  }
+  await page.keyboard.press('Escape')
+  await page.locator('[aria-label="More composer controls"]').click()
+  await page.locator('.t3-menu-body').waitFor({ state: 'visible', timeout: 5000 })
+  if (!(await page.locator('.t3-menu-item[role="menuitemradio"][aria-checked="true"]').count())) throw new Error('Reasoning menu shows no current level')
+  await shot('n2c-composer-more')
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Control+`')
   await page.waitForTimeout(300)
   if (!(await page.locator('.shell-terminal-layer.is-hidden').count())) throw new Error('Ctrl+` did not hide the terminal drawer')
