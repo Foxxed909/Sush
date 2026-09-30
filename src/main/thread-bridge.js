@@ -3,6 +3,7 @@ import {
 } from 'fs'
 import { homedir } from 'os'
 import { basename, dirname, join, resolve, sep } from 'path'
+import { parseCodexRollout, parseGeminiChat, validCodexTranscriptPath, validGeminiTranscriptPath } from './thread-providers.js'
 
 export const THREAD_EVENT_LIMIT_BYTES = 512 * 1024
 export const THREAD_TRANSCRIPT_LIMIT_BYTES = 4 * 1024 * 1024
@@ -159,13 +160,14 @@ export function parseThreadEvents(text) {
     const event = String(row.hook_event_name || '')
     if (event) lastEvent = event
     if (event === 'SessionStart') state = 'idle'
-    if (event === 'UserPromptSubmit') {
+    // Gemini names its turn hooks BeforeAgent / AfterAgent.
+    if (event === 'UserPromptSubmit' || event === 'BeforeAgent') {
       state = 'working'
       const prompt = typeof row.user_prompt === 'string' ? row.user_prompt : typeof row.prompt === 'string' ? row.prompt : ''
       if (prompt) prompts.push({ text: prompt, sessionId, cwd })
     }
     if (event === 'Notification') state = 'waiting'
-    if (event === 'Stop') state = 'idle'
+    if (event === 'Stop' || event === 'AfterAgent') state = 'idle'
     if (event === 'SessionEnd') state = 'ended'
   }
 
@@ -317,29 +319,54 @@ export function sweepThreadEventFiles(userData) {
 }
 
 export function readClaudeThread(userData, tabId, { roots } = {}) {
+  return readThread(userData, tabId, { roots, provider: 'claude' })
+}
+
+// Per-provider transcript rules: which file names a session's own log may
+// have, and how to turn it into Thread items.
+const TRANSCRIPTS = {
+  claude: {
+    valid: validClaudeTranscriptPath,
+    parse: text => ({ items: parseClaudeTranscript(text), contextWindow: null })
+  },
+  codex: {
+    valid: validCodexTranscriptPath,
+    parse: (text, sessionId, truncated) => parseCodexRollout(text, truncated ? null : sessionId)
+  },
+  gemini: {
+    valid: validGeminiTranscriptPath,
+    parse: (text, sessionId, truncated) => parseGeminiChat(text, truncated ? null : sessionId)
+  }
+}
+
+export function readThread(userData, tabId, { roots, provider = 'claude' } = {}) {
   const eventsPath = threadEventPath(userData, tabId)
+  if (!TRANSCRIPTS[provider]) return { ok: false, error: `Thread is not available for ${provider}` }
   if (!eventsPath || !existsSync(eventsPath)) {
-    return { ok: true, bound: false, provider: 'claude', items: [], eventCount: 0 }
+    return { ok: true, bound: false, provider, items: [], eventCount: 0 }
   }
 
   const eventsStamp = fileStamp(eventsPath)
+  const effectiveRoots = roots || claudeConfigRoots(process.env)
+  const rootsKey = JSON.stringify(effectiveRoots)
   const cached = readCache.get(eventsPath)
-  if (cached && cached.eventsStamp === eventsStamp &&
+  if (cached && cached.provider === provider && cached.rootsKey === rootsKey && cached.eventsStamp === eventsStamp &&
       (!cached.transcriptPath || cached.transcriptStamp === fileStamp(cached.transcriptPath))) {
     return cached.result
   }
-  const result = readClaudeThreadUncached(eventsPath, roots || claudeConfigRoots(process.env))
+  const result = readThreadUncached(eventsPath, effectiveRoots, provider)
   const transcriptStamp = result.transcriptPath ? fileStamp(result.transcriptPath) : null
   // Callers pass this back as `since` so an unchanged poll needn't re-send
   // (and the renderer re-clone) a multi-MB transcript.
   result.stamp = `${eventsStamp}|${transcriptStamp ?? '-'}`
   if (result.ok && !result.error) {
-    readCache.set(eventsPath, { eventsStamp, transcriptPath: result.transcriptPath, transcriptStamp, result })
+    readCache.set(eventsPath, { provider, rootsKey, eventsStamp, transcriptPath: result.transcriptPath, transcriptStamp, result })
   }
   return result
 }
 
-function readClaudeThreadUncached(eventsPath, roots) {
+function readThreadUncached(eventsPath, roots, provider) {
+  const rules = TRANSCRIPTS[provider]
   let eventsTail
   try { eventsTail = readTail(eventsPath, THREAD_EVENT_LIMIT_BYTES) } catch (error) {
     return { ok: false, error: error.message }
@@ -348,8 +375,9 @@ function readClaudeThreadUncached(eventsPath, roots) {
   const base = {
     ok: true,
     bound: !!meta.sessionId,
-    provider: 'claude',
+    provider,
     sessionId: meta.sessionId,
+    contextWindow: null,
     cwd: meta.cwd,
     state: meta.state,
     lastEvent: meta.lastEvent,
@@ -362,7 +390,7 @@ function readClaudeThreadUncached(eventsPath, roots) {
     items: []
   }
 
-  if (!validClaudeTranscriptPath(meta.transcriptPath, meta.sessionId)) return base
+  if (!rules.valid(meta.transcriptPath, meta.sessionId)) return base
   if (!transcriptWithinRoots(meta.transcriptPath, roots)) return base
   base.transcriptPath = meta.transcriptPath
   if (!existsSync(meta.transcriptPath)) return base
@@ -371,7 +399,11 @@ function readClaudeThreadUncached(eventsPath, roots) {
     const transcript = readTail(meta.transcriptPath, THREAD_TRANSCRIPT_LIMIT_BYTES)
     base.transcriptAvailable = true
     base.transcriptTruncated = transcript.truncated
-    base.items = parseClaudeTranscript(transcript.text)
+    const parsed = rules.parse(transcript.text, meta.sessionId, transcript.truncated)
+    // A log whose own header names another session is not this tab's.
+    if (parsed.mismatch) return { ...base, transcriptAvailable: false }
+    base.items = parsed.items
+    base.contextWindow = parsed.contextWindow ?? null
     return base
   } catch (error) {
     return { ...base, error: error.message }

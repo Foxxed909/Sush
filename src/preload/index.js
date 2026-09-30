@@ -127,6 +127,8 @@ contextBridge.exposeInMainWorld('sush', {
   gitDiffStaged: (payload) => ipcRenderer.invoke('sush:git-diff-staged', payload),
   gitDiffFile: (payload) => ipcRenderer.invoke('sush:git-diff-file', payload),
   gitDiffHead: (payload) => ipcRenderer.invoke('sush:git-diff-head', payload),
+  geminiThread: (payload) => ipcRenderer.invoke('sush:gemini-thread', payload),
+  geminiCompression: (payload) => ipcRenderer.invoke('sush:gemini-compression', payload),
   gitWorktreeAdd: (payload) => ipcRenderer.invoke('sush:git-worktree-add', payload),
   dockerPs: () => ipcRenderer.invoke('sush:docker-ps'),
   dockerStop: (payload) => ipcRenderer.invoke('sush:docker-stop', payload),

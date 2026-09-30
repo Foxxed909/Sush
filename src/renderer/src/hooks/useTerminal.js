@@ -8,6 +8,7 @@ import { isAppChord } from '../lib/keymap'
 import { terminalInputAllowed, terminalInputTargets } from '../lib/terminalInput'
 import '@xterm/xterm/css/xterm.css'
 import { registerTerminal, unregisterTerminal } from '../lib/terminalRegistry'
+import { loadContextBudget } from '../lib/contextBudget'
 
 export function useTerminal({
   containerRef,
@@ -313,6 +314,7 @@ export function useTerminal({
         cwd: initialCwdRef.current,
         bootCommand: bootCommandRef.current,
         agentId,
+        contextBudget: agentId ? loadContextBudget(agentId) : null,
         shellId: spawnProfileRef.current.shell,
         profileId: spawnProfileRef.current.id,
         restoreKey,

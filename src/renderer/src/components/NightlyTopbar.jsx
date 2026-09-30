@@ -9,6 +9,7 @@ import NightlyLayoutMenu from './NightlyLayoutMenu'
 import NightlyPaneMenu from './NightlyPaneMenu'
 import NightlyAttention from './NightlyAttention'
 import { tabsInWorkspace, workspaceKey, workspaceLabel } from '../lib/workspaces'
+import { threadCentered } from '../lib/shellModes'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
@@ -165,7 +166,7 @@ export default function NightlyTopbar({
           accent={accent}
           activePane={activePane}
           panelOpen={rightOpen}
-          threadAvailable={activeTab?.agentId === 'claude' && activeTab?.threadBridge === true}
+          threadAvailable={threadCentered(activeTab)}
           dock={paneDock}
           onDockChange={onPaneDockChange}
           onOpen={onOpenPane}

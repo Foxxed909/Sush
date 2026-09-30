@@ -22,6 +22,7 @@ import ThreadTab from './panel/ThreadTab'
 import ShellDiffPanel from './shell/ShellDiffPanel'
 import NightlyContextMenu from './NightlyContextMenu'
 import { TAB_GROUPS, TABS, DEFAULT_HIDDEN_TABS } from '../lib/panelTabs'
+import { threadCentered } from '../lib/shellModes'
 
 // The right panel SHELL: tab strip + routing only. Every tab body lives in
 // ./panel/<Tab>.jsx (shared bits in ./panel/shared.jsx) — this file was a
@@ -73,7 +74,7 @@ export default function RightPanel({
 
   // Which tabs the user has hidden (defaults hide History/Snippets → palette).
   const hiddenTabs = Array.isArray(settings.hiddenPanelTabs) ? settings.hiddenPanelTabs : DEFAULT_HIDDEN_TABS
-  const threadSupported = activeTab?.agentId === 'claude' && activeTab?.threadBridge === true
+  const threadSupported = threadCentered(activeTab)
   const effectiveHiddenTabs = threadSupported
     ? hiddenTabs
     : [...new Set([...hiddenTabs, 'thread'])]

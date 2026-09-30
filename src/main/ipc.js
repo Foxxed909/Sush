@@ -40,8 +40,12 @@ import { clipDiff, diffArgs } from './git-diff'
 import { sensitiveWritePath } from './fs-guard'
 import {
   augmentClaudeCommand, claudeConfigRoots, cleanupThreadEventFile, ensureClaudeThreadSettings,
-  prepareThreadEventFile, readClaudeThread, sweepThreadEventFiles
+  prepareThreadEventFile, readThread, sweepThreadEventFiles
 } from './thread-bridge'
+import {
+  augmentCodexCommand, codexConfigRoots, codexHome, ensureThreadSink, geminiConfigRoots,
+  geminiThreadHooksEnabled, readGeminiSettings, setGeminiCompressionThreshold, setGeminiThreadHooks
+} from './thread-providers'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
 import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
@@ -109,7 +113,7 @@ function formatBytes(n) {
 }
 const fileWatchers = new Map()
 const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
-const threadRoots = new Map() // tabId -> Claude config roots its PTY env points at
+const threadRoots = new Map() // tabId -> { provider, roots } its PTY env points at
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
 let identityRuntimeGeneration = 0
 const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]*)(?:\x07|\x1b\\)/g
@@ -938,7 +942,15 @@ function writeShellCommands(proc, commands) {
 // on macOS the window can be closed and recreated from the dock while PTYs
 // keep running, and callbacks bound to the old window would silently drop
 // every byte of output for surviving sessions.
-async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand, agentId } = {}) {
+// Auto-compact budget from the composer's context control. Claude reads it
+// from the environment (its floor is 100K); Codex takes a -c override.
+const CLAUDE_MIN_COMPACT_WINDOW = 100_000
+function cleanBudget(value) {
+  const n = Math.round(Number(value))
+  return Number.isFinite(n) && n > 0 && n <= 10_000_000 ? n : null
+}
+
+async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand, agentId, contextBudget } = {}) {
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
@@ -988,7 +1000,11 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   // transcript_path, binding structured data back to exactly this Sush tab.
   let threadEventFile = null
   let threadSettingsFile = null
+  let threadSink = null
   let bridgedBootCommand = bootCommand
+  const budget = cleanBudget(contextBudget)
+  const identityEnv = activeUserEnv()
+  const cliEnv = { ...process.env, ...sushrcEnv, ...identityEnv }
   if (agentId === 'claude' && bootCommand) {
     try {
       // First launch may probe once; normal launches hit the persisted
@@ -1015,6 +1031,42 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
       bridgedBootCommand = bootCommand
     }
   }
+  if (agentId === 'codex' && bootCommand) {
+    try {
+      const capabilities = await providerCaps.get('codex')
+      let configText = ''
+      try { configText = readFileSync(join(codexHome(cliEnv), 'config.toml'), 'utf8') } catch {}
+      const augmented = augmentCodexCommand(bootCommand, {
+        shellId: requestedShell.id,
+        platform: process.platform,
+        configText,
+        thread: capabilities?.threadBridge === true,
+        budget
+      })
+      bridgedBootCommand = augmented.command || bootCommand
+      if (augmented.thread) {
+        const userData = app.getPath('userData')
+        threadSink = ensureThreadSink(userData)
+        threadEventFile = prepareThreadEventFile(userData, tabId)
+      }
+    } catch {
+      threadEventFile = null
+      threadSink = null
+      bridgedBootCommand = bootCommand
+    }
+  }
+  if (agentId === 'gemini' && bootCommand) {
+    try {
+      const capabilities = await providerCaps.get('gemini')
+      // Only when the user opted in (Settings → Thread); the hook in their
+      // Gemini settings does nothing outside a Sush tab.
+      if (capabilities?.threadBridge === true && geminiThreadHooksEnabled(readGeminiSettings(cliEnv).settings)) {
+        threadEventFile = prepareThreadEventFile(app.getPath('userData'), tabId)
+      }
+    } catch {
+      threadEventFile = null
+    }
+  }
 
   const ptyEnv = {
     ...process.env,
@@ -1022,20 +1074,23 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
     // Identity isolation: when a Sush user is signed in, point CLI config
     // dirs (claude/codex/gh/XDG, optionally HOME itself) at their private
     // tree so logins never bleed between users. Wins over .sushrc env.
-    ...activeUserEnv(),
+    ...identityEnv,
     TERM: 'xterm-256color',
     COLORTERM: 'truecolor',
     SUSH: '1',
     SUSH_PROFILE_ID: profileId ?? '',
     SUSH_SHELL_ID: requestedShell.id,
     SUSH_TAB_ID: tabId,
-    ...(threadEventFile ? {
-      SUSH_THREAD_EVENT_PATH: threadEventFile,
-      SUSH_CLAUDE_THREAD_SETTINGS: threadSettingsFile
-    } : {})
+    ...(threadEventFile ? { SUSH_THREAD_EVENT_PATH: threadEventFile } : {}),
+    ...(threadSettingsFile ? { SUSH_CLAUDE_THREAD_SETTINGS: threadSettingsFile } : {}),
+    ...(threadSink ? { SUSH_THREAD_SINK: threadSink } : {}),
+    ...(agentId === 'claude' && budget ? { CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(Math.max(CLAUDE_MIN_COMPACT_WINDOW, budget)) } : {})
   }
   const { proc, shell } = spawnPty(requestedShell, { cols, rows, cwd: shellCwd, env: ptyEnv })
-  if (threadEventFile) threadRoots.set(tabId, claudeConfigRoots(ptyEnv))
+  if (threadEventFile) {
+    const roots = agentId === 'codex' ? codexConfigRoots(ptyEnv) : agentId === 'gemini' ? geminiConfigRoots(ptyEnv) : claudeConfigRoots(ptyEnv)
+    threadRoots.set(tabId, { provider: agentId, roots })
+  }
 
   const session = {
     tabId,
@@ -1853,11 +1908,33 @@ export function registerIpcHandlers(win) {
   // reads a JSONL path structurally tied to that exact session id.
   ipcMain.handle('sush:thread-read', (event, { tabId, since } = {}) => {
     try {
-      const result = readClaudeThread(app.getPath('userData'), tabId, { roots: threadRoots.get(tabId) })
+      const bound = threadRoots.get(tabId)
+      const result = readThread(app.getPath('userData'), tabId, { roots: bound?.roots, provider: bound?.provider || 'claude' })
       if (since && result?.stamp && result.stamp === since) return { ok: true, unchanged: true, stamp: result.stamp }
       return result
     } catch (e) {
       return { ok: false, error: e?.message || 'thread read failed' }
+    }
+  })
+
+  // Gemini Thread is opt-in: Sush adds one inert hook to the user's Gemini
+  // settings (and removes exactly that hook again on opt-out).
+  ipcMain.handle('sush:gemini-thread', (event, { enable } = {}) => {
+    const env = { ...process.env, ...activeUserEnv() }
+    try {
+      if (typeof enable === 'boolean') return { ok: true, enabled: setGeminiThreadHooks(env, enable, process.platform) }
+      return { ok: true, enabled: geminiThreadHooksEnabled(readGeminiSettings(env).settings) }
+    } catch (e) {
+      return { ok: false, error: e?.message || 'could not update Gemini settings' }
+    }
+  })
+
+  ipcMain.handle('sush:gemini-compression', (event, { threshold = null } = {}) => {
+    try {
+      const env = { ...process.env, ...activeUserEnv() }
+      return { ok: true, threshold: setGeminiCompressionThreshold(env, threshold) }
+    } catch (e) {
+      return { ok: false, error: e?.message || 'could not update Gemini settings' }
     }
   })
 

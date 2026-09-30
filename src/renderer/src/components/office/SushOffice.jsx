@@ -22,6 +22,7 @@ import {
   backdropTexture, box, buildBoard, buildBuilding, buildDesk, buildKiosk, buildStatue, buildTree,
   checkerTexture, disposeTree, mat, openingRing, paintScreen, sit, stand, voxelPerson
 } from './officeScene'
+import { threadCentered } from '../../lib/shellModes'
 
 // Sush Office — a 3D pixel campus over the same live sessions as every other
 // view. One building per project folder; inside, a desk per agent whose
@@ -528,7 +529,7 @@ export default function SushOffice({
 
   // Tokens for this office's Claude desks, from the shared Thread feed.
   const officeTabs = useMemo(() => (officeKey ? tabs.filter(t => workspaceKey(t) === officeKey) : []), [tabs, officeKey])
-  const bridged = useMemo(() => officeTabs.filter(t => t.agentId === 'claude' && t.threadBridge === true), [officeTabs])
+  const bridged = useMemo(() => officeTabs.filter(t => threadCentered(t)), [officeTabs])
   const awardRef = useRef(awardTokens)
   awardRef.current = awardTokens
   useEffect(() => {

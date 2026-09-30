@@ -5,6 +5,12 @@ import { clip, prettyInput } from '../panel/ThreadTab'
 import { renderMarkdown } from '../../lib/markdown'
 import { buildTurns, describeToolUse, formatWorkedFor, workSummary } from '../../lib/threadTurns'
 
+const WAITING = {
+  claude: { name: 'Claude', hint: 'The terminal below is already live. The transcript attaches when Claude reports its session.' },
+  codex: { name: 'Codex', hint: 'Codex reports its session after your first message. First time? Approve Sush’s hooks in Codex’s “Hooks need review” prompt (Ctrl+` opens the terminal).' },
+  gemini: { name: 'Gemini', hint: 'The transcript attaches when Gemini starts its session. If Gemini asks whether to trust this folder, answer it in the terminal (Ctrl+`).' }
+}
+
 // The Nightly shell's centre: the live session's structured transcript as a
 // T3-style reading column. Raw terminal output stays in the drawer below and
 // remains the source of truth; nothing here is inferred from terminal text.
@@ -25,6 +31,8 @@ export default function ThreadView({ accent, activeTab, onOpenDiff }) {
   }
 
   const shortId = state?.sessionId ? state.sessionId.slice(0, 8) : null
+  const providerName = WAITING[activeTab?.agentId]?.name || 'The agent'
+  const waitingHint = WAITING[activeTab?.agentId]?.hint || WAITING.claude.hint
   const working = state?.state === 'working'
 
   return (
@@ -34,15 +42,15 @@ export default function ThreadView({ accent, activeTab, onOpenDiff }) {
           {!state?.bound && !error && (
             <div className="shell-thread-empty">
               <Icon name="fileText" size={18} />
-              <strong>Waiting for Claude to identify this session…</strong>
-              <span>The terminal below is already live. The transcript attaches when Claude reports its session.</span>
+              <strong>Waiting for {providerName} to identify this session…</strong>
+              <span>{waitingHint}</span>
             </div>
           )}
           {state?.bound && !state.transcriptAvailable && !items.length && (
             <div className="shell-thread-empty">
               <Icon name="clock" size={18} />
               <strong>Session {shortId} bound — transcript not flushed yet.</strong>
-              <span>Sush shows only what Claude has written; it never invents replies.</span>
+              <span>Sush shows only what {providerName} has written; it never invents replies.</span>
             </div>
           )}
           {state?.transcriptTruncated && (

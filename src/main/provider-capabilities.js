@@ -14,6 +14,7 @@
 import { spawn } from 'child_process'
 import { statSync } from 'fs'
 import { resolveExecutable, shimSpawnSpec } from './exec.js'
+import { CODEX_THREAD_MIN_VERSION, compareVersions } from './thread-providers.js'
 
 // How each provider exposes resume / reasoning, in terms of what `--help`
 // must mention for Sush to use it. These are search targets, not assertions
@@ -21,7 +22,7 @@ import { resolveExecutable, shimSpawnSpec } from './exec.js'
 export const PROVIDER_PROBES = {
   claude: { bin: 'claude', modelFlag: '--model', resume: { flag: '--continue' }, effortFlag: '--effort', settingsFlag: '--settings' },
   codex: { bin: 'codex', modelFlag: '--model', resume: { subcommand: 'resume' }, configFlag: '--config' },
-  gemini: { bin: 'gemini', modelFlag: '--model', resume: { flag: '--resume' } },
+  gemini: { bin: 'gemini', modelFlag: '--model', resume: { flag: '--resume' }, hooksSubcommand: 'hooks' },
   opencode: { bin: 'opencode', modelFlag: '--model', resume: { flag: '--continue' } },
   grok: { bin: 'grok', modelFlag: '--model', resume: { flag: '--continue' } }
 }
@@ -39,7 +40,7 @@ const SUSH_BRIDGES = {
   grok: { usageTelemetry: 'health', contextTelemetry: false, threadBridge: false }
 }
 
-const CAPABILITY_SCHEMA_VERSION = 2
+const CAPABILITY_SCHEMA_VERSION = 3
 const PROBE_TIMEOUT_MS = 8000
 const MAX_OUTPUT = 64 * 1024
 const SAFE_CHOICE = /^[a-z][a-z0-9_-]{0,31}$/
@@ -141,9 +142,17 @@ export function buildCapabilities(provider, { installed, version = null, help = 
     reasoning = { flag: helpHasFlag(help, probe.configFlag), choices: null }
   }
 
-  const threadBridge = provider === 'claude' && probe.settingsFlag
-    ? (hasHelp ? helpHasFlag(help, probe.settingsFlag) : null)
-    : base.threadBridge
+  // Claude: an extra --settings source. Codex: per-launch `-c hooks.*`
+  // overrides, verified from 0.159. Gemini: a hooks-capable CLI (the hook
+  // itself lives in the user's settings, added only on opt-in).
+  let threadBridge = base.threadBridge
+  if (provider === 'claude' && probe.settingsFlag) threadBridge = hasHelp ? helpHasFlag(help, probe.settingsFlag) : null
+  if (provider === 'codex') {
+    if (!hasHelp) threadBridge = null
+    else if (!helpHasFlag(help, probe.configFlag)) threadBridge = false
+    else threadBridge = version ? compareVersions(version, CODEX_THREAD_MIN_VERSION) >= 0 : null
+  }
+  if (provider === 'gemini') threadBridge = hasHelp ? helpHasSubcommand(help, probe.hooksSubcommand) : null
 
   return { ...base, models, reasoning, resume, threadBridge }
 }

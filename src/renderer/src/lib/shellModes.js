@@ -30,8 +30,11 @@ export function activeShellMode(view, shellMode) {
   return normalizeShellMode(shellMode)
 }
 
+// Providers whose sessions Sush can bind to their own structured log.
+export const THREAD_AGENTS = new Set(['claude', 'codex', 'gemini'])
+
 export function threadCentered(tab) {
-  return tab?.agentId === 'claude' && tab?.threadBridge === true
+  return THREAD_AGENTS.has(tab?.agentId) && tab?.threadBridge === true
 }
 
 // Where the (never-remounted) terminal layer sits for the current mode:

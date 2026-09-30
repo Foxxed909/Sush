@@ -25,7 +25,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
   const branchRoot = t3 ? (activeTab?.sessionRootCwd || activeTab?.workspaceCwd || activeTab?.cwd || null) : null
   const branch = useGitBranch(branchRoot)
   // Context in use, from the bridged transcript's recorded usage (Nightly).
-  const { items: threadItems } = useThreadFeed(t3 ? activeTab : null)
+  const { items: threadItems, state: threadState } = useThreadFeed(t3 ? activeTab : null)
   const usedTokens = t3 ? latestContextTokens(threadItems) : null
   const [value, setValue] = useState('')
   const ref = useRef(null)
@@ -100,8 +100,10 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
                 provider={activeTab?.agentId || 'shell'}
                 model={providerMeta?.model || activeTab?.model || null}
                 usedTokens={usedTokens}
+                reportedWindow={threadState?.contextWindow ?? null}
                 disabled={!activeTab?.id || disabled}
                 onCommand={(command) => onSend?.(command)}
+                onNewThread={activeTab?.agentId && onNewThread ? () => onNewThread({ agentId: activeTab.agentId, model: providerMeta?.model || activeTab?.model || null }) : null}
               />
               <ShellComposerMore
                 provider={activeTab?.agentId || 'shell'}

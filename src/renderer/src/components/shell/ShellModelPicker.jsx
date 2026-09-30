@@ -3,6 +3,7 @@ import Icon from '../Icons'
 import NightlyAnchoredPopover from '../NightlyAnchoredPopover'
 import ProviderLogo from '../ProviderLogo'
 import { agentById } from '../../lib/agents'
+import { budgetRange, clampBudget, geminiThreshold, loadContextBudget, saveContextBudget } from '../../lib/contextBudget'
 import {
   CONTEXT_COMMANDS, contextWindowFor, formatTokens, PICKER_PROVIDERS, effortLabelFor, effortOptionsFor, modelSpecFor, pickerModelLabel, pickerRows, providerCapabilities
 } from '../../lib/nightlyModels'
@@ -284,11 +285,91 @@ export function ShellComposerMore({ provider, model, effort, onApply, onNewThrea
 // Context: how much of the model's window this thread uses, and the CLI's own
 // ways to shrink or reset it. Numbers come only from the transcript's recorded
 // usage (bridged Claude threads); elsewhere the control says so plainly.
-export function ShellContextControl({ provider, model, usedTokens = null, onCommand, disabled = false }) {
+// "150k", "1.2m", "90000" → tokens.
+export function parseTokenInput(text) {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*([km])?\s*$/i.exec(String(text ?? ''))
+  if (!m) return null
+  const n = Number(m[1]) * (m[2] ? (m[2].toLowerCase() === 'm' ? 1_000_000 : 1000) : 1)
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null
+}
+
+const BUDGET_NOTES = {
+  claude: 'Claude compacts once the conversation reaches this size. Its floor is 100K.',
+  codex: 'Codex compacts once a turn crosses this many tokens.',
+  gemini: 'Gemini compresses at this share of its window. It is a Gemini-wide setting, saved to your Gemini settings.'
+}
+
+// Auto-compact budget: a slider plus an exact field, from the CLI's floor up
+// to the full window. It caps when the CLI compacts, not the model's window.
+function ContextBudget({ provider, windowSize, onNewThread }) {
+  const range = budgetRange(provider, windowSize)
+  const [saved, setSaved] = useState(() => loadContextBudget(provider))
+  const [draft, setDraft] = useState(saved)
+  const [text, setText] = useState('')
+  const [status, setStatus] = useState('')
+  useEffect(() => { const v = loadContextBudget(provider); setSaved(v); setDraft(v); setStatus('') }, [provider])
+  if (!range) return null
+  const value = draft == null ? range.max : Math.min(draft, range.max)
+  const commit = async (next) => {
+    const clean = clampBudget(provider, next, range.max)
+    setDraft(clean)
+    setSaved(saveContextBudget(provider, clean))
+    setStatus('Applies from the next launch')
+    if (provider === 'gemini') {
+      const res = await window.sush?.geminiCompression?.({ threshold: clean == null ? null : geminiThreshold(clean, range.max) })
+      if (res && !res.ok) setStatus(res.error || 'Could not update Gemini settings')
+    }
+  }
+  const pct = Math.round((value / range.max) * 100)
+  return (
+    <div className="ctx-budget">
+      <div className="t3-menu-label">Auto-compact at</div>
+      <div className="ctx-budget-head">
+        <strong>{draft == null ? 'Full window' : formatTokens(value)}</strong>
+        <span>{draft == null ? formatTokens(range.max) : `${pct}% of ${formatTokens(range.max)}`}</span>
+      </div>
+      <input
+        type="range"
+        className="ctx-budget-range"
+        aria-label="Auto-compact budget"
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        value={value}
+        style={{ '--ctx-fill': `${((value - range.min) / Math.max(1, range.max - range.min)) * 100}%` }}
+        onChange={e => setDraft(Number(e.target.value) >= range.max ? null : Number(e.target.value))}
+        onPointerUp={e => commit(Number(e.currentTarget.value))}
+        onKeyUp={e => commit(Number(e.currentTarget.value))}
+      />
+      <div className="ctx-budget-scale"><span>{formatTokens(range.min)}</span><span>{formatTokens(range.max)}</span></div>
+      <form
+        className="ctx-budget-exact"
+        onSubmit={e => { e.preventDefault(); const n = parseTokenInput(text); if (n) { commit(n); setText('') } }}
+      >
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder={`Exact, e.g. ${formatTokens(Math.round((range.min + range.max) / 2 / 1000) * 1000)}`}
+          aria-label="Exact auto-compact budget"
+        />
+        <button type="submit" disabled={!parseTokenInput(text)}>Set</button>
+        <button type="button" disabled={saved == null} onClick={() => commit(null)}>Full</button>
+      </form>
+      <div className="t3-menu-note">{BUDGET_NOTES[provider]}{status ? <><br /><b>{status}.</b></> : null}</div>
+      {status && onNewThread && (
+        <button type="button" className="t3-menu-item" onClick={onNewThread}>
+          <Icon name="plus" size={13} /> New thread with this budget
+        </button>
+      )}
+    </div>
+  )
+}
+
+export function ShellContextControl({ provider, model, usedTokens = null, reportedWindow = null, onCommand, onNewThread, disabled = false }) {
   const [open, setOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const anchorRef = useRef(null)
-  const windowSize = contextWindowFor(provider, model)
+  const windowSize = contextWindowFor(provider, model, reportedWindow)
   const commands = CONTEXT_COMMANDS[provider] || null
   const pct = windowSize && usedTokens != null ? Math.min(100, (usedTokens / windowSize) * 100) : null
   const tone = pct == null ? '' : pct >= 85 ? ' is-high' : pct >= 60 ? ' is-mid' : ''
@@ -339,6 +420,8 @@ export function ShellContextControl({ provider, model, usedTokens = null, onComm
               : 'Usage appears once the transcript records a reply.'}
           </div>
           <div className="t3-menu-sep" />
+          <ContextBudget provider={provider} windowSize={windowSize} onNewThread={onNewThread ? () => { setOpen(false); onNewThread() } : null} />
+          {budgetRange(provider, windowSize) && <div className="t3-menu-sep" />}
           <button role="menuitem" className="t3-menu-item" onClick={() => run(commands.compact)}>
             <Icon name="layers" size={13} /> Compact conversation <small>{commands.compact}</small>
           </button>

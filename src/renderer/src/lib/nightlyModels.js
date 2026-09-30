@@ -193,9 +193,13 @@ export function pickerModelLabel(provider, model) {
 // Current Claude models run with a 1M-token window by default (Haiku: 200K);
 // there is no larger window to opt into, so "max" is what they already use.
 // Other CLIs choose their window per model; Sush does not guess it.
-export function contextWindowFor(provider, model) {
-  if (provider !== 'claude') return null
-  return /haiku/i.test(String(model || '')) ? 200_000 : 1_000_000
+// Known context windows. Codex reports its real window in the rollout
+// (`reported`), which wins; Gemini's current models all take ~1M.
+export function contextWindowFor(provider, model, reported = null) {
+  if (Number(reported) > 0) return Number(reported)
+  if (provider === 'claude') return /haiku/i.test(String(model || '')) ? 200_000 : 1_000_000
+  if (provider === 'gemini') return 1_048_576
+  return null
 }
 
 // Slash commands each CLI documents for shrinking or resetting its context.

@@ -62,14 +62,44 @@ function lineCount(text) {
   return value ? value.split('\n').length : 0
 }
 
+// `*** Update File: path` sections of a Codex apply_patch envelope, with the
+// +/- lines each one carries.
+export function patchEnvelopeFiles(patch = '') {
+  const files = []
+  let current = null
+  for (const line of String(patch).split('\n')) {
+    const header = /^\*\*\* (Add|Update|Delete) File: (.+)$/.exec(line)
+    if (header) {
+      current = { path: header[2].trim(), added: 0, removed: 0 }
+      files.push(current)
+      continue
+    }
+    if (!current || line.startsWith('***') || line.startsWith('@@')) continue
+    if (line.startsWith('+')) current.added++
+    else if (line.startsWith('-')) current.removed++
+  }
+  return files
+}
+
 // Files a turn touched, from the edit tools' own inputs. Counts are the lines
 // those calls replaced and wrote — what the transcript records, not a git diff.
 export function changedFilesFromSteps(steps = []) {
   const files = new Map()
   for (const step of steps) {
     const use = step.use
-    if (!use || !EDIT_TOOLS.has(use.name) || step.result?.isError) continue
+    if (!use || step.result?.isError) continue
     const input = use.input || {}
+    // Codex edits arrive as one apply_patch envelope spanning several files.
+    if (use.name === 'Patch' && typeof input.patch === 'string') {
+      for (const file of patchEnvelopeFiles(input.patch)) {
+        const entry = files.get(file.path) || { path: file.path, added: 0, removed: 0 }
+        entry.added += file.added
+        entry.removed += file.removed
+        files.set(file.path, entry)
+      }
+      continue
+    }
+    if (!EDIT_TOOLS.has(use.name)) continue
     const path = input.file_path || input.notebook_path || input.path
     if (!path) continue
     const entry = files.get(path) || { path, added: 0, removed: 0 }
@@ -157,7 +187,7 @@ export function buildTurns(items = []) {
 // transcript has not recorded usage yet — never estimated.
 export function latestContextTokens(items = []) {
   for (let i = items.length - 1; i >= 0; i--) {
-    const usage = items[i]?.type === 'assistant' ? items[i].usage : null
+    const usage = items[i]?.usage
     if (!usage || typeof usage !== 'object') continue
     const parts = [usage.input_tokens, usage.cache_creation_input_tokens, usage.cache_read_input_tokens, usage.output_tokens]
     const total = parts.reduce((n, v) => n + (Number.isFinite(Number(v)) ? Number(v) : 0), 0)

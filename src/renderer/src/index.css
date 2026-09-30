@@ -2416,3 +2416,23 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .office-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 4; }
 .office-labels > .is-clickable { pointer-events: auto; cursor: pointer; }
 .office-labels > .is-clickable:hover { border-color: var(--border-3); }
+
+/* Context budget (auto-compact) */
+.ctx-menu { width: 290px; }
+.ctx-budget { display: grid; gap: 6px; padding-bottom: 4px; }
+.ctx-budget-head { padding: 0 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ctx-budget-head strong { color: var(--text-1); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ctx-budget-head span { color: var(--text-4); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ctx-budget-range { margin: 2px 8px 0; width: calc(100% - 16px); height: 16px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+.ctx-budget-range::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: linear-gradient(90deg, var(--stage-night-secondary, #a78bfa) var(--ctx-fill, 100%), rgba(255,255,255,.1) var(--ctx-fill, 100%)); }
+.ctx-budget-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: #f4f0ff; border: 2px solid var(--stage-night-secondary, #a78bfa); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.ctx-budget-range:focus-visible { outline: none; }
+.ctx-budget-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(167,139,250,.35); }
+.ctx-budget-scale { padding: 0 8px; display: flex; justify-content: space-between; color: var(--text-5); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.ctx-budget-exact { margin: 2px 8px 0; display: flex; gap: 6px; }
+.ctx-budget-exact input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--border-1); background: rgba(255,255,255,.03); color: var(--text-1); font: 12px var(--font-ui); }
+.ctx-budget-exact input:focus { outline: none; border-color: rgba(167,139,250,.5); }
+.ctx-budget-exact button { height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--border-1); background: rgba(255,255,255,.05); color: var(--text-2); font: 500 12px var(--font-ui); cursor: pointer; }
+.ctx-budget-exact button:disabled { opacity: .4; cursor: default; }
+.ctx-budget-exact button:hover:not(:disabled) { background: rgba(255,255,255,.09); color: var(--text-1); }
+.ctx-budget .t3-menu-note b { color: var(--text-2); font-weight: 600; }

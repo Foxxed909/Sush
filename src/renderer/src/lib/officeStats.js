@@ -27,7 +27,7 @@ export function transcriptTokens(items = []) {
   let cached = 0
   let context = null
   for (const item of items) {
-    const u = item?.type === 'assistant' ? item.usage : null
+    const u = item?.usage || null
     if (!u) continue
     const n = key => (Number.isFinite(Number(u[key])) ? Number(u[key]) : 0)
     input += n('input_tokens') + n('cache_creation_input_tokens')
