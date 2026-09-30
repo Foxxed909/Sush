@@ -10,7 +10,7 @@ import { STATES } from '../../lib/agentActivity'
 import { PICKER_PROVIDERS, formatTokens, pickerRows } from '../../lib/nightlyModels'
 import {
   WALL_H, WALL_T, buildCampusLayout, buildInteriorLayout, campusLayoutKey, interiorLayoutKey,
-  moveWithCollisions, nearestInteractable
+  meetingSeat, moveWithCollisions, nearestInteractable
 } from '../../lib/officeLayout'
 import { levelFor, officeHeadcount, transcriptTokens } from '../../lib/officeStats'
 import { OFFICE_THEMES, loadOfficeThemes, officeTheme, saveOfficeTheme } from '../../lib/officeThemes'
@@ -19,10 +19,11 @@ import { subscribeThreadFeed } from '../../lib/threadFeedStore'
 import { terminalTail } from '../../lib/terminalRegistry'
 import { workspaceKey } from '../../lib/workspaces'
 import {
-  backdropTexture, box, buildBoard, buildBuilding, buildDesk, buildKiosk, buildStatue, buildTree,
+  backdropTexture, box, buildBoard, buildBuilding, buildDesk, buildKiosk, buildMeetingTable, buildStatue, buildTree,
   checkerTexture, disposeTree, mat, openingRing, paintScreen, sit, stand, voxelPerson
 } from './officeScene'
 import { threadCentered } from '../../lib/shellModes'
+import { playChime } from '../../lib/chime'
 
 // Sush Office — a 3D pixel campus over the same live sessions as every other
 // view. One building per project folder; inside, a desk per agent whose
@@ -40,6 +41,13 @@ const WALK = 4.4
 const RUN = 7.5
 const IDLE_FPS = 12
 const WALK_IN_MS = 2600
+const TRIP_MS = 1900
+const SEAT = new Vector3(0, 0.05, 0.72)
+const SOUND_KEY = 'sush-office-sound'
+
+function loadSound() {
+  try { return localStorage.getItem(SOUND_KEY) !== 'off' } catch { return true }
+}
 const OPENING_MS = 1100
 
 function stateOf(tabId, states, limits, tabs) {
@@ -64,7 +72,11 @@ export default function SushOffice({
   onNewOffice,
   onHire,
   onChat,
-  onAgents
+  onAgents,
+  meetingTabIds = null,
+  onMeeting,
+  onMeetingType,
+  globalChime = false
 }) {
   const hostRef = useRef(null)
   const overlayRef = useRef(null)
@@ -76,6 +88,7 @@ export default function SushOffice({
   const [hireOpen, setHireOpen] = useState(false)
   const [failed, setFailed] = useState(false)
   const [tokens, setTokens] = useState({})
+  const [sound, setSound] = useState(loadSound)
 
   const campusKey = campusLayoutKey(tabs)
   const campus = useMemo(() => buildCampusLayout(tabs), [campusKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -93,7 +106,16 @@ export default function SushOffice({
     if (place.kind === 'interior' && !campus.buildings.some(b => b.key === place.key)) setPlace({ kind: 'campus' })
   }, [campus, place])
 
-  liveRef.current = { tabs, states, limits, focusTabId, onFocusMonitor, onNewOffice, onChat, onAgents, setPlace, setHireOpen }
+  // Who is at the meeting table: this office's agents that the active
+  // broadcast reaches.
+  const meetingSet = useMemo(() => {
+    if (!interior || !Array.isArray(meetingTabIds)) return new Set()
+    const here = new Set(interior.desks.filter(d => d.tabId).map(d => d.tabId))
+    return new Set(meetingTabIds.filter(id => here.has(id)))
+  }, [interior, meetingTabIds])
+  const meetingOn = meetingSet.size > 0
+
+  liveRef.current = { tabs, states, limits, focusTabId, onFocusMonitor, onNewOffice, onChat, onAgents, setPlace, setHireOpen, meetingSet, onMeeting, interior }
 
   // ── Engine: renderer, camera, player, input, loop. Once per accent/motion. ──
   useEffect(() => {
@@ -155,6 +177,7 @@ export default function SushOffice({
       else if (target.kind === 'new-office') live.onNewOffice?.()
       else if (target.kind === 'chat') live.onChat?.()
       else if (target.kind === 'agents') live.onAgents?.()
+      else if (target.kind === 'meeting') live.onMeeting?.(live.interior, live.meetingSet.size === 0)
     }
     const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'])
     const onKeyDown = (e) => {
@@ -262,10 +285,50 @@ export default function SushOffice({
 
         // ── agents + windows reflect live state ──
         const t = now / 1000
+        const meeting = engine.layout?.meeting
+        const attendees = meeting ? engine.desks.filter(g => g.userData.desk.tabId && live.meetingSet.has(g.userData.desk.tabId)) : []
         for (const group of engine.desks) {
           const { desk, person, walkIn } = group.userData
           if (!desk.tabId || !person) continue
           const id = stateOf(desk.tabId, live.states, live.limits, live.tabs)
+          // Meeting: walk from the desk to a spot around the table and back.
+          const wantMeeting = !!meeting && live.meetingSet.has(desk.tabId)
+          if (!walkIn && !group.userData.trip && wantMeeting !== !!group.userData.atMeeting) {
+            const spot = wantMeeting ? meetingSeat(meeting, attendees.indexOf(group), attendees.length) : null
+            const to = spot ? new Vector3(spot.x - desk.x, 0, spot.z - desk.z) : SEAT.clone()
+            const trip = { start: now, from: person.position.clone(), to, toMeeting: wantMeeting, facing: spot ? spot.facing : Math.PI }
+            group.userData.atMeeting = wantMeeting
+            stand(person)
+            if (reduceMotion) {
+              person.position.copy(to)
+              person.rotation.y = trip.facing
+              if (!wantMeeting) sit(person)
+            } else {
+              group.userData.trip = trip
+            }
+            engine.dirty = true
+          }
+          const trip = group.userData.trip
+          if (trip) {
+            const k = Math.min(1, (now - trip.start) / TRIP_MS)
+            const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+            person.position.lerpVectors(trip.from, trip.to, e)
+            person.rotation.y = Math.atan2(trip.to.x - trip.from.x, trip.to.z - trip.from.z)
+            const parts = person.userData.parts
+            const s = Math.sin(k * 26) * 0.6
+            parts.legL.rotation.x = s; parts.legR.rotation.x = -s
+            parts.armL.rotation.x = -s * 0.6; parts.armR.rotation.x = s * 0.6
+            if (k >= 1) {
+              group.userData.trip = null
+              person.position.copy(trip.to)
+              person.rotation.y = trip.facing
+              if (trip.toMeeting) stand(person)
+              else sit(person)
+            }
+            engine.dirty = true
+            busy = true
+            continue
+          }
           if (walkIn) {
             const k = Math.min(1, (now - walkIn.start) / WALK_IN_MS)
             person.position.lerpVectors(walkIn.from, walkIn.to, k)
@@ -276,6 +339,15 @@ export default function SushOffice({
             if (k >= 1) { group.userData.walkIn = null; person.position.copy(walkIn.to); person.rotation.y = Math.PI; sit(person) }
             engine.dirty = true
             busy = true
+            continue
+          }
+          if (!reduceMotion && group.userData.atMeeting) {
+            // At the table: arms down, listening; a raised hand still means "needs you".
+            const parts = person.userData.parts
+            parts.armL.rotation.x = 0
+            parts.armR.rotation.x = 0
+            parts.armR.rotation.z = id === 'waiting' ? 2.6 : 0
+            parts.head.rotation.x = Math.sin(t * 2 + desk.x) * 0.08
             continue
           }
           if (!reduceMotion) {
@@ -291,6 +363,14 @@ export default function SushOffice({
           const id = win.tabId ? stateOf(win.tabId, live.states, live.limits, live.tabs) : 'off'
           const color = id === 'off' ? '#2a2438' : id === 'idle' || id === 'done' ? '#3a3350' : STATE_COLOR(id)
           if (win.mesh.material.color.getHexString() !== color.slice(1)) { win.mesh.material.color.set(color); engine.dirty = true }
+        }
+        const table = engine.world?.userData.meetingTable
+        if (table) {
+          const glow = live.meetingSet.size > 0 ? table.userData.accent : '#2a2438'
+          if (table.userData.inlay.material.color.getHexString() !== new Color(glow).getHexString()) {
+            table.userData.inlay.material.color.set(glow)
+            engine.dirty = true
+          }
         }
         const statue = engine.world?.userData.statue
         if (statue && !reduceMotion) { statue.userData.orb.rotation.y = t; statue.userData.orb.position.y = 1.8 + Math.sin(t * 2) * 0.08 }
@@ -437,6 +517,10 @@ export default function SushOffice({
         }
       }
       engine.seenDesks.set(interior.key, nextSeen)
+      const table = buildMeetingTable(interior.meeting, t, accent)
+      world.add(table)
+      world.userData.meetingTable = table
+      anchors.set('meeting', table.userData.anchors.label)
     } else {
       engine.scene.background = new Color('#0c0a12')
       engine.scene.fog = new Fog('#0c0a12', 30, 70)
@@ -542,6 +626,24 @@ export default function SushOffice({
     return () => unsubs.forEach(u => u())
   }, [bridged])
 
+  // Chime when an agent raises its hand (starts waiting on you). Scoped to
+  // the office you're in; skipped when the app-wide attention chime is on so
+  // one event never rings twice.
+  const handsRef = useRef(null)
+  useEffect(() => {
+    const scope = interior ? officeTabs : tabs
+    const raised = new Set(scope.filter(t => stateOf(t.id, states, limits, tabs) === 'waiting').map(t => t.id))
+    const prev = handsRef.current
+    handsRef.current = raised
+    if (!prev || !sound || globalChime) return
+    for (const id of raised) if (!prev.has(id)) { playChime(); break }
+  }, [states, limits, tabs, officeTabs, interior, sound, globalChime])
+  const toggleSound = () => setSound(prev => {
+    const next = !prev
+    try { localStorage.setItem(SOUND_KEY, next ? 'on' : 'off') } catch {}
+    return next
+  })
+
   const setOfficeTheme = useCallback((id) => {
     if (officeKey) setThemes(prev => saveOfficeTheme(prev, officeKey, id))
   }, [officeKey])
@@ -599,6 +701,17 @@ export default function SushOffice({
         {!interior && <div data-anchor="kiosk" className="office-tag is-accent is-clickable" role="button" tabIndex={-1} onClick={() => onNewOffice?.()}>+ New office</div>}
         {!interior && <div data-anchor="seducia" className="office-tag is-accent">Seducia</div>}
         {!interior && <div data-anchor="board" className="office-tag">Agents board</div>}
+        {interior && (
+          <div
+            data-anchor="meeting"
+            className={`office-tag is-clickable${meetingOn ? ' is-accent' : ''}`}
+            role="button"
+            tabIndex={-1}
+            onClick={() => onMeeting?.(interior, !meetingOn)}
+          >
+            {meetingOn ? `Meeting · ${meetingSet.size} at the table` : 'Meeting table'}
+          </div>
+        )}
         {interior && interior.desks.map(desk => {
           if (!desk.tabId) return <div key="hire" data-anchor="desk:hire" className="office-tag is-accent is-dashed is-clickable" role="button" tabIndex={-1} onClick={() => setHireOpen(true)}>+ Hire an agent</div>
           const id = stateOf(desk.tabId, states, limits, tabs)
@@ -640,6 +753,13 @@ export default function SushOffice({
             </span>
             {officeCounts.working > 0 && <span className="office-chip is-working">{officeCounts.working} working</span>}
             {officeCounts.waiting > 0 && <span className="office-chip is-waiting">{officeCounts.waiting} need you</span>}
+            {meetingOn && (
+              <span className="office-chip is-meeting">
+                Meeting · {meetingSet.size}
+                <button onClick={() => onMeetingType?.()} title="Type once, every attendee receives it">Type to all</button>
+                <button onClick={() => onMeeting?.(interior, false)}>End</button>
+              </span>
+            )}
             <label className="office-chip is-button office-theme">
               <Icon name="palette" size={12} />
               <select value={theme.id} onChange={e => setOfficeTheme(e.target.value)} aria-label="Office theme">
@@ -661,6 +781,14 @@ export default function SushOffice({
             {totals.waiting > 0 && <span className="office-chip is-waiting">{totals.waiting} need you</span>}
           </>
         )}
+        <button
+          className={`office-chip is-button${sound ? '' : ' is-muted'}`}
+          onClick={toggleSound}
+          title={globalChime ? 'The app-wide attention chime is on (Settings), so the Office stays quiet to avoid ringing twice' : sound ? 'Chime when an agent raises its hand' : 'Office chime off'}
+          aria-pressed={sound}
+        >
+          <Icon name={sound ? 'bell' : 'bellOff'} size={12} />
+        </button>
         <span className="office-chip office-xp" title={`${Math.round(officeLevel.xp)} XP · next level at ${officeLevel.nextXp}`}>
           Lv {officeLevel.level}
           <i><b style={{ width: `${Math.round(officeLevel.progress * 100)}%` }} /></i>
@@ -670,7 +798,7 @@ export default function SushOffice({
 
       {hint && !focusTabId && (
         <div className={`office-hint is-${hint.kind}`}>
-          <kbd>E</kbd> {hint.kind === 'session' ? `Open ${hint.label}'s screen` : hint.label}
+          <kbd>E</kbd> {hint.kind === 'session' ? `Open ${hint.label}'s screen` : hint.kind === 'meeting' && meetingOn ? 'End the meeting' : hint.label}
         </div>
       )}
 

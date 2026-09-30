@@ -204,6 +204,48 @@ Nightly → Stable once the walk and a week of daily use are clean.
   context loss, git-diff-head unborn HEAD/oversize/textconv, compound
   commands never bridged, `fs-guard.js` write guard, stable sidebar order.
 
+
+## 0.7 Phase 3 — Codex/Gemini Thread, context budget, meeting room
+
+- **Codex Thread** (`src/main/thread-providers.js`): per-launch
+  `-c 'hooks.<Event>=[…command="sh \"$SUSH_THREAD_SINK\""…]'` inserted
+  right after `codex`. It is POSIX-shell only and skipped when config.toml
+  already defines those events. Codex asks the user once ("Hooks need
+  review" → Trust) and stores `hooks.state."/<session-flags>/…".trusted_hash`.
+  Verified on 0.159 via the TUI; the gate is `--config` in help and
+  version >= `CODEX_THREAD_MIN_VERSION`. The rollout parser skips
+  developer and `<environment_context>` messages and maps
+  exec_command→Bash and apply_patch→Patch (files counted from the
+  envelope). `token_count.last_token_usage` becomes context in use;
+  `model_context_window` is the real window.
+- **Gemini Thread**: `GEMINI_CLI_SYSTEM_*` files must be root-owned
+  (`checkPosixStatsSecurity`), so there is no per-launch source. The hook
+  is opt-in in `~/.gemini/settings.json` (Settings → Agents) and inert
+  without `SUSH_THREAD_EVENT_PATH`; opting out removes exactly that hook.
+  Gemini expands `$VAR` in settings strings but leaves unset vars
+  literal. Events: BeforeAgent = working + prompt, AfterAgent = idle.
+  Chat JSONL: same-id records upsert, `$set.messages` replaces the list.
+- `readThread(userData, tabId, {roots, provider})`; the cache is keyed by
+  provider + roots. `threadRoots` stores `{provider, roots}`.
+- **Context budget** (`lib/contextBudget.js`, `ShellContextControl`):
+  a slider plus an exact field, sent as `contextBudget` in `startPty`.
+  Claude: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, floor 100K. Codex:
+  `-c model_auto_compact_token_limit=N`. Gemini: global
+  `model.compressionThreshold` = budget / window, written on save. The
+  full window means no budget. This is an auto-compact cap, not a
+  smaller hard window.
+- **Office meeting room**: a table between the desks and the door
+  (`meeting`, `meetingSeat`). Calling one sets broadcast to workspace
+  scope, and attendees walk over (`TRIP_MS`); the table glows. "Type to
+  all" opens Code, with broadcast still on.
+- **Office chime**: plays on a newly raised hand (waiting), scoped to the
+  current office. It stays silent when the app-wide attention chime is on,
+  so nothing rings twice. Toggle: bell in the HUD (`sush-office-sound`).
+- `hooks/useNightlyShell.js` now holds channel, mode, drawer, office
+  focus and placement, taken out of App.jsx.
+- Harness: when Playwright's bundled browser is missing, run with
+  `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+
 ## 0.5 Phase 1 — T3 Code layout port (Nightly channel)
 
 Ported from T3 Code's source (MIT; notice in `THIRD_PARTY_NOTICES.md`, shipped

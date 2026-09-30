@@ -221,6 +221,25 @@ export function openingRing(x, z, color) {
   return ring
 }
 
+// The meeting table: a low slab with a glowing inlay that lights up while a
+// meeting (a broadcast to this office) is in session.
+export function buildMeetingTable(meeting, theme, accent) {
+  const group = new Group()
+  group.position.set(meeting.x, 0, meeting.z)
+  const wood = mat(theme.desk)
+  const s = meeting.size
+  group.add(box(s, 0.1, s, wood, 0, 0.72, 0))
+  group.add(box(0.5, 0.68, 0.5, wood, 0, 0.34, 0))
+  const inlay = new Mesh(new PlaneGeometry(s * 0.6, s * 0.6), new MeshBasicMaterial({ color: '#2a2438' }))
+  inlay.rotation.x = -Math.PI / 2
+  inlay.position.y = 0.775
+  group.add(inlay)
+  group.userData.inlay = inlay
+  group.userData.accent = accent
+  group.userData.anchors = { label: new Vector3(meeting.x, 1.7, meeting.z) }
+  return group
+}
+
 export function buildKiosk(kiosk, accent) {
   const group = new Group()
   group.position.set(kiosk.x, 0, kiosk.z)

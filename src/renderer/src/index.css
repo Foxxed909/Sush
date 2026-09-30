@@ -2436,3 +2436,9 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .ctx-budget-exact button:disabled { opacity: .4; cursor: default; }
 .ctx-budget-exact button:hover:not(:disabled) { background: rgba(255,255,255,.09); color: var(--text-1); }
 .ctx-budget .t3-menu-note b { color: var(--text-2); font-weight: 600; }
+
+/* Office: meeting + chime */
+.office-chip.is-meeting { color: var(--text-1); gap: 6px; border-color: rgba(167,139,250,.45); background: rgba(46,34,72,.92); }
+.office-chip.is-meeting button { height: 20px; padding: 0 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: var(--text-1); font: 600 11px var(--font-ui); cursor: pointer; }
+.office-chip.is-meeting button:hover { background: rgba(255,255,255,.12); }
+.office-chip.is-muted { color: var(--text-5); }

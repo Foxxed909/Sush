@@ -338,3 +338,37 @@ describe('Write guard', () => {
     expect(sensitiveWritePath('/tmp/.bashrc', home, 'linux')).toBe(false)
   })
 })
+
+describe('office meeting room', async () => {
+  const { buildInteriorLayout, meetingSeat, moveWithCollisions, nearestInteractable } = await import('../src/renderer/src/lib/officeLayout.js')
+  const tabs = Array.from({ length: 6 }, (_, i) => ({ id: `t${i}`, agentId: 'claude', cwd: '/p', workspaceCwd: '/p' }))
+  const key = (await import('../src/renderer/src/lib/workspaces.js')).workspaceKey(tabs[0])
+  const room = buildInteriorLayout(tabs, key)
+
+  it('puts a table between the desks and the door', () => {
+    const lastRow = Math.max(...room.desks.map(d => d.z))
+    expect(room.meeting.z).toBeGreaterThan(lastRow + 2)
+    expect(room.meeting.z + room.meeting.size / 2).toBeLessThan(room.spawn.z - 1)
+  })
+
+  it('seats every attendee off the table, in the room, facing it', () => {
+    for (const n of [1, 6, 15]) {
+      for (let i = 0; i < n; i++) {
+        const s = meetingSeat(room.meeting, i, n)
+        expect(Math.max(Math.abs(s.x - room.meeting.x), Math.abs(s.z - room.meeting.z))).toBeGreaterThan(room.meeting.size / 2)
+        expect(s.x).toBeGreaterThan(room.room.minX)
+        expect(s.x).toBeLessThan(room.room.maxX)
+        // facing points back at the table
+        expect(Math.abs(Math.atan2(room.meeting.x - s.x, room.meeting.z - s.z) - s.facing)).toBeLessThan(1e-9)
+      }
+    }
+  })
+
+  it('is reachable from the door and the table blocks walking through it', () => {
+    const spot = room.interactables.find(i => i.kind === 'meeting')
+    expect(nearestInteractable({ x: spot.x, z: spot.z }, room).kind).toBe('meeting')
+    let pos = { ...room.spawn }
+    for (let i = 0; i < 200; i++) pos = moveWithCollisions(pos, 0, -0.05, room.colliders)
+    expect(pos.z).toBeGreaterThan(room.meeting.z + room.meeting.size / 2)
+  })
+})

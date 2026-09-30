@@ -20,6 +20,8 @@ const INTERIOR_COLS = 4
 const INTERIOR_DX = 3.4
 const INTERIOR_DZ = 3
 const MAX_DESKS = 16
+export const MEETING_TABLE = 1.8
+const MEETING_GAP = 3.3
 
 function box(minX, maxX, minZ, maxZ) {
   return { minX, maxX, minZ, maxZ }
@@ -101,9 +103,11 @@ export function buildInteriorLayout(tabs = [], key) {
   const cols = Math.min(INTERIOR_COLS, slots.length)
   const rows = Math.ceil(slots.length / cols)
   const w = Math.max(3, cols) * INTERIOR_DX + 2.4
-  const d = rows * INTERIOR_DZ + 5.2
+  // Room for the meeting table between the last row of desks and the door.
+  const d = rows * INTERIOR_DZ + 5.2 + MEETING_GAP
   const room = { minX: -w / 2, maxX: w / 2, minZ: -d / 2, maxZ: d / 2 }
   const top = room.minZ + 2
+  const meeting = { x: 0, z: top + (rows - 1) * INTERIOR_DZ + MEETING_GAP, size: MEETING_TABLE }
 
   const desks = slots.map((slot, index) => {
     const col = index % cols
@@ -125,13 +129,15 @@ export function buildInteriorLayout(tabs = [], key) {
     box(door.x + doorW / 2, room.maxX, room.maxZ, room.maxZ + WALL_T),
     // The doorway leads out, not into the void: stepping through is "exit".
     box(door.x - doorW / 2, door.x + doorW / 2, room.maxZ + 0.6, room.maxZ + 1),
-    ...desks.map(k => box(k.x - DESK_W / 2, k.x + DESK_W / 2, k.z - DESK_D / 2, k.z + DESK_D / 2))
+    ...desks.map(k => box(k.x - DESK_W / 2, k.x + DESK_W / 2, k.z - DESK_D / 2, k.z + DESK_D / 2)),
+    box(meeting.x - MEETING_TABLE / 2, meeting.x + MEETING_TABLE / 2, meeting.z - MEETING_TABLE / 2, meeting.z + MEETING_TABLE / 2)
   ]
 
   const interactables = [
     ...desks.map(k => (k.hire
       ? { kind: 'hire', id: k.id, label: 'Hire an agent here', x: k.x, z: k.z + DESK_D / 2 + 0.55, cwd: group?.cwd || null }
       : { kind: 'session', id: k.id, tabId: k.tabId, label: k.label, x: k.x, z: k.z + DESK_D / 2 + 0.55 })),
+    { kind: 'meeting', id: 'meeting', label: 'Call a meeting — broadcast to this office', x: meeting.x, z: meeting.z + MEETING_TABLE / 2 + 0.9 },
     { kind: 'exit', id: 'exit', label: 'Back to campus', x: door.x, z: room.maxZ - 0.4 }
   ]
 
@@ -141,12 +147,24 @@ export function buildInteriorLayout(tabs = [], key) {
     label: group?.label || 'Office',
     cwd: group?.cwd || null,
     groupId: group?.tabs?.[0]?.groupId || null,
-    room, desks, door, doorW,
+    room, desks, door, doorW, meeting,
     overflow: Math.max(0, (group?.tabs?.length || 0) - (MAX_DESKS - 1)),
     spawn: { x: door.x, z: room.maxZ - 2 },
     colliders,
     interactables
   }
+}
+
+// Where the i-th of n attendees stands around the table, facing it. The
+// ring leaves a gap on the door side so the player can walk up to it.
+export function meetingSeat(meeting, index, count) {
+  const n = Math.max(1, count)
+  const radius = meeting.size / 2 + 0.55 + (n > 8 ? 0.35 : 0)
+  const gap = 0.9 // radians left open towards the door (+z)
+  const angle = Math.PI / 2 + gap / 2 + ((Math.PI * 2 - gap) * (index + 0.5)) / n
+  const x = meeting.x + Math.cos(angle) * radius
+  const z = meeting.z + Math.sin(angle) * radius
+  return { x, z, facing: Math.atan2(meeting.x - x, meeting.z - z) }
 }
 
 // ── Movement + interaction ────────────────────────────────────────────────

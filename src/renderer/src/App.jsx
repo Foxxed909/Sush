@@ -48,8 +48,7 @@ import { useOfficeProgress } from './hooks/useOfficeProgress'
 import ShellHeader from './components/shell/ShellHeader'
 import ShellSidebar from './components/shell/ShellSidebar'
 import ProviderLogo from './components/ProviderLogo'
-import { setShellChords } from './lib/keymap'
-import { activeShellMode, modeFromShortcut, normalizeChannel, normalizeShellMode, terminalPlacement, threadCentered } from './lib/shellModes'
+import { useNightlyShell } from './hooks/useNightlyShell'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -112,10 +111,8 @@ const LAST_HOME_VIEW_KEY = 'sush-last-home-view'
 const COMMAND_HISTORY_KEY = 'sush-command-history'
 const PINNED_PROJECTS_KEY = 'sush-pinned-projects'
 const NIGHTLY_WORKSPACE_UI_KEY = 'sush-nightly-workspace-ui'
-const SHELL_MODE_KEY = 'sush-shell-mode'
 // Nightly canvas — keep in sync with --surface-0 under .sush-t3 in index.css.
 const NIGHTLY_CANVAS = '#0c0a12'
-const SHELL_DRAWER_KEY = 'sush-shell-drawer'
 const MAX_RECENT_SESSIONS = 8
 
 function loadCommandHistory() {
@@ -363,14 +360,6 @@ export default function App() {
   const [seduciaOpen, setSeduciaOpen] = useState(false)
   const [rightTab, setRightTab] = useState(() => localStorage.getItem('sush-right-tab') || 'agent')
   const [settings, setSettings] = useState(loadSettings)
-  // Nightly channel (T3-style shell) vs Stable (Quiet Nights shell).
-  const uiChannel = normalizeChannel(settings.uiChannel)
-  const nightlyShell = uiChannel === 'nightly'
-  const [shellMode, setShellModeState] = useState(() => normalizeShellMode(localStorage.getItem(SHELL_MODE_KEY)))
-  const [drawerOpen, setDrawerOpen] = useState(() => localStorage.getItem(SHELL_DRAWER_KEY) !== '0')
-  const [drawerHeight, setDrawerHeight] = useState(260)
-  // Office: the desk whose monitor you zoomed into (its real terminal shows there).
-  const [officeFocus, setOfficeFocus] = useState(null)
   const entitlements = useEntitlements()
   const online = useOnline()
   // Performance ladder (lib/power): full < reduced < saver < eco, each rung
@@ -675,70 +664,15 @@ export default function App() {
 
   const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
 
-  // ── Nightly shell modes ────────────────────────────────────────────────────
-  // Chat · Code · Thread · Agents · Office. Agents IS the Overview view; the
-  // others are layouts around the same mounted terminals.
-  const currentShellMode = activeShellMode(view, shellMode)
-  const setShellMode = useCallback((mode) => {
-    if (mode === 'agents') { setView('overview'); return }
-    const next = normalizeShellMode(mode)
-    setShellModeState(next)
-    try { localStorage.setItem(SHELL_MODE_KEY, next) } catch {}
-    setView(prev => (prev === 'overview' || (prev === 'home' && tabsRef.current.length && next !== 'chat' && next !== 'office')) ? 'terminal' : prev)
-  }, [])
-  const toggleDrawer = useCallback(() => {
-    setDrawerOpen(prev => {
-      const next = !prev
-      try { localStorage.setItem(SHELL_DRAWER_KEY, next ? '1' : '0') } catch {}
-      return next
-    })
-  }, [])
-  const setUiChannel = useCallback((channel) => {
-    setSettings(prev => {
-      const next = { ...prev, uiChannel: normalizeChannel(channel) }
-      try { localStorage.setItem('sush-settings', JSON.stringify(next)) } catch {}
-      return next
-    })
-  }, [])
-  const placement = terminalPlacement({
-    channel: uiChannel,
-    mode: currentShellMode,
-    view,
-    activeTab: tabs.length ? activeTab : null,
-    drawerOpen,
-    officeFocus
+  // ── Nightly shell (T3-style) vs Stable (Quiet Nights) ──────────────────────
+  const {
+    uiChannel, nightlyShell, currentShellMode, setShellMode, setUiChannel,
+    drawerOpen, toggleDrawer, drawerHeight, startDrawerDrag,
+    officeFocus, setOfficeFocus, placement, threadInCenter, coverSurface
+  } = useNightlyShell({
+    settings, setSettings, view, setView, tabs, tabsRef, activeTab,
+    shortcutsReady: identity.ready, blockingShortcutSurface
   })
-  // Leaving the Office, or closing that session, ends the zoom.
-  useEffect(() => {
-    if (!officeFocus) return
-    if (currentShellMode !== 'office' || !tabs.some(t => t.id === officeFocus)) setOfficeFocus(null)
-  }, [officeFocus, currentShellMode, tabs])
-  const threadInCenter = nightlyShell && view === 'terminal' && currentShellMode === 'thread' && threadCentered(activeTab)
-  const coverSurface = nightlyShell && view !== 'overview' && (currentShellMode === 'chat' || currentShellMode === 'office')
-    ? currentShellMode : null
-
-  useEffect(() => { setShellChords(nightlyShell) }, [nightlyShell])
-  useEffect(() => {
-    if (!nightlyShell) return undefined
-    const handler = (e) => {
-      if (!canHandleGlobalShortcut(identity.ready, blockingShortcutSurface)) return
-      const mode = modeFromShortcut(e)
-      if (mode) { e.preventDefault(); setShellMode(mode); return }
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === '`') { e.preventDefault(); toggleDrawer() }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [nightlyShell, identity.ready, blockingShortcutSurface, setShellMode, toggleDrawer])
-
-  const startDrawerDrag = useCallback((e) => {
-    e.preventDefault()
-    const startY = e.clientY
-    const start = drawerHeight
-    const move = (ev) => setDrawerHeight(Math.max(140, Math.min(window.innerHeight * 0.7, start + (startY - ev.clientY))))
-    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', up)
-  }, [drawerHeight])
 
   // Nightly workspace UI is keyed by the stable project root. Hydration lives
   // beside the layout hooks below so pane + snap-layout state move together.
@@ -2769,6 +2703,15 @@ export default function App() {
                   onHire={({ cwd, groupId, agentId, model, count }) => launchSessions({ cwd, groupId: groupId || undefined, agents: [{ id: agentId, count, model: model || null }] })}
                   onChat={() => setShellMode('chat')}
                   onAgents={() => setShellMode('agents')}
+                  meetingTabIds={broadcastTargets}
+                  onMeeting={(office, on) => {
+                    // A meeting is a broadcast fenced to this office's sessions.
+                    const first = office?.desks?.find(d => d.tabId)?.tabId
+                    if (on && first) { setActiveId(first); setBroadcastScope('workspace'); setBroadcastMode(true) }
+                    else setBroadcastMode(false)
+                  }}
+                  onMeetingType={() => { setOfficeFocus(null); setShellMode('code') }}
+                  globalChime={settings.attentionSound === true && !ecoMode}
                 />
               </div>
             )}
