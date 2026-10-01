@@ -39,6 +39,19 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
     window.sush?.getAllCommands?.().then(cmds => setCommands(cmds || [])).catch(() => {})
   }, [])
 
+  // Terminal focus can move while the palette is open. Escape must still
+  // dismiss the modal, even when the search input no longer owns focus.
+  useEffect(() => {
+    const dismiss = event => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', dismiss, true)
+    return () => window.removeEventListener('keydown', dismiss, true)
+  }, [onClose])
+
   const items = (() => {
     const q = query.trim()
     const all = [
@@ -141,3 +154,4 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
     </div>
   )
 }
+

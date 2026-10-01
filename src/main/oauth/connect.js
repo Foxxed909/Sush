@@ -56,6 +56,7 @@ const PROVIDERS = {
 
 const FLOW_TIMEOUT = 180000
 
+let runtimeEpoch = 0
 let active = null   // { provider, server, timer, done, verifier, state, manual, port }
 
 function vaultUser() {
@@ -78,6 +79,7 @@ function stopActive(emitCancel) {
 }
 
 export function cancelConnectFlow() {
+  runtimeEpoch += 1
   stopActive(true)
   return { ok: true }
 }
@@ -94,13 +96,17 @@ export async function startConnectFlow({ provider, manual = false } = {}) {
   if (!encryptionAvailable()) {
     return { ok: false, error: 'OS encryption is unavailable, so the token could not be stored safely. Connect is disabled.' }
   }
+  const userId = getActiveUser()?.id
+  if (!userId) return { ok: false, error: 'Sign in to an identity first.' }
   stopActive(false)
+  const epoch = ++runtimeEpoch
 
   const state = randomBytes(32).toString('hex')
   const verifier = randomBytes(32).toString('base64url')
   const challenge = createHash('sha256').update(verifier).digest('base64url')
-  const flow = { provider, server: null, timer: null, done: false, verifier, state, manual, port: cfg.loopback.port }
+  const flow = { userId, epoch, provider, server: null, timer: null, done: false, verifier, state, manual, port: cfg.loopback.port }
 
+  active = flow
   if (!manual) {
     const ok = await new Promise((resolve) => {
       flow.server = createServer((req, res) => { handleCallback(req, res, cfg, flow) })
@@ -110,7 +116,12 @@ export async function startConnectFlow({ provider, manual = false } = {}) {
         resolve(true)
       })
     })
+    if (!flowCurrent(flow) || flow.done) {
+      try { flow.server?.close() } catch {}
+      return cancelledResult()
+    }
     if (!ok) {
+      stopActive(false)
       return {
         ok: false,
         error: cfg.manualRedirect
@@ -120,8 +131,6 @@ export async function startConnectFlow({ provider, manual = false } = {}) {
       }
     }
   }
-  active = flow
-
   flow.timer = setTimeout(() => {
     if (active === flow) {
       stopActive(false)
@@ -142,9 +151,11 @@ export async function startConnectFlow({ provider, manual = false } = {}) {
   try {
     await shell.openExternal(url)
   } catch {
-    stopActive(false)
+    if (!flowCurrent(flow)) return cancelledResult()
+    if (active === flow) stopActive(false)
     return { ok: false, error: `Could not open the browser for ${cfg.label} connect.` }
   }
+  if (!flowCurrent(flow) || flow.done) return cancelledResult()
   return { ok: true, manual }
 }
 
@@ -194,7 +205,16 @@ async function handleCallback(req, res, cfg, flow) {
   await exchange(code, cfg, flow)
 }
 
+function cancelledResult() {
+  return { ok: false, error: 'Provider request cancelled because the identity or connection changed.' }
+}
+
+function flowCurrent(flow) {
+  return flow.epoch === runtimeEpoch && flow.userId === getActiveUser()?.id
+}
+
 async function exchange(code, cfg, flow) {
+  if (!flowCurrent(flow)) return cancelledResult()
   const params = {
     grant_type: 'authorization_code',
     code,
@@ -213,16 +233,18 @@ async function exchange(code, cfg, flow) {
     })
     tokens = await res.json()
   } catch {
+    if (!flowCurrent(flow)) return cancelledResult()
     const error = `Could not reach ${cfg.label}'s token endpoint.`
     emitOauthEvent({ provider: flow.provider, phase: 'error', error })
     return { ok: false, error }
   }
+  if (!flowCurrent(flow)) return cancelledResult()
   if (!tokens?.access_token) {
     const error = tokens?.error_description || tokens?.error || `${cfg.label} rejected the code.`
     emitOauthEvent({ provider: flow.provider, phase: 'error', error })
     return { ok: false, error }
   }
-  const saved = persistTokens(flow.provider, tokens)
+  const saved = persistTokens(flow.provider, tokens, null, flow.userId)
   if (!saved.ok) {
     emitOauthEvent({ provider: flow.provider, phase: 'error', error: saved.error })
     return saved
@@ -241,14 +263,14 @@ function emailFromIdToken(idToken) {
   }
 }
 
-function persistTokens(provider, tokens, previous = null) {
+function persistTokens(provider, tokens, previous = null, userId = vaultUser()) {
   const payload = {
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token || previous?.refresh_token || '',
     expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : 0,
     account: tokens.account?.email_address || emailFromIdToken(tokens.id_token) || previous?.account || ''
   }
-  return saveToken(vaultUser(), vaultKey(provider), JSON.stringify(payload), {
+  return saveToken(userId, vaultKey(provider), JSON.stringify(payload), {
     scopes: tokens.scope || PROVIDERS[provider].scopes
   })
 }
@@ -278,12 +300,16 @@ export function connectStatus() {
 
 export function disconnectProvider({ provider } = {}) {
   if (!PROVIDERS[provider]) return { ok: false, error: `Unknown provider "${provider}".` }
+  runtimeEpoch += 1
+  if (active?.provider === provider) stopActive(false)
   deleteToken(vaultUser(), vaultKey(provider))
   return { ok: true }
 }
 
 async function freshAccessToken(provider) {
   const cfg = PROVIDERS[provider]
+  const userId = getActiveUser()?.id
+  const epoch = runtimeEpoch
   const t = readTokens(provider)
   if (!t) return { error: 'Not connected.' }
   if (!t.expires_at || Date.now() < t.expires_at - 60000) return { token: t.access_token }
@@ -301,8 +327,10 @@ async function freshAccessToken(provider) {
       body: cfg.tokenFormat === 'json' ? JSON.stringify(params) : new URLSearchParams(params).toString()
     })
     const tokens = await res.json()
+    if (epoch !== runtimeEpoch || userId !== getActiveUser()?.id) return { error: cancelledResult().error }
     if (!tokens?.access_token) return { error: tokens?.error_description || 'Token refresh was rejected. Reconnect.' }
-    persistTokens(provider, tokens, t)
+    const saved = persistTokens(provider, tokens, t, userId)
+    if (!saved?.ok) return { error: saved?.error || 'Could not store the refreshed token.' }
     return { token: tokens.access_token }
   } catch {
     return { error: `Could not reach ${cfg.label} to refresh the token.` }
@@ -379,3 +407,4 @@ function respond(res, title, body) {
     ].join(''))
   } catch {}
 }
+

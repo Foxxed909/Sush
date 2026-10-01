@@ -46,7 +46,7 @@ export const SLOT_PROVIDERS = {
 }
 
 // Must stay at least as high as the largest advertised tier allowance.
-const MAX_SLOTS = 16
+const MAX_SLOTS = 50
 
 function identityDir(userId) {
   return identityDirectoryPath(app.getPath('userData'), userId)
@@ -365,3 +365,4 @@ export function accountSlotEnv(userId) {
   }
   return env
 }
+

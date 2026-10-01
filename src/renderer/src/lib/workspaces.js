@@ -9,7 +9,11 @@
 // fall back to their workspace group, then to themselves.
 
 export function normalizePathKey(path) {
-  return String(path ?? '').replace(/[\\/]+$/, '').toLowerCase()
+  const value = String(path ?? '')
+  const windowsPath = /^[a-z]:[\\/]|^\\\\/i.test(value)
+  const normalized = value.replace(/\\/g, '/').replace(/\/+$/, '')
+  const key = normalized || (value.startsWith('/') ? '/' : '')
+  return windowsPath ? key.toLowerCase() : key
 }
 
 export function workspaceKey(tab) {
@@ -52,3 +56,4 @@ export function groupByWorkspace(tabs) {
   }
   return [...map.values()]
 }
+

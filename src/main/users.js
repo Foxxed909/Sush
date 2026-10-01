@@ -159,7 +159,7 @@ export function isLegacyOwnershipEstablished() {
 
 export function createUser({ name, color, avatar, avatarUrl, pin, isolation } = {}) {
   const previous = snapshotStore()
-  const trimmed = String(name ?? '').trim()
+  const trimmed = String(name ?? '').trim().slice(0, 32)
   if (!trimmed) return { ok: false, error: 'Name is required' }
   if (store.users.some(u => u.name.toLowerCase() === trimmed.toLowerCase())) {
     return { ok: false, error: 'A user with that name already exists' }
@@ -207,6 +207,11 @@ export function updateUser({ id, patch = {}, newPin } = {}) {
   const previous = snapshotStore()
   const user = findUser(id)
   if (!user) return { ok: false, error: 'User not found' }
+  // Validate before mutating the live store: a rejected edit must be atomic.
+  const requestedPin = String(newPin ?? '').trim()
+  if (newPin !== undefined && requestedPin && !/^\d{4,8}$/.test(requestedPin)) {
+    return { ok: false, error: 'PIN must be 4–8 digits' }
+  }
   if (typeof patch.name === 'string' && patch.name.trim()) {
     const nextName = patch.name.trim().slice(0, 32)
     if (store.users.some(u => u.id !== id && u.name.toLowerCase() === nextName.toLowerCase())) {
@@ -397,7 +402,7 @@ export function signOut() {
 
 // Environment overlay for PTYs spawned under the active identity. Returns {}
 // when nobody is signed in (solo/legacy mode keeps working untouched).
-export function activeUserEnv() {
+export function activeUserEnv({ includeAccounts = true } = {}) {
   const user = findUser(store.activeId)
   if (!user) return {}
   const home = ensureUserDirs(user)
@@ -425,5 +430,6 @@ export function activeUserEnv() {
   }
   // Account slots last: non-default CLI slots re-point provider-specific
   // config/home overlays at the slot, beating the identity default above.
-  return { ...env, ...accountSlotEnv(user.id) }
+  return includeAccounts ? { ...env, ...accountSlotEnv(user.id) } : env
 }
+

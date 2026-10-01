@@ -11,8 +11,14 @@ describe('workspace identity', () => {
     expect(sameWorkspace(a, b)).toBe(true)
   })
 
-  it('ignores case and trailing separators on both platforms', () => {
+  it('normalizes Windows case and trailing separators', () => {
     expect(workspaceKey(t({ cwd: 'C:\\Work\\Sush\\' }))).toBe(workspaceKey(t({ cwd: 'c:\\work\\sush' })))
+  })
+
+  it('keeps distinct case-sensitive POSIX folders separate and recognizes the root', () => {
+    expect(sameWorkspace(t({ cwd: '/work/App' }), t({ cwd: '/work/app' }))).toBe(false)
+    expect(workspaceKey(t({ cwd: '/' }))).toBe('cwd:/')
+    expect(workspaceKey(t({ cwd: 'C:/Work/Sush/' }))).toBe(workspaceKey(t({ cwd: 'c:\\work\\sush' })))
   })
 
   it('falls back to the workspace group, then to the session itself', () => {
@@ -51,3 +57,4 @@ describe('workspace identity', () => {
     expect(workspaceLabel(t({}))).toBe('Unassigned')
   })
 })
+
