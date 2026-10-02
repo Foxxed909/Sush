@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { loadCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../../lib/agents'
-import { Section, Row, Label, Hint, Segment, LockNote, inputStyle } from './primitives'
+import { Section, Row, Label, Hint, Segment, LockNote, Toggle, inputStyle } from './primitives'
 
 // Agents & Seducia — who does the thinking. The Seducia engine picker (one
 // control) merged into the agent catalog: they're the same concern, and a
@@ -14,6 +14,22 @@ export default function AgentsSection({ accent, ent, settings, set }) {
   const [err, setErr] = useState('')
 
   const locked = !ent.can('customAgents')
+
+  // Gemini Thread: opt-in hook in the user's Gemini settings (see main).
+  const [geminiThread, setGeminiThread] = useState({ enabled: null, busy: false, error: '' })
+  useEffect(() => {
+    let live = true
+    window.sush?.geminiThread?.({}).then(res => {
+      if (live) setGeminiThread(res?.ok ? { enabled: !!res.enabled, busy: false, error: '' } : { enabled: null, busy: false, error: res?.error || '' })
+    }).catch(() => {})
+    return () => { live = false }
+  }, [])
+  const toggleGeminiThread = async () => {
+    const enable = !geminiThread.enabled
+    setGeminiThread(prev => ({ ...prev, busy: true, error: '' }))
+    const res = await window.sush?.geminiThread?.({ enable })
+    setGeminiThread(res?.ok ? { enabled: !!res.enabled, busy: false, error: '' } : { enabled: geminiThread.enabled, busy: false, error: res?.error || 'Could not update Gemini settings' })
+  }
 
   const add = () => {
     if (locked) return
@@ -37,6 +53,25 @@ export default function AgentsSection({ accent, ent, settings, set }) {
         <div style={{ fontSize: 11.5, color: 'var(--text-3)', background: rgba(accent, 0.05), border: `1px solid ${rgba(accent, 0.16)}`, borderRadius: 8, padding: '9px 12px', lineHeight: 1.5, marginTop: 8 }}>
           Seducia drives your logged-in agent CLIs — no API key, no extra billing, it just rides your existing subscription. <strong style={{ color: accent }}>Auto</strong> tries claude first and rolls over to codex, then gemini when one is limited or missing. Manage logins and limit behaviour under <strong style={{ color: accent }}>Accounts</strong>.
         </div>
+      </Row>
+
+      <Row>
+        <Label>Thread for Codex &amp; Gemini</Label>
+        <Hint>
+          Codex: nothing to set up. The first Codex session Sush launches asks you to review its hooks once (“Hooks need review” → Trust). Sush adds them only to that launch; your ~/.codex files are left as they are. Needs a bash/zsh/fish-style shell.
+        </Hint>
+        <Toggle
+          accent={accent}
+          on={geminiThread.enabled === true}
+          onText="Gemini Thread on"
+          offText="Enable Gemini Thread"
+          icon="fileText"
+          disabled={geminiThread.busy || geminiThread.enabled == null}
+          onClick={toggleGeminiThread}
+        />
+        <Hint warn={!!geminiThread.error}>
+          {geminiThread.error || 'Gemini only reads hooks from your own settings, so this adds one hook to ~/.gemini/settings.json. It does nothing outside a Sush tab, and turning this off removes exactly that hook. Applies to Gemini sessions launched afterwards.'}
+        </Hint>
       </Row>
 
       <Row>

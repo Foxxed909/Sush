@@ -22,7 +22,7 @@ import { useEntitlements } from './hooks/useEntitlements'
 import { useBattery } from './hooks/useBattery'
 import { useOnline } from './hooks/useOnline'
 import { STATES, stripAnsi } from './lib/agentActivity'
-import { isMultiline, pasteAndSubmit } from './lib/terminalRegistry'
+import { agentFailedToStart, isMultiline, pasteAndSubmit, terminalTail } from './lib/terminalRegistry'
 import { attentionItems, attentionTitle, newlyNeedingAttention } from './lib/attention'
 import { playChime } from './lib/chime'
 import { normalizePathKey, workspaceKey, workspaceLabel } from './lib/workspaces'
@@ -44,6 +44,11 @@ import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
 import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
+import { useOfficeProgress } from './hooks/useOfficeProgress'
+import ShellHeader from './components/shell/ShellHeader'
+import ShellSidebar from './components/shell/ShellSidebar'
+import ProviderLogo from './components/ProviderLogo'
+import { useNightlyShell } from './hooks/useNightlyShell'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -72,6 +77,9 @@ const surfaceLoaders = {
   PlansPage: () => import('./components/PlansPage'),
   ChangelogPage: () => import('./components/ChangelogPage'),
   NightlyOverview: () => import('./components/NightlyOverview'),
+  SushOffice: () => import('./components/office/SushOffice'),
+  Seducia: () => import('./components/Seducia'),
+  ThreadView: () => import('./components/shell/ThreadView'),
 }
 const Settings = lazySurface(surfaceLoaders.Settings)
 const NewSessionModal = lazySurface(surfaceLoaders.NewSessionModal)
@@ -85,6 +93,9 @@ const ProfileViewer = lazySurface(surfaceLoaders.ProfileViewer)
 const PlansPage = lazySurface(surfaceLoaders.PlansPage)
 const ChangelogPage = lazySurface(surfaceLoaders.ChangelogPage)
 const NightlyOverview = lazySurface(surfaceLoaders.NightlyOverview)
+const SushOffice = lazySurface(surfaceLoaders.SushOffice)
+const SeduciaChat = lazySurface(surfaceLoaders.Seducia)
+const ThreadView = lazySurface(surfaceLoaders.ThreadView)
 // Warm the ones people open constantly once the app is idle.
 if (typeof window !== 'undefined') {
   const warm = () => ['NewSessionModal', 'RightPanel', 'Settings'].forEach(n => surfaceLoaders[n]().catch(() => {}))
@@ -100,6 +111,8 @@ const LAST_HOME_VIEW_KEY = 'sush-last-home-view'
 const COMMAND_HISTORY_KEY = 'sush-command-history'
 const PINNED_PROJECTS_KEY = 'sush-pinned-projects'
 const NIGHTLY_WORKSPACE_UI_KEY = 'sush-nightly-workspace-ui'
+// Nightly canvas — keep in sync with --surface-0 under .sush-t3 in index.css.
+const NIGHTLY_CANVAS = '#0c0a12'
 const MAX_RECENT_SESSIONS = 8
 
 function loadCommandHistory() {
@@ -651,6 +664,16 @@ export default function App() {
 
   const activeTab = tabs.find(t => t.id === activeId) ?? tabs[0] ?? { id: '', label: 'Shell', profileId: 'powershell' }
 
+  // ── Nightly shell (T3-style) vs Stable (Quiet Nights) ──────────────────────
+  const {
+    uiChannel, nightlyShell, currentShellMode, setShellMode, setUiChannel,
+    drawerOpen, toggleDrawer, drawerHeight, startDrawerDrag,
+    officeFocus, setOfficeFocus, placement, threadInCenter, coverSurface
+  } = useNightlyShell({
+    settings, setSettings, view, setView, tabs, tabsRef, activeTab,
+    shortcutsReady: identity.ready, blockingShortcutSurface
+  })
+
   // Nightly workspace UI is keyed by the stable project root. Hydration lives
   // beside the layout hooks below so pane + snap-layout state move together.
   const activeNightlyWorkspaceKey = nightlyWorkspaceKey(activeTab)
@@ -691,6 +714,7 @@ export default function App() {
 
   // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
+  const officeProgress = useOfficeProgress(tabs, agentStates, agentLimits)
 
   // One list of sessions that need the user (limit, waiting, errored). Drives
   // the topbar bell, the window title count and the optional chime.
@@ -776,9 +800,13 @@ export default function App() {
   // transparent too (see grid render). Off → terminals keep their solid theme bg.
   const wallpaperOnTerminals = !!settings.bgImage && settings.terminalWallpaper === true && !ecoMode
   const termTheme = useCallback((base) => {
-    if (!wallpaperOnTerminals || !base?.xterm) return base
-    return { ...base, xterm: { ...base.xterm, background: 'rgba(0,0,0,0)' } }
-  }, [wallpaperOnTerminals])
+    if (!base?.xterm) return base
+    if (wallpaperOnTerminals) return { ...base, xterm: { ...base.xterm, background: 'rgba(0,0,0,0)' } }
+    // Nightly: terminals sit on the violet-tinted canvas; the theme keeps its
+    // text and ANSI colours. Opaque, so the WebGL renderer stays on.
+    if (nightlyShell) return { ...base, xterm: { ...base.xterm, background: NIGHTLY_CANVAS } }
+    return base
+  }, [wallpaperOnTerminals, nightlyShell])
 
   const zoomTimerRef = useRef(null)
   useEffect(() => {
@@ -1265,6 +1293,8 @@ export default function App() {
     // project before applying the incoming project's saved/default preset.
     setActiveId(id)
     setView('terminal')
+    // T3: picking a thread shows it, so leave the covering Chat/Office modes.
+    setShellModeState(mode => (mode === 'chat' || mode === 'office') ? 'code' : mode)
   }, [])
 
   const openTab = useCallback((profile, options = {}) => {
@@ -1356,20 +1386,28 @@ export default function App() {
 
     // Type the brief into a session once its agent TUI actually settles (the
     // activity classifier reports waiting/idle after boot) instead of a blind
-    // timer. Hard fallback at 12s so a brief is never silently dropped.
+    // timer. If the agent never settles, or the terminal shows it failed to
+    // start, the shell — not the agent — would read the brief as commands; so
+    // it goes to the composer for the user to send instead. Never dropped,
+    // never executed blind.
     const briefSession = (tab, i) => {
       if (!brief) return
       const startedAt = Date.now()
+      const handBack = () => {
+        setActiveId(tab.id)
+        window.dispatchEvent(new CustomEvent('sush:composer-fill', { detail: { text: brief } }))
+      }
       const timer = setInterval(() => {
         const live = tabsRef.current.find(t => t.id === tab.id)
         if (!live || live.status === 'exited') { clearInterval(timer); return }
         const elapsed = Date.now() - startedAt
         const state = agentStatesRef.current[tab.id]
         const settled = elapsed >= 2500 + i * 300 && (state === 'waiting' || state === 'idle')
-        if (settled || elapsed >= 12000) {
-          clearInterval(timer)
-          if (live.status === 'running') window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
-        }
+        if (!settled && elapsed < 12000) return
+        clearInterval(timer)
+        if (live.status !== 'running') return
+        if (!settled || agentFailedToStart(terminalTail(tab.id, 30))) { handBack(); return }
+        window.sush.ptyInput({ tabId: tab.id, data: `${brief}\r` })
       }, 500)
     }
 
@@ -2268,7 +2306,7 @@ export default function App() {
 
   return (
     <div
-      className={`sush-app-bg flex flex-col h-screen${theme.ui.glass ? ' sush-glass-ui' : ''}${(reducedFx || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
+      className={`sush-app-bg flex flex-col h-screen${nightlyShell ? ' sush-t3' : ''}${theme.ui.glass ? ' sush-glass-ui' : ''}${(reducedFx || terminalSaver) ? ' sush-lite' : ''}${terminalSaver ? ' sush-saver' : ''}${zenMode ? ' sush-focus-mode' : ''}${(settings.reduceMotion || ecoMode) ? ' sush-reduce-motion' : ''}${ecoMode ? ' sush-eco' : ''}`}
       style={{
         ...accentVars(accent),
         ...(theme.ui.glass ? glassVars(theme.ui) : {}),
@@ -2280,11 +2318,49 @@ export default function App() {
         // translucent surface (via !important) so the OS material shows.
         background: settings.bgImage
           ? `linear-gradient(rgba(2,3,5,${(settings.bgDim ?? 62) / 100}), rgba(2,3,5,${(settings.bgDim ?? 62) / 100})), url(${JSON.stringify(settings.bgImage)}) center / cover no-repeat fixed, ${theme.xterm.background}`
-          : theme.xterm.background
+          : nightlyShell ? 'var(--surface-0)' : theme.xterm.background
       }}
     >
       <div className="flex flex-1 min-h-0">
-        {!zenMode && (
+        {!zenMode && nightlyShell && (
+          <ShellSidebar
+            onChannel={setUiChannel}
+            tabs={tabs}
+            activeId={view === 'home' ? null : activeId}
+            accent={accent}
+            activity={agentStates}
+            limits={agentLimits}
+            onHome={() => { setHomeView('dashboard'); setView('home') }}
+            onOverview={() => setShellMode('agents')}
+            onSelect={selectTab}
+            onNewSession={() => setShowLauncher(true)}
+            onHunt={() => setShowHunt(true)}
+            onSettings={() => setShowSettings(true)}
+            user={identity.currentUser}
+            onLock={identity.lock}
+            onSignOut={identity.signOut}
+            onManageUsers={() => setShowUserManager(true)}
+            onViewProfile={() => setShowProfile(true)}
+            onCloseSession={(id) => closeTab(id)}
+            onRenameSession={renameTab}
+            onDuplicateSession={duplicateTab}
+            onHandoffSession={(id) => setHandoffSource(id)}
+            onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
+            onOpenPane={(pane, tabId) => {
+              if (tabId) selectTab(tabId)
+              if (pane === 'changes' || pane === 'github') setPaneDock('right')
+              setRightTab(pane)
+              setRightOpen(true)
+            }}
+            status={{
+              online,
+              battery,
+              saverReason: ecoMode ? 'eco' : manualSaver ? 'saver' : quietHoursActive ? 'quiet' : autoSaverActive ? 'battery' : null,
+              showStats: settings.showSystemStats === true
+            }}
+          />
+        )}
+        {!zenMode && !nightlyShell && (
           <NightlyWorkspaceRail
             tabs={tabs}
             activeId={view === 'home' ? null : activeId}
@@ -2320,8 +2396,47 @@ export default function App() {
         )}
 
         <div className="flex flex-col flex-1 min-w-0">
-          {!zenMode && (
+          {!zenMode && nightlyShell && (
+            <ShellHeader
+              activeTab={view === 'home' || !tabs.length ? null : activeTab}
+              accent={accent}
+              activity={agentStates}
+              limited={!!agentLimits[activeId]}
+              guardTrip={guardTrip}
+              providerMeta={nightlyProviderMeta && {
+                ...nightlyProviderMeta,
+                onSwitch: (slotId) => activeId && switchToAccountAndResume(activeId, slotId)
+              }}
+              mode={view === 'home' ? null : currentShellMode}
+              onMode={setShellMode}
+              attention={attention}
+              onAttentionFocus={selectTab}
+              onAttentionHandoff={(id) => performLimitHandoff(id)}
+              broadcast={broadcastMode}
+              onToggleBroadcast={() => setBroadcastMode(false)}
+              rightOpen={rightOpen}
+              rightTab={rightTab}
+              drawerOpen={drawerOpen}
+              onToggleDrawer={toggleDrawer}
+              onOpenPane={(pane) => {
+                // T3 keeps review tools (diff, PRs) in the right panel.
+                if (pane === 'changes' || pane === 'github') setPaneDock('right')
+                setRightTab(pane)
+                setRightOpen(true)
+              }}
+              onTogglePanel={() => setRightOpen(prev => !prev)}
+              onHunt={() => setShowHunt(true)}
+              onChannel={setUiChannel}
+              onNewSession={() => setShowLauncher(true)}
+              onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
+              onNewTerminal={() => openTab(profiles[0], { cwd: activeTab?.workspaceCwd || activeTab?.cwd || undefined })}
+              onDuplicate={duplicateTab}
+              onHome={() => { setHomeView('dashboard'); setView('home') }}
+            />
+          )}
+          {!zenMode && !nightlyShell && (
             <NightlyTopbar
+              onChannel={setUiChannel}
               attention={attention}
               onAttentionFocus={selectTab}
               onAttentionHandoff={(id) => performLimitHandoff(id)}
@@ -2364,6 +2479,30 @@ export default function App() {
           )}
 
           <div className="flex-1 relative overflow-hidden">
+            {/* Nightly shell surfaces sit over or above the terminal layer; the
+                layer itself is always the same node, so no terminal remounts
+                when the mode, drawer or channel changes. */}
+            {threadInCenter && (
+              <div className="shell-thread-slot" style={{ bottom: drawerOpen ? drawerHeight : 0 }}>
+                <ThreadView accent={accent} activeTab={activeTab} onOpenDiff={() => { setPaneDock('right'); setRightTab('changes'); setRightOpen(true) }} />
+              </div>
+            )}
+            <div
+              className={`shell-terminal-layer is-${placement}`}
+              style={placement === 'drawer' ? { top: 'auto', height: drawerHeight } : undefined}
+              aria-hidden={placement === 'hidden' || undefined}
+            >
+            {placement === 'drawer' && (
+              <div className="shell-drawer-head" onMouseDown={startDrawerDrag} title="Drag to resize">
+                <Icon name="terminal" size={11} />
+                <span>Terminal</span>
+                <small>{activeTab?.label}</small>
+                <button onMouseDown={(e) => e.stopPropagation()} onClick={toggleDrawer} title="Hide terminal (Ctrl+`)">
+                  <Icon name="chevronDown" size={12} />
+                </button>
+              </div>
+            )}
+            <div className="shell-terminal-body">
             {(
               // One container for both layouts. Grid mode is a STYLE switch on
               // the same keyed wrappers — terminals never remount on toggle, so
@@ -2488,7 +2627,7 @@ export default function App() {
                             const tileAgent = agentById(tab.agentId) || agentById('shell')
                             return (
                               <div className={`nightly-tile-head${focused ? ' is-focused' : ''}`}>
-                                <span className="nightly-tile-mono" style={{ color: tileAgent?.color || accent }}>{tileAgent?.mono || '>_'}</span>
+                                <ProviderLogo provider={tab.agentId} size={13} title={tileAgent?.label} className="nightly-tile-mono" />
                                 <span className="nightly-tile-label">{tab.label}</span>
                                 {tab.model && <span className="nightly-tile-model">{tab.model}{tab.effort ? ` · ${tab.effort}` : ''}</span>}
                                 <span className="nightly-tile-state" title={st?.label || 'Sleeping'}>
@@ -2519,6 +2658,62 @@ export default function App() {
                   </div>
                 )
               })()
+            )}
+            </div>
+            </div>
+
+            {coverSurface === 'chat' && (
+              <div key="shell-chat" className="shell-cover shell-chat">
+                <div className="shell-chat-column">
+                  <SeduciaChat
+                    docked
+                    accent={accent}
+                    tabs={tabs}
+                    recentSessions={recentSessions}
+                    activeCwd={activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
+                    scope={seduciaScope}
+                    controls={seduciaControls}
+                    onLaunch={launchSessions}
+                    onRun={runSmartInput}
+                    onPrompt={sendAgentPrompt}
+                    onFocus={(target, groupId) => { focusAgent(target, groupId); setShellMode('code') }}
+                    onOpenLauncher={() => setShowLauncher(true)}
+                    onClose={() => setShellMode('code')}
+                    settings={settings}
+                  />
+                </div>
+              </div>
+            )}
+
+            {coverSurface === 'office' && (
+              <div key="shell-office" className="shell-cover">
+                <SushOffice
+                  tabs={tabs}
+                  states={agentStates}
+                  limits={agentLimits}
+                  accent={accent}
+                  reduceMotion={!!(settings.reduceMotion || ecoMode)}
+                  ledger={officeProgress.ledger}
+                  awardTokens={officeProgress.awardTokens}
+                  focusTabId={officeFocus}
+                  onFocusMonitor={(id) => { setOfficeFocus(id); setActiveId(id); setView('terminal') }}
+                  onExitMonitor={() => setOfficeFocus(null)}
+                  onEnterTerminal={(id) => { setOfficeFocus(null); selectTab(id); setShellMode('code') }}
+                  onNewOffice={() => { setLauncherCwd(null); setShowLauncher(true) }}
+                  onHire={({ cwd, groupId, agentId, model, count }) => launchSessions({ cwd, groupId: groupId || undefined, agents: [{ id: agentId, count, model: model || null }] })}
+                  onChat={() => setShellMode('chat')}
+                  onAgents={() => setShellMode('agents')}
+                  meetingTabIds={broadcastTargets}
+                  onMeeting={(office, on) => {
+                    // A meeting is a broadcast fenced to this office's sessions.
+                    const first = office?.desks?.find(d => d.tabId)?.tabId
+                    if (on && first) { setActiveId(first); setBroadcastScope('workspace'); setBroadcastMode(true) }
+                    else setBroadcastMode(false)
+                  }}
+                  onMeetingType={() => { setOfficeFocus(null); setShellMode('code') }}
+                  globalChime={settings.attentionSound === true && !ecoMode}
+                />
+              </div>
             )}
 
             {view === 'home' && (
@@ -2607,8 +2802,16 @@ export default function App() {
             )}
           </div>
 
-          {view === 'terminal' && !zenMode && (
+          {view === 'terminal' && !zenMode && !coverSurface && (
             <NightlyComposer
+              variant={nightlyShell ? 't3' : 'default'}
+              onNewThread={({ agentId, model } = {}) => {
+                // T3: a different provider is a new thread in the same project.
+                const cwd = activeTab?.workspaceCwd || activeTab?.cwd || null
+                if (!agentId || !cwd) { setLauncherCwd(cwd); setShowLauncher(true); return }
+                launchSessions({ cwd, agents: [{ id: agentId, count: 1, model: model || null }], groupId: activeTab?.groupId })
+              }}
+              onOpenPane={(pane) => { setPaneDock('right'); setRightTab(pane); setRightOpen(true) }}
               activeTab={activeTab}
               providerMeta={nightlyProviderMeta}
               accent={accent}
@@ -2662,6 +2865,7 @@ export default function App() {
                 ghNotifCount={ghNotifCount}
                 onManageUsers={() => setShowUserManager(true)}
                 nightly
+                t3={nightlyShell}
                 dock="bottom"
                 style={{ width: '100%', height: bottomPaneHeight }}
               />
@@ -2700,6 +2904,7 @@ export default function App() {
               ghNotifCount={ghNotifCount}
               onManageUsers={() => setShowUserManager(true)}
               nightly
+              t3={nightlyShell}
               dock="right"
               style={{ width: rightWidth }}
             />

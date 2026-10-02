@@ -19,7 +19,10 @@ import SshTab from './panel/SshTab'
 import MarkdownTab from './panel/MarkdownTab'
 import ContextTab from './panel/ContextTab'
 import ThreadTab from './panel/ThreadTab'
+import ShellDiffPanel from './shell/ShellDiffPanel'
+import NightlyContextMenu from './NightlyContextMenu'
 import { TAB_GROUPS, TABS, DEFAULT_HIDDEN_TABS } from '../lib/panelTabs'
+import { threadCentered } from '../lib/shellModes'
 
 // The right panel SHELL: tab strip + routing only. Every tab body lives in
 // ./panel/<Tab>.jsx (shared bits in ./panel/shared.jsx) — this file was a
@@ -51,10 +54,14 @@ export default function RightPanel({
   ghNotifCount = 0,
   onManageUsers,
   nightly = false,
+  t3 = false,
   dock = 'right',
   style = {}
 }) {
   const [mdPath, setMdPath] = useState(null)
+  // Nightly: the diff panel is the default Changes view; Commit… swaps in the
+  // stage/commit tools and back.
+  const [commitView, setCommitView] = useState(false)
 
   const handleOpenFile = useCallback((p) => {
     if (p.toLowerCase().endsWith('.md')) {
@@ -67,7 +74,7 @@ export default function RightPanel({
 
   // Which tabs the user has hidden (defaults hide History/Snippets → palette).
   const hiddenTabs = Array.isArray(settings.hiddenPanelTabs) ? settings.hiddenPanelTabs : DEFAULT_HIDDEN_TABS
-  const threadSupported = activeTab?.agentId === 'claude' && activeTab?.threadBridge === true
+  const threadSupported = threadCentered(activeTab)
   const effectiveHiddenTabs = threadSupported
     ? hiddenTabs
     : [...new Set([...hiddenTabs, 'thread'])]
@@ -99,7 +106,9 @@ export default function RightPanel({
       }}
     >
       {/* Tab header — grouped horizontal strip with hairline dividers */}
-      <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} hiddenTabs={effectiveHiddenTabs} nightly={nightly} />
+      {t3
+        ? <T3TabStrip tab={safeTab} onTab={onTab} onClose={onClose} hiddenTabs={effectiveHiddenTabs} />
+        : <TabStrip accent={accent} tab={safeTab} onTab={onTab} onClose={onClose} ghNotifCount={ghNotifCount} hiddenTabs={effectiveHiddenTabs} nightly={nightly} />}
 
       {/* Tab body */}
       <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
@@ -145,7 +154,21 @@ export default function RightPanel({
         <div style={{ position: 'absolute', inset: 0, display: safeTab === 'browser' ? 'block' : 'none' }}>
           <Browser accent={accent} />
         </div>
-        {safeTab === 'changes' && <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} settings={settings} />}
+        {safeTab === 'changes' && t3 && !commitView && (
+          <ShellDiffPanel cwd={activeCwd} activeTab={activeTab} onCommit={() => setCommitView(true)} />
+        )}
+        {safeTab === 'changes' && (!t3 || commitView) && (
+          <div className="flex flex-col" style={{ height: '100%' }}>
+            {t3 && (
+              <button className="sd-back" onClick={() => setCommitView(false)}>
+                <Icon name="arrowLeft" size={12} /> Back to diff
+              </button>
+            )}
+            <div className="flex-1 min-h-0" style={{ position: 'relative' }}>
+              <ChangesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} settings={settings} />
+            </div>
+          </div>
+        )}
         {safeTab === 'github' && <GitHubTab accent={accent} onRun={onRun} onConnect={onManageUsers} />}
         {safeTab === 'files' && <FilesTab accent={accent} cwd={activeCwd} onOpenFile={handleOpenFile} />}
         {safeTab === 'tasks' && <TasksTab accent={accent} cwd={activeCwd} onRun={onRun} />}
@@ -307,6 +330,70 @@ function TabStrip({ accent, tab, onTab, onClose, ghNotifCount = 0, hiddenTabs = 
       >
         <Icon name="panel" size={15} />
       </button>
+    </div>
+  )
+}
+
+// Nightly tab strip, after T3 Code's RightPanelTabs (MIT, (c) 2026 T3 Tools
+// Inc.): only the panels you opened, a "+" to open another, and a close.
+const T3_OPEN_KEY = 'sush-shell-open-panels'
+const T3_LABEL = { changes: 'Diff' }
+
+function loadOpenPanels() {
+  try {
+    const value = JSON.parse(localStorage.getItem(T3_OPEN_KEY) || '[]')
+    return Array.isArray(value) && value.length ? value : ['changes']
+  } catch {
+    return ['changes']
+  }
+}
+
+function T3TabStrip({ tab, onTab, onClose, hiddenTabs = [] }) {
+  const [open, setOpen] = useState(loadOpenPanels)
+  const [menu, setMenu] = useState(null)
+  const all = TABS.filter(t => !hiddenTabs.includes(t.id) || t.id === tab)
+  const save = next => { try { localStorage.setItem(T3_OPEN_KEY, JSON.stringify(next)) } catch {} ; return next }
+  useEffect(() => {
+    if (tab && !open.includes(tab)) setOpen(prev => save([...prev, tab]))
+  }, [tab, open])
+  const shown = open.map(id => TABS.find(t => t.id === id)).filter(Boolean).filter(t => all.includes(t))
+  const closeTab = (id) => {
+    const next = open.filter(x => x !== id)
+    setOpen(save(next.length ? next : ['changes']))
+    if (id === tab) onTab(next[next.length - 1] || 'changes')
+  }
+  const openMenu = (event) => {
+    const r = event.currentTarget.getBoundingClientRect()
+    setMenu({
+      x: r.left,
+      y: r.bottom + 6,
+      items: all.map(t => ({ label: T3_LABEL[t.id] || t.label, icon: t.icon, hint: open.includes(t.id) ? 'open' : undefined, onSelect: () => onTab(t.id) }))
+    })
+  }
+  return (
+    <div className="t3-tabs">
+      <div className="t3-tabs-list" role="tablist">
+        {shown.map(t => (
+          <div key={t.id} className={`t3-tab${t.id === tab ? ' is-active' : ''}`} data-tab={t.id}>
+            <button role="tab" aria-selected={t.id === tab} onClick={() => onTab(t.id)}>
+              <Icon name={t.icon} size={12} />
+              <span>{T3_LABEL[t.id] || t.label}</span>
+            </button>
+            {shown.length > 1 && (
+              <button className="t3-tab-close" onClick={() => closeTab(t.id)} aria-label={`Close ${T3_LABEL[t.id] || t.label}`}>
+                <Icon name="x" size={10} />
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="t3-tab-add" onClick={openMenu} title="Open a panel" aria-label="Open a panel">
+          <Icon name="plus" size={13} />
+        </button>
+      </div>
+      <button className="t3-tab-icon" onClick={onClose} title="Close panel" aria-label="Close panel">
+        <Icon name="panel" size={14} />
+      </button>
+      {menu && <NightlyContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>
   )
 }

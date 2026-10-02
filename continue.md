@@ -139,6 +139,139 @@ repo owner may rely on — remove it separately if unwanted).
 
 ---
 
+## 0.4 Channels + T3 shell + Office (2026-09-29, branch `ccr-77e59d72-njw4dy`)
+
+**Interface channels.** `settings.uiChannel`: `nightly` (default) or `stable`.
+Nightly is the T3 Code-style shell and gets every change first; Stable is the
+Quiet Nights shell (`NightlyTopbar` + inspector) and receives Nightly changes
+once they hold up. Toggle: header pill (both shells) or Settings ▸ Appearance.
+Switching never restarts a session.
+
+**Nightly shell** (`components/shell/`, `lib/shellModes.js`):
+- Modes: Chat · Code · Thread · Agents · Office (Alt+1..5; app-owned only on
+  Nightly via `keymap.setShellChords`). Agents *is* `view === 'overview'`.
+- Terminal layer is one node wrapped in `.shell-terminal-layer`; modes only
+  change its placement (`full` / `drawer` / `hidden`, see `terminalPlacement`).
+  The visual walk fails on any remount — keep it that way.
+- Thread centre (`ThreadView`) only for bridged Claude PTYs; others keep the
+  terminal centred. Work logs group tool calls (`lib/threadTurns.js`).
+  Polling lives in `hooks/useThreadFeed.js`, shared with the side pane.
+- Terminal drawer: Ctrl+` / header button, drag to resize.
+
+**Sush Office** (`components/office/SushOffice.jsx`, `lib/officeLayout.js`):
+three.js scene rendered at 1/3 resolution, pixel-upscaled. One room per
+project, desk per session (monitor colour + pose = live state; raised hand =
+needs you), empty desk launches in that project, Seducia at reception opens
+Chat, the board opens Agents. Labels are DOM overlays projected from 3D
+anchors (pixel-scaled canvas text was unreadable). Lazy chunk (~1 MB, three).
+
+**Hardening in the same branch:** Thread only reads transcripts under the
+PTY env's Claude config root; IPC refuses non-Sush senders; Browser webview on
+its own `persist:sush-browser` partition (deny-all permissions); stale Thread
+event files swept at startup; Thread reads cached on size+mtime; hook prompts
+from a previous `/clear`ed session dropped; `--settings` uses Nushell/Elvish
+syntax or skips unknown shells.
+
+Next: make Office desks show last Thread line on hover; drag threads between
+projects in the rail; per-turn diff filter in the Changes pane (T3); promote
+Nightly → Stable once the walk and a week of daily use are clean.
+
+## 0.6 Phase 2 — Office campus, logos, context, violet tint, review fixes
+
+- **Office campus** (`components/office/SushOffice.jsx`, `officeScene.js`,
+  `lib/officeLayout.js` campus + interior, `lib/officeThemes.js`,
+  `lib/officeStats.js`, `hooks/useOfficeProgress.js`): one building per
+  project folder (new folders "open" with a rise + ring), signs with provider
+  logos × counts and working/need-you/idle, a New office kiosk, Seducia statue,
+  Agents board. Inside: desk per session, monitors mirror the real terminal
+  tail (~1 Hz, via `terminalRegistry.terminalTail`), Hire desk → in-office
+  launcher (provider/model/count → `launchSessions`), hires walk in through the
+  door, per-office themes (Night Loft, Neon City, Forest Cabin, Space Station,
+  Rooftop Sunset). Clicking an agent flies the camera into its monitor and
+  App shows the **real** terminal layer in placement `monitor`; Enter terminal
+  → Code mode; Back / scrim → office. Claude desks show transcript token
+  totals; XP is local (`sush-office-xp`) from working minutes, finished turns,
+  recoveries and output tokens; levels are 50·n².
+- **Provider logos** (`components/ProviderLogo.jsx`, from T3's MIT icons)
+  everywhere in Nightly; composer = Provider · model ▾ · Context ▾ · ….
+- **Context control**: tokens in use from transcript usage vs the model's
+  window (current Claude models: 1M, already the max; Haiku 200K; other CLIs:
+  "set by the model"), plus each CLI's compact / clear command.
+- **Violet tint**: `.sush-t3` surface/border/text ramp; terminal background
+  = `NIGHTLY_CANVAS` in Nightly (opaque so WebGL stays on).
+- **Independent review fixes**: safe launch-brief delivery, shared Thread
+  feed store with stamps (`lib/threadFeedStore.js`), Office idle loop +
+  context loss, git-diff-head unborn HEAD/oversize/textconv, compound
+  commands never bridged, `fs-guard.js` write guard, stable sidebar order.
+
+
+## 0.7 Phase 3 — Codex/Gemini Thread, context budget, meeting room
+
+- **Codex Thread** (`src/main/thread-providers.js`): per-launch
+  `-c 'hooks.<Event>=[…command="sh \"$SUSH_THREAD_SINK\""…]'` inserted
+  right after `codex`. It is POSIX-shell only and skipped when config.toml
+  already defines those events. Codex asks the user once ("Hooks need
+  review" → Trust) and stores `hooks.state."/<session-flags>/…".trusted_hash`.
+  Verified on 0.159 via the TUI; the gate is `--config` in help and
+  version >= `CODEX_THREAD_MIN_VERSION`. The rollout parser skips
+  developer and `<environment_context>` messages and maps
+  exec_command→Bash and apply_patch→Patch (files counted from the
+  envelope). `token_count.last_token_usage` becomes context in use;
+  `model_context_window` is the real window.
+- **Gemini Thread**: `GEMINI_CLI_SYSTEM_*` files must be root-owned
+  (`checkPosixStatsSecurity`), so there is no per-launch source. The hook
+  is opt-in in `~/.gemini/settings.json` (Settings → Agents) and inert
+  without `SUSH_THREAD_EVENT_PATH`; opting out removes exactly that hook.
+  Gemini expands `$VAR` in settings strings but leaves unset vars
+  literal. Events: BeforeAgent = working + prompt, AfterAgent = idle.
+  Chat JSONL: same-id records upsert, `$set.messages` replaces the list.
+- `readThread(userData, tabId, {roots, provider})`; the cache is keyed by
+  provider + roots. `threadRoots` stores `{provider, roots}`.
+- **Context budget** (`lib/contextBudget.js`, `ShellContextControl`):
+  a slider plus an exact field, sent as `contextBudget` in `startPty`.
+  Claude: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, floor 100K. Codex:
+  `-c model_auto_compact_token_limit=N`. Gemini: global
+  `model.compressionThreshold` = budget / window, written on save. The
+  full window means no budget. This is an auto-compact cap, not a
+  smaller hard window.
+- **Office meeting room**: a table between the desks and the door
+  (`meeting`, `meetingSeat`). Calling one sets broadcast to workspace
+  scope, and attendees walk over (`TRIP_MS`); the table glows. "Type to
+  all" opens Code, with broadcast still on.
+- **Office chime**: plays on a newly raised hand (waiting), scoped to the
+  current office. It stays silent when the app-wide attention chime is on,
+  so nothing rings twice. Toggle: bell in the HUD (`sush-office-sound`).
+- `hooks/useNightlyShell.js` now holds channel, mode, drawer, office
+  focus and placement, taken out of App.jsx.
+- Harness: when Playwright's bundled browser is missing, run with
+  `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+
+## 0.5 Phase 1 — T3 Code layout port (Nightly channel)
+
+Ported from T3 Code's source (MIT; notice in `THIRD_PARTY_NOTICES.md`, shipped
+as an extraResource). Nightly only — Stable is unchanged.
+
+- `components/shell/ShellSidebar.jsx` + `lib/shellSidebar.js`: flat thread
+  cards (project · status/time, title, branch · model · provider), search,
+  project filter, pin/settle, Settled shelf, icon footer.
+- `ShellHeader`: `project / title` breadcrumb, New ▾ and Git ▾ menus; diff and
+  panel toggles only while the panel is closed (the panel header owns them).
+- `NightlyComposer variant="t3"`: T3 card + round send + branch toolbar
+  (Local/Worktree · project · branch · N changed). `hooks/useGitBranch.js`.
+- `ThreadView` + `lib/threadTurns.buildTurns`: first + final reply visible,
+  tool work and middle narration fold into "Worked for Xm Ys", changed-files
+  card from the edit tools' inputs, Open diff.
+- `ShellDiffPanel` + `lib/unifiedDiff.js` + IPC `sush:git-diff-head`: working
+  tree vs HEAD, per-file sections, line numbers, "N unmodified lines", unified/
+  split, wrap, per-turn scope, Send to agent, Commit… (swaps in ChangesTab).
+- `RightPanel t3`: T3TabStrip (opened panels + "+" + close).
+- Harness asserts sidebar filter, diff files/gaps/turn scope/split, Worked-for,
+  files card, final reply visible and middle narration folded.
+
+Next: Phase 2 — Office campus (one office per folder), live monitors mirroring
+terminal tails, click-to-zoom into the real interactive terminal, office themes,
+Claude token totals from transcripts, locally stored XP.
+
 ## 0.3 Mainline continuation after Claude handoff
 
 Claude's branch `claude/roadmap-development-continue-i32p2l` was fast-forwarded

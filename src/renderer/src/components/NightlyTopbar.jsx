@@ -9,6 +9,7 @@ import NightlyLayoutMenu from './NightlyLayoutMenu'
 import NightlyPaneMenu from './NightlyPaneMenu'
 import NightlyAttention from './NightlyAttention'
 import { tabsInWorkspace, workspaceKey, workspaceLabel } from '../lib/workspaces'
+import { threadCentered } from '../lib/shellModes'
 
 function compactTokens(value) {
   if (value == null || value === '') return '—'
@@ -48,7 +49,8 @@ export default function NightlyTopbar({
   paneDock,
   onPaneDockChange,
   onOpenPane,
-  onTogglePanel
+  onTogglePanel,
+  onChannel
 }) {
   const [branch, setBranch] = useState(null)
 
@@ -164,13 +166,18 @@ export default function NightlyTopbar({
           accent={accent}
           activePane={activePane}
           panelOpen={rightOpen}
-          threadAvailable={activeTab?.agentId === 'claude' && activeTab?.threadBridge === true}
+          threadAvailable={threadCentered(activeTab)}
           dock={paneDock}
           onDockChange={onPaneDockChange}
           onOpen={onOpenPane}
         />
         <button className="nightly-action-btn" onClick={onSeducia} title="Seducia (Ctrl+K)"><Icon name="sparkles" size={13} /> Seducia</button>
         <button className={`nightly-icon-btn${rightOpen ? ' is-active' : ''}`} onClick={onTogglePanel} title="Toggle current pane"><Icon name="panel" size={14} /></button>
+        {onChannel && (
+          <button className="shell-channel is-stable" onClick={() => onChannel('nightly')} title="You are on Sush Stable. Switch to Nightly — the T3-style shell that gets every change first.">
+            Stable
+          </button>
+        )}
         <span className="nightly-window-divider" />
         <button className="nightly-window-btn" onClick={() => windowControl('minimize')} title="Minimize">−</button>
         <button className="nightly-window-btn" onClick={() => windowControl('maximize')} title="Maximize">□</button>

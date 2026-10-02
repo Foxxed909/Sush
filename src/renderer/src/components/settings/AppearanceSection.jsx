@@ -190,6 +190,17 @@ export default function AppearanceSection({ accent, settings, set }) {
   return (
     <Section id="Appearance" icon="palette" label="Appearance" accent={accent}>
       <Row>
+        <Label>Interface channel</Label>
+        <Segment
+          accent={accent}
+          value={settings.uiChannel === 'stable' ? 'stable' : 'nightly'}
+          options={[['nightly', 'Nightly'], ['stable', 'Stable']]}
+          onChange={(v) => set('uiChannel', v)}
+        />
+        <Hint>Nightly is the T3-style shell — Chat, Code, Thread, Agents and the 3D Office — and gets every change first. Stable is the proven Quiet Nights shell; Nightly changes are promoted there once they hold up. Switching never restarts a session.</Hint>
+      </Row>
+
+      <Row>
         <Label>Theme</Label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {Object.values(allThemes()).map(t => (

@@ -10,6 +10,9 @@ import { registerIpcHandlers } from './ipc'
 // without reference to each other.
 
 const trustedRendererContents = new Set()
+// The in-app Browser's cookies, storage and cache live in their own session,
+// separate from Sush's renderer (and its microphone grant).
+const BROWSER_PARTITION = 'persist:sush-browser'
 
 function isTrustedRendererUrl(raw) {
   try {
@@ -17,7 +20,9 @@ function isTrustedRendererUrl(raw) {
     if (process.env.NODE_ENV === 'development' && process.env.ELECTRON_RENDERER_URL) {
       return url.origin === new URL(process.env.ELECTRON_RENDERER_URL).origin
     }
-    return url.href === pathToFileURL(join(__dirname, '../renderer/index.html')).href
+    // Compare the document itself; a #fragment must not make IPC refuse.
+    const page = pathToFileURL(join(__dirname, '../renderer/index.html'))
+    return url.protocol === 'file:' && url.pathname === page.pathname
   } catch {
     return false
   }
@@ -29,6 +34,31 @@ function trustedPermissionSource(contents, sourceUrl) {
     trustedRendererContents.has(contents.id) &&
     isTrustedRendererUrl(contents.getURL()) &&
     (!source || source === 'file://' || isTrustedRendererUrl(source))
+}
+
+// Every privileged channel is registered in ipc.js. Only Sush's own top-level
+// renderer may call them: a <webview> guest has no preload today, but this
+// keeps a future renderer/preload regression from handing the file, PTY and
+// shell bridges to a remote page.
+function trustedIpcEvent(event) {
+  const contents = event?.sender
+  const frame = event?.senderFrame
+  if (!contents || !trustedRendererContents.has(contents.id)) return false
+  if (frame && frame.parent) return false
+  return isTrustedRendererUrl(frame?.url || contents.getURL())
+}
+
+function installIpcSenderGuard() {
+  const handle = ipcMain.handle.bind(ipcMain)
+  const on = ipcMain.on.bind(ipcMain)
+  ipcMain.handle = (channel, listener) => handle(channel, (event, ...args) => {
+    if (!trustedIpcEvent(event)) throw new Error(`Refused IPC ${channel} from an untrusted sender`)
+    return listener(event, ...args)
+  })
+  ipcMain.on = (channel, listener) => on(channel, (event, ...args) => {
+    if (!trustedIpcEvent(event)) return
+    listener(event, ...args)
+  })
 }
 
 function installPermissionPolicy() {
@@ -44,6 +74,9 @@ function installPermissionPolicy() {
     const source = details?.requestingUrl || details?.securityOrigin
     callback(trustedPermissionSource(contents, source))
   })
+  const browser = session.fromPartition(BROWSER_PARTITION)
+  browser.setPermissionCheckHandler(() => false)
+  browser.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
 }
 
 // Window/taskbar icon. Dev runs from out/main (resources/ at project root);
@@ -92,6 +125,7 @@ function createWindow() {
     webPreferences.nodeIntegration = false
     webPreferences.contextIsolation = true
     webPreferences.sandbox = true
+    webPreferences.partition = BROWSER_PARTITION
     if (!/^https?:\/\//i.test(String(params?.src || ''))) event.preventDefault()
   })
 
@@ -127,6 +161,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   installPermissionPolicy()
+  installIpcSenderGuard()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

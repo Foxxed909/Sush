@@ -1,15 +1,15 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
+import React from 'react'
 import Icon from '../Icons'
-import { usePolling } from '../../hooks/usePolling'
+import { useThreadFeed } from '../../hooks/useThreadFeed'
 import { rgba } from '../../lib/ui'
 import { PanelEmpty, TabHeader } from './shared'
 
-function clip(value, max = 1600) {
+export function clip(value, max = 1600) {
   const text = String(value ?? '')
   return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text
 }
 
-function prettyInput(input) {
+export function prettyInput(input) {
   if (!input || typeof input !== 'object') return ''
   try {
     return clip(JSON.stringify(input, null, 2), 2200)
@@ -18,7 +18,7 @@ function prettyInput(input) {
   }
 }
 
-function ThreadItem({ item, accent }) {
+export function ThreadItem({ item, accent }) {
   if (item.type === 'user' || item.type === 'assistant') {
     const assistant = item.type === 'assistant'
     return (
@@ -61,73 +61,12 @@ function ThreadItem({ item, accent }) {
 }
 
 export default function ThreadTab(props) {
-  // A new session must never display the previous session's transcript.
+  // Remount by session so a pending read can never leave the prior session visible.
   return <SessionThread key={props.activeTab?.id || 'none'} {...props} />
 }
 
 function SessionThread({ accent, activeTab }) {
-  const [state, setState] = useState(null)
-  const [error, setError] = useState('')
-  const alive = useRef(true)
-  const request = useRef(0)
-  useEffect(() => {
-    alive.current = true
-    return () => { alive.current = false; request.current += 1 }
-  }, [])
-
-  const supported = activeTab?.agentId === 'claude' && !!activeTab?.id && activeTab?.threadBridge === true
-  const read = useCallback(async () => {
-    if (!supported) return
-    const sequence = ++request.current
-    try {
-      const result = await window.sush?.threadRead?.({ tabId: activeTab.id })
-      if (!alive.current || sequence !== request.current) return
-      if (!result?.ok) {
-        setError(result?.error || 'Could not read structured Thread data.')
-        return
-      }
-      setError('')
-      setState(result)
-    } catch (e) {
-      if (!alive.current || sequence !== request.current) return
-      setError(e?.message || 'Could not read structured Thread data.')
-    }
-  }, [activeTab?.id, supported])
-
-  usePolling(read, 1200, supported)
-
-  const items = useMemo(() => {
-    const persisted = Array.isArray(state?.items) ? state.items : []
-    const hooks = Array.isArray(state?.hookPrompts) ? state.hookPrompts : []
-    if (!hooks.length) return persisted
-
-    // UserPromptSubmit can arrive before Claude flushes the corresponding user
-    // record. Compare occurrence counts rather than a Set so repeated prompts
-    // such as "continue" remain truthful.
-    const persistedCounts = new Map()
-    for (const item of persisted) {
-      if (item?.type !== 'user') continue
-      const key = String(item.text || '')
-      persistedCounts.set(key, (persistedCounts.get(key) || 0) + 1)
-    }
-
-    const seenHooks = new Map()
-    const live = []
-    hooks.forEach((prompt, index) => {
-      const key = String(prompt?.text || '')
-      if (!key) return
-      const nth = (seenHooks.get(key) || 0) + 1
-      seenHooks.set(key, nth)
-      if (nth <= (persistedCounts.get(key) || 0)) return
-      live.push({
-        id: `hook-prompt-${index}`,
-        type: 'user',
-        text: key,
-        live: true
-      })
-    })
-    return [...persisted, ...live]
-  }, [state])
+  const { state, error, items, read, supported } = useThreadFeed(activeTab)
 
   if (!supported) {
     return (

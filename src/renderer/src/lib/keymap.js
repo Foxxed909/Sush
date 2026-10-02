@@ -18,9 +18,19 @@ export const APP_CTRL_SHIFT = new Set(['n', 't', 'z', 'b', 'm', 's', 'g', 'd', '
 // Does the app own this keydown? (Used by the terminal to decide what NOT to
 // forward. Ctrl+Shift+C/V are deliberately absent — the terminal handles
 // copy/paste itself before consulting this.)
+// Nightly shell chords: Alt+1..5 switch mode, Ctrl+` toggles the terminal
+// drawer. Only app-owned while the Nightly channel is active, so Stable keeps
+// forwarding them to the PTY exactly as before.
+let shellChords = false
+export function setShellChords(enabled) { shellChords = !!enabled }
+
 export function isAppChord(e) {
   if (e.key === 'F2') return true                                  // rename session
   const ctrl = e.ctrlKey || e.metaKey
+  if (shellChords) {
+    if (e.altKey && !ctrl && !e.shiftKey && /^[1-5]$/.test(e.key)) return true
+    if (ctrl && !e.shiftKey && !e.altKey && e.key === '`') return true
+  }
   if (!ctrl) return false
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
   if (key === 'Tab') return true                                   // MRU switcher

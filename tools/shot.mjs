@@ -87,7 +87,19 @@ const stub = `
         { id: 'u1', type: 'user', text: 'Fix the flaky scrollback test' },
         { id: 'a1', type: 'assistant', model: 'claude-sonnet-5', text: 'I found the race in the scrollback restore path.' },
         { id: 'tool1', type: 'tool_use', name: 'Bash', input: { command: 'npm test' } },
-        { id: 'result1', type: 'tool_result', toolUseId: 'tool1', text: '177 tests passed', isError: false }
+        { id: 'result1', type: 'tool_result', toolUseId: 'tool1', text: '177 tests passed', isError: false },
+        { id: 'u2', type: 'user', text: 'Great, now make the restore idempotent and add a regression test.', timestamp: '2026-09-29T09:00:00Z' },
+        { id: 'a2', type: 'assistant', model: 'claude-sonnet-5', text: 'On it. I will guard the restore with a per-tab generation and cover the double-mount case.', timestamp: '2026-09-29T09:00:04Z' },
+        { id: 'tool2', type: 'tool_use', toolUseId: 't2', name: 'Read', input: { file_path: 'src/main/shell/scrollback.js' }, timestamp: '2026-09-29T09:00:09Z' },
+        { id: 'result2', type: 'tool_result', toolUseId: 't2', text: '146 lines', timestamp: '2026-09-29T09:00:10Z' },
+        { id: 'a3', type: 'assistant', model: 'claude-sonnet-5', text: 'The restore runs twice when the tab remounts.', timestamp: '2026-09-29T09:01:02Z' },
+        { id: 'tool3', type: 'tool_use', toolUseId: 't3', name: 'Edit', input: { file_path: 'src/main/shell/scrollback.js', old_string: 'restore(tabId)\\n  attach()', new_string: 'if (gen !== current) return\\n  restore(tabId)\\n  attach()\\n  current++' }, timestamp: '2026-09-29T09:01:40Z' },
+        { id: 'result3', type: 'tool_result', toolUseId: 't3', text: 'ok', timestamp: '2026-09-29T09:01:41Z' },
+        { id: 'tool4', type: 'tool_use', toolUseId: 't4', name: 'Write', input: { file_path: 'tests/scrollback-restore.test.mjs', content: 'import { it } from \\'vitest\\'\\n\\nit(\\'restores once\\', () => {})\\n' }, timestamp: '2026-09-29T09:02:30Z' },
+        { id: 'result4', type: 'tool_result', toolUseId: 't4', text: 'ok', timestamp: '2026-09-29T09:02:31Z' },
+        { id: 'tool5', type: 'tool_use', toolUseId: 't5', name: 'Bash', input: { command: 'npm test' }, timestamp: '2026-09-29T09:03:10Z' },
+        { id: 'result5', type: 'tool_result', toolUseId: 't5', text: '178 tests passed', timestamp: '2026-09-29T09:03:40Z' },
+        { id: 'a4', type: 'assistant', model: 'claude-sonnet-5', usage: { input_tokens: 12, cache_read_input_tokens: 184000, cache_creation_input_tokens: 2100, output_tokens: 640 }, text: 'Done. Restore is now idempotent:\\n\\n- A per-tab generation guards the restore\\n- New regression test covers the double mount\\n- All **178** tests pass', timestamp: '2026-09-29T09:03:47Z' }
       ]
     }),
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
@@ -153,6 +165,7 @@ const stub = `
     githubNotifications: async () => ({ ok: true, notifications: [], unreadCount: 3, connected: true }),
     githubStatus: async () => ({ configured: { github: true, google: false }, safeStorage: true, connected: true, source: 'gh-cli', login: 'taylor' }),
     gitDiffFile: async ({ path } = {}) => ({ ok: true, truncated: false, diff: ['diff --git a/' + path + ' b/' + path, 'index 3f2a1c0..9b7e4d2 100644', '--- a/' + path, '+++ b/' + path, '@@ -12,7 +12,9 @@ export default function App() {', '   const [tabs, setTabs] = useState([])', '-  const legacy = true', '+  const nightly = true', '+  const quiet = true', '   return null', ' }', ''].join('\\n') }),
+    gitDiffHead: async () => ({ ok: true, truncated: false, diff: ["diff --git a/src/main/shell/scrollback.js b/src/main/shell/scrollback.js", "index 1a2b3c4..5d6e7f8 100644", "--- a/src/main/shell/scrollback.js", "+++ b/src/main/shell/scrollback.js", "@@ -38,9 +38,12 @@ export class ScrollbackStore {", "   attach(tabId, key, { persist }) {", "     const entry = this.entries.get(tabId)", "-    if (entry) entry.restore()", "-    this.bind(tabId, key)", "+    const gen = (this.generation.get(tabId) || 0) + 1", "+    this.generation.set(tabId, gen)", "+    if (entry && entry.gen !== gen) entry.restore()", "+    this.bind(tabId, key, gen)", "     this.persist = persist", "   }", " ", "   detach(tabId) {", "@@ -120,6 +123,7 @@ export class ScrollbackStore {", "   clear(tabId) {", "     this.entries.delete(tabId)", "+    this.generation.delete(tabId)", "   }", " }", "diff --git a/src/App.jsx b/src/App.jsx", "index 3f2a1c0..9b7e4d2 100644", "--- a/src/App.jsx", "+++ b/src/App.jsx", "@@ -12,7 +12,9 @@ export default function App() {", "   const [tabs, setTabs] = useState([])", "-  const legacy = true", "+  const nightly = true", "+  const quiet = true", "   return null", " }", ""].join('\\n') }),
     gitStatus: async () => ({ repo: true, dir: '/home/taylor/sush', branch: 'main', files: [ { status: 'M', rawStatus: ' M', path: 'src/App.jsx' }, { status: '??', rawStatus: '??', path: 'notes.md' } ] }),
     sttConfigGet: async () => ({ provider: 'local', model: '', hasKey: false, localBin: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/whisper-cli.exe', localModel: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/models/ggml-base.en.bin', localStatus: { ready: true, missing: [], managedBin: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/whisper-cli.exe', managedModel: 'C:/Users/Taylor/AppData/Roaming/sush/whisper/models/ggml-base.en.bin' }, safeStorage: true, defaults: { openai: { model: 'whisper-1' }, local: { model: 'base.en' } }, credits }),
     ttsConfigGet: async () => ({ provider: 'system', hasKey: false, voice: '', model: '', safeStorage: true }),
@@ -208,6 +221,11 @@ const stub = `
     sessionStorage.setItem('sush-skip-splash', '1')
     localStorage.setItem('sush-active-user', 'u1')
     localStorage.setItem('u:u1::sush-last-seen-version', '${appVersion}')
+    // The main walk photographs the Stable (Quiet Nights) shell; the Nightly
+    // walk at the end switches channel itself.
+    if (!localStorage.getItem('u:u1::sush-settings')) {
+      localStorage.setItem('u:u1::sush-settings', JSON.stringify({ uiChannel: 'stable' }))
+    }
     localStorage.setItem('u:u1::sush-session-layout', JSON.stringify({
       activeKey: 'powershell:powershell:/home/taylor/sush:sess-demo',
       tabs: [{
@@ -288,7 +306,9 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, dev
 await page.addInitScript(() => {
   const getContext = HTMLCanvasElement.prototype.getContext
   HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
-    return /webgl/i.test(String(type)) ? null : getContext.call(this, type, ...rest)
+    // The Office walk opts back in: it is a real WebGL scene, not xterm.
+    if (/webgl/i.test(String(type)) && !window.__sushAllowWebgl) return null
+    return getContext.call(this, type, ...rest)
   }
 })
 await page.addInitScript(stub)
@@ -976,6 +996,192 @@ await page.getByText('Manage users…', { exact: true }).click()
 await shot('11-users')
 await page.getByText('Start fresh…', { exact: true }).click()
 await shot('12-fresh-start')
+
+// ── Nightly channel (T3-style shell) ────────────────────────────────────────
+// Same sessions, new arrangement: Chat · Code · Thread · Agents · Office, and
+// no terminal may remount while switching between them.
+{
+  await page.evaluate(() => {
+    const key = 'u:u1::sush-settings'
+    const prev = JSON.parse(localStorage.getItem(key) || '{}')
+    localStorage.setItem(key, JSON.stringify({ ...prev, uiChannel: 'nightly' }))
+    localStorage.setItem('u:u1::sush-shell-mode', 'code')
+    localStorage.setItem('u:u1::sush-right-open', '0')
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1800)
+  if (!(await page.locator('.shell-header').isVisible())) throw new Error('Nightly channel did not render the T3 shell header')
+  if (await page.locator('.nightly-topbar').count()) throw new Error('Nightly channel still rendered the Stable topbar')
+  // T3 thread sidebar: one flat list across projects, not project groups.
+  if (await page.locator('.ts-card').count() !== 3) throw new Error('Nightly sidebar does not list every thread as a card')
+  if (await page.locator('.nightly-workspace').count()) throw new Error('Nightly sidebar still groups threads under project headers')
+  await page.locator('.ts-filter-btn').click()
+  await page.locator('.ts-filter-menu button', { hasText: 'other-project' }).click()
+  if (await page.locator('.ts-card').count() !== 1) throw new Error('Project filter did not narrow the thread list')
+  await page.locator('.ts-filter-btn').click()
+  await page.locator('.ts-filter-menu button', { hasText: 'All projects' }).click()
+  await page.keyboard.press('Control+1')
+  await page.waitForTimeout(1400)
+  const modeActive = async (label) => (await page.locator('.shell-modes button.is-active').getAttribute('data-mode')) === label.toLowerCase()
+  if (!(await modeActive('Code'))) throw new Error('Nightly shell did not start in Code mode')
+  if (!(await page.locator('.shell-terminal-layer.is-full').count())) throw new Error('Code mode does not show the terminal full-size')
+  await page.locator('.shell-header [title="Open diff panel"]').click()
+  await page.locator('.sd-file').first().waitFor({ state: 'visible', timeout: 5000 })
+  if (await page.locator('.sd-file').count() < 3) throw new Error('Diff panel did not list every changed file')
+  if (!(await page.locator('.t3-tab.is-active', { hasText: 'Diff' }).count())) throw new Error('Right panel is not showing the T3 Diff tab')
+  {
+    const gap = await page.locator('.sd-gap').first().innerText()
+    if (!/unmodified line/.test(gap)) throw new Error('Diff panel does not fold unmodified lines')
+  }
+  await shot('n1-code-diff')
+  // Turn scope: Turn 2 edited scrollback.js (and wrote a test that is not in the diff).
+  await page.locator('.sd-scope select').selectOption({ label: 'Turn 2' })
+  await page.waitForTimeout(300)
+  {
+    const paths = await page.locator('.sd-path').allInnerTexts()
+    if (paths.length !== 1 || !paths[0].includes('scrollback.js')) throw new Error(`Turn scope did not narrow the diff: ${paths.join(', ')}`)
+  }
+  await page.locator('.sd-tool[title="Split"]').click()
+  await page.waitForTimeout(300)
+  if (!(await page.locator('.sd-split').count())) throw new Error('Split view did not render side-by-side rows')
+  await shot('n1b-diff-turn-split')
+  await page.locator('.sd-tool[title="Unified"]').click()
+  await page.locator('.sd-scope select').selectOption('all')
+
+  await page.keyboard.press('Alt+3')
+  await page.waitForTimeout(900)
+  if (!(await modeActive('Thread'))) throw new Error('Alt+3 did not switch to Thread')
+  await page.locator('.shell-thread-slot').waitFor({ state: 'visible', timeout: 5000 })
+  {
+    const text = await page.locator('.shell-thread-slot').innerText()
+    if (!text.includes('Worked for 3m 43s')) throw new Error('Thread did not fold turn work into "Worked for"')
+    if (!/2 changed files/.test(text)) throw new Error('Thread did not show the changed-files card')
+    if (!text.includes('Done. Restore is now idempotent')) throw new Error('Thread hid the final reply')
+    if (text.includes('The restore runs twice')) throw new Error('Thread showed middle narration outside the fold')
+  }
+  if (!(await page.locator('.shell-terminal-layer.is-drawer').count())) throw new Error('Thread mode did not dock the terminal in the drawer')
+  await shot('n2-thread')
+  // T3 model picker: provider rail + searchable rows; another provider = new thread.
+  await page.locator('.mp-trigger').click()
+  await page.locator('.mp-shell').waitFor({ state: 'visible', timeout: 5000 })
+  {
+    const names = await page.locator('.mp-row-name').allInnerTexts()
+    if (!names.includes('Sonnet') || !names.includes('Opus')) throw new Error(`Model picker did not list Claude models: ${names.join(', ')}`)
+    if (await page.locator('.mp-rail-btn').count() < 5) throw new Error('Model picker is missing the provider rail')
+  }
+  await shot('n2b-model-picker')
+  await page.locator('.mp-search input').fill('flash')
+  await page.waitForTimeout(200)
+  {
+    const subs = await page.locator('.mp-row-sub').allInnerTexts()
+    if (!subs.length || !subs.every(t => /Gemini/.test(t) && /new thread/.test(t))) throw new Error(`Cross-provider search should offer Gemini as a new thread: ${subs.join(' | ')}`)
+  }
+  await page.keyboard.press('Escape')
+  await page.locator('[aria-label="More composer controls"]').click()
+  await page.locator('.t3-menu-body').waitFor({ state: 'visible', timeout: 5000 })
+  if (!(await page.locator('.t3-menu-item[role="menuitemradio"][aria-checked="true"]').count())) throw new Error('Reasoning menu shows no current level')
+  await shot('n2c-composer-more')
+  await page.keyboard.press('Escape')
+  // Context: real usage from the transcript against the model's full window.
+  {
+    const label = await page.locator('.ctx-trigger').innerText()
+    if (!/187K/.test(label) || !/1M/.test(label)) throw new Error(`Context control did not show transcript usage: ${label}`)
+    await page.locator('.ctx-trigger').click()
+    await page.locator('.ctx-menu').waitFor({ state: 'visible', timeout: 5000 })
+    // Budget: an exact value sticks, and Claude's floor is honoured.
+    await page.locator('.ctx-budget-exact input').fill('50k')
+    await page.locator('.ctx-budget-exact button', { hasText: 'Set' }).click()
+    await page.waitForTimeout(200)
+    const head = await page.locator('.ctx-budget-head').innerText()
+    if (!/100K/.test(head)) throw new Error(`Claude budget floor not applied: ${head}`)
+    await page.locator('.ctx-budget-exact input').fill('350k')
+    await page.locator('.ctx-budget-exact button', { hasText: 'Set' }).click()
+    await page.waitForTimeout(200)
+    await shot('n2d-context')
+    await page.locator('.ctx-budget-exact button', { hasText: 'Full' }).click()
+    await page.keyboard.press('Escape')
+  }
+  if (await page.locator('.ts-provider svg').count() < 2) throw new Error('Sidebar rows do not show provider logos')
+  await page.keyboard.press('Control+`')
+  await page.waitForTimeout(300)
+  if (!(await page.locator('.shell-terminal-layer.is-hidden').count())) throw new Error('Ctrl+` did not hide the terminal drawer')
+  await page.keyboard.press('Control+`')
+  await page.waitForTimeout(300)
+
+  // A non-Claude session keeps its terminal in the centre in Thread mode.
+  await page.locator('.ts-card').filter({ hasText: 'Codex' }).first().locator('.ts-card-surface').click()
+  await page.waitForTimeout(700)
+  if (await page.locator('.shell-thread-slot').count()) throw new Error('Thread mode covered a non-Claude terminal')
+  if (!(await page.locator('.shell-terminal-layer.is-full').count())) throw new Error('Non-Claude session lost its centred terminal in Thread mode')
+  await shot('n3-thread-codex')
+
+  await page.keyboard.press('Alt+1')
+  await page.locator('.shell-chat').waitFor({ state: 'visible', timeout: 5000 })
+  await shot('n4-chat')
+
+  await page.keyboard.press('Alt+4')
+  await page.waitForTimeout(700)
+  if (!(await modeActive('Agents'))) throw new Error('Alt+4 did not open Agents')
+  await shot('n5-agents')
+
+  await page.evaluate(() => { window.__sushAllowWebgl = true })
+  await page.keyboard.press('Alt+5')
+  await page.locator('.office-canvas').waitFor({ state: 'attached', timeout: 10000 })
+  await page.waitForTimeout(1500)
+  // Campus: one building per project, each with a crew sign.
+  if (await page.locator('.office-sign').count() !== 2) throw new Error('Campus does not show one office per project')
+  {
+    const sign = await page.locator('.office-sign').filter({ hasText: 'sush' }).first().innerText()
+    if (!/×\s*1/.test(sign)) throw new Error(`Office sign has no provider headcount: ${sign}`)
+  }
+  await shot('n6-office')
+  // Interior: a desk per session plus Hire; monitors mirror the real terminal.
+  await page.locator('.office-sign').filter({ hasText: 'sush' }).first().click()
+  await page.locator('.office-desk-tag').first().waitFor({ state: 'visible', timeout: 5000 })
+  if (await page.locator('.office-desk-tag').count() !== 2) throw new Error('Office interior does not seat every session')
+  await page.waitForTimeout(1600)
+  await shot('n7a-office-interior')
+  // Zoom into a monitor: the real terminal appears in the screen frame.
+  await page.locator('.office-desk-tag').filter({ hasText: 'Claude' }).first().click()
+  await page.locator('.shell-terminal-layer.is-monitor').waitFor({ state: 'visible', timeout: 5000 })
+  await page.waitForTimeout(1200)
+  await shot('n7b-office-monitor')
+  await page.locator('.office-monitor-bar button', { hasText: 'Back to office' }).click()
+  await page.waitForTimeout(500)
+  if (await page.locator('.shell-terminal-layer.is-monitor').count()) throw new Error('Back to office did not release the terminal')
+  await page.locator('.office-labels [role="button"]', { hasText: 'Hire an agent' }).click()
+  await page.locator('.office-hire').waitFor({ state: 'visible', timeout: 5000 })
+  await shot('n7c-office-hire')
+  await page.locator('.office-hire header button').click()
+  await page.locator('.office-theme select').selectOption('neon')
+  await page.waitForTimeout(900)
+  await shot('n7d-office-neon')
+  // Meeting: calling one fences broadcast to this office and walks everyone to the table.
+  await page.locator('.office-labels [data-anchor="meeting"]').click()
+  await page.locator('.office-chip.is-meeting').waitFor({ state: 'visible', timeout: 5000 })
+  await page.waitForTimeout(2600)
+  await shot('n7e-office-meeting')
+  await page.locator('.office-chip.is-meeting button', { hasText: 'End' }).click()
+  await page.waitForTimeout(300)
+  if (await page.locator('.office-chip.is-meeting').count()) throw new Error('Ending the meeting did not stop broadcast')
+  await page.locator('.office-hud button', { hasText: 'Campus' }).click()
+  await page.waitForTimeout(700)
+  await page.locator('.office-host').focus()
+  await page.keyboard.down('w')
+  await page.waitForTimeout(700)
+  await page.keyboard.up('w')
+  await page.waitForTimeout(400)
+  await shot('n7-office-walk')
+
+  // Channel switch is instant and keeps every terminal alive (shot() asserts).
+  await page.keyboard.press('Alt+2')
+  await page.waitForTimeout(500)
+  await page.locator('.ts-brand-channel').click()
+  await page.locator('.nightly-topbar').waitFor({ state: 'visible', timeout: 5000 })
+  await shot('n8-back-to-stable')
+  await page.locator('.shell-channel.is-stable').click()
+  await page.locator('.shell-header').waitFor({ state: 'visible', timeout: 5000 })
+}
 
 await browser.close()
 server.close()

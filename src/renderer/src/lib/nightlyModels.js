@@ -93,8 +93,10 @@ export function effortLabelFor(provider, value, fallback = 'Provider default') {
   const v = String(value || '')
   if (!v) return fallback
   if (provider === 'claude' && v === 'ultracode') return 'ultracode · xhigh + workflows'
-  return v
+  return EFFORT_LABELS[v] || v
 }
+
+const EFFORT_LABELS = { none: 'None', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' }
 
 export function effortOptionsFor(provider, model = null) {
   const spec = modelSpecFor(provider)?.effort
@@ -144,4 +146,74 @@ export function buildAgentCommand(agent, { model, effort, resume = false } = {})
   if (safeEffort && spec.effort?.command) parts.push(spec.effort.command(safeEffort))
 
   return parts.join(' ')
+}
+
+// ── Model picker rows (Nightly, after T3 Code's ModelPickerContent, MIT) ──
+export const PICKER_PROVIDERS = ['claude', 'codex', 'gemini', 'opencode']
+
+function modelKey(provider, value) {
+  return `${provider}:${value || ''}`
+}
+
+// Rows for one sidebar section: 'favorites' or a provider id. A search spans
+// every provider, like T3; a typed id that is a valid model for the provider
+// in view becomes a "Use …" row, because catalogs here are deliberately short.
+export function pickerRows({ section = 'claude', query = '', favorites = new Set() } = {}) {
+  const q = String(query || '').trim().toLowerCase()
+  const providers = q || section === 'favorites' ? PICKER_PROVIDERS : [section]
+  const rows = []
+  for (const provider of providers) {
+    const spec = modelSpecFor(provider)
+    if (!spec) continue
+    for (const option of spec.options) {
+      const key = modelKey(provider, option.value)
+      if (section === 'favorites' && !q && !favorites.has(key)) continue
+      const label = option.label || option.value
+      if (q && !`${label} ${option.value} ${provider}`.toLowerCase().includes(q)) continue
+      rows.push({ key, provider, value: option.value || null, label, favorite: favorites.has(key) })
+    }
+  }
+  if (q && section !== 'favorites') {
+    const custom = normalizeModel(section, query)
+    const known = rows.some(r => String(r.value || '').toLowerCase() === custom?.toLowerCase())
+    if (custom && !known) {
+      rows.push({ key: modelKey(section, custom), provider: section, value: custom, label: `Use “${custom}”`, custom: true, favorite: false })
+    }
+  }
+  return rows
+}
+
+export function pickerModelLabel(provider, model) {
+  const spec = modelSpecFor(provider)
+  if (!model) return spec?.options.find(o => !o.value)?.label || 'Default'
+  return spec?.options.find(o => o.value === model)?.label || model
+}
+
+// ── Context window (Nightly composer) ──────────────────────────────────────
+// Current Claude models run with a 1M-token window by default (Haiku: 200K);
+// there is no larger window to opt into, so "max" is what they already use.
+// Other CLIs choose their window per model; Sush does not guess it.
+// Known context windows. Codex reports its real window in the rollout
+// (`reported`), which wins; Gemini's current models all take ~1M.
+export function contextWindowFor(provider, model, reported = null) {
+  if (Number(reported) > 0) return Number(reported)
+  if (provider === 'claude') return /haiku/i.test(String(model || '')) ? 200_000 : 1_000_000
+  if (provider === 'gemini') return 1_048_576
+  return null
+}
+
+// Slash commands each CLI documents for shrinking or resetting its context.
+export const CONTEXT_COMMANDS = {
+  claude: { compact: '/compact', clear: '/clear' },
+  codex: { compact: '/compact', clear: '/new' },
+  gemini: { compact: '/compress', clear: '/clear' },
+  opencode: { compact: '/compact', clear: '/new' }
+}
+
+export function formatTokens(n) {
+  const v = Number(n)
+  if (!Number.isFinite(v) || v < 0) return '—'
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(v % 1_000_000 ? 1 : 0).replace(/\.0$/, '')}M`
+  if (v >= 1000) return `${Math.round(v / 1000)}K`
+  return String(Math.round(v))
 }
