@@ -27,7 +27,13 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
   // Context in use, from the bridged transcript's recorded usage (Nightly).
   const { items: threadItems, state: threadState } = useThreadFeed(t3 ? activeTab : null)
   const usedTokens = t3 ? latestContextTokens(threadItems) : null
-  const [value, setValue] = useState('')
+  const [drafts, setDrafts] = useState({})
+  const draftKey = activeTab?.id || 'none'
+  const value = drafts[draftKey] || ''
+  const setValue = next => setDrafts(previous => ({
+    ...previous,
+    [draftKey]: typeof next === 'function' ? next(previous[draftKey] || '') : next
+  }))
   const ref = useRef(null)
   const agent = agentById(activeTab?.agentId) || agentById('shell')
 
@@ -58,7 +64,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
     }
     window.addEventListener('sush:composer-fill', onFill)
     return () => window.removeEventListener('sush:composer-fill', onFill)
-  }, [])
+  }, [draftKey])
 
   const submit = () => {
     const text = value.trim()
@@ -75,11 +81,13 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
               e.preventDefault()
               submit()
             }
           }}
+          aria-label="Message active session"
+          aria-label="Message active session"
           rows={1}
           disabled={disabled || !activeTab}
           placeholder={!activeTab ? 'Open a session to start' : t3 ? 'Ask for changes, send follow-ups, or paste context' : `Message ${agent?.label || activeTab.label}…`}
@@ -162,3 +170,4 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
     </div>
   )
 }
+

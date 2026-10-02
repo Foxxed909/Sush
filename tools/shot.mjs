@@ -749,10 +749,49 @@ if (await paneButton.count()) {
   await shot('02h-thread')
 }
 
+// Session drafts must not move to a different agent on a rail click.
+{
+  const composer = page.locator('.nightly-composer textarea')
+  await composer.fill('Keep this draft with Claude')
+  await page.locator('.nightly-thread-row').filter({ hasText: 'Codex Review' }).click()
+  if (await composer.inputValue()) throw new Error('Composer leaked a Claude draft into Codex')
+  await composer.fill('Keep this draft with Codex')
+  await page.locator('.nightly-thread-row').filter({ hasText: 'Claude Code' }).first().click()
+  if (await composer.inputValue() !== 'Keep this draft with Claude') throw new Error('Composer lost its per-session draft')
+  await composer.evaluate(el => el.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Enter', code: 'Enter', isComposing: true, bubbles: true, cancelable: true
+  })))
+  if (await composer.inputValue() !== 'Keep this draft with Claude') throw new Error('IME composition submitted a prompt')
+  await composer.fill('')
+}
+
+// Switching away and back while Thread reads are delayed must show a fresh
+// waiting state, never cached turns from the previous mount.
+{
+  await page.evaluate(() => {
+    window.__originalThreadRead = window.sush.threadRead
+    window.sush.threadRead = () => new Promise(resolve => { window.__resolveThreadRead = resolve })
+  })
+  await page.locator('.nightly-thread-row').filter({ hasText: 'Codex Review' }).click()
+  await page.locator('.nightly-thread-row').filter({ hasText: 'Claude Code' }).first().click()
+  const panel = page.locator('.nightly-inspector')
+  if ((await panel.innerText()).includes('I found the race in the scrollback restore path.')) {
+    throw new Error('Thread displayed stale turns while the active session read was pending')
+  }
+  await page.evaluate(async () => {
+    const original = window.__originalThreadRead
+    window.sush.threadRead = original
+    window.__resolveThreadRead?.(await original({}))
+  })
+}
+
 // 3 — Command palette
 await page.keyboard.press('Control+p')
 await shot('03-palette')
+// Escape must close the palette even if a terminal or another input takes focus.
+await page.locator('.nightly-composer textarea').evaluate(el => el.focus())
 await page.keyboard.press('Escape')
+await page.locator('input[placeholder="Search commands and actions..."]').waitFor({ state: 'detached' })
 
 // 4 — Nightly Overview (Mission Control evolved into a canvas layout)
 await page.locator('.nightly-rail-actions').getByRole('button', { name: 'Overview', exact: true }).click()
@@ -1147,3 +1186,4 @@ await shot('12-fresh-start')
 await browser.close()
 server.close()
 console.log('done →', outDir)
+

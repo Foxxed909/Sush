@@ -1,4 +1,5 @@
-﻿import { ipcMain, app, clipboard, Tray, Menu, nativeImage, powerMonitor } from 'electron'
+import { createPtyLaunchGate } from './pty-launch-gate'
+import { ipcMain, app, clipboard, Tray, Menu, nativeImage, powerMonitor } from 'electron'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, watch as fsWatch } from 'fs'
 import { join, parse, resolve } from 'path'
@@ -507,15 +508,15 @@ function readCliHealth(provider, env) {
 //     be quota figures because those CLIs do not report a portable quota API.
 async function readAccountUsage(userId, provider, slotId, options = {}) {
   if (provider === 'claude') {
-    const overlay = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
+    const overlay = { ...activeUserEnv({ includeAccounts: false }), ...slotEnv(userId, provider, slotId) }
     return probeClaudeUsage(overlay)
   }
   if (provider === 'codex') {
-    const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
+    const env = { ...activeUserEnv({ includeAccounts: false }), ...slotEnv(userId, provider, slotId) }
     return readCodexHealth(env, { doctor: options.doctor === true })
   }
   if (provider === 'gemini' || provider === 'opencode' || provider === 'grok') {
-    const env = { ...activeUserEnv(), ...slotEnv(userId, provider, slotId) }
+    const env = { ...activeUserEnv({ includeAccounts: false }), ...slotEnv(userId, provider, slotId) }
     return readCliHealth(provider, env)
   }
   return { ok: false, error: 'Usage isn’t available for this CLI.' }
@@ -950,7 +951,7 @@ function cleanBudget(value) {
   return Number.isFinite(n) && n > 0 && n <= 10_000_000 ? n : null
 }
 
-async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand, agentId, contextBudget } = {}) {
+async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, restoreKey, persistScrollback = true, bootCommand, agentId, contextBudget } = {}, assertCurrent = () => {}) {
   if (!tabId) throw new Error('Missing terminal tab id')
   const existing = ptySessions.get(tabId)
   if (existing) {
@@ -1011,6 +1012,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
       // binary-stamped capability cache and spawn nothing. Never risk breaking
       // an older/custom Claude CLI with a flag it did not advertise.
       const capabilities = await providerCaps.get('claude')
+      assertCurrent()
       if (capabilities?.threadBridge === true) {
         const userData = app.getPath('userData')
         const settingsPath = ensureClaudeThreadSettings(userData, process.platform)
@@ -1034,6 +1036,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   if (agentId === 'codex' && bootCommand) {
     try {
       const capabilities = await providerCaps.get('codex')
+      assertCurrent()
       let configText = ''
       try { configText = readFileSync(join(codexHome(cliEnv), 'config.toml'), 'utf8') } catch {}
       const augmented = augmentCodexCommand(bootCommand, {
@@ -1058,6 +1061,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   if (agentId === 'gemini' && bootCommand) {
     try {
       const capabilities = await providerCaps.get('gemini')
+      assertCurrent()
       // Only when the user opted in (Settings → Thread); the hook in their
       // Gemini settings does nothing outside a Sush tab.
       if (capabilities?.threadBridge === true && geminiThreadHooksEnabled(readGeminiSettings(cliEnv).settings)) {
@@ -1068,6 +1072,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
     }
   }
 
+  assertCurrent()
   const ptyEnv = {
     ...process.env,
     ...sushrcEnv,
@@ -1168,7 +1173,15 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   }
 }
 
+const ptyLaunchGate = createPtyLaunchGate({
+  sessions: ptySessions,
+  limit: MAX_LIVE_PTYS,
+  identity: () => getActiveUser()?.id,
+  start: startPtySession
+})
+
 function closePtySession(tabId, { sync = false } = {}) {
+  ptyLaunchGate.cancel(tabId)
   const session = ptySessions.get(tabId)
   if (!session) return
   if (scrollback) scrollback.persist(tabId)
@@ -1205,6 +1218,7 @@ function closeAllPtySessions({ sync = false } = {}) {
 
 function stopIdentityRuntime({ sync = false, preserveOauthProvider = null } = {}) {
   identityRuntimeGeneration += 1
+  ptyLaunchGate.cancelAll()
   for (const set of abortControllers.values()) {
     for (const controller of set) {
       try { controller.abort() } catch {}
@@ -1415,15 +1429,7 @@ export function registerIpcHandlers(win) {
   })
   if (process.platform === 'win32') ensurePowerShellBootstrap()
 
-  ipcMain.handle('sush:pty-start', (event, payload) => {
-    if (!getActiveUser()) throw new Error('Sign in to an identity before starting a terminal.')
-    // Reusing an existing tabId is a restart, not a new session — only a
-    // genuinely new tab counts against the ceiling.
-    if (!ptySessions.has(payload?.tabId) && ptySessions.size >= MAX_LIVE_PTYS) {
-      throw new Error(`Too many terminals open (${MAX_LIVE_PTYS}). Close a session and try again.`)
-    }
-    return startPtySession(payload)
-  })
+  ipcMain.handle('sush:pty-start', (event, payload) => ptyLaunchGate.launch(payload))
 
   ipcMain.on('sush:pty-input', (event, { tabId, data }) => {
     // node-pty throws if the PTY died between the renderer's check and this
@@ -2414,3 +2420,4 @@ export function registerIpcHandlers(win) {
     return { ok: true }
   })
 }
+

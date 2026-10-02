@@ -139,7 +139,10 @@ function parseJsonLines(text) {
   for (const line of String(text || '').split(/\r?\n/)) {
     const value = line.trim()
     if (!value) continue
-    try { rows.push(JSON.parse(value)) } catch {}
+    try {
+      const row = JSON.parse(value)
+      if (row && typeof row === 'object' && !Array.isArray(row)) rows.push(row)
+    } catch {}
   }
   return rows
 }
@@ -409,3 +412,4 @@ function readThreadUncached(eventsPath, roots, provider) {
     return { ...base, error: error.message }
   }
 }
+

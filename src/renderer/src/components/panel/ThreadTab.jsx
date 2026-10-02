@@ -60,7 +60,12 @@ export function ThreadItem({ item, accent }) {
   return null
 }
 
-export default function ThreadTab({ accent, activeTab }) {
+export default function ThreadTab(props) {
+  // Remount by session so a pending read can never leave the prior session visible.
+  return <SessionThread key={props.activeTab?.id || 'none'} {...props} />
+}
+
+function SessionThread({ accent, activeTab }) {
   const { state, error, items, read, supported } = useThreadFeed(activeTab)
 
   if (!supported) {
@@ -107,3 +112,4 @@ export default function ThreadTab({ accent, activeTab }) {
     </div>
   )
 }
+
