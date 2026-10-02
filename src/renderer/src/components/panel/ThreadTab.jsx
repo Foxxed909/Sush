@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import Icon from '../Icons'
 import { usePolling } from '../../hooks/usePolling'
 import { rgba } from '../../lib/ui'
@@ -60,15 +60,28 @@ function ThreadItem({ item, accent }) {
   return null
 }
 
-export default function ThreadTab({ accent, activeTab }) {
+export default function ThreadTab(props) {
+  // A new session must never display the previous session's transcript.
+  return <SessionThread key={props.activeTab?.id || 'none'} {...props} />
+}
+
+function SessionThread({ accent, activeTab }) {
   const [state, setState] = useState(null)
   const [error, setError] = useState('')
+  const alive = useRef(true)
+  const request = useRef(0)
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false; request.current += 1 }
+  }, [])
 
   const supported = activeTab?.agentId === 'claude' && !!activeTab?.id && activeTab?.threadBridge === true
   const read = useCallback(async () => {
     if (!supported) return
+    const sequence = ++request.current
     try {
       const result = await window.sush?.threadRead?.({ tabId: activeTab.id })
+      if (!alive.current || sequence !== request.current) return
       if (!result?.ok) {
         setError(result?.error || 'Could not read structured Thread data.')
         return
@@ -76,6 +89,7 @@ export default function ThreadTab({ accent, activeTab }) {
       setError('')
       setState(result)
     } catch (e) {
+      if (!alive.current || sequence !== request.current) return
       setError(e?.message || 'Could not read structured Thread data.')
     }
   }, [activeTab?.id, supported])
@@ -159,3 +173,4 @@ export default function ThreadTab({ accent, activeTab }) {
     </div>
   )
 }
+
