@@ -139,9 +139,12 @@ function createWindow() {
   win.webContents.on('will-redirect', keepMainRenderer)
 
   // Frameless windows have no menu, so wire DevTools to F12 / Ctrl+Shift+I
-  // ourselves (it's no longer auto-opened — see below).
+  // ourselves (it's no longer auto-opened — see below). Dev builds only, or
+  // SUSH_DEVTOOLS=1: in a packaged build DevTools hands anyone the full
+  // privileged bridge (credits reset, licence, file writes) from a console.
+  const devToolsAllowed = !app.isPackaged || process.env.SUSH_DEVTOOLS === '1'
   win.webContents.on('before-input-event', (_e, input) => {
-    if (input.type !== 'keyDown') return
+    if (!devToolsAllowed || input.type !== 'keyDown') return
     const toggle = input.key === 'F12' ||
       ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i')
     if (toggle) win.webContents.toggleDevTools()
@@ -159,7 +162,24 @@ function createWindow() {
   registerIpcHandlers(win)
 }
 
+// One Sush at a time. Two instances shared accounts, credits, scrollback and
+// settings files with no coordination and could corrupt them; a second launch
+// now just brings the existing window forward.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return
+    if (!win.isVisible()) win.show()
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  })
+}
+
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return
   installPermissionPolicy()
   installIpcSenderGuard()
   createWindow()

@@ -1,7 +1,7 @@
 import { createPtyLaunchGate } from './pty-launch-gate'
 import { ipcMain, app, clipboard, Tray, Menu, nativeImage, powerMonitor } from 'electron'
 import { execFile, execFileSync, spawn } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, readdirSync, watch as fsWatch } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, statSync, readdirSync, watch as fsWatch } from 'fs'
 import { join, parse, resolve } from 'path'
 import { promisify } from 'util'
 import { fileURLToPath } from 'url'
@@ -112,6 +112,47 @@ function formatBytes(n) {
   while (value >= 1024 && i < units.length - 1) { value /= 1024; i++ }
   return `${value < 10 && i > 0 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
 }
+// Write via a temp file + rename so a crash mid-write can never leave a
+// truncated JSON file behind. Falls back to a direct write if the rename is
+// refused (antivirus holding the target open on Windows).
+function writeFileAtomic(file, data) {
+  const tmp = `${file}.${process.pid}.tmp`
+  writeFileSync(tmp, data, 'utf8')
+  try {
+    renameSync(tmp, file)
+  } catch {
+    try { unlinkSync(tmp) } catch {}
+    writeFileSync(file, data, 'utf8')
+  }
+}
+
+// child.kill() on Windows only kills the process we spawned — for a .cmd shim
+// that is cmd.exe, and the real CLI underneath keeps running. Kill the tree.
+function killProcessTree(child) {
+  if (!child) return
+  if (process.platform === 'win32' && child.pid) {
+    try {
+      const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      killer.on('error', () => { try { child.kill() } catch {} })
+      return
+    } catch {}
+  }
+  try { child.kill() } catch {}
+}
+
+// Every git call gets a ceiling and never prompts: a credential or pinentry
+// prompt with no terminal attached used to hang the request forever.
+const GIT_TIMEOUT_MS = 30000
+function gitOpts(cwd, extra = {}) {
+  return {
+    cwd,
+    windowsHide: true,
+    encoding: 'utf8',
+    timeout: GIT_TIMEOUT_MS,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    ...extra
+  }
+}
 const fileWatchers = new Map()
 const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
 const threadRoots = new Map() // tabId -> { provider, roots } its PTY env points at
@@ -139,7 +180,7 @@ function guardedFsTarget(raw, { blockHome = false } = {}) {
   return { ok: true, path: target }
 }
 
-// Static art block sent immediately; boot lines are staggered in sendStaggeredBanner().
+// Art block + boot box, sent as one message by sendBanner().
 const WELCOME_ART = [
   '\x1b[38;2;255;107;157m\x1b[1m',
   '   _____ _    _  _____ _    _',
@@ -156,24 +197,22 @@ function buildBootLines(shellLabel, cwd) {
   const dim = '\x1b[2m', reset = '\x1b[0m', pink = '\x1b[38;2;255;107;157m', cyan = '\x1b[36m', green = '\x1b[32m'
   // Read the version dynamically so the banner never drifts from package.json.
   let version = ''
-  try { version = `v${app.getVersion()}` } catch { version = 'v3' }
+  try { version = `v${app.getVersion()}` } catch {}
   return [
     `${dim}  ╭──────────────────────────────────────╮${reset}`,
-    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Helm    ${reset}  ${dim}│${reset}`,
+    `${dim}  │${reset}  ${pink}${version}${reset}  ${dim}·${reset}  ${cyan}Sush    ${reset}  ${dim}│${reset}`,
     `${dim}  │${reset}  ${green}✓${reset} ${shellLabel}  ${dim}·${reset}  ${pink}${folder}${reset}  ${dim}│${reset}`,
     `${dim}  ╰──────────────────────────────────────╯${reset}`,
     ''
   ]
 }
 
-function sendStaggeredBanner(win, tabId, shellLabel, cwd) {
-  if (win && !win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: WELCOME_ART + '\r\n' })
-  const lines = buildBootLines(shellLabel, cwd)
-  lines.forEach((line, i) => {
-    setTimeout(() => {
-      if (win && !win.isDestroyed()) win.webContents.send('sush:pty-data', { tabId, data: line + '\r\n' })
-    }, 60 + i * 55)
-  })
+// One message, not a stagger: the old per-line timers (60-280ms) landed in
+// between restored history and the shell's first prompt, garbling the screen.
+function sendBanner(win, tabId, shellLabel, cwd) {
+  if (!win || win.isDestroyed()) return
+  const box = buildBootLines(shellLabel, cwd).join('\r\n')
+  win.webContents.send('sush:pty-data', { tabId, data: WELCOME_ART + '\r\n' + box + '\r\n' })
 }
 
 function commandExists(file) {
@@ -249,7 +288,9 @@ function cleanCliOutput(engine, raw) {
 
 // Session/usage-limit signatures across the agent CLIs. When one of these
 // shows up, rotating to another account slot may unblock the engine.
-const LIMIT_RE = /(session|usage|rate)\s*limit|limit\s+(reached|exceeded)|too many requests|quota exceeded|429/i
+// A bare "429" matched line numbers and IDs and burned account rotations, so
+// it only counts next to an HTTP/status word.
+const LIMIT_RE = /(session|usage|rate)\s*limit|limit\s+(reached|exceeded)|too many requests|quota exceeded|\b(status|http|code|error)\b\W{0,3}429\b/i
 
 function runCliEngine(engine, { prompt, cwd }, generation = identityRuntimeGeneration) {
   if (generation !== identityRuntimeGeneration) {
@@ -282,7 +323,7 @@ function runCliEngine(engine, { prompt, cwd }, generation = identityRuntimeGener
     } catch (e) {
       return resolve({ ok: false, engine, error: e.message })
     }
-    const timer = setTimeout(() => { try { child.kill() } catch {} ; done({ ok: false, engine, error: `${engine} CLI timed out (${CLI_TIMEOUT_MS / 1000}s).` }) }, CLI_TIMEOUT_MS)
+    const timer = setTimeout(() => { killProcessTree(child); done({ ok: false, engine, error: `${engine} CLI timed out (${CLI_TIMEOUT_MS / 1000}s).` }) }, CLI_TIMEOUT_MS)
     child.stdout.on('data', d => { stdout += d })
     child.stderr.on('data', d => { stderr += d })
     child.on('error', e => done({ ok: false, engine, error: e.message }))
@@ -705,13 +746,13 @@ async function getGitStatus(cwd) {
   const dir = existingDirectory(cwd)
   if (!dir) return { repo: false, dir: String(cwd || ''), files: [], error: 'Working directory does not exist' }
   try {
-    const branch = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+    const branch = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], gitOpts(dir))
       .then(r => r.stdout.trim())
       .catch(() => null)
     if (!branch) return { repo: false, dir, files: [] }
 
     const { stdout } = await execFileAsync('git', ['-c', 'core.quotepath=false', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], {
-      cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 1024 * 1024 * 4
+      ...gitOpts(dir), maxBuffer: 1024 * 1024 * 4
     })
     const files = parseGitPorcelainZ(stdout)
     return { repo: true, dir, branch, files }
@@ -861,7 +902,7 @@ function writeTasks(cwd, tasks) {
   try {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     const normalized = (Array.isArray(tasks) ? tasks : []).map(t => normalizeTask(t))
-    writeFileSync(file, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), tasks: normalized }, null, 2), 'utf8')
+    writeFileAtomic(file, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), tasks: normalized }, null, 2))
     return { ok: true, file, tasks: normalized }
   } catch (err) {
     return { ok: false, file, tasks: [], error: err.message }
@@ -982,7 +1023,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   const requestedShell = getDefaultShell(shellId)
   const shellCwd = resolveStartCwd(cwd ?? loadSushrc().settings.cwd)
   const sushrc = loadSushrc(shellCwd)
-  sendStaggeredBanner(mainWin, tabId, requestedShell.label, shellCwd)
+  sendBanner(mainWin, tabId, requestedShell.label, shellCwd)
 
   // Replay persisted scrollback for this workspace, if any.
   if (persistScrollback && scrollback) {
@@ -1127,10 +1168,23 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   const bootCmd = normalizeBootCommand(bridgedBootCommand)
   const queuedBootCommands = [...startupCmds, bootCmd].filter(Boolean)
   if (queuedBootCommands.length) {
-    setTimeout(() => {
-      if (session.status !== 'running') return
+    // Type boot commands at the first prompt, not on a fixed 900ms timer: a
+    // cold PowerShell start often takes longer, and PSReadLine garbles input
+    // that arrives before it loads. Sush's PowerShell prompt emits OSC 7, so
+    // wait for that (8s ceiling); other shells keep the short timer.
+    const waitsForPrompt = shell.id === 'powershell' || shell.id === 'pwsh'
+    let flushed = false
+    const flush = () => {
+      if (flushed) return
+      flushed = true
+      clearTimeout(session.bootTimer)
+      session.bootTimer = null
+      session.onFirstPrompt = null
+      if (session.status !== 'running' || ptySessions.get(tabId) !== session) return
       writeShellCommands(proc, queuedBootCommands)
-    }, 900)
+    }
+    if (waitsForPrompt) session.onFirstPrompt = flush
+    session.bootTimer = setTimeout(flush, waitsForPrompt ? 8000 : 900)
   }
 
   proc.onData((data) => {
@@ -1148,10 +1202,14 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
       sendPtyState(mainWin, session)
     }
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:pty-data', { tabId, data })
+    // Flush queued boot commands after this chunk (which holds the prompt) is
+    // already on its way to the renderer.
+    if (nextCwd && session.onFirstPrompt) session.onFirstPrompt()
   })
 
   proc.onExit(({ exitCode, signal }) => {
     if (ptySessions.get(tabId) !== session) return
+    clearTimeout(session.bootTimer)
     session.status = 'exited'
     session.lastActiveAt = Date.now()
     if (scrollback) scrollback.persist(tabId)
@@ -1225,9 +1283,7 @@ function stopIdentityRuntime({ sync = false, preserveOauthProvider = null } = {}
     }
   }
   abortControllers.clear()
-  for (const child of cliEngineChildren) {
-    try { child.kill() } catch {}
-  }
+  for (const child of cliEngineChildren) killProcessTree(child)
   cliEngineChildren.clear()
   stopAllClaudePanelRuns()
   closeAllFileWatchers()
@@ -1350,7 +1406,7 @@ const providerCaps = createCapabilityCache({
       try { return JSON.parse(readFileSync(join(app.getPath('userData'), 'provider-capabilities.json'), 'utf8')) } catch { return null }
     },
     write: (data) => {
-      try { writeFileSync(join(app.getPath('userData'), 'provider-capabilities.json'), JSON.stringify(data)) } catch {}
+      try { writeFileAtomic(join(app.getPath('userData'), 'provider-capabilities.json'), JSON.stringify(data)) } catch {}
     }
   }
 })
@@ -1470,15 +1526,30 @@ export function registerIpcHandlers(win) {
 
     if (!command) {
       // Passthrough — run as real system command (no shell: prevents injection via metacharacters)
+      // Resolve the binary first. On Windows most dev tools (npm, npx, code,
+      // claude) are .cmd shims, which Node refuses to execFile without a shell,
+      // so they all came back "command not found". Explicit paths skip lookup.
+      const hasPath = /[\\/]/.test(cmd)
+      const bin = hasPath ? cmd : resolveExecutable(cmd)
+      if (!bin) return { output: `\x1b[31msush: command not found: ${cmd}\x1b[0m`, type: 'error' }
+      const isShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin)
+      // A shim runs through cmd.exe, which re-parses its command line. Refuse
+      // metacharacters there rather than let them become shell syntax.
+      if (isShim && args.some(a => /[&|<>^%!"\r\n]/.test(String(a)))) {
+        return { output: `\x1b[33m${cmd} is a .cmd shim and these arguments contain characters cmd.exe would reinterpret. Run it in the terminal instead.\x1b[0m`, type: 'error' }
+      }
+      const spec = shimSpawnSpec(bin, args)
       const ac = new AbortController()
       trackAbort(tabId, ac)
       try {
-        const { stdout, stderr } = await execFileAsync(cmd, args, {
+        const { stdout, stderr } = await execFileAsync(spec.file, spec.args, {
           cwd: ctx.cwd,
           timeout: 30000,
           signal: ac.signal,
           encoding: 'utf8',
-          windowsHide: true
+          windowsHide: true,
+          // Same identity rule as PTYs: the signed-in user's CLI logins win.
+          env: { ...process.env, ...activeUserEnv() }
         })
         return { output: (stdout + stderr).trimEnd() || '\x1b[2m(no output)\x1b[0m', type: 'success' }
       } catch (e) {
@@ -1560,7 +1631,9 @@ export function registerIpcHandlers(win) {
     if (!win || process.platform !== 'win32') return { ok: false, supported: false }
     const m = ['mica', 'acrylic', 'tabbed'].includes(material) ? material : 'none'
     try {
-      win.setBackgroundColor('#00000000')   // let the material show, not an opaque fill
+      // Transparent only while a material is on; turning it off used to leave
+      // the window transparent with nothing behind it.
+      win.setBackgroundColor(m === 'none' ? '#0d0d0d' : '#00000000')
       win.setBackgroundMaterial(m)
       return { ok: true, supported: true }
     } catch {
@@ -2210,6 +2283,10 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:kill-pid', async (event, { pid }) => {
     const n = Number(pid)
     if (!n || !Number.isInteger(n) || n <= 1) return { ok: false, error: 'Invalid PID' }
+    // The Port Manager lists every listener, including Sush's own processes.
+    const own = new Set([process.pid, process.ppid])
+    try { for (const m of app.getAppMetrics()) own.add(m.pid) } catch {}
+    if (own.has(n)) return { ok: false, error: 'That process is Sush itself.' }
     try {
       if (process.platform === 'win32') {
         await execFileAsync('taskkill', ['/PID', String(n), '/F'], { windowsHide: true, encoding: 'utf8' })
@@ -2228,7 +2305,7 @@ export function registerIpcHandlers(win) {
     if (!dir) return { ok: false, error: 'Working directory does not exist' }
     if (typeof file !== 'string' || !file || file.includes('\0')) return { ok: false, error: 'A valid file path is required' }
     try {
-      await execFileAsync('git', ['-c', 'core.quotepath=false', 'add', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+      await execFileAsync('git', ['-c', 'core.quotepath=false', 'add', '--', String(file || '')], gitOpts(dir))
       return { ok: true }
     } catch (e) {
       return { ok: false, error: e.message }
@@ -2240,11 +2317,11 @@ export function registerIpcHandlers(win) {
     if (!dir) return { ok: false, error: 'Working directory does not exist' }
     if (typeof file !== 'string' || !file || file.includes('\0')) return { ok: false, error: 'A valid file path is required' }
     try {
-      await execFileAsync('git', ['-c', 'core.quotepath=false', 'restore', '--staged', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+      await execFileAsync('git', ['-c', 'core.quotepath=false', 'restore', '--staged', '--', String(file || '')], gitOpts(dir))
       return { ok: true }
     } catch (e) {
       try {
-        await execFileAsync('git', ['reset', 'HEAD', '--', String(file || '')], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+        await execFileAsync('git', ['reset', 'HEAD', '--', String(file || '')], gitOpts(dir))
         return { ok: true }
       } catch (e2) {
         return { ok: false, error: e2.message }
@@ -2258,7 +2335,7 @@ export function registerIpcHandlers(win) {
     const msg = String(message || '').trim().slice(0, 10000)
     if (!msg) return { ok: false, error: 'Empty commit message' }
     try {
-      const { stdout } = await execFileAsync('git', ['commit', '-m', msg], { cwd: dir, windowsHide: true, encoding: 'utf8' })
+      const { stdout } = await execFileAsync('git', ['commit', '-m', msg], gitOpts(dir, { timeout: 120000 }))
       return { ok: true, output: stdout.trim() }
     } catch (e) {
       const out = ((e.stdout || '') + (e.stderr || '')).trim()
@@ -2270,7 +2347,7 @@ export function registerIpcHandlers(win) {
     const dir = existingDirectory(cwd)
     if (!dir) return { ok: false, diff: '', error: 'Working directory does not exist' }
     try {
-      const { stdout } = await execFileAsync('git', ['diff', '--cached', '--stat'], { cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 1024 * 1024 })
+      const { stdout } = await execFileAsync('git', ['diff', '--cached', '--stat'], gitOpts(dir, { maxBuffer: 1024 * 1024 }))
       return { ok: true, diff: stdout.trim() }
     } catch (e) {
       return { ok: false, diff: '', error: e.message }
@@ -2284,10 +2361,10 @@ export function registerIpcHandlers(win) {
     if (!dir) return { ok: false, diff: '', error: 'Working directory does not exist' }
     try {
       const run = (base) => execFileAsync('git', ['-c', 'core.quotepath=false', 'diff', ...base, '--no-color', '--no-ext-diff', '--no-textconv', '-M'], {
-        cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024
+        ...gitOpts(dir), maxBuffer: 8 * 1024 * 1024
       })
       // A repo with no commits has no HEAD: show what is staged instead.
-      const hasHead = await execFileAsync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: dir, windowsHide: true })
+      const hasHead = await execFileAsync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], gitOpts(dir))
         .then(() => true, () => false)
       const { stdout } = await run(hasHead ? ['HEAD'] : ['--cached'])
       return { ok: true, ...clipDiff(stdout, 300_000) }
@@ -2308,7 +2385,7 @@ export function registerIpcHandlers(win) {
     const args = diffArgs({ path, staged: staged === true, untracked: untracked === true, nullDevice: process.platform === 'win32' ? 'NUL' : '/dev/null' })
     if (!args) return { ok: false, diff: '', error: 'Invalid file path' }
     try {
-      const { stdout } = await execFileAsync('git', args, { cwd: dir, windowsHide: true, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 })
+      const { stdout } = await execFileAsync('git', args, gitOpts(dir, { maxBuffer: 4 * 1024 * 1024 }))
       return { ok: true, ...clipDiff(stdout) }
     } catch (e) {
       // `git diff --no-index` exits 1 when the files differ; the diff is on stdout.
@@ -2320,7 +2397,7 @@ export function registerIpcHandlers(win) {
   // ── Git worktrees (isolated swarms) ───────────────────────────────────────
   // Give each agent in a swarm its own working copy of the repo so parallel
   // agents never trample each other's checkout. Creates (or reuses) a worktree
-  // under <repoRoot>/.sush-worktrees/<name> on a dedicated `sush/<name>` branch
+  // under <repoRoot>/.sush-worktrees/<n> on a dedicated `sush/<n>` branch
   // and returns its path for the session to spawn in.
   ipcMain.handle('sush:git-worktree-add', async (event, { cwd, name } = {}) => {
     if (!can('developerWorkflows')) {
@@ -2331,7 +2408,7 @@ export function registerIpcHandlers(win) {
     const safe = String(name ?? '').trim().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
     if (!safe || safe === '.' || safe === '..') return { ok: false, error: 'A valid worktree name is required' }
     try {
-      const root = (await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, windowsHide: true, encoding: 'utf8' })).stdout.trim()
+      const root = (await execFileAsync('git', ['rev-parse', '--show-toplevel'], gitOpts(dir))).stdout.trim()
       if (!root) return { ok: false, error: 'Not a git repository' }
       const wtDir = join(root, '.sush-worktrees', safe)
       const branch = `sush/${safe}`
@@ -2342,10 +2419,10 @@ export function registerIpcHandlers(win) {
       // Prefer a fresh branch off HEAD; if it already exists, check it out into
       // the new worktree instead of failing.
       try {
-        await execFileAsync('git', ['worktree', 'add', '-b', branch, wtDir, 'HEAD'], { cwd: root, windowsHide: true, encoding: 'utf8', timeout: 60000 })
+        await execFileAsync('git', ['worktree', 'add', '-b', branch, wtDir, 'HEAD'], gitOpts(root, { timeout: 60000 }))
       } catch (e) {
         if (/already (exists|used)/i.test(e.stderr || e.message || '')) {
-          await execFileAsync('git', ['worktree', 'add', wtDir, branch], { cwd: root, windowsHide: true, encoding: 'utf8', timeout: 60000 })
+          await execFileAsync('git', ['worktree', 'add', wtDir, branch], gitOpts(root, { timeout: 60000 }))
         } else {
           throw e
         }
@@ -2404,6 +2481,13 @@ export function registerIpcHandlers(win) {
     try {
       const watcher = fsWatch(watchPath, { recursive: false }, (eventType, filename) => {
         if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:file-changed', { watchId, path: watchPath, filename, eventType })
+      })
+      // An FSWatcher with no 'error' listener throws in main when its target
+      // disappears (EPERM on Windows), taking every terminal down with it.
+      watcher.on('error', (err) => {
+        try { watcher.close() } catch {}
+        if (fileWatchers.get(watchId) === watcher) fileWatchers.delete(watchId)
+        if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:file-changed', { watchId, path: watchPath, filename: null, eventType: 'error', error: err?.message || 'watch failed' })
       })
       fileWatchers.set(watchId, watcher)
       return { ok: true }
