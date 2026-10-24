@@ -21,6 +21,8 @@ export const BUILTIN_AGENTS = [
 ]
 
 const CUSTOM_KEY = 'sush-custom-agents'
+const MAX_CUSTOM_AGENTS = 12
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
 // Read inside functions only — module-scope localStorage reads would beat the
 // per-user storage shim installed in main.jsx.
@@ -30,14 +32,14 @@ export function loadCustomAgents() {
     if (!Array.isArray(saved)) return []
     return saved
       .filter(a => a && a.id && a.label && a.command)
-      .slice(0, 12)
+      .slice(0, MAX_CUSTOM_AGENTS)
       .map(a => ({
         id: String(a.id),
         label: String(a.label).slice(0, 24),
         command: String(a.command).slice(0, 200),
         resumeCommand: a.resumeCommand ? String(a.resumeCommand).slice(0, 200) : undefined,
         mono: String(a.mono || a.label[0] || '?').slice(0, 2),
-        color: /^#[0-9a-fA-F]{3,8}$/.test(a.color || '') ? a.color : '#8b9bb0',
+        color: HEX_COLOR.test(a.color || '') ? a.color : '#8b9bb0',
         desc: String(a.desc || 'Custom agent').slice(0, 40),
         custom: true
       }))
@@ -47,13 +49,14 @@ export function loadCustomAgents() {
 }
 
 export function saveCustomAgents(list) {
-  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list.slice(0, 12))) } catch {}
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list.slice(0, MAX_CUSTOM_AGENTS))) } catch {}
 }
 
 export function addCustomAgent({ label, command, resumeCommand, color }) {
   const name = String(label ?? '').trim()
   const cmd = String(command ?? '').trim()
   if (!name || !cmd) return { ok: false, error: 'Name and command are required' }
+  if (loadCustomAgents().length >= MAX_CUSTOM_AGENTS) return { ok: false, error: `You can add up to ${MAX_CUSTOM_AGENTS} custom agents` }
   const id = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20)
   if (allAgents().some(a => a.id === id)) return { ok: false, error: 'An agent with that name already exists' }
   const next = [...loadCustomAgents(), { id, label: name, command: cmd, resumeCommand: String(resumeCommand ?? '').trim() || undefined, mono: name[0].toUpperCase(), color: color || '#8b9bb0', desc: 'Custom agent', custom: true }]
