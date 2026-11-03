@@ -1,6 +1,8 @@
 name: Package Sush Nightly
 
 on:
+  push:
+    branches: [sush-nightly]
   workflow_dispatch:
 
 permissions:

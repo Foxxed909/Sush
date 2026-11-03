@@ -91,8 +91,9 @@ inside the app controls layout, not which release channel is installed.
 
 Build stable with `npm run package`, and Nightly with `npm run package:nightly`.
 Nightly uses a separate app ID, installer name and `Sush Nightly` user-data
-directory, so it does not share settings, identities or credentials with stable.
-The manual GitHub Actions Nightly packaging workflow uploads platform artifacts;
+directory, so app-managed settings and identities are separate from stable.
+External CLI tools may still use their own shared settings or credentials.
+The GitHub Actions Nightly packaging workflow uploads platform artifacts;
 it does not publish a release or sign installers.
 
 ## Plans
