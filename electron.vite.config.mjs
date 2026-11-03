@@ -5,6 +5,7 @@ import autoprefixer from 'autoprefixer'
 
 export default defineConfig({
   main: {
+    define: { __SUSH_NIGHTLY__: JSON.stringify(process.env.SUSH_BUILD_CHANNEL === 'nightly') },
     plugins: [externalizeDepsPlugin()]
   },
   preload: {

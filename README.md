@@ -83,6 +83,18 @@ npm run mint         # tools/mint-code.mjs — mint an offline unlock code
 Requires Node 22.12+. Packaging targets NSIS (Windows), dmg (macOS), and
 AppImage (Linux) via `electron-builder`.
 
+## Stable and Nightly builds
+
+`main` is the stable source; `sush-nightly` is the early-access source. Test
+changes on Nightly, then promote reviewed changes to `main`. The shell selector
+inside the app controls layout, not which release channel is installed.
+
+Build stable with `npm run package`, and Nightly with `npm run package:nightly`.
+Nightly uses a separate app ID, installer name and `Sush Nightly` user-data
+directory, so it does not share settings, identities or credentials with stable.
+The manual GitHub Actions Nightly packaging workflow uploads platform artifacts;
+it does not publish a release or sign installers.
+
 ## Plans
 
 Sush is fully usable for free; paid tiers raise the ceilings (account slots

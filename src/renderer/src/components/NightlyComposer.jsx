@@ -87,7 +87,6 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
             }
           }}
           aria-label="Message active session"
-          aria-label="Message active session"
           rows={1}
           disabled={disabled || !activeTab}
           placeholder={!activeTab ? 'Open a session to start' : t3 ? 'Ask for changes, send follow-ups, or paste context' : `Message ${agent?.label || activeTab.label}…`}

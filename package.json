@@ -14,6 +14,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
+    "package:nightly": "node tools/package-nightly.mjs",
     "shots": "npm run build && node tools/shot.mjs",
     "test": "vitest run"
   },
