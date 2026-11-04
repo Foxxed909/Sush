@@ -2617,7 +2617,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
    follows direction. Solid surfaces, no blur: cheap on Windows. */
 .onb-root {
   position: fixed; inset: 0; z-index: 4000; display: flex; flex-direction: column; overflow: hidden;
-  background: #08090c; color: var(--text-1, #f7f8f8); font-family: var(--font-ui); -webkit-app-region: drag;
+  background: var(--surface-0, #1e1e20); color: var(--text-1, #f7f8f8); font-family: var(--font-ui); -webkit-app-region: drag;
 }
 .onb-root button, .onb-root input, .onb-root a { -webkit-app-region: no-drag; }
 .onb-glow {
@@ -2672,7 +2672,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); transition: transform var(--dur-base) var(--ease-sheet), box-shadow var(--dur-base) ease;
 }
 .onb-swatch:hover { transform: scale(1.12); }
-.onb-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px #08090c, 0 0 0 4px rgba(255,255,255,.85); }
+.onb-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px rgba(255,255,255,.85); }
 .onb-swatch:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .onb-actions { margin-top: 28px; width: 100%; display: flex; gap: 10px; justify-content: flex-end; }
 .onb-actions.is-center { justify-content: center; margin-top: 16px; }
@@ -2893,3 +2893,199 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .ag-action:hover { background: rgba(255,203,107,.14); }
 .ag-empty { margin-top: 40px; }
 @media (max-width: 980px) { .ag-columns { grid-template-columns: 1fr; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   macOS layer (Nov 2026). Sonoma dark: neutral greys, not near-black;
+   separators at 8–12% white; label ramp after Apple's systemGray; the pink
+   accent as the system accent. Last in the file so it wins.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root, .sush-t3 {
+  --surface-0: #1e1e20;   /* window content */
+  --surface-1: #252527;   /* sidebar, panels */
+  --surface-2: #2c2c2f;   /* fields, raised rows */
+  --surface-3: #38383b;   /* hover, popovers */
+  --border-1: rgba(255,255,255,0.08);
+  --border-2: rgba(255,255,255,0.12);
+  --border-3: rgba(255,255,255,0.18);
+  --text-1: #f2f2f7;
+  --text-2: #d1d1d6;
+  --text-3: #a1a1a6;
+  --text-4: #8e8e93;
+  --text-5: #545458;
+  --mac-sidebar: #262628;
+  --mac-toolbar: #202022;
+  --mac-fill: rgba(255,255,255,0.07);      /* quiet control fill */
+  --mac-fill-2: rgba(255,255,255,0.11);    /* hover */
+  --mac-fill-3: rgba(255,255,255,0.16);    /* pressed / selected */
+  --mac-select: rgba(255,255,255,0.10);    /* source-list selection */
+  --mac-accent-strong: color-mix(in srgb, var(--accent) 72%, #000); /* white text sits on it */
+  --mac-menu: rgba(40,40,43,0.86);
+  --mac-shadow-menu: 0 0 0 0.5px rgba(0,0,0,.7), 0 12px 36px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+  --mac-radius-control: 6px;
+  --mac-radius-menu: 10px;
+}
+.sush-t3.sush-app-bg, .sush-t3 .sush-app-bg { background-color: var(--surface-0); }
+::selection { background: color-mix(in srgb, var(--accent) 38%, transparent); color: #fff; }
+
+/* Overlay-style scrollbars: thin, rounded, no track. */
+.sush-t3 ::-webkit-scrollbar, .st-root ::-webkit-scrollbar { width: 11px; height: 11px; }
+.sush-t3 ::-webkit-scrollbar-track, .st-root ::-webkit-scrollbar-track { background: transparent; }
+.sush-t3 ::-webkit-scrollbar-thumb, .st-root ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.18); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box;
+}
+.sush-t3 ::-webkit-scrollbar-thumb:hover, .st-root ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.3); }
+
+/* Focus ring: the soft accent halo macOS draws around a focused control. */
+.sush-t3 button:focus-visible, .sush-t3 [role="button"]:focus-visible, .sush-t3 input:focus-visible,
+.st-root button:focus-visible, .st-root input:focus-visible, .st-root select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; box-shadow: none;
+}
+
+/* ── Traffic lights ── */
+.mac-lights { display: inline-flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
+.mac-light {
+  position: relative; width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; cursor: default;
+  display: grid; place-items: center; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.28);
+  transition: background-color var(--dur-quick) ease, filter var(--dur-quick) ease;
+}
+.mac-light.is-close { background: #ff5f57; }
+.mac-light.is-min { background: #febc2e; }
+.mac-light.is-zoom { background: #28c840; }
+.mac-light svg { width: 8px; height: 8px; opacity: 0; transition: opacity var(--dur-instant) ease; }
+.mac-light svg path { stroke: rgba(0,0,0,.6); stroke-width: 1.3; stroke-linecap: round; fill: none; }
+.mac-light svg path.is-fill { fill: rgba(0,0,0,.55); stroke: none; }
+.mac-lights:hover .mac-light svg, .mac-light:focus-visible svg { opacity: 1; }
+.mac-light:active { filter: brightness(.82); }
+.mac-lights.is-inactive:not(:hover) .mac-light { background: #4e4e51; box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.06); }
+.sush-t3 .mac-light:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+
+/* ── Sidebar: source list ── */
+.sush-t3 .ts-sidebar { background: var(--mac-sidebar); border-right: 1px solid rgba(0,0,0,.45); box-shadow: inset -1px 0 0 rgba(255,255,255,.04); width: 268px; }
+.sush-t3 .ts-stage { height: 52px; padding: 0 10px 0 20px; display: flex; align-items: center; -webkit-app-region: drag; }
+.sush-t3 .ts-stage .ts-icon { -webkit-app-region: no-drag; }
+.sush-t3 .ts-controls { padding: 0 10px 6px; gap: 6px; }
+.sush-t3 .ts-search {
+  height: 28px; flex: none; width: 100%; gap: 6px; padding: 0 8px; border-radius: 7px;
+  background: var(--mac-fill); color: var(--text-4); font-size: 13px;
+}
+.sush-t3 .ts-search:hover { background: var(--mac-fill-2); color: var(--text-3); }
+.sush-t3 .ts-search svg { color: var(--text-4); }
+.sush-t3 .ts-search.is-open { background: var(--mac-fill-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+.ts-nav { display: grid; gap: 1px; margin-top: 4px; }
+.ts-nav-row {
+  height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-1); font: 400 13px/1 var(--font-ui); text-align: left; cursor: default;
+}
+.ts-nav-row svg { color: var(--accent); }
+.ts-nav-row:hover { background: rgba(255,255,255,.05); }
+.ts-nav-row:active { background: var(--mac-select); }
+.sush-t3 .ts-list { padding: 4px 10px 10px; gap: 12px; }
+.sush-t3 .ts-section-head { height: 24px; padding: 0 6px 0 8px; color: var(--text-4); font-size: 11px; font-weight: 700; letter-spacing: 0; }
+.sush-t3 .ts-project-head { height: 28px; border-radius: 6px; padding: 0 4px; color: var(--text-1); cursor: default; }
+.sush-t3 .ts-project-head:hover { background: rgba(255,255,255,.05); }
+.sush-t3 .ts-project-name { font-size: 13px; font-weight: 500; }
+.sush-t3 .ts-folder { color: var(--accent); }
+.sush-t3 .ts-chevron { color: var(--text-4); }
+.sush-t3 .ts-project-group > .ts-project-body > .ts-project-list::before { display: none; }
+.sush-t3 .ts-project-group > .ts-project-body > .ts-project-list { padding-left: 18px; }
+.sush-t3 .ts-row-surface { min-height: 28px; padding: 4px 8px; border-radius: 6px; color: var(--text-1); cursor: default; }
+.sush-t3 .ts-row-surface:hover { background: rgba(255,255,255,.05); }
+.sush-t3 .ts-row.is-active .ts-row-surface { background: var(--mac-select); }
+.sush-t3 .ts-row.is-active .ts-row-surface::before { display: none; }
+.sush-t3 .ts-row-title { font-size: 13px; font-weight: 400; line-height: 17px; }
+.sush-t3 .ts-row-sub { font: 400 11px/14px var(--font-ui); color: var(--text-4); }
+.sush-t3 .ts-count { background: transparent; color: var(--text-4); font-weight: 500; }
+.sush-t3 .ts-footer { border-top: 1px solid rgba(255,255,255,.06); padding: 8px 10px; }
+.sush-t3 .ts-icon { width: 28px; height: 28px; border-radius: 6px; color: var(--text-3); }
+.sush-t3 .ts-icon:hover { background: var(--mac-fill); color: var(--text-1); }
+
+/* ── Unified toolbar ── */
+.sush-t3 .shell-header {
+  height: 52px; min-height: 52px; padding: 0 10px 0 18px; gap: 14px;
+  background: var(--mac-toolbar); border-bottom: 1px solid rgba(0,0,0,.5); box-shadow: 0 1px 0 rgba(255,255,255,.035);
+}
+.mac-titles { min-width: 0; display: grid; gap: 1px; }
+.sush-t3 .shell-header-title { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -.01em; color: var(--text-1); }
+.sush-t3 .shell-header-title > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mac-subtitle {
+  justify-self: start; max-width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: default;
+  font: 400 11.5px/1.25 var(--font-ui); color: var(--text-4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+.mac-subtitle:hover { color: var(--text-2); }
+/* Segmented control */
+.sush-t3 .shell-modes { padding: 2px; gap: 0; border-radius: 7px; background: var(--mac-fill); box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.06); }
+.sush-t3 .shell-modes button {
+  height: 24px; padding: 0 11px; gap: 6px; border-radius: 5px; color: var(--text-2); font: 500 12px/1 var(--font-ui); cursor: default;
+  transition: background-color var(--dur-quick) ease, color var(--dur-quick) ease, box-shadow var(--dur-quick) ease;
+}
+.sush-t3 .shell-modes button:hover { background: rgba(255,255,255,.05); color: var(--text-1); }
+.sush-t3 .shell-modes button.is-active {
+  background: rgba(255,255,255,.17); color: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0.5px 0 rgba(255,255,255,.12);
+}
+.sush-t3 .shell-modes button.is-active svg { color: #fff; }
+/* Toolbar buttons */
+.sush-t3 .nightly-icon-btn, .sush-t3 .shell-menu-btn, .sush-t3 .t3-control {
+  height: 28px; min-width: 28px; border: 0; border-radius: var(--mac-radius-control); background: transparent; color: var(--text-2); cursor: default;
+  transition: background-color var(--dur-quick) ease, color var(--dur-quick) ease;
+}
+.sush-t3 .nightly-icon-btn:hover, .sush-t3 .shell-menu-btn:hover, .sush-t3 .t3-control:hover,
+.sush-t3 .t3-control[aria-expanded="true"] { background: var(--mac-fill-2); color: var(--text-1); }
+.sush-t3 .nightly-icon-btn:active, .sush-t3 .shell-menu-btn:active { background: var(--mac-fill-3); }
+.sush-t3 .nightly-icon-btn.is-active, .sush-t3 .shell-header .nightly-icon-btn.is-active { background: var(--mac-fill-3); color: var(--accent); border: 0; }
+
+/* ── Menus & popovers: vibrant, 0.5px edge, accent highlight ── */
+.sush-t3 .nightly-ctx, .sush-t3 .t3-menu, .nightly-ctx, .t3-menu {
+  padding: 5px; border: 0; border-radius: var(--mac-radius-menu);
+  background: var(--mac-menu); -webkit-backdrop-filter: blur(28px) saturate(1.8); backdrop-filter: blur(28px) saturate(1.8);
+  box-shadow: var(--mac-shadow-menu), inset 0 0 0 0.5px rgba(255,255,255,.14);
+  animation: mac-menu-in 130ms var(--ease-out) backwards; transform-origin: top left;
+}
+@keyframes mac-menu-in { from { opacity: 0; transform: scale(.97); } }
+.sush-lite .nightly-ctx, .sush-lite .t3-menu, .sush-saver .nightly-ctx, .sush-saver .t3-menu { -webkit-backdrop-filter: none; backdrop-filter: none; background: #2d2d30; }
+.nightly-ctx-item, .t3-menu-item {
+  min-height: 24px; border-radius: 5px; font-size: 13px !important; color: var(--text-1) !important; cursor: default !important;
+}
+.nightly-ctx-item:hover:not(:disabled), .nightly-ctx-item:focus-visible,
+.sush-t3 .t3-menu-item:hover:not(:disabled), .t3-menu-item:hover:not(:disabled) {
+  background: var(--mac-accent-strong) !important; color: #fff !important;
+}
+.nightly-ctx-item:hover:not(:disabled) svg, .t3-menu-item:hover:not(:disabled) svg { color: #fff; opacity: 1; }
+.nightly-ctx-item:hover:not(:disabled) kbd { color: rgba(255,255,255,.75); }
+.nightly-ctx-item kbd { color: var(--text-4); }
+.nightly-ctx-sep { margin: 5px 9px; background: rgba(255,255,255,.1); }
+.nightly-ctx-item.is-danger:hover:not(:disabled) { background: #d93a4f !important; color: #fff !important; }
+
+/* Model picker popover */
+.sush-t3 .mp-shell { border-radius: 12px; background: var(--mac-menu); -webkit-backdrop-filter: blur(28px) saturate(1.8); backdrop-filter: blur(28px) saturate(1.8); box-shadow: var(--mac-shadow-menu), inset 0 0 0 0.5px rgba(255,255,255,.14); }
+.sush-t3 .mp-row.is-active { background: var(--mac-select); }
+.sush-t3 .mp-rail-btn.is-active { background: var(--mac-fill-3); }
+
+/* ── Composer: a Mac text field ── */
+.sush-t3 .nightly-composer-wrap.is-t3 .nightly-composer, .sush-t3 .nightly-composer {
+  border-radius: 14px; background: #262629; border: 0;
+  box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.13), 0 1px 2px rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.18);
+}
+.sush-t3 .nightly-composer:focus-within { box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.18), 0 0 0 3.5px color-mix(in srgb, var(--accent) 40%, transparent), 0 8px 24px rgba(0,0,0,.18); }
+
+/* Neutralise the old violet tints. */
+.sush-t3 .mp-row.is-active, .sush-t3 .t3-menu-item:hover:not(:disabled) { background: var(--mac-select); }
+.sush-t3 .t3-menu-item:hover:not(:disabled) { background: var(--mac-accent-strong) !important; }
+.sush-t3 .sd-file-body { background: #1a1a1c; }
+
+/* Agents board on Mac surfaces */
+.sush-t3 .ag-col { background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.08); border-radius: 12px; }
+.sush-t3 .ag-card { background: #2a2a2d; box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.1), 0 1px 3px rgba(0,0,0,.3); border-radius: 10px; cursor: default; }
+.sush-t3 .ag-card:hover { background: #303033; }
+.sush-t3 .ag-new { color: #fff; background: var(--mac-accent-strong); box-shadow: inset 0 0.5px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.3); border-radius: 7px; height: 30px; }
+.sush-t3 .ag-new:hover { background: color-mix(in srgb, var(--accent) 80%, #000); }
+/* Inspector / diff panel: same surfaces and toolbar line as the window. */
+.sush-t3 .nightly-inspector { background: var(--surface-1) !important; -webkit-backdrop-filter: none; backdrop-filter: none; border-left: 1px solid rgba(0,0,0,.5) !important; }
+.sush-t3 .nightly-inspector > div:first-child {
+  height: 52px; min-height: 52px; box-sizing: border-box; display: flex; align-items: center;
+  background: var(--mac-toolbar) !important; border-bottom: 1px solid rgba(0,0,0,.5) !important; box-shadow: 0 1px 0 rgba(255,255,255,.035);
+}
+.sush-t3 .sd-toolbar { height: 40px; border-bottom-color: rgba(255,255,255,.06); }
+.sush-t3 .sd-file-head { border-radius: 8px 8px 0 0; }
+.sush-t3 .sd-commit { border-radius: var(--mac-radius-control); }

@@ -3,7 +3,7 @@ import Icon from '../Icons'
 import NightlyProfileMenu from '../NightlyProfileMenu'
 import NightlyContextMenu from '../NightlyContextMenu'
 import NightlyStatusStrip from '../NightlyStatusStrip'
-import StageBackdrop from './StageBackdrop'
+import TrafficLights from './TrafficLights'
 import ProviderLogo from '../ProviderLogo'
 import { usePolling } from '../../hooks/usePolling'
 import { agentById } from '../../lib/agents'
@@ -317,41 +317,37 @@ export default function ShellSidebar({
 
   return (
     <aside className="ts-sidebar">
-      <StageBackdrop />
       <div className="ts-stage">
-        <button className="ts-brand" onClick={onHome} title="Home">
-          <span className="ts-brand-mark" style={{ background: accent }} />
-          <span className="ts-brand-word">Sush</span>
-        </button>
-        <button className="ts-brand-channel" onClick={() => onChannel?.('stable')} title="You're on Sush Nightly — click to switch to Stable (Quiet Nights). Nothing restarts.">
-          Nightly
+        <TrafficLights />
+        <span className="ts-flex" />
+        <button className="ts-icon" onClick={onNewSession} title="New thread (Ctrl+Shift+N)" aria-label="New thread">
+          <Icon name="edit" size={15} />
         </button>
       </div>
 
       <div className="ts-controls">
-        <div className="ts-search-row">
-          {searching ? (
-            <label className="ts-search is-open">
-              <Icon name="search" size={14} />
-              <input
-                autoFocus
-                value={query}
-                placeholder="Search threads"
-                onChange={e => setQuery(e.target.value)}
-                onBlur={() => { if (!query) setSearching(false) }}
-                onKeyDown={e => { if (e.key === 'Escape') { setQuery(''); setSearching(false) } }}
-              />
-            </label>
-          ) : (
-            <button className="ts-search" onClick={() => setSearching(true)} onDoubleClick={onHunt} title="Search threads (double-click: search all output)">
-              <Icon name="search" size={14} />
-              <span>Search</span>
-            </button>
-          )}
-          <button className="ts-icon" onClick={onNewSession} title="New thread (Ctrl+Shift+N)" aria-label="New thread">
-            <Icon name="edit" size={14} />
+        {searching ? (
+          <label className="ts-search is-open">
+            <Icon name="search" size={13} />
+            <input
+              autoFocus
+              value={query}
+              placeholder="Search"
+              onChange={e => setQuery(e.target.value)}
+              onBlur={() => { if (!query) setSearching(false) }}
+              onKeyDown={e => { if (e.key === 'Escape') { setQuery(''); setSearching(false) } }}
+            />
+          </label>
+        ) : (
+          <button className="ts-search" onClick={() => setSearching(true)} onDoubleClick={onHunt} title="Search threads (double-click: search all output)">
+            <Icon name="search" size={13} />
+            <span>Search</span>
           </button>
-        </div>
+        )}
+        <nav className="ts-nav" aria-label="Places">
+          <button className="ts-nav-row" onClick={onHome}><Icon name="home" size={15} /><span>Home</span></button>
+          <button className="ts-nav-row" onClick={onOverview}><Icon name="activity" size={15} /><span>Agents</span></button>
+        </nav>
       </div>
 
       <div className="ts-list sush-scroll">
@@ -423,6 +419,7 @@ export default function ShellSidebar({
           onSignOut={onSignOut}
           onManageUsers={onManageUsers}
           onViewProfile={onViewProfile}
+          onChannel={onChannel}
         />
       </div>
       {menu && <NightlyContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}

@@ -25,7 +25,8 @@ export default function NightlyProfileMenu({
   onViewProfile,
   onLock,
   onSignOut,
-  onManageUsers
+  onManageUsers,
+  onChannel
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -78,6 +79,13 @@ export default function NightlyProfileMenu({
             <Icon name="settings" size={13} />
             <span>Manage users…</span>
           </button>
+          {onChannel && (
+            <button className="nightly-profile-channel" onClick={() => run(() => onChannel('stable'))} title="Nothing restarts">
+              <Icon name="layers" size={13} />
+              <span>Switch to Stable</span>
+              <small>Nightly</small>
+            </button>
+          )}
           <div className="nightly-profile-divider" />
           <button className="is-danger" onClick={() => run(onSignOut)}>
             <Icon name="logout" size={13} />

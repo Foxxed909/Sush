@@ -69,28 +69,27 @@ export default function ShellHeader({
   const stateId = activeTab?.status === 'exited' ? 'error' : (activity[activeTab?.id] || 'idle')
   const state = STATES[stateId] || STATES.idle
   const drawerRelevant = mode === 'thread' && threadCentered(activeTab)
-  const windowControl = (action) => window.sush?.windowControl?.(action)
 
   return (
     <header className="shell-header">
       <div className="shell-header-where">
         {activeTab ? (
-          <>
-            <button className="shell-crumb-project" onClick={onHome} title={projectCwd || workspaceLabel(activeTab)}>
-              <span className="shell-crumb-mark"><Icon name="folder" size={11} /></span>
-              <span>{workspaceLabel(activeTab)}</span>
+          <div className="mac-titles">
+            <h2 className="shell-header-title" title={activeTab.label}>
+              <span>{activeTab.label || 'Thread'}</span>
+              <span
+                className={`shell-header-state${limited || guardTrip ? ' is-limit' : ''}`}
+                title={guardTrip ? `Usage Guard at ${guardTrip.pct}%` : `${agent?.label || 'Shell'} · ${state.label}`}
+              >
+                <span style={{ background: limited || guardTrip ? '#ff9f43' : state.dot }} />
+              </span>
+            </h2>
+            <button className="mac-subtitle" onClick={onHome} title={projectCwd || workspaceLabel(activeTab)}>
+              {workspaceLabel(activeTab)}{branch?.name ? ` · ${branch.name}` : ''}{agent?.label && agent.id !== 'shell' ? ` · ${agent.label}` : ''}
             </button>
-            <span className="shell-crumb-slash">/</span>
-            <h2 className="shell-header-title" title={activeTab.label}>{activeTab.label || 'Thread'}</h2>
-            <span
-              className={`shell-header-state${limited || guardTrip ? ' is-limit' : ''}`}
-              title={guardTrip ? `Usage Guard at ${guardTrip.pct}%` : `${agent?.label || 'Shell'} · ${state.label}`}
-            >
-              <span style={{ background: limited || guardTrip ? '#ff9f43' : state.dot }} />
-            </span>
-          </>
+          </div>
         ) : (
-          <h2 className="shell-header-title">New thread</h2>
+          <div className="mac-titles"><h2 className="shell-header-title"><span>New thread</span></h2></div>
         )}
       </div>
 
@@ -155,10 +154,6 @@ export default function ShellHeader({
             </button>
           </>
         )}
-        <span className="nightly-window-divider" />
-        <button className="nightly-window-btn" onClick={() => windowControl('minimize')} title="Minimize">−</button>
-        <button className="nightly-window-btn" onClick={() => windowControl('maximize')} title="Maximize">□</button>
-        <button className="nightly-window-btn nightly-window-close" onClick={() => windowControl('close')} title="Close">×</button>
       </div>
       {menu && <NightlyContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </header>
