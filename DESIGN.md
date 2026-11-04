@@ -106,3 +106,28 @@ topbar, terminals, composer, docked inspector.
 - **Quiet until relevant.** The rail status strip and the attention bell render
   nothing while everything is normal; offline, saver and battery notices name
   their reason.
+
+## macOS layer (Nov 2026, Nightly shell)
+
+The Nightly shell, Settings, onboarding and the lock screen follow macOS
+Sonoma dark mode; the block at the end of `index.css` ("macOS layer") is the
+source of truth and wins over older rules.
+
+- **Surfaces:** window `#1e1e20`, sidebar `#262628`, toolbar `#202022`, fields
+  `#2c2c2f`. Separators are 8–12% white; panel edges are a black hairline
+  plus a 3.5% white inner line. Labels follow Apple's systemGray ramp
+  (`#f2f2f7 → #8e8e93`).
+- **Accent:** the theme accent acts as the system accent. Text on a filled accent
+  (menu highlight, selected nav, switch track) uses `--mac-accent-strong`
+  (accent mixed 72% with black) so white text clears 4.5:1.
+- **Chrome:** traffic lights top-left on every platform (grey when the
+  window is unfocused), a unified 52px toolbar with title + subtitle,
+  borderless 28px toolbar buttons, segmented controls for modes.
+- **Lists:** source-list sidebar (28px rows, accent glyphs, grey rounded
+  selection, 11px bold section heads); Settings uses System Settings'
+  coloured icon tiles and grouped inset lists.
+- **Menus:** vibrant (`blur(28px) saturate(1.8)`), 0.5px edge, 10px radius,
+  accent-highlighted items; solid under lite/saver.
+- **Motion:** tokens 80/120/180/240/320 (exit 150); ambient loops animate
+  only transform/opacity on pseudo-elements; overlays fade out via
+  `Presence`; `.sush-motion-reduced` (OS, toggle, eco, saver) removes travel.

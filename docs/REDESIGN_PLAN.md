@@ -49,13 +49,17 @@ A state board (Needs you · Working · Idle) with whole-card click, last activit
 ## Not possible here
 - opencode's free models can't run in this cloud container: the network policy blocks `opencode.ai` / `models.opencode.ai`. The CLI is installed and lists them.
 
-## Next (from the reviews, not yet done)
-- Settings: restyle the section-specific controls still in the old style (the Performance mode buttons, the
-  sidebar-tab pills, the theme list) and fold the duplicates (reduce motion, window material, sleep).
-- Motion: move the ambient box-shadow loops (orb, seducia, pulse-dot) to transform/opacity pseudo-elements,
-  drop the lock-screen 80px blur, and add exit animations to modals and menus.
-- Resume by bound session id instead of `--continue` / `resume --last` when the model or account changes
-  (wrong-session risk with several agents in one folder).
+## Round 2 (shipped)
+- macOS design layer: traffic lights, unified toolbar, source-list sidebar, segmented modes, vibrant menus.
+- Settings as System Settings: icon tiles, grouped inset lists, switches, push buttons, checkbox grid, accent swatches.
+- Motion: compositor-only ambient loops, overlay exit animations (`Presence`), no lock-screen blur.
+- macOS lock screen (date over a 96px time, no card).
+- Model/effort restarts resume the exact bound conversation (Claude, Codex).
+- Office: desk lamps, themed roofs, Mac HUD.
+
+## Still open
 - Discord + Email sign-in need a registered Discord OAuth app and an email magic-link service.
 - OpenCode thread bridge (Thread mode for OpenCode); one provider registry instead of eight lists.
-- Office: animated idle (typing) at ambient fps, a desk lamp per occupied desk, theme-aware roof colours.
+- Exact-id resume for Gemini (once its `--resume <id>` form is verified) and for account switches (needs a
+  shared session store across account slots).
+- Stable (Quiet Nights) shell has not had the Mac pass; it only inherits the new palette.
