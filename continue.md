@@ -1,6 +1,6 @@
 # CONTINUE — Sush / Quiet Nights handoff for Claude
 
-> Last updated: 2026-09-28
+> Last updated: 2026-11-04
 >
 > Primary repository: `Foxxed909/Sush`
 >
@@ -245,6 +245,48 @@ Nightly → Stable once the walk and a week of daily use are clean.
   focus and placement, taken out of App.jsx.
 - Harness: when Playwright's bundled browser is missing, run with
   `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+
+## 0.8 Review pass + Office (2026-11-04, branch `claude/repo-review-improvements-52orp1`)
+
+Bugs fixed:
+
+- **`selectTab` threw `ReferenceError: setShellModeState`** after shell
+  state moved into `useNightlyShell`. Every sidebar thread pick threw, and
+  Office's *Enter terminal* aborted before `setShellMode('code')`, so you
+  landed back in the Office. The hook now exposes `leaveCoverMode`.
+- **The visual walk only logged page errors**, which is how that shipped.
+  `tools/shot.mjs` now exits 1 on any uncaught renderer error.
+- **Office meetings leaked keystrokes into other projects.** The
+  'workspace' broadcast scope fenced on `groupId`; sessions in one folder
+  launched separately have different or no groups, and with no group it
+  fell back to *every* tab. `lib/terminalInput.broadcastTargetIds` now fences
+  on `workspaceKey` (same identity as the rail/Office). The scope also resets
+  to 'all' when broadcast ends, so a later Ctrl+Shift+B isn't silently fenced.
+- **Office chime rang falsely** when walking from an office back to campus
+  (hands already up elsewhere counted as new). It re-baselines on scope change.
+- **Reduced motion hid the raised hand**, the Office's only "needs you" pose.
+  Static poses now keep state.
+- Monitors were blank for up to 1 s after every rebuild; now painted on
+  the next frame. `useOfficeProgress` pruned nothing for closed tabs.
+- One `officeState()` (lib/officeStats) replaces three copies used by the
+  scene, signs, chime and XP.
+
+Office additions: desk hover card (last Thread reply, else last terminal
+line, never summarised); **N** / "N need you · go" jumps to the next agent
+that needs you across offices; exited counts on signs + HUD; "+N more in
+Agents" when an office passes 15 desks; Escape closes Hire (focus moves into it).
+Tests: `tests/office.test.mjs`; the walk asserts the hover card, Escape, and
+Enter terminal → Code.
+
+Suggested next (not done):
+
+- Office: walkable hallway to Seducia per office (Project Seducia), desk
+  drag to reassign between offices only once drag-between-projects lands in
+  the rail, per-desk mute, minimap for large campuses, keyboard focus order
+  for overlay labels (they are `tabIndex=-1` today, mouse-only).
+- `continue.md` §B pane compositor is still the largest open item.
+- `App.jsx` is now 3,170 lines; `docs/god-files-split.md` remains unexecuted.
+- The renderer `index` chunk is 812 kB; Office is 1.09 MB (three.js), lazy.
 
 ## 0.5 Phase 1 — T3 Code layout port (Nightly channel)
 

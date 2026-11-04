@@ -45,6 +45,7 @@ import NightlyComposer from './components/NightlyComposer'
 import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 import { useOfficeProgress } from './hooks/useOfficeProgress'
+import { broadcastTargetIds } from './lib/terminalInput'
 import ShellHeader from './components/shell/ShellHeader'
 import ShellSidebar from './components/shell/ShellSidebar'
 import ProviderLogo from './components/ProviderLogo'
@@ -426,8 +427,8 @@ export default function App() {
   }, [showPalette])
   const [broadcastMode, setBroadcastMode] = useState(false)
   // Broadcast scope: 'all' types into every session; 'workspace' fences it to
-  // the active session's workspace (its groupId) so briefing one crew can't
-  // leak keystrokes into another.
+  // the active session's project folder (lib/workspaces) so briefing one crew
+  // can't leak keystrokes into another.
   const [broadcastScope, setBroadcastScope] = useState('all')
   const [showHunt, setShowHunt] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
@@ -666,7 +667,7 @@ export default function App() {
 
   // ── Nightly shell (T3-style) vs Stable (Quiet Nights) ──────────────────────
   const {
-    uiChannel, nightlyShell, currentShellMode, setShellMode, setUiChannel,
+    uiChannel, nightlyShell, currentShellMode, setShellMode, leaveCoverMode, setUiChannel,
     drawerOpen, toggleDrawer, drawerHeight, startDrawerDrag,
     officeFocus, setOfficeFocus, placement, threadInCenter, coverSurface
   } = useNightlyShell({
@@ -687,11 +688,11 @@ export default function App() {
 
   // Broadcast targets, honouring the scope. Workspace scope with no workspace
   // on the active session falls back to all (a solo session has no fence).
-  const broadcastTargets = broadcastMode
-    ? (broadcastScope === 'workspace' && activeTab?.groupId
-        ? tabs.filter(t => t.groupId === activeTab.groupId)
-        : tabs).map(t => t.id)
-    : null
+  const broadcastTargets = broadcastTargetIds(tabs, activeTab, { mode: broadcastMode, scope: broadcastScope })
+  // A fence belongs to the broadcast that set it (an Office meeting). Once it
+  // ends, the next Ctrl+Shift+B is an ordinary broadcast again, not one still
+  // silently limited to the last meeting's office.
+  useEffect(() => { if (!broadcastMode) setBroadcastScope('all') }, [broadcastMode])
 
   // One Seducia, two scopes: on Home she's Main (whole-app control); inside a
   // workspace she's that workspace's Project Seducia — own chat history,
@@ -1294,8 +1295,8 @@ export default function App() {
     setActiveId(id)
     setView('terminal')
     // T3: picking a thread shows it, so leave the covering Chat/Office modes.
-    setShellModeState(mode => (mode === 'chat' || mode === 'office') ? 'code' : mode)
-  }, [])
+    leaveCoverMode()
+  }, [leaveCoverMode])
 
   const openTab = useCallback((profile, options = {}) => {
     const prof = profile ?? profiles[0]

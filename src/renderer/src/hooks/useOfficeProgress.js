@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { applyXpTick } from '../lib/officeStats'
+import { applyXpTick, officeState } from '../lib/officeStats'
 import { threadKey } from '../lib/shellSidebar'
 import { workspaceKey } from '../lib/workspaces'
 
@@ -25,7 +25,7 @@ export function useOfficeProgress(tabs, states, limits) {
   const statesRef = useRef(states)
   statesRef.current = states
 
-  const stateOf = useCallback((tab) => (limits?.[tab.id] ? 'limit' : tab.status === 'exited' ? 'error' : (statesRef.current?.[tab.id] || 'idle')), [limits])
+  const stateOf = useCallback((tab) => officeState(tab, statesRef.current, limits), [limits])
 
   const apply = useCallback((ticks) => {
     if (!ticks.length) return
@@ -46,6 +46,9 @@ export function useOfficeProgress(tabs, states, limits) {
       if (prevState && prevState !== state) ticks.push({ tabKey: threadKey(tab), officeKey: workspaceKey(tab), prevState, state })
       prevRef.current[tab.id] = state
     }
+    // Forget closed sessions so the map doesn't grow for the app's lifetime.
+    const live = new Set(tabs.map(t => t.id))
+    for (const id of Object.keys(prevRef.current)) if (!live.has(id)) delete prevRef.current[id]
     apply(ticks)
   }, [tabs, states, limits, stateOf, apply])
 

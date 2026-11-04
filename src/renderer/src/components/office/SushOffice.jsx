@@ -12,7 +12,7 @@ import {
   WALL_H, WALL_T, buildCampusLayout, buildInteriorLayout, campusLayoutKey, interiorLayoutKey,
   meetingSeat, moveWithCollisions, nearestInteractable
 } from '../../lib/officeLayout'
-import { levelFor, officeHeadcount, transcriptTokens } from '../../lib/officeStats'
+import { NEEDS_YOU, deskPeek, levelFor, nextNeedsYou, officeHeadcount, officeState, transcriptTokens } from '../../lib/officeStats'
 import { OFFICE_THEMES, loadOfficeThemes, officeTheme, saveOfficeTheme } from '../../lib/officeThemes'
 import { threadKey } from '../../lib/shellSidebar'
 import { subscribeThreadFeed } from '../../lib/threadFeedStore'
@@ -51,9 +51,7 @@ function loadSound() {
 const OPENING_MS = 1100
 
 function stateOf(tabId, states, limits, tabs) {
-  if (limits[tabId]) return 'limit'
-  if (tabs.find(t => t.id === tabId)?.status === 'exited') return 'error'
-  return states[tabId] || 'idle'
+  return officeState(tabs.find(t => t.id === tabId) || { id: tabId }, states, limits)
 }
 const STATE_COLOR = id => (id === 'limit' ? '#ff9f43' : STATES[id]?.color || STATES.idle.color)
 
@@ -89,6 +87,10 @@ export default function SushOffice({
   const [failed, setFailed] = useState(false)
   const [tokens, setTokens] = useState({})
   const [sound, setSound] = useState(loadSound)
+  const [peekId, setPeekId] = useState(null)
+  const [replies, setReplies] = useState({})
+  const pendingFocusRef = useRef(null)
+  const lastJumpRef = useRef(null)
 
   const campusKey = campusLayoutKey(tabs)
   const campus = useMemo(() => buildCampusLayout(tabs), [campusKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -115,7 +117,20 @@ export default function SushOffice({
   }, [interior, meetingTabIds])
   const meetingOn = meetingSet.size > 0
 
-  liveRef.current = { tabs, states, limits, focusTabId, onFocusMonitor, onNewOffice, onChat, onAgents, setPlace, setHireOpen, meetingSet, onMeeting, interior }
+  // Walk to the next agent that needs you — in this office, or in another
+  // one (the camera enters that building first, then flies to the monitor).
+  const jumpToNeedsYou = useCallback(() => {
+    const id = nextNeedsYou(tabs, states, limits, lastJumpRef.current)
+    if (!id) return
+    lastJumpRef.current = id
+    const tab = tabs.find(t => t.id === id)
+    const key = workspaceKey(tab)
+    if (interior?.key === key) { onFocusMonitor?.(id); return }
+    pendingFocusRef.current = id
+    setPlace({ kind: 'interior', key })
+  }, [tabs, states, limits, interior, onFocusMonitor])
+
+  liveRef.current = { tabs, states, limits, focusTabId, onFocusMonitor, onNewOffice, onChat, onAgents, setPlace, setHireOpen, meetingSet, onMeeting, interior, jumpToNeedsYou }
 
   // ── Engine: renderer, camera, player, input, loop. Once per accent/motion. ──
   useEffect(() => {
@@ -185,6 +200,7 @@ export default function SushOffice({
       const key = e.key.toLowerCase()
       if (MOVE_KEYS.has(key)) { keys.add(key); e.preventDefault(); kick() }
       if ((key === 'e' || key === 'enter') && !e.repeat) { e.preventDefault(); interact() }
+      if (key === 'n' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); liveRef.current.jumpToNeedsYou?.() }
       if (key === 'escape' && engine.place?.kind === 'interior') { e.preventDefault(); liveRef.current.setPlace({ kind: 'campus' }) }
     }
     const onKeyUp = (e) => keys.delete(e.key.toLowerCase())
@@ -341,7 +357,18 @@ export default function SushOffice({
             busy = true
             continue
           }
-          if (!reduceMotion && group.userData.atMeeting) {
+          if (reduceMotion) {
+            // No animation, but the pose still carries the state: a raised
+            // hand is how this view says "needs you", motion or not.
+            const parts = person.userData.parts
+            const at = !!group.userData.atMeeting
+            parts.armL.rotation.x = at ? 0 : -0.9
+            parts.armR.rotation.x = at ? 0 : -0.9
+            parts.armR.rotation.z = id === 'waiting' ? 2.6 : 0
+            parts.head.rotation.x = id === 'limit' ? 0.5 : id === 'error' ? -0.2 : 0
+            continue
+          }
+          if (group.userData.atMeeting) {
             // At the table: arms down, listening; a raised hand still means "needs you".
             const parts = person.userData.parts
             parts.armL.rotation.x = 0
@@ -350,7 +377,7 @@ export default function SushOffice({
             parts.head.rotation.x = Math.sin(t * 2 + desk.x) * 0.08
             continue
           }
-          if (!reduceMotion) {
+          {
             const parts = person.userData.parts
             const typing = id === 'working'
             parts.armL.rotation.x = typing ? -1.1 + Math.sin(t * 18 + desk.x) * 0.25 : -0.9
@@ -385,8 +412,9 @@ export default function SushOffice({
         })
 
         // ── live monitors (~1 Hz) ──
-        if (now - lastPaint > 1000 && engine.place?.kind === 'interior') {
+        if ((engine.paintNow || now - lastPaint > 1000) && engine.place?.kind === 'interior') {
           lastPaint = now
+          engine.paintNow = false
           for (const group of engine.desks) {
             const { desk, screen } = group.userData
             if (!screen) continue
@@ -589,8 +617,19 @@ export default function SushOffice({
       engine.pos = moveWithCollisions(engine.pos, 0, 0, layout.colliders)
     }
     engine.place = interior ? { kind: 'interior', key: interior.key } : { kind: 'campus' }
+    // Fresh monitors are blank canvases: paint them on the next frame rather
+    // than up to a second later.
+    engine.paintNow = true
     engine.dirty = true
     engine.kick?.()
+    // A jump from another office lands here: now the desk exists, fly to it.
+    // Past the 15-desk cap there is no monitor to fly to, but the real
+    // terminal still opens in place.
+    const pending = pendingFocusRef.current
+    if (pending && interior) {
+      pendingFocusRef.current = null
+      if (liveRef.current.tabs.some(t => t.id === pending)) liveRef.current.onFocusMonitor?.(pending)
+    }
   }, [layout, interior, campus, theme, themes, accent, reduceMotion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly into a monitor when App focuses one; back out when it clears.
@@ -620,6 +659,9 @@ export default function SushOffice({
     const unsubs = bridged.map(tab => subscribeThreadFeed(tab.id, snapshot => {
       const items = Array.isArray(snapshot?.state?.items) ? snapshot.state.items : []
       const totals = transcriptTokens(items)
+      const peek = deskPeek({ items })
+      const reply = peek?.source === 'thread' ? peek.text : ''
+      setReplies(prev => (prev[tab.id] === reply ? prev : { ...prev, [tab.id]: reply }))
       setTokens(prev => (prev[tab.id]?.total === totals.total && prev[tab.id]?.context === totals.context ? prev : { ...prev, [tab.id]: totals }))
       if (totals.output) awardRef.current?.(tab, totals.output)
     }))
@@ -630,12 +672,18 @@ export default function SushOffice({
   // the office you're in; skipped when the app-wide attention chime is on so
   // one event never rings twice.
   const handsRef = useRef(null)
+  const handsScopeRef = useRef(null)
   useEffect(() => {
     const scope = interior ? officeTabs : tabs
-    const raised = new Set(scope.filter(t => stateOf(t.id, states, limits, tabs) === 'waiting').map(t => t.id))
+    const raised = new Set(scope.filter(t => officeState(t, states, limits) === 'waiting').map(t => t.id))
     const prev = handsRef.current
     handsRef.current = raised
-    if (!prev || !sound || globalChime) return
+    // Walking between campus and an office changes who is in earshot; hands
+    // that were already up elsewhere aren't new, so re-baseline silently.
+    const scopeKey = interior?.key || 'campus'
+    const moved = handsScopeRef.current !== scopeKey
+    handsScopeRef.current = scopeKey
+    if (!prev || moved || !sound || globalChime) return
     for (const id of raised) if (!prev.has(id)) { playChime(); break }
   }, [states, limits, tabs, officeTabs, interior, sound, globalChime])
   const toggleSound = () => setSound(prev => {
@@ -652,6 +700,20 @@ export default function SushOffice({
   const officeCounts = useMemo(() => officeHeadcount(officeTabs, states, limits), [officeTabs, states, limits])
   const officeLevel = levelFor(officeKey ? ledger.offices?.[officeKey] : Object.values(ledger.offices || {}).reduce((a, b) => a + b, 0))
   const focusTab = focusTabId ? tabs.find(t => t.id === focusTabId) : null
+  const needsYouCount = useMemo(() => tabs.filter(t => NEEDS_YOU.has(officeState(t, states, limits))).length, [tabs, states, limits])
+
+  // Hover card: refresh the terminal line while it's open (the registry is
+  // read directly, so this costs nothing when no card is showing).
+  const [peekTick, setPeekTick] = useState(0)
+  useEffect(() => {
+    if (!peekId) return undefined
+    const id = setInterval(() => setPeekTick(n => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [peekId])
+  const peek = useMemo(
+    () => (peekId ? deskPeek({ items: replies[peekId] ? [{ type: 'assistant', text: replies[peekId] }] : null, tail: terminalTail(peekId, 12) }) : null),
+    [peekId, replies, peekTick]
+  )
 
   if (failed) {
     return (
@@ -693,6 +755,7 @@ export default function SushOffice({
                 {counts.working > 0 && <em className="is-working">{counts.working} working</em>}
                 {counts.waiting > 0 && <em className="is-waiting">{counts.waiting} need you</em>}
                 {counts.limit > 0 && <em className="is-limit">{counts.limit} at limit</em>}
+                {counts.error > 0 && <em className="is-limit">{counts.error} exited</em>}
                 {counts.idle > 0 && <em>{counts.idle} idle</em>}
               </div>
             </div>
@@ -727,12 +790,23 @@ export default function SushOffice({
               tabIndex={-1}
               title={`Open ${desk.label}'s screen`}
               onClick={() => onFocusMonitor?.(desk.tabId)}
+              onMouseEnter={() => setPeekId(desk.tabId)}
+              onMouseLeave={() => setPeekId(prev => (prev === desk.tabId ? null : prev))}
             >
               <ProviderLogo provider={desk.agentId} size={12} />
               <span className="office-desk-name">{desk.label}</span>
               <span className="office-level">Lv {lvl.level}</span>
               {tk?.total ? <span className="office-desk-tokens" title={`${tk.total.toLocaleString()} tokens used · ${tk.context?.toLocaleString() || '—'} in context`}>{formatTokens(tk.total)}</span> : null}
               {(id === 'waiting' || id === 'limit' || id === 'error') && <i className="office-desk-alert">!</i>}
+              {peekId === desk.tabId && (
+                <div className="office-peek" role="tooltip">
+                  <div className="office-peek-head">
+                    <span className={`office-peek-state is-${id}`}>{id === 'limit' ? 'At limit' : STATES[id]?.label || id}</span>
+                    <span>{peek?.source === 'thread' ? 'Last reply' : 'Terminal'}</span>
+                  </div>
+                  <p>{peek?.text || 'Nothing on screen yet.'}</p>
+                </div>
+              )}
             </div>
           )
         })}
@@ -752,7 +826,12 @@ export default function SushOffice({
               {!officeCounts.total && 'No agents yet'}
             </span>
             {officeCounts.working > 0 && <span className="office-chip is-working">{officeCounts.working} working</span>}
-            {officeCounts.waiting > 0 && <span className="office-chip is-waiting">{officeCounts.waiting} need you</span>}
+            {officeCounts.error > 0 && <span className="office-chip is-limit">{officeCounts.error} exited</span>}
+            {interior.overflow > 0 && (
+              <button className="office-chip is-button" onClick={() => onAgents?.()} title="This office seats 15. The rest are listed in Agents.">
+                +{interior.overflow} more in Agents
+              </button>
+            )}
             {meetingOn && (
               <span className="office-chip is-meeting">
                 Meeting · {meetingSet.size}
@@ -778,8 +857,13 @@ export default function SushOffice({
               {!totals.total && 'No agents yet'}
             </span>
             {totals.working > 0 && <span className="office-chip is-working">{totals.working} working</span>}
-            {totals.waiting > 0 && <span className="office-chip is-waiting">{totals.waiting} need you</span>}
+            {totals.error > 0 && <span className="office-chip is-limit">{totals.error} exited</span>}
           </>
+        )}
+        {needsYouCount > 0 && (
+          <button className="office-chip is-button is-waiting" onClick={jumpToNeedsYou} title="Go to the next agent that needs you (N)">
+            {needsYouCount} need{needsYouCount === 1 ? 's' : ''} you · go
+          </button>
         )}
         <button
           className={`office-chip is-button${sound ? '' : ' is-muted'}`}
@@ -794,7 +878,7 @@ export default function SushOffice({
           <i><b style={{ width: `${Math.round(officeLevel.progress * 100)}%` }} /></i>
         </span>
       </div>
-      <div className="office-keys">WASD move · Shift run · E use · click anything{interior ? ' · Esc campus' : ''}</div>
+      <div className="office-keys">WASD move · Shift run · E use{needsYouCount ? ' · N next needs-you' : ''} · click anything{interior ? ' · Esc campus' : ''}</div>
 
       {hint && !focusTabId && (
         <div className={`office-hint is-${hint.kind}`}>
@@ -830,8 +914,13 @@ function HirePanel({ office, onClose, onHire }) {
   const [count, setCount] = useState(1)
   const models = useMemo(() => pickerRows({ section: agentId }), [agentId])
   useEffect(() => { setModel('') }, [agentId])
+  const panelRef = useRef(null)
+  useEffect(() => { panelRef.current?.querySelector('button.is-on')?.focus() }, [])
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose() }
+  }
   return (
-    <div className="office-hire" role="dialog" aria-label={`Hire an agent for ${office.label}`}>
+    <div ref={panelRef} className="office-hire" role="dialog" aria-modal="true" aria-label={`Hire an agent for ${office.label}`} onKeyDown={onKeyDown}>
       <header>
         <strong>Hire for {office.label}</strong>
         <button onClick={onClose} aria-label="Close"><Icon name="x" size={13} /></button>

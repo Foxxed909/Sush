@@ -33,6 +33,15 @@ export function useNightlyShell({ settings, setSettings, view, setView, tabs, ta
     try { localStorage.setItem(SHELL_MODE_KEY, next) } catch {}
     setView(prev => (prev === 'overview' || (prev === 'home' && tabsRef.current.length && next !== 'chat' && next !== 'office')) ? 'terminal' : prev)
   }, [setView, tabsRef])
+  // Picking a thread shows it, so the covering modes (Chat, Office) give way
+  // to Code; every other mode is kept.
+  const leaveCoverMode = useCallback(() => {
+    setShellModeState(mode => {
+      if (mode !== 'chat' && mode !== 'office') return mode
+      try { localStorage.setItem(SHELL_MODE_KEY, 'code') } catch {}
+      return 'code'
+    })
+  }, [])
   const toggleDrawer = useCallback(() => {
     setDrawerOpen(prev => {
       const next = !prev
@@ -93,7 +102,7 @@ export function useNightlyShell({ settings, setSettings, view, setView, tabs, ta
   }, [drawerHeight])
 
   return {
-    uiChannel, nightlyShell, shellMode, currentShellMode, setShellMode, setUiChannel,
+    uiChannel, nightlyShell, shellMode, currentShellMode, setShellMode, leaveCoverMode, setUiChannel,
     drawerOpen, toggleDrawer, drawerHeight, startDrawerDrag,
     officeFocus, setOfficeFocus, placement, threadInCenter, coverSurface
   }

@@ -2442,3 +2442,18 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .office-chip.is-meeting button { height: 20px; padding: 0 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: var(--text-1); font: 600 11px var(--font-ui); cursor: pointer; }
 .office-chip.is-meeting button:hover { background: rgba(255,255,255,.12); }
 .office-chip.is-muted { color: var(--text-5); }
+
+/* Office: needs-you jump, exited count, desk hover card */
+.office-chip.is-limit { color: #ff9f43; }
+.office-chip.is-button.is-waiting { color: #ffcb6b; border-color: rgba(255,203,107,.4); }
+.office-peek {
+  position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); width: 260px;
+  padding: 8px 10px; border-radius: 9px; background: rgba(13,11,20,.96); border: 1px solid var(--border-2);
+  box-shadow: 0 6px 20px rgba(0,0,0,.45); pointer-events: none; white-space: normal;
+}
+.office-peek-head { display: flex; justify-content: space-between; gap: 8px; color: var(--text-4); font: 600 10.5px/1.2 var(--font-ui); }
+.office-peek-state { color: var(--text-2); }
+.office-peek-state.is-working { color: #5fd3a8; }
+.office-peek-state.is-waiting { color: #ffcb6b; }
+.office-peek-state.is-limit, .office-peek-state.is-error { color: #ff9f43; }
+.office-peek p { margin: 6px 0 0; color: var(--text-1); font: 500 11.5px/1.45 var(--font-mono); overflow-wrap: anywhere; }

@@ -312,7 +312,10 @@ await page.addInitScript(() => {
   }
 })
 await page.addInitScript(stub)
-page.on('pageerror', e => console.error('[pageerror]', e.message))
+// An uncaught renderer error fails the walk: a logged-only error is how a
+// ReferenceError in selectTab shipped unnoticed.
+const pageErrors = []
+page.on('pageerror', e => { pageErrors.push(e.message); console.error('[pageerror]', e.message) })
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForTimeout(1800)
 
@@ -1141,6 +1144,15 @@ await shot('12-fresh-start')
   if (await page.locator('.office-desk-tag').count() !== 2) throw new Error('Office interior does not seat every session')
   await page.waitForTimeout(1600)
   await shot('n7a-office-interior')
+  // Hovering a desk shows what that agent last put on screen.
+  await page.locator('.office-desk-tag').filter({ hasText: 'Claude' }).first().hover()
+  await page.locator('.office-peek').waitFor({ state: 'visible', timeout: 3000 })
+  {
+    const peek = await page.locator('.office-peek p').innerText()
+    if (!peek.trim()) throw new Error('Desk hover card is empty')
+  }
+  await shot('n7a2-office-peek')
+  await page.mouse.move(5, 5)
   // Zoom into a monitor: the real terminal appears in the screen frame.
   await page.locator('.office-desk-tag').filter({ hasText: 'Claude' }).first().click()
   await page.locator('.shell-terminal-layer.is-monitor').waitFor({ state: 'visible', timeout: 5000 })
@@ -1149,10 +1161,27 @@ await shot('12-fresh-start')
   await page.locator('.office-monitor-bar button', { hasText: 'Back to office' }).click()
   await page.waitForTimeout(500)
   if (await page.locator('.shell-terminal-layer.is-monitor').count()) throw new Error('Back to office did not release the terminal')
+  // Enter terminal from a monitor lands in Code, not back in the Office.
+  await page.locator('.office-desk-tag').filter({ hasText: 'Claude' }).first().click()
+  await page.locator('.office-monitor-bar button', { hasText: 'Enter terminal' }).click()
+  await page.waitForTimeout(600)
+  if (!(await modeActive('Code'))) throw new Error('Enter terminal did not switch to Code')
+  if (await page.locator('.office-canvas').count()) throw new Error('Enter terminal left the Office mounted')
+  await page.keyboard.press('Alt+5')
+  await page.locator('.office-canvas').waitFor({ state: 'attached', timeout: 10000 })
+  await page.waitForTimeout(800)
+  if (!(await page.locator('.office-desk-tag').count())) {
+    await page.locator('.office-sign').filter({ hasText: 'sush' }).first().click()
+    await page.locator('.office-desk-tag').first().waitFor({ state: 'visible', timeout: 5000 })
+  }
   await page.locator('.office-labels [role="button"]', { hasText: 'Hire an agent' }).click()
   await page.locator('.office-hire').waitFor({ state: 'visible', timeout: 5000 })
   await shot('n7c-office-hire')
-  await page.locator('.office-hire header button').click()
+  // Escape closes the Hire panel and hands keys back to the office.
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+  if (await page.locator('.office-hire').count()) throw new Error('Escape did not close the Hire panel')
+  if (!(await page.locator('.office-hud button', { hasText: 'Campus' }).count())) throw new Error('Escape in the Hire panel also left the office')
   await page.locator('.office-theme select').selectOption('neon')
   await page.waitForTimeout(900)
   await shot('n7d-office-neon')
@@ -1185,5 +1214,9 @@ await shot('12-fresh-start')
 
 await browser.close()
 server.close()
+if (pageErrors.length) {
+  console.error(`✗ ${pageErrors.length} uncaught renderer error(s):\n  ${pageErrors.join('\n  ')}`)
+  process.exit(1)
+}
 console.log('done →', outDir)
 
