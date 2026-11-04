@@ -3253,3 +3253,12 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 @keyframes sush-sheet-out { to { opacity: 0; transform: translateY(calc(6px * var(--travel))) scale(.985); } }
 /* macOS lock: no card; the avatar and PIN float on the backdrop. */
 .sush-lock-panel { background: transparent !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+/* Office HUD as macOS floating controls. */
+.sush-t3 .office-chip {
+  height: 28px; border: 0; border-radius: 8px; background: rgba(40,40,43,.82); color: var(--text-2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.12), 0 4px 14px rgba(0,0,0,.35);
+}
+.sush-lite .office-chip, .sush-saver .office-chip { -webkit-backdrop-filter: none; backdrop-filter: none; background: #2a2a2d; }
+.sush-t3 .office-chip.is-button:hover { background: rgba(58,58,62,.9); }
+.sush-t3 .office-keys, .sush-t3 .office-hint { border-radius: 8px; background: rgba(40,40,43,.82); box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.12), 0 4px 14px rgba(0,0,0,.35); border: 0; }

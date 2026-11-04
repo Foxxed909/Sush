@@ -55,6 +55,25 @@ function shadowTexture() {
   shadowTex.userData = { shared: true }
   return shadowTex
 }
+// Warm radial glow texture (shared per colour) for faked light pools.
+const glowCache = new Map()
+function glowTexture(color) {
+  if (glowCache.has(color)) return glowCache.get(color)
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+  g.addColorStop(0, color)
+  g.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.globalAlpha = 0.5
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 64, 64)
+  const tex = new CanvasTexture(canvas)
+  tex.userData = { shared: true }
+  glowCache.set(color, tex)
+  return tex
+}
+
 export function blobShadow(w, d, opacity = 1, y = 0.012) {
   const mesh = new Mesh(new PlaneGeometry(w, d), new MeshBasicMaterial({ map: shadowTexture(), transparent: true, opacity, depthWrite: false }))
   mesh.rotation.x = -Math.PI / 2
@@ -164,6 +183,22 @@ export function buildDesk({ desk, theme, accent }) {
     const face = new Mesh(new PlaneGeometry(0.78, 0.48), new MeshBasicMaterial({ map: screen.texture }))
     face.position.set(0, 0, 0.032)
     monitor.add(face)
+    // Desk lamp: shade + warm bulb + a pool of light on the desk. Faked
+    // with unlit materials, so it costs no extra light in the shader.
+    const lamp = new Group()
+    lamp.position.set(0.62, 0.78, -0.18)
+    lamp.add(box(0.14, 0.03, 0.14, mat('#2a2633'), 0, 0.015, 0))
+    lamp.add(box(0.03, 0.34, 0.03, mat('#2a2633'), 0, 0.19, 0))
+    const shade = box(0.2, 0.1, 0.2, mat(theme.trim === 'accent' ? accent : theme.trim), 0, 0.38, 0.03)
+    shade.rotation.x = 0.35
+    lamp.add(shade)
+    lamp.add(new Mesh(new BoxGeometry(0.1, 0.03, 0.1), new MeshBasicMaterial({ color: '#ffe7b8' })))
+    lamp.children[3].position.set(0, 0.33, 0.05)
+    group.add(lamp)
+    const pool = new Mesh(new PlaneGeometry(0.75, 0.6), new MeshBasicMaterial({ map: glowTexture('#ffd79a'), transparent: true, opacity: 0.55, depthWrite: false }))
+    pool.rotation.x = -Math.PI / 2
+    pool.position.set(0.5, 0.786, 0.0)
+    group.add(pool)
     const chair = box(0.5, 0.08, 0.5, mat('#1f1c28'), 0, 0.46, 0.75)
     chair.add(box(0.5, 0.55, 0.08, mat('#1f1c28'), 0, 0.3, 0.22))
     group.add(chair)
