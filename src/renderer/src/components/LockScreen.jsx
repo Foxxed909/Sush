@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import ProviderButtons from './ProviderButtons'
 import Onboarding from './Onboarding'
+import TrafficLights from './shell/TrafficLights'
 import { rgba } from '../lib/ui'
 
 const USER_COLORS = ['#ff6b9d', '#a78bfa', '#5fd3a8', '#ffcb6b', '#60a5fa', '#f97316', '#38bdf8', '#ef4444']
@@ -277,7 +278,6 @@ export default function LockScreen({
   const mm = String(now.getMinutes()).padStart(2, '0')
   const ampm = h24 < 12 ? 'AM' : 'PM'
   const dateStr = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
-  const greet = h24 < 5 ? 'Still up' : h24 < 12 ? 'Good morning' : h24 < 18 ? 'Good afternoon' : 'Good evening'
   const blobs = useMemo(() => {
     const palette = users.length ? users.map(u => u.color || '#ff6b9d') : [form.color]
     return [
@@ -316,7 +316,7 @@ export default function LockScreen({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#070a0e',
+        background: '#161618',
         overflow: 'hidden',
         WebkitAppRegion: 'drag'
       }}
@@ -333,8 +333,9 @@ export default function LockScreen({
             width: b.size,
             height: b.size,
             borderRadius: '50%',
-            background: `radial-gradient(circle at 35% 35%, ${rgba(b.color, 0.28)}, transparent 66%)`,
-            filter: 'blur(80px)',
+            // No filter: a blur(80px) repainted every frame of the drift on
+            // Windows. The multi-stop gradient is already that soft.
+            background: `radial-gradient(closest-side, ${rgba(b.color, 0.2)}, ${rgba(b.color, 0.09)} 45%, ${rgba(b.color, 0.025)} 75%, transparent)`,
             animationDelay: b.delay,
             pointerEvents: 'none'
           }}
@@ -342,31 +343,16 @@ export default function LockScreen({
       ))}
       <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(1300px 760px at 50% 116%, rgba(0,0,0,0.6), transparent 60%)', pointerEvents: 'none' }} />
 
-      {/* Window controls (frameless window still needs them) */}
-      <div style={{ position: 'absolute', top: 12, right: 16, display: 'flex', gap: 8, WebkitAppRegion: 'no-drag' }}>
-        {[['minimize', '−'], ['close', '×']].map(([action, sym]) => (
-          <button
-            key={action}
-            onClick={() => window.sush.windowControl(action)}
-            style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'var(--text-3)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
-          >
-            {sym}
-          </button>
-        ))}
-      </div>
+      <TrafficLights className="sush-lock-lights" />
 
       <div className={`sush-lock-card${phase === 'success' ? ' sush-lock-exit' : ''}`} style={{ position: 'relative', zIndex: 1, WebkitAppRegion: 'no-drag', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 'min(92vw, 440px)' }}>
         {/* Clock header — shared by every mode. The clock is the hero moment:
             heavy figures, a thin AM/PM, the colon in accent with a CSS pulse. */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase', color: rgba(accent, 0.85), marginBottom: 10 }}>{greet}</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 0, lineHeight: 0.9 }}>
-            <span style={{ fontSize: 78, fontWeight: 800, letterSpacing: -3, color: 'var(--text-1)', fontVariantNumeric: 'tabular-nums', textShadow: '0 8px 48px rgba(0,0,0,0.55)' }}>{hh}</span>
-            <span className="sush-lock-colon" style={{ fontSize: 70, fontWeight: 300, color: accent, padding: '0 4px', textShadow: `0 0 28px ${rgba(accent, 0.6)}` }}>:</span>
-            <span style={{ fontSize: 78, fontWeight: 800, letterSpacing: -3, color: 'var(--text-1)', fontVariantNumeric: 'tabular-nums', textShadow: '0 8px 48px rgba(0,0,0,0.55)' }}>{mm}</span>
-            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-3)', marginLeft: 10, letterSpacing: 0.5 }}>{ampm}</span>
+        <div className="sush-lock-clock" aria-label={`${dateStr}, ${hh}:${mm} ${ampm}`}>
+          <div className="sush-lock-date">{dateStr}</div>
+          <div className="sush-lock-time">
+            <span>{hh}</span><span className="sush-lock-colon">:</span><span>{mm}</span>
           </div>
-          <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: 'var(--text-3)' }}>{dateStr}</div>
         </div>
 
         {/* One glass card holds whichever mode is active */}

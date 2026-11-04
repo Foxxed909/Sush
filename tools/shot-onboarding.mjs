@@ -143,6 +143,20 @@ await reduced.locator('.splash').waitFor({ state: 'detached', timeout: 4000 })
 const took = Date.now() - t0
 if (took > 2000) throw new Error(`Reduced-motion splash took ${took}ms`)
 
+// Returning user: the profile picker / lock screen.
+const back = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 })
+await back.addInitScript(stub)
+await back.addInitScript(() => {
+  sessionStorage.setItem('sush-skip-splash', '1')
+  const user = { id: 'u1', name: 'Anmol', color: '#ff6b9d', hasPin: true, pinLength: 4, isolation: 'cli' }
+  window.sush.usersList = async () => ({ users: [user], active: null, lastUserId: 'u1' })
+})
+await back.goto(url)
+await back.locator('.sush-lock-clock').waitFor({ state: 'visible', timeout: 5000 })
+await back.waitForTimeout(700)
+await back.screenshot({ path: join(outDir, 'l1-lock.png') })
+console.log('✓ l1-lock')
+
 await browser.close()
 server.close()
 if (errors.length) { console.error('page errors:', errors); process.exit(1) }

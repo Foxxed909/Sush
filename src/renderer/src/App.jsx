@@ -50,6 +50,7 @@ import ShellSidebar from './components/shell/ShellSidebar'
 import ProviderLogo from './components/ProviderLogo'
 import { useNightlyShell } from './hooks/useNightlyShell'
 import { applyMotionPolicy } from './lib/motionPolicy'
+import Presence from './components/Presence'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -2991,7 +2992,7 @@ export default function App() {
         <ChangelogPage accent={accent} onDismiss={() => setShowChangelog(false)} />
       )}
 
-      {showSettings && (
+      <Presence show={showSettings}>
         <Settings
           settings={settings}
           onChange={saveSettings}
@@ -2999,9 +3000,9 @@ export default function App() {
           accent={accent}
           onEditSushrc={() => { setShowSettings(false); setShowSushrc(true) }}
         />
-      )}
+      </Presence>
 
-      {showLauncher && (
+      <Presence show={showLauncher}>
         <NewSessionModal
           accent={accent}
           activeCwd={launcherCwd || activeTab?.workspaceCwd || activeTab?.sessionRootCwd || activeTab?.cwd}
@@ -3009,33 +3010,33 @@ export default function App() {
           onLaunch={launchSessions}
           onClose={() => { setShowLauncher(false); setLauncherCwd(null) }}
         />
-      )}
+      </Presence>
 
-      {showPalette && (
+      <Presence show={showPalette}>
         <CommandPalette
           accent={accent}
-          dynamicActions={paletteActions()}
+          dynamicActions={showPalette ? paletteActions() : []}
           onClose={() => setShowPalette(false)}
           onAction={handlePaletteAction}
           onRun={runSmartInput}
         />
-      )}
+      </Presence>
 
-      {showShortcuts && (
+      <Presence show={showShortcuts}>
         <ShortcutsHelp
           accent={accent}
           onClose={() => setShowShortcuts(false)}
         />
-      )}
+      </Presence>
 
-      {showHunt && (
+      <Presence show={showHunt}>
         <HuntOverlay
           accent={accent}
           tabs={tabs}
           onJump={(id) => { setActiveId(id); setView('terminal') }}
           onClose={() => setShowHunt(false)}
         />
-      )}
+      </Presence>
 
       {/* Usage Guard pill — visible whenever the guard is tripped. */}
       {guardTrip && !zenMode && (
