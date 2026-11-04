@@ -36,7 +36,7 @@ import { playChime } from '../../lib/chime'
 // Battery: display-rate frames only while you move or the camera flies;
 // otherwise the loop wakes at the ambient rate, and stops when hidden.
 
-const PIXEL = 3
+const PIXEL = 2
 const WALK = 4.4
 const RUN = 7.5
 const IDLE_FPS = 12
@@ -133,10 +133,14 @@ export default function SushOffice({
     host.appendChild(renderer.domElement)
 
     const scene = new Scene()
-    const hemi = new HemisphereLight('#c9d2ff', '#1a1210', 1.3)
-    const sun = new DirectionalLight('#ffe9f1', 1.5)
+    // Key from above-right, a warm low fill from the front-left so faces and
+    // desk fronts aren't black, and a brighter sky term overall.
+    const hemi = new HemisphereLight('#c9d2ff', '#2a1d1a', 2.1)
+    const sun = new DirectionalLight('#ffe9f1', 2.4)
     sun.position.set(6, 14, 9)
-    scene.add(hemi, sun)
+    const fill = new DirectionalLight('#ffcfb8', 0.7)
+    fill.position.set(-8, 5, 12)
+    scene.add(hemi, sun, fill)
     const camera = new PerspectiveCamera(42, 1, 0.1, 140)
     const player = voxelPerson(accent)
     scene.add(player)
@@ -273,8 +277,8 @@ export default function SushOffice({
           tmp.copy(engine.camTarget.pos)
           look.copy(engine.camTarget.look)
         } else {
-          tmp.set(engine.pos.x, campusCam ? 15 : 6.4, engine.pos.z + (campusCam ? 15 : 6.8))
-          look.set(engine.pos.x, 0.9, engine.pos.z - (campusCam ? 7 : 2.4))
+          tmp.set(engine.pos.x, campusCam ? 15 : 5.6, engine.pos.z + (campusCam ? 15 : 6.2))
+          look.set(engine.pos.x, 0.9, engine.pos.z - (campusCam ? 7 : 3.2))
         }
         if (!engine.look) { engine.look = look.clone(); camera.position.copy(tmp) }
         const flying = camera.position.distanceTo(tmp) > 0.02 || engine.look.distanceTo(look) > 0.02
@@ -290,6 +294,8 @@ export default function SushOffice({
         for (const group of engine.desks) {
           const { desk, person, walkIn } = group.userData
           if (!desk.tabId || !person) continue
+          // Zoomed into this monitor: the camera sits where their head is.
+          person.visible = live.focusTabId !== desk.tabId
           const id = stateOf(desk.tabId, live.states, live.limits, live.tabs)
           // Meeting: walk from the desk to a spot around the table and back.
           const wantMeeting = !!meeting && live.meetingSet.has(desk.tabId)
@@ -437,6 +443,9 @@ export default function SushOffice({
       renderer.domElement.removeEventListener('webglcontextrestored', onRestored)
       disposeTree(scene)
       renderer.dispose()
+      // Release the GL context now rather than whenever GC gets to it;
+      // re-entering the Office repeatedly otherwise piles up contexts.
+      try { renderer.forceContextLoss() } catch {}
       renderer.domElement.remove()
       engineRef.current = null
     }
@@ -794,7 +803,7 @@ export default function SushOffice({
           <i><b style={{ width: `${Math.round(officeLevel.progress * 100)}%` }} /></i>
         </span>
       </div>
-      <div className="office-keys">WASD move · Shift run · E use · click anything{interior ? ' · Esc campus' : ''}</div>
+      <div className={`office-keys${(hint && !focusTabId) || focusTabId ? ' is-hidden' : ''}`}>WASD move · Shift run · E use · click anything{interior ? ' · Esc campus' : ''}</div>
 
       {hint && !focusTabId && (
         <div className={`office-hint is-${hint.kind}`}>

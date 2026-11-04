@@ -1,5 +1,5 @@
 import {
-  BoxGeometry, CanvasTexture, CylinderGeometry, Group, IcosahedronGeometry, Mesh, MeshBasicMaterial,
+  BoxGeometry, CanvasTexture, CylinderGeometry, LinearFilter, Group, IcosahedronGeometry, Mesh, MeshBasicMaterial,
   MeshLambertMaterial, NearestFilter, PlaneGeometry, RepeatWrapping, RingGeometry, Vector3
 } from 'three'
 import { DESK_D, DESK_W, WALL_H, WALL_T } from '../../lib/officeLayout'
@@ -36,6 +36,33 @@ export function checkerTexture(a, b, repeatX, repeatY) {
   return texture
 }
 
+// Soft contact shadow: one shared radial-gradient texture on a flat quad.
+// Real shadow maps would cost a second render per frame; a blob under each
+// object grounds it for free and reads well at pixel resolution.
+let shadowTex = null
+function shadowTexture() {
+  if (shadowTex) return shadowTex
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+  g.addColorStop(0, 'rgba(0,0,0,0.55)')
+  g.addColorStop(0.55, 'rgba(0,0,0,0.28)')
+  g.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 64, 64)
+  shadowTex = new CanvasTexture(canvas)
+  shadowTex.userData = { shared: true }
+  return shadowTex
+}
+export function blobShadow(w, d, opacity = 1, y = 0.012) {
+  const mesh = new Mesh(new PlaneGeometry(w, d), new MeshBasicMaterial({ map: shadowTexture(), transparent: true, opacity, depthWrite: false }))
+  mesh.rotation.x = -Math.PI / 2
+  mesh.position.y = y
+  mesh.renderOrder = 1
+  return mesh
+}
+
 // A voxel person: legs and arms pivot at hip/shoulder so walking, typing and
 // sitting are plain rotations.
 export function voxelPerson(color) {
@@ -54,6 +81,11 @@ export function voxelPerson(color) {
   head.add(box(0.05, 0.06, 0.02, eyes, 0.08, 0.02, 0.175))
   for (const leg of [legL, legR]) { leg.geometry.translate(0, -0.225, 0); leg.position.y += 0.225 }
   for (const arm of [armL, armR]) { arm.geometry.translate(0, -0.18, 0); arm.position.y += 0.18 }
+  // Hair cap + a belt line: two boxes that stop the figure reading as a
+  // skin-coloured cube on a block.
+  head.add(box(0.38, 0.1, 0.36, mat('#2a1f1c'), 0, 0.16, -0.01))
+  torso.add(box(0.47, 0.06, 0.29, mat('#16171c'), 0, -0.22, 0))
+  group.add(blobShadow(0.75, 0.6, 0.85))
   group.add(legL, legR, torso, armL, armR, head)
   group.userData.parts = { legL, legR, armL, armR, head, torso }
   return group
@@ -71,28 +103,40 @@ export function stand(person) {
 // ── Monitor screens (live terminal mirror) ────────────────────────────────
 export function screenTexture() {
   const canvas = document.createElement('canvas')
-  canvas.width = 256
-  canvas.height = 160
-  const texture = nearest(new CanvasTexture(canvas))
+  canvas.width = 512
+  canvas.height = 320
+  // Linear, not nearest: zoomed into a monitor the text must be readable.
+  const texture = new CanvasTexture(canvas)
+  texture.magFilter = LinearFilter
+  texture.minFilter = LinearFilter
   return { canvas, texture }
 }
 
 export function paintScreen(screen, { lines = [], color = '#8b9bb0', bg = '#07060c', title = '', sleeping = false }) {
   const ctx = screen.canvas.getContext('2d')
+  const W = 512, H = 320
   ctx.fillStyle = bg
-  ctx.fillRect(0, 0, 256, 160)
+  ctx.fillRect(0, 0, W, H)
+  // Faint vignette so the screen reads as a lit panel, not a flat sticker.
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.7)
+  v.addColorStop(0, 'rgba(255,255,255,0.035)')
+  v.addColorStop(1, 'rgba(0,0,0,0.25)')
+  ctx.fillStyle = v
+  ctx.fillRect(0, 0, W, H)
   ctx.fillStyle = color
-  ctx.fillRect(0, 0, 256, 14)
+  ctx.fillRect(0, 0, W, 30)
   ctx.fillStyle = '#0b0a10'
-  ctx.font = '700 10px ui-monospace, monospace'
-  ctx.fillText(title.slice(0, 36), 6, 10)
-  ctx.font = '10px ui-monospace, monospace'
+  ctx.font = '700 18px ui-monospace, monospace'
+  ctx.fillText(title.slice(0, 40), 12, 21)
+  ctx.font = '17px ui-monospace, monospace'
   if (sleeping) {
     ctx.fillStyle = '#6b6680'
-    ctx.fillText('sleeping — open to wake', 8, 86)
+    ctx.textAlign = 'center'
+    ctx.fillText('sleeping · open to wake', W / 2, H / 2 + 6)
+    ctx.textAlign = 'left'
   } else {
     ctx.fillStyle = '#d8d4ea'
-    lines.slice(-12).forEach((line, i) => ctx.fillText(String(line).slice(0, 42), 6, 28 + i * 11))
+    lines.slice(-12).forEach((line, i) => ctx.fillText(String(line).slice(0, 46), 12, 56 + i * 22))
   }
   screen.texture.needsUpdate = true
 }
@@ -105,6 +149,14 @@ export function buildDesk({ desk, theme, accent }) {
   for (const [lx, lz] of [[-0.7, -0.35], [0.7, -0.35], [-0.7, 0.35], [0.7, 0.35]]) group.add(box(0.07, 0.72, 0.07, wood, lx, 0.36, lz))
   const monitor = box(0.86, 0.56, 0.06, mat('#0f0e14'), 0, 1.1, -0.22)
   group.add(monitor, box(0.08, 0.2, 0.08, mat('#0f0e14'), 0, 0.86, -0.22))
+  group.add(box(0.34, 0.03, 0.2, mat('#0f0e14'), 0, 0.795, -0.22))
+  group.add(blobShadow(DESK_W + 0.7, DESK_D + 0.9, 0.9))
+  // Keyboard + the screen's glow spilling onto the desk top.
+  group.add(box(0.5, 0.025, 0.16, mat('#1c1a24'), 0, 0.79, 0.12))
+  const spill = new Mesh(new PlaneGeometry(1.1, 0.55), new MeshBasicMaterial({ color: desk.tabId ? '#9fb4ff' : accent, transparent: true, opacity: 0.1, depthWrite: false }))
+  spill.rotation.x = -Math.PI / 2
+  spill.position.set(0, 0.785, -0.02)
+  group.add(spill)
   const anchors = {}
   let screen = null
   if (desk.tabId) {
@@ -182,7 +234,17 @@ export function buildBuilding(building, theme, accent) {
   const h = 4.2
   const trim = theme.trim === 'accent' ? accent : theme.trim
   group.add(box(building.w, h, building.d, mat(theme.wall), 0, h / 2, 0))
-  group.add(box(building.w + 0.4, 0.3, building.d + 0.4, mat(trim), 0, h + 0.15, 0))
+  // Dark roof with a thin accent rim: the campus camera sees roofs from
+  // above, so a solid accent slab was the loudest thing on screen.
+  const rw = building.w + 0.4, rd = building.d + 0.4
+  group.add(box(rw, 0.3, rd, mat(theme.roof || '#262033'), 0, h + 0.15, 0))
+  const rim = mat(trim)
+  group.add(box(rw, 0.1, 0.1, rim, 0, h + 0.33, rd / 2 - 0.05))
+  group.add(box(rw, 0.1, 0.1, rim, 0, h + 0.33, -rd / 2 + 0.05))
+  group.add(box(0.1, 0.1, rd, rim, rw / 2 - 0.05, h + 0.33, 0))
+  group.add(box(0.1, 0.1, rd, rim, -rw / 2 + 0.05, h + 0.33, 0))
+  group.add(box(rw * 0.5, 0.18, rd * 0.4, mat('#1d1828'), rw * 0.12, h + 0.39, -rd * 0.1))
+  group.add(blobShadow(rw + 1.6, rd + 1.6, 0.7))
   group.add(box(1.6, 2.2, 0.1, mat('#08070c'), 0, 1.1, building.d / 2 + 0.02))
   group.add(box(1.9, 0.12, 0.14, mat(trim), 0, 2.26, building.d / 2 + 0.04))
   // One window per agent (up to 12) — lit by that agent's live state.
@@ -236,7 +298,8 @@ export function buildMeetingTable(meeting, theme, accent) {
   group.add(inlay)
   group.userData.inlay = inlay
   group.userData.accent = accent
-  group.userData.anchors = { label: new Vector3(meeting.x, 1.7, meeting.z) }
+  // Low, just above the table top: higher, it projected onto the desk row.
+  group.userData.anchors = { label: new Vector3(meeting.x, 0.95, meeting.z + 0.4) }
   return group
 }
 
@@ -288,7 +351,7 @@ export function disposeTree(root) {
   root.traverse(obj => {
     obj.geometry?.dispose?.()
     const materials = Array.isArray(obj.material) ? obj.material : obj.material ? [obj.material] : []
-    for (const m of materials) { m.map?.dispose?.(); m.dispose?.() }
+    for (const m of materials) { if (!m.map?.userData?.shared) m.map?.dispose?.(); m.dispose?.() }
   })
 }
 
