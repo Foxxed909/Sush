@@ -49,6 +49,7 @@ import ShellHeader from './components/shell/ShellHeader'
 import ShellSidebar from './components/shell/ShellSidebar'
 import ProviderLogo from './components/ProviderLogo'
 import { useNightlyShell } from './hooks/useNightlyShell'
+import { applyMotionPolicy } from './lib/motionPolicy'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -382,6 +383,9 @@ export default function App() {
   const [smartResult, setSmartResult] = useState(null)
   const [zenMode, setZenMode] = useState(false)
   const terminalSaver = effectiveSaver || zenMode
+  useEffect(() => {
+    applyMotionPolicy({ userReduce: !!settings.reduceMotion, eco: ecoMode, saver: effectiveSaver })
+  }, [settings.reduceMotion, ecoMode, effectiveSaver])
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showUserManager, setShowUserManager] = useState(false)
@@ -2287,11 +2291,16 @@ export default function App() {
   // Terminal mounted early would spawn its PTY with the host environment and
   // leak the real ~/.claude into the session. (All hooks above already ran,
   // so these early returns are safe.)
+  // The launch splash plays over whatever comes first: the identity check,
+  // onboarding / the lock screen, or the workspace (rendered at the end).
+  const splashLayer = splash ? <SplashScreen accent={accent} onDone={() => setSplash(false)} /> : null
   if (identity.loading) {
-    return <div style={{ height: '100vh', background: '#07090c' }} />
+    return <><div style={{ height: '100vh', background: '#07090c' }} />{splashLayer}</>
   }
   if (identity.locked) {
     return (
+      <>
+      {splashLayer}
       <LockScreen
         users={identity.users}
         lastUserId={identity.lastUserId}
@@ -2301,6 +2310,7 @@ export default function App() {
         onSwitchRequest={identity.signOut}
         onProviderSignedIn={identity.providerSignIn}
       />
+      </>
     )
   }
 
@@ -3124,7 +3134,7 @@ export default function App() {
       )}
 
       {splash && (
-        <SplashScreen accent={accent} onDone={() => setSplash(false)} />
+        splashLayer
       )}
 
       {/* Idle sleep — solid cover so the GPU can skip everything beneath */}

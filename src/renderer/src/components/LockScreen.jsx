@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icons'
 import ProviderButtons from './ProviderButtons'
-import { fileToAvatarDataUrl } from './ProfileViewer'
+import Onboarding from './Onboarding'
 import { rgba } from '../lib/ui'
 
 const USER_COLORS = ['#ff6b9d', '#a78bfa', '#5fd3a8', '#ffcb6b', '#60a5fa', '#f97316', '#38bdf8', '#ef4444']
@@ -138,6 +138,7 @@ function PinForm({ pin, setPin, phase, error, accent, inputRef, onSubmit, onTouc
 function GhostButton({ children, onClick, danger, autoFocus }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       autoFocus={autoFocus}
       className="sush-lock-ghost"
@@ -188,9 +189,7 @@ export default function LockScreen({
   // 'idle' | 'busy' | 'error' | 'success' — drives the PIN dots + card exit.
   const [phase, setPhase] = useState('idle')
   const [form, setForm] = useState({ name: '', color: USER_COLORS[0], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' })
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const pinInputRef = useRef(null)
-  const avatarFileRef = useRef(null)
   const now = useClock()
 
   // A provider flow finished: either main matched + activated an identity
@@ -271,18 +270,6 @@ export default function LockScreen({
 
   const resetCreateForm = () => setForm({ name: '', color: USER_COLORS[users.length % USER_COLORS.length], pin: '', isolation: 'cli', avatarUrl: '', providerTicket: '', providerLabel: '' })
 
-  const submitCreate = async (e) => {
-    e?.preventDefault?.()
-    if (busy) return
-    if (!form.name.trim()) { setError('Give yourself a name'); return }
-    if (form.pin && !/^\d{4,8}$/.test(form.pin)) { setError('PIN must be 4–8 digits'); return }
-    setBusy(true)
-    setError('')
-    const res = await onCreate(form)
-    if (!res?.ok) setError(res?.error || 'Could not create user')
-    setBusy(false)
-  }
-
   // Clock split into parts so the colon can carry the one sharp accent (and a
   // CSS-only pulse — no per-second timer, so it costs nothing on battery).
   const h24 = now.getHours()
@@ -301,6 +288,22 @@ export default function LockScreen({
   }, [users, form.color])
 
   const visibleUsers = mode === 'locked' ? [lockedUser].filter(Boolean) : users
+
+  // Creating a profile (first run, or "New profile" from the picker) is the
+  // step-by-step onboarding, not a form on this card.
+  if (mode === 'create') {
+    return (
+      <Onboarding
+        key={form.providerTicket || 'fresh'}
+        firstRun={firstRun}
+        initialColor={form.color}
+        seed={form.providerTicket ? { name: form.name, avatarUrl: form.avatarUrl, providerTicket: form.providerTicket, providerLabel: form.providerLabel } : null}
+        onCreate={onCreate}
+        onCancel={firstRun ? null : () => { setMode(lockedUser ? 'locked' : 'pick'); setError(''); resetCreateForm() }}
+        onProviderSignedIn={onProviderSignedIn}
+      />
+    )
+  }
 
   return (
     <div
@@ -377,162 +380,7 @@ export default function LockScreen({
           {/* keyed on mode so pick → PIN → create cross-fade instead of
               hard-swapping content inside the glass card */}
           <div key={mode} className="sush-lock-modeswap">
-          {mode === 'create' ? (
-            /* ── Create user ──────────────────────────────────────────────── */
-            <form onSubmit={submitCreate}>
-              <div style={{ textAlign: 'center', marginBottom: 18 }}>
-                <div
-                  onClick={() => avatarFileRef.current?.click()}
-                  title="Add a profile picture"
-                  style={{ display: 'inline-block', cursor: 'pointer', position: 'relative' }}
-                >
-                  <Avatar user={{ name: form.name || '?', color: form.color, avatar: form.name.trim() ? undefined : '+', avatarUrl: form.avatarUrl }} size={72} />
-                  <span className="flex items-center justify-center" style={{ position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: '50%', background: form.color, border: '2px solid var(--surface-0)', color: '#0a0a0c' }}>
-                    <Icon name={form.avatarUrl ? 'edit' : 'plus'} size={12} strokeWidth={2.5} />
-                  </span>
-                </div>
-                <input
-                  ref={avatarFileRef}
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    e.target.value = ''
-                    if (!file) return
-                    try {
-                      const dataUrl = await fileToAvatarDataUrl(file)
-                      setForm(f => ({ ...f, avatarUrl: dataUrl }))
-                    } catch {}
-                  }}
-                />
-                <div style={{ marginTop: 12, fontSize: 16, fontWeight: 900, color: 'var(--text-1)' }}>
-                  {firstRun ? 'Welcome to Sush' : 'New profile'}
-                </div>
-                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>
-                  {firstRun ? 'A profile is your own sealed world — CLI logins, theme, and sessions stay yours.' : 'A separate world: its own CLI logins, theme, and sessions.'}
-                </div>
-              </div>
-
-              <input
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Name"
-                autoFocus
-                spellCheck={false}
-                maxLength={32}
-                className="sush-lock-input"
-              />
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', margin: '14px 0' }}>
-                {USER_COLORS.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, color: c }))}
-                    className="sush-swatch"
-                    data-active={form.color === c}
-                    style={{ background: c, '--swatch-glow': rgba(c, 0.7) }}
-                    title={c}
-                  />
-                ))}
-              </div>
-
-              {form.providerTicket ? (
-                <div style={{ fontSize: 11, color: 'var(--text-3)', textAlign: 'center', marginBottom: 12 }}>
-                  <Icon name={form.providerLabel === 'GitHub' ? 'github' : 'google'} size={11} style={{ verticalAlign: -1, marginRight: 5 }} />
-                  Will be linked to your {form.providerLabel} account
-                </div>
-              ) : (
-                <div style={{ marginBottom: 14 }}>
-                  <ProviderButtons mode="signin" accent={form.color} compact onResult={handleProviderResult} />
-                </div>
-              )}
-
-              {/* Advanced is collapsed by default — a fresh profile just needs a
-                  name. PIN ("curious eyes" lock) and isolation level live here. */}
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(s => !s)}
-                className="flex items-center"
-                style={{ gap: 6, width: '100%', justifyContent: 'center', background: 'none', border: 'none', color: '#6b757e', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '4px 0 12px' }}
-              >
-                <Icon name={showAdvanced ? 'chevronDown' : 'chevronRight'} size={12} />
-                {showAdvanced ? 'Hide options' : 'PIN & isolation (optional)'}
-              </button>
-
-              {showAdvanced && (
-                <div className="sush-fade-up">
-                  <input
-                    value={form.pin}
-                    onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
-                    placeholder="PIN (optional, 4–8 digits)"
-                    inputMode="numeric"
-                    type="password"
-                    className="sush-lock-input"
-                  />
-                  <div style={{ fontSize: 10.5, color: 'var(--text-4)', margin: '6px 2px 12px', lineHeight: 1.5 }}>
-                    A PIN keeps curious eyes out on a shared PC — it isn't encryption.
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                    {[
-                      { id: 'cli', label: 'CLI isolation', desc: 'Recommended — separate agent logins' },
-                      { id: 'full', label: 'Full home', desc: 'Also separate git / ssh / npm' }
-                    ].map(opt => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setForm(f => ({ ...f, isolation: opt.id }))}
-                        style={{
-                          flex: 1,
-                          textAlign: 'left',
-                          padding: '9px 11px',
-                          borderRadius: 10,
-                          cursor: 'pointer',
-                          border: `1px solid ${form.isolation === opt.id ? rgba(form.color, 0.6) : 'rgba(255,255,255,0.1)'}`,
-                          background: form.isolation === opt.id ? rgba(form.color, 0.12) : 'rgba(255,255,255,0.03)'
-                        }}
-                      >
-                        <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: form.isolation === opt.id ? 'var(--text-1)' : 'var(--text-2)' }}>{opt.label}</span>
-                        <span style={{ display: 'block', fontSize: 10, color: 'var(--text-3)', marginTop: 2 }}>{opt.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {error && <div style={{ color: '#ff8aa0', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 10 }}>{error}</div>}
-
-              <button
-                type="submit"
-                disabled={busy}
-                style={{
-                  width: '100%',
-                  padding: '11px 0',
-                  borderRadius: 11,
-                  border: 'none',
-                  background: form.color,
-                  color: '#0a0a0c',
-                  fontWeight: 900,
-                  fontSize: 13.5,
-                  cursor: 'pointer',
-                  opacity: busy ? 0.6 : 1,
-                  boxShadow: `0 10px 28px ${rgba(form.color, 0.35)}`
-                }}
-              >
-                {busy ? 'Creating…' : firstRun ? 'Start using Sush' : 'Create profile'}
-              </button>
-
-              {!firstRun && (
-                <div style={{ textAlign: 'center', marginTop: 12 }}>
-                  <GhostButton onClick={() => { setMode('pick'); setError('') }}>
-                    <Icon name="arrowRight" size={12} style={{ transform: 'rotate(180deg)' }} /> Back
-                  </GhostButton>
-                </div>
-              )}
-            </form>
-          ) : mode === 'locked' ? (
+          {mode === 'locked' ? (
             /* ── Locked (resume the one signed-in user) ────────────────────── */
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <Avatar user={selected} size={84} />
