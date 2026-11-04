@@ -82,3 +82,32 @@ export function projectOptions(tabs = []) {
   }
   return [{ key: 'all', label: 'All projects' }, ...seen.values()]
 }
+
+// Directory → sessions tree for the sidebar. Pinned threads stay on a flat
+// shelf above the tree, settled ones below it; everything else is grouped by
+// project root. Projects keep first-seen order so headers never move under
+// the pointer; a project needing a human shows a dot on its header instead.
+export function sidebarTree(tabs = [], options = {}) {
+  const sections = sidebarSections(tabs, { ...options, project: 'all' })
+  const groups = new Map()
+  const order = []
+  for (const tab of tabs) {
+    const key = workspaceKey(tab)
+    if (!groups.has(key)) {
+      groups.set(key, { key, label: workspaceLabel(tab), cwd: tab.workspaceCwd || tab.sessionRootCwd || tab.cwd || '', tabs: [], attention: null, working: 0 })
+      order.push(key)
+    }
+  }
+  const activity = options.activity || {}
+  for (const tab of sections.active) {
+    const group = groups.get(workspaceKey(tab))
+    group.tabs.push(tab)
+    const state = tabState(tab, activity)
+    if (state === 'waiting' || state === 'error') group.attention = group.attention === 'error' ? 'error' : state
+    if (state === 'working' || state === 'booting') group.working += 1
+  }
+  const projects = order
+    .map(key => groups.get(key))
+    .filter(group => group.tabs.length)
+  return { pinned: sections.pinned, projects, settled: sections.settled }
+}

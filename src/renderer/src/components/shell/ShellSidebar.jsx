@@ -9,17 +9,17 @@ import { usePolling } from '../../hooks/usePolling'
 import { agentById } from '../../lib/agents'
 import { lineageTag } from '../../lib/lineage'
 import { workspaceKey, workspaceLabel } from '../../lib/workspaces'
-import { compactTimeLabel, projectOptions, rowStatus, sidebarSections, threadKey } from '../../lib/shellSidebar'
+import { compactTimeLabel, rowStatus, sidebarTree, threadKey } from '../../lib/shellSidebar'
 
-// Nightly thread sidebar, ported from T3 Code's Sidebar (MIT, (c) 2026 T3
-// Tools Inc.): search + new thread, a project filter, one flat list of thread
-// cards across projects, a collapsible Settled shelf, and an icon footer.
-// Same actions as the Stable rail — only the arrangement differs.
+// Nightly thread sidebar, after T3 Code's Sidebar (MIT, (c) 2026 T3 Tools
+// Inc.): search + new thread, pinned threads, a Directory → sessions tree
+// (each project folds open/closed, peeks open on hover), a collapsible
+// Settled shelf, and an icon footer. Same actions as the Stable rail.
 
 const PINNED_KEY = 'sush-shell-pinned-threads'
 const SETTLED_KEY = 'sush-shell-settled-threads'
 const SHELF_KEY = 'sush-shell-settled-open'
-const FILTER_KEY = 'sush-shell-project-filter'
+const COLLAPSED_KEY = 'sush-shell-collapsed-projects'
 
 function loadSet(key) {
   try {
@@ -81,46 +81,33 @@ function RenameInput({ initial, onCommit, onCancel }) {
   )
 }
 
-function ThreadCard({ tab, tabs, active, stateId, limited, branch, pinned, settled, editing, now, onSelect, onMenu, onRename, onStopEditing, onUnpin }) {
+function SessionRow({ tab, tabs, active, stateId, limited, pinned, settled, editing, now, showProject, onSelect, onMenu, onRename, onStopEditing, onUnpin }) {
   const agent = agentById(tab.agentId) || agentById('shell')
   const status = rowStatus(stateId, { limited })
   const lineage = lineageTag(tab, tabs, id => id)
   const time = compactTimeLabel(tab.lastActiveAt, now)
+  const sub = showProject ? workspaceLabel(tab) : (lineage ? `${lineage.arrow} ${lineage.text}` : tab.model || '')
   return (
     <li
-      className={`ts-card${active ? ' is-active' : ''}${settled ? ' is-settled' : ''}${status && !active ? ` has-${status.tone}` : ''}`}
+      className={`ts-row${active ? ' is-active' : ''}${settled ? ' is-settled' : ''}${status && !active ? ` has-${status.tone}` : ''}`}
       data-thread-id={tab.id}
     >
       <div
         role="button"
         tabIndex={0}
-        className="ts-card-surface"
+        className="ts-row-surface"
         aria-current={active ? 'page' : undefined}
-        title={tab.cwd || tab.workspaceCwd || tab.label}
+        title={[tab.label, tab.model, tab.cwd || tab.workspaceCwd].filter(Boolean).join(' · ')}
         onClick={() => onSelect(tab.id)}
         onKeyDown={e => { if (e.key === 'Enter') onSelect(tab.id) }}
         onDoubleClick={() => onRename(tab.id)}
         onContextMenu={e => onMenu(e, tab)}
       >
-        <div className="ts-card-top">
-          <span className="ts-project-mark"><Icon name="folder" size={12} /></span>
-          <span className="ts-project">{workspaceLabel(tab)}</span>
-          <span className="ts-flex" />
-          {pinned && (
-            <button type="button" className="ts-pin" aria-label="Unpin thread" title="Unpin thread" onClick={e => { e.stopPropagation(); onUnpin(tab) }}>
-              <Icon name="star" size={11} />
-            </button>
-          )}
-          {status ? (
-            <span className={`ts-status is-${status.tone}`} role="status">
-              <span className={`ts-status-dot${status.id === 'working' ? ' is-spinning' : ''}`} aria-hidden />
-              {status.label}
-            </span>
-          ) : (
-            <span className="ts-time">{time}</span>
-          )}
-        </div>
-        <div className="ts-title">
+        <span className="ts-row-lead">
+          <ProviderLogo provider={tab.agentId} size={13} title={agent?.label} className="ts-provider ts-row-logo" />
+          {status && <span className={`ts-row-badge is-${status.tone}${status.id === 'working' ? ' is-spinning' : ''}`} aria-hidden />}
+        </span>
+        <span className="ts-row-text">
           {editing ? (
             <RenameInput
               initial={tab.label}
@@ -128,22 +115,84 @@ function ThreadCard({ tab, tabs, active, stateId, limited, branch, pinned, settl
               onCancel={onStopEditing}
             />
           ) : (
-            <span>{tab.label}</span>
+            <span className="ts-row-title">{tab.label}</span>
           )}
-        </div>
-        <div className="ts-meta">
-          {branch ? (
-            <span className="ts-branch" title={`Branch ${branch.name}`}>
-              <Icon name="gitBranch" size={11} />
-              <span>{branch.name}</span>
-            </span>
-          ) : (
-            <span className="ts-branch is-muted">{lineage ? `${lineage.arrow} ${lineage.text}` : (tab.model || 'no repo')}</span>
-          )}
-          <span className="ts-flex" />
-          {tab.model && branch && <span className="ts-model">{tab.model}</span>}
-          <ProviderLogo provider={tab.agentId} size={14} title={agent?.label} className="ts-provider" />
-        </div>
+          {!settled && sub && <span className="ts-row-sub">{sub}</span>}
+        </span>
+        {pinned && (
+          <button type="button" className="ts-pin" aria-label="Unpin thread" title="Unpin thread" onClick={e => { e.stopPropagation(); onUnpin(tab) }}>
+            <Icon name="star" size={11} />
+          </button>
+        )}
+        {status ? (
+          <span className={`ts-status is-${status.tone}`} role="status">{status.label}</span>
+        ) : (
+          <span className="ts-time">{time}</span>
+        )}
+      </div>
+    </li>
+  )
+}
+
+// One directory in the tree. Click the header to open/close it (remembered);
+// resting the pointer on a closed one for a beat peeks it open until the
+// pointer leaves the group, so you can glance at its sessions without
+// committing. The body animates with the 0fr→1fr grid-rows trick, so height
+// is never measured in JS and nothing reflows outside the group.
+function ProjectGroup({ group, open, onToggle, branch, active, children, onNewSession, onMenu }) {
+  const [peek, setPeek] = useState(false)
+  const timer = useRef(null)
+  const shown = open || peek
+  const clear = () => { clearTimeout(timer.current); timer.current = null }
+  useEffect(() => clear, [])
+  const status = group.attention === 'error'
+    ? { tone: 'destructive', label: 'Failed' }
+    : group.attention === 'waiting'
+      ? { tone: 'warning', label: 'Needs input' }
+      : group.working ? { tone: 'info', label: `${group.working} working` } : null
+  return (
+    <li
+      className={`ts-project-group${shown ? ' is-open' : ''}${peek && !open ? ' is-peek' : ''}${active ? ' has-active' : ''}`}
+      onMouseLeave={() => { clear(); setPeek(false) }}
+    >
+      <div
+        className="ts-project-head"
+        role="button"
+        tabIndex={0}
+        aria-expanded={shown}
+        title={group.cwd}
+        onClick={() => { clear(); setPeek(false); onToggle(group.key) }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(group.key) }
+          if (e.key === 'ArrowRight' && !open) onToggle(group.key)
+          if (e.key === 'ArrowLeft' && open) onToggle(group.key)
+        }}
+        onMouseEnter={() => { if (!open) { clear(); timer.current = setTimeout(() => setPeek(true), 420) } }}
+        onContextMenu={e => onMenu(e, group)}
+      >
+        <span className="ts-chevron" aria-hidden><Icon name="chevronRight" size={12} /></span>
+        <span className="ts-folder" aria-hidden><Icon name={shown ? 'folderOpen' : 'folder'} size={14} /></span>
+        <span className="ts-project-name">{group.label}</span>
+        {branch && (
+          <span className={`ts-project-branch${branch.dirty ? ' is-dirty' : ''}`} title={`Branch ${branch.name}${branch.dirty ? ' · uncommitted changes' : ''}`}>
+            <Icon name="gitBranch" size={10} />{branch.name}
+          </span>
+        )}
+        <span className="ts-flex" />
+        {status && !shown && <span className={`ts-head-dot is-${status.tone}`} title={status.label} />}
+        <span className="ts-count">{group.tabs.length}</span>
+        <button
+          type="button"
+          className="ts-head-action"
+          title={`New session in ${group.label}`}
+          aria-label={`New session in ${group.label}`}
+          onClick={e => { e.stopPropagation(); onNewSession(group.cwd) }}
+        >
+          <Icon name="plus" size={13} />
+        </button>
+      </div>
+      <div className="ts-project-body" aria-hidden={!shown}>
+        <ul className="ts-project-list" inert={shown ? undefined : ''}>{children}</ul>
       </div>
     </li>
   )
@@ -178,27 +227,17 @@ export default function ShellSidebar({
   const [pinned, setPinned] = useState(() => loadSet(PINNED_KEY))
   const [settled, setSettled] = useState(() => loadSet(SETTLED_KEY))
   const [shelfOpen, setShelfOpen] = useState(() => localStorage.getItem(SHELF_KEY) === '1')
-  const [project, setProject] = useState(() => localStorage.getItem(FILTER_KEY) || 'all')
+  const [collapsed, setCollapsed] = useState(() => loadSet(COLLAPSED_KEY))
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
-  const [filterOpen, setFilterOpen] = useState(false)
   const [menu, setMenu] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [now, setNow] = useState(() => Date.now())
   usePolling(useCallback(() => setNow(Date.now()), []), 30000, true)
 
-  const filterRef = useRef(null)
-  useEffect(() => {
-    if (!filterOpen) return undefined
-    const close = e => { if (!filterRef.current?.contains(e.target)) setFilterOpen(false) }
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
-  }, [filterOpen])
-  const projects = useMemo(() => projectOptions(tabs), [tabs])
-  const projectFilter = projects.some(p => p.key === project) ? project : 'all'
-  const sections = useMemo(
-    () => sidebarSections(tabs, { activity, pinned, settled, project: projectFilter, query }),
-    [tabs, activity, pinned, settled, projectFilter, query]
+  const tree = useMemo(
+    () => sidebarTree(tabs, { activity, pinned, settled, query }),
+    [tabs, activity, pinned, settled, query]
   )
   const branches = useProjectBranches(tabs)
 
@@ -210,11 +249,9 @@ export default function ShellSidebar({
   })
   const togglePin = tab => toggleIn(setPinned, threadKey(tab), PINNED_KEY)
   const toggleSettled = tab => toggleIn(setSettled, threadKey(tab), SETTLED_KEY)
-  const chooseProject = key => {
-    setProject(key)
-    setFilterOpen(false)
-    try { localStorage.setItem(FILTER_KEY, key) } catch {}
-  }
+  const toggleProject = key => toggleIn(setCollapsed, key, COLLAPSED_KEY)
+  const activeTab = tabs.find(t => t.id === activeId)
+  const activeProject = activeTab ? workspaceKey(activeTab) : null
   const toggleShelf = () => setShelfOpen(prev => {
     try { localStorage.setItem(SHELF_KEY, prev ? '0' : '1') } catch {}
     return !prev
@@ -240,9 +277,23 @@ export default function ShellSidebar({
     event.preventDefault()
     setMenu({ x: event.clientX, y: event.clientY, items: threadMenu(tab) })
   }
+  const projectMenu = group => [
+    { label: 'New session here', icon: 'plus', onSelect: () => onNewInProject?.(group.cwd) },
+    { label: collapsed.has(group.key) ? 'Expand' : 'Collapse', icon: collapsed.has(group.key) ? 'chevronDown' : 'chevronRight', onSelect: () => toggleProject(group.key) },
+    { label: 'Collapse others', icon: 'layers', onSelect: () => {
+      const next = new Set(tree.projects.map(p => p.key).filter(k => k !== group.key))
+      saveSet(COLLAPSED_KEY, next); setCollapsed(next)
+    } },
+    { separator: true },
+    { label: 'Copy path', icon: 'file', onSelect: () => copyText(group.cwd) }
+  ]
+  const openProjectMenu = (event, group) => {
+    event.preventDefault()
+    setMenu({ x: event.clientX, y: event.clientY, items: projectMenu(group) })
+  }
 
-  const renderCard = (tab, { isSettled = false } = {}) => (
-    <ThreadCard
+  const renderRow = (tab, { isSettled = false, showProject = false } = {}) => (
+    <SessionRow
       key={tab.id}
       tab={tab}
       tabs={tabs}
@@ -250,7 +301,7 @@ export default function ShellSidebar({
       active={tab.id === activeId}
       stateId={tab.status === 'exited' ? 'error' : (activity[tab.id] || 'idle')}
       limited={!!limits[tab.id]}
-      branch={branches[workspaceKey(tab)]}
+      showProject={showProject}
       pinned={pinned.has(threadKey(tab))}
       settled={isSettled}
       editing={editingId === tab.id}
@@ -262,8 +313,7 @@ export default function ShellSidebar({
     />
   )
 
-  const currentProject = projects.find(p => p.key === projectFilter) || projects[0]
-  const empty = !sections.pinned.length && !sections.active.length && !sections.settled.length
+  const empty = !tree.pinned.length && !tree.projects.length && !tree.settled.length
 
   return (
     <aside className="ts-sidebar">
@@ -302,35 +352,6 @@ export default function ShellSidebar({
             <Icon name="edit" size={14} />
           </button>
         </div>
-        <div className="ts-filter-row">
-          <div className="ts-filter" ref={filterRef}>
-            <button className="ts-filter-btn" onClick={() => setFilterOpen(v => !v)} aria-haspopup="listbox" aria-expanded={filterOpen}>
-              <Icon name="folder" size={14} />
-              <span>{currentProject?.label || 'All projects'}</span>
-              <Icon name="chevronDown" size={12} />
-            </button>
-            {filterOpen && (
-              <ul className="ts-filter-menu" role="listbox">
-                {projects.map(p => (
-                  <li key={p.key}>
-                    <button role="option" aria-selected={p.key === projectFilter} onClick={() => chooseProject(p.key)}>
-                      <span>{p.label}</span>
-                      {p.key === projectFilter && <Icon name="check" size={12} />}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <button
-            className="ts-icon"
-            onClick={() => onNewInProject?.(currentProject?.cwd || null)}
-            title={projectFilter === 'all' ? 'Open a project' : `New thread in ${currentProject.label}`}
-            aria-label="Add project"
-          >
-            <Icon name="plus" size={14} />
-          </button>
-        </div>
       </div>
 
       <div className="ts-list sush-scroll">
@@ -341,15 +362,49 @@ export default function ShellSidebar({
             <span>{query ? 'Try another word, or double-click Search to hunt through output.' : 'Open a folder and launch an agent.'}</span>
           </button>
         )}
-        {sections.pinned.length > 0 && <ul className="ts-group">{sections.pinned.map(tab => renderCard(tab))}</ul>}
-        {sections.active.length > 0 && <ul className="ts-group">{sections.active.map(tab => renderCard(tab))}</ul>}
-        {sections.settled.length > 0 && (
+        {tree.pinned.length > 0 && (
+          <section className="ts-section">
+            <div className="ts-section-head"><span>Pinned</span></div>
+            <ul className="ts-group">{tree.pinned.map(tab => renderRow(tab, { showProject: true }))}</ul>
+          </section>
+        )}
+        {tree.projects.length > 0 && (
+          <section className="ts-section">
+            <div className="ts-section-head">
+              <span>Projects</span>
+              <button type="button" className="ts-section-action" onClick={() => onNewInProject?.(null)} title="Open a folder" aria-label="Open a folder">
+                <Icon name="plus" size={13} />
+              </button>
+            </div>
+            <ul className="ts-tree">
+              {tree.projects.map(group => (
+                <ProjectGroup
+                  key={group.key}
+                  group={group}
+                  open={!!query || !collapsed.has(group.key)}
+                  onToggle={toggleProject}
+                  branch={branches[group.key]}
+                  active={group.key === activeProject}
+                  onNewSession={cwd => onNewInProject?.(cwd)}
+                  onMenu={openProjectMenu}
+                >
+                  {group.tabs.map(tab => renderRow(tab))}
+                </ProjectGroup>
+              ))}
+            </ul>
+          </section>
+        )}
+        {tree.settled.length > 0 && (
           <div className="ts-shelf">
             <button className="ts-shelf-head" onClick={toggleShelf} aria-expanded={shelfOpen}>
-              <span>Settled ({sections.settled.length})</span>
-              <Icon name={shelfOpen ? 'chevronDown' : 'chevronRight'} size={12} />
+              <span className="ts-chevron" aria-hidden><Icon name="chevronRight" size={12} /></span>
+              <span>Settled</span>
+              <span className="ts-flex" />
+              <span className="ts-count">{tree.settled.length}</span>
             </button>
-            {shelfOpen && <ul className="ts-group">{sections.settled.map(tab => renderCard(tab, { isSettled: true }))}</ul>}
+            <div className={`ts-project-body${shelfOpen ? ' is-open' : ''}`}>
+              <ul className="ts-project-list" inert={shelfOpen ? undefined : ''}>{tree.settled.map(tab => renderRow(tab, { isSettled: true, showProject: true }))}</ul>
+            </div>
           </div>
         )}
       </div>
