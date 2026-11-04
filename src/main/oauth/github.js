@@ -17,7 +17,7 @@ const SCOPES = GITHUB_DEVICE_SCOPES
 
 let active = null
 
-async function persistGitHubLogin(userId, token, profile) {
+export async function persistGitHubLogin(userId, token, profile) {
   const stored = saveToken(userId, 'github', token, { login: profile.login, scopes: SCOPES })
   const cli = await syncGitHubCliToken({ token, configDir: `${userHomeDir(userId)}/.gh` })
   const warnings = [stored.ok ? '' : stored.error, cli.ok ? '' : `GitHub CLI was not signed in: ${cli.error}`].filter(Boolean)

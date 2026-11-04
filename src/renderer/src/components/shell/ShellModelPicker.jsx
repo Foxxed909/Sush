@@ -350,7 +350,8 @@ function ContextBudget({ provider, windowSize, onNewThread }) {
         style={{ '--ctx-fill': `${((value - range.min) / Math.max(1, range.max - range.min)) * 100}%` }}
         onChange={e => setDraft(Number(e.target.value) >= range.max ? null : Number(e.target.value))}
         onPointerUp={e => commit(Number(e.currentTarget.value))}
-        onKeyUp={e => commit(Number(e.currentTarget.value))}
+        // Only keys that move the slider commit; tabbing past must not save.
+        onKeyUp={e => { if (/^(Arrow|Page|Home|End)/.test(e.key)) commit(Number(e.currentTarget.value)) }}
       />
       <div className="ctx-budget-scale"><span>{formatTokens(range.min)}</span><span>{formatTokens(range.max)}</span></div>
       <form

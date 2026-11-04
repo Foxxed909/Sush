@@ -48,8 +48,8 @@ import {
   geminiThreadHooksEnabled, readGeminiSettings, setGeminiCompressionThreshold, setGeminiThreadHooks
 } from './thread-providers'
 import { setOauthConfig, publicOauthConfig } from './oauth/config'
-import { saveToken, deleteToken, encryptionAvailable } from './oauth/tokenStore'
-import { startGitHubFlow, cancelGitHubFlow } from './oauth/github'
+import { deleteToken, encryptionAvailable } from './oauth/tokenStore'
+import { startGitHubFlow, cancelGitHubFlow, persistGitHubLogin } from './oauth/github'
 import { startGoogleFlow, cancelGoogleFlow } from './oauth/google'
 import { startConnectFlow, cancelConnectFlow, finishConnectFlow, connectStatus, disconnectProvider, testProvider } from './oauth/connect'
 import { consumeTicket, peekTicket } from './oauth/tickets'
@@ -1657,7 +1657,7 @@ export function registerIpcHandlers(win) {
 
   // ── Sush Identities (multi-user isolation) ────────────────────────────────
   ipcMain.handle('sush:users-list', () => ({ users: listUsers(), active: getActiveUser(), lastUserId: getLastUserId() }))
-  ipcMain.handle('sush:users-create', (event, payload) => {
+  ipcMain.handle('sush:users-create', async (event, payload) => {
     const { providerTicket, ...form } = payload ?? {}
     let ticket = null
     if (providerTicket) {
@@ -1669,10 +1669,14 @@ export function registerIpcHandlers(win) {
     if (!created.ok || !ticket) return created
     consumeTicket(providerTicket)
     const linked = linkProvider({ id: created.user.id, provider: ticket.provider, profile: ticket.profile })
+    if (!linked.ok) return { ok: true, user: created.user, warning: linked.error }
+    // Same persistence as a returning GitHub sign-in: token with its scopes,
+    // plus the identity's gh CLI. Only for an account that actually linked.
+    let warning
     if (ticket.provider === 'github' && ticket.token) {
-      saveToken(created.user.id, 'github', ticket.token, { login: ticket.profile.login })
+      warning = await persistGitHubLogin(created.user.id, ticket.token, ticket.profile)
     }
-    return { ok: true, user: linked.ok ? linked.user : created.user }
+    return { ok: true, user: linked.user, warning }
   })
   ipcMain.handle('sush:users-update', (event, payload = {}) => {
     const target = activeIdentityTarget(payload)
