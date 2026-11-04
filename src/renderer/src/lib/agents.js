@@ -103,3 +103,20 @@ export const agentById = (id) => allAgents().find(a => a.id === id) || null
 
 /** Providers that participate in account slots + the usage pool popover. */
 export const POOL_PROVIDERS = ['claude', 'codex', 'gemini', 'opencode', 'grok']
+
+// Resume THIS conversation, not "the latest in this folder". With several
+// agents in one project, `claude --continue` / `codex resume --last` attach
+// to whichever conversation ran last, possibly a sibling's. When the thread
+// bridge knows a tab's session id, these CLIs can take it directly.
+// Only same-account restarts use it: another account may keep its sessions
+// in a different config dir, where the id does not exist.
+const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/
+const EXACT_RESUME = {
+  claude: id => `claude --resume ${id}`,
+  codex: id => `codex resume ${id}`
+}
+export function exactResumeCommand(agentId, sessionId) {
+  const build = EXACT_RESUME[agentId]
+  const id = String(sessionId || '')
+  return build && SESSION_ID.test(id) ? build(id) : null
+}

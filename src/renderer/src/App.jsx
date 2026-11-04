@@ -13,7 +13,7 @@ import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { allThemes, getTheme } from './themes'
 import { parseStoredObject } from './lib/storage'
-import { agentById, MAX_SESSIONS, LOGIN_COMMANDS } from './lib/agents'
+import { agentById, MAX_SESSIONS, LOGIN_COMMANDS, exactResumeCommand } from './lib/agents'
 import { loadCrews, crewToAgents } from './lib/crews'
 import { runningTargets as seduciaTargets } from './lib/seducia'
 import { accentVars, glassVars, rgba } from './lib/ui'
@@ -1713,7 +1713,13 @@ export default function App() {
     const effort = requestedEffort == null ? null : normalizeEffort(provider, requestedEffort, model || requestedModel)
     if (requestedModel && !model) return { ok: false, error: 'invalid-model' }
     if (requestedEffort && !effort) return { ok: false, error: 'invalid-effort' }
-    const command = buildAgentCommand(agent, { model, effort, resume: true })
+    let resumeAgent = agent
+    try {
+      const bound = await window.sush.threadRead?.({ tabId })
+      const exact = bound?.bound && bound.provider === provider ? exactResumeCommand(provider, bound.sessionId) : null
+      if (exact) resumeAgent = { ...agent, resumeCommand: exact }
+    } catch {}
+    const command = buildAgentCommand(resumeAgent, { model, effort, resume: true })
     if (!command) return { ok: false, error: 'unsupported-provider' }
 
     const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel } = tab

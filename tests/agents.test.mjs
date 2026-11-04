@@ -45,3 +45,15 @@ describe('custom agents', () => {
     expect(loadCustomAgents().map(agent => agent.color)).toEqual(['#8b9bb0', '#8b9bb0'])
   })
 })
+
+describe('exactResumeCommand', () => {
+  it('resumes a bound conversation by id and refuses unsafe ids', async () => {
+    const { exactResumeCommand } = await import('../src/renderer/src/lib/agents.js')
+    expect(exactResumeCommand('claude', '123e4567-e89b-42d3-a456-426614174000')).toBe('claude --resume 123e4567-e89b-42d3-a456-426614174000')
+    expect(exactResumeCommand('codex', '0199a2b3-c4d5-7e6f-8a9b-0c1d2e3f4a5b')).toBe('codex resume 0199a2b3-c4d5-7e6f-8a9b-0c1d2e3f4a5b')
+    expect(exactResumeCommand('gemini', '123e4567-e89b-42d3-a456-426614174000')).toBeNull()
+    expect(exactResumeCommand('claude', 'abc; rm -rf ~')).toBeNull()
+    expect(exactResumeCommand('claude', '--dangerously-skip')).toBeNull()
+    expect(exactResumeCommand('claude', '')).toBeNull()
+  })
+})
