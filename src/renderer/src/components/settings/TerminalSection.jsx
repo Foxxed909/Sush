@@ -26,26 +26,21 @@ function PanelTabChooser({ accent, settings, set }) {
   return (
     <Row>
       <Label>Sidebar tabs</Label>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="st-check-groups">
         {TAB_GROUPS.map(g => (
-          <div key={g.id}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.8, color: 'var(--text-5)', textTransform: 'uppercase', marginBottom: 5 }}>{g.label}</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div key={g.id} className="st-check-group">
+            <div className="st-check-title">{g.label}</div>
+            <div className="st-check-grid">
               {g.tabs.map(t => {
                 const on = !hidden.has(t.id)
                 const locked = t.id === 'agent'
                 return (
-                  <button
-                    key={t.id}
-                    onClick={() => { if (!locked) toggle(t.id) }}
-                    disabled={locked}
-                    title={locked ? 'Agent is always shown' : on ? 'Visible — click to hide' : 'Hidden — click to show'}
-                    className="flex items-center"
-                    style={{ gap: 6, padding: '5px 11px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, cursor: locked ? 'default' : 'pointer', background: on ? rgba(accent, 0.12) : 'var(--surface-2)', color: on ? accent : 'var(--text-4)', border: `1px solid ${on ? rgba(accent, 0.4) : 'var(--border-2)'}`, opacity: locked ? 0.7 : 1 }}
-                  >
-                    <Icon name={t.icon} size={12} strokeWidth={2} />
-                    {t.label}
-                  </button>
+                  <label key={t.id} className={`st-check${locked ? ' is-locked' : ''}`} title={locked ? 'Agent is always shown' : undefined}>
+                    <input type="checkbox" checked={on} disabled={locked} onChange={() => { if (!locked) toggle(t.id) }} />
+                    <span className="st-check-box" aria-hidden><svg viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-5" /></svg></span>
+                    <Icon name={t.icon} size={14} strokeWidth={1.8} />
+                    <span>{t.label}</span>
+                  </label>
                 )
               })}
             </div>

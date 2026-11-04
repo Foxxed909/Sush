@@ -202,16 +202,27 @@ export default function AppearanceSection({ accent, settings, set }) {
 
       <Row>
         <Label>Theme</Label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {Object.values(allThemes()).map(t => (
-            <button key={t.id} onClick={() => set('themeId', t.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, cursor: 'pointer', background: (settings.themeId ?? 'pink') === t.id ? rgba(t.ui.accent, 0.1) : 'var(--surface-2)', border: `1px solid ${(settings.themeId ?? 'pink') === t.id ? t.ui.accent : 'var(--border-2)'}`, color: 'var(--text-2)', fontSize: 13, textAlign: 'left' }}>
-              <div style={{ width: 14, height: 14, borderRadius: '50%', background: t.ui.accent, flexShrink: 0, boxShadow: `0 0 6px ${t.ui.accent}` }} />
-              {t.label}
-              {t.custom && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: 'var(--text-4)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '1px 6px' }}>CUSTOM</span>}
-              {(settings.themeId ?? 'pink') === t.id && <Icon name="check" size={13} color={t.ui.accent} style={{ marginLeft: 'auto' }} />}
-            </button>
-          ))}
+        <div className="st-swatches" role="radiogroup" aria-label="Theme">
+          {Object.values(allThemes()).map(t => {
+            const on = (settings.themeId ?? 'pink') === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                className="st-swatch"
+                title={t.label}
+                onClick={() => set('themeId', t.id)}
+                style={{ '--sw': t.ui.accent }}
+              >
+                <span className="st-swatch-dot" />
+                <span className="st-swatch-label">{t.label}{t.custom ? ' · custom' : ''}</span>
+              </button>
+            )
+          })}
         </div>
+        <Hint>Sets the accent colour and terminal palette everywhere.</Hint>
       </Row>
 
       <CustomThemeRow accent={accent} settings={settings} set={set} />

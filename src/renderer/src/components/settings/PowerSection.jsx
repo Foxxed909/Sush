@@ -2,7 +2,7 @@ import React from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { PERF_MODES, perfModeOf, withPerfMode, isFeather, withFeather } from '../../lib/power'
-import { Section, Row, Label, Hint, Toggle } from './primitives'
+import { Section, Row, Label, Hint, Toggle, Segment } from './primitives'
 
 // Power — everything battery/CPU shaped in one place. The headline is the
 // performance-mode LADDER: four rungs where each includes everything below
@@ -45,39 +45,13 @@ export default function PowerSection({ accent, settings, set, onChange }) {
         <Label>Performance mode</Label>
         {/* The ladder: rungs light up cumulatively so "Saver includes Reduced"
             is visible, not documentation. */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {PERF_MODES.map((m, i) => {
-            const activeIdx = PERF_MODES.indexOf(mode)
-            const on = m === mode
-            const included = i < activeIdx
-            const meta = MODE_META[m]
-            return (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className="flex items-center justify-center"
-                style={{
-                  gap: 5,
-                  flex: 1,
-                  padding: '8px 0',
-                  borderRadius: 'var(--r-sm)',
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  background: on ? accent : included ? rgba(accent, 0.1) : 'var(--surface-2)',
-                  color: on ? '#0a0a0a' : included ? accent : 'var(--text-3)',
-                  border: `1px solid ${on ? accent : included ? rgba(accent, 0.35) : 'var(--border-2)'}`
-                }}
-              >
-                <Icon name={meta.icon} size={12} strokeWidth={2.2} />
-                {meta.label}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.55, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}>
-          <strong style={{ color: accent }}>{MODE_META[mode].label}:</strong> {MODE_META[mode].blurb}
-        </div>
+        <Segment
+          accent={accent}
+          value={mode}
+          onChange={setMode}
+          options={PERF_MODES.map(m => [m, MODE_META[m].label])}
+        />
+        <Hint><strong style={{ color: 'var(--text-2)', fontWeight: 600 }}>{MODE_META[mode].label}:</strong> {MODE_META[mode].blurb}</Hint>
         <Hint>Each mode includes everything to its left. Battery, quiet hours, and focus mode can raise the level temporarily; your choice here is the floor.</Hint>
       </Row>
 
@@ -116,20 +90,12 @@ export default function PowerSection({ accent, settings, set, onChange }) {
 
       <Row>
         <Label>Sleep after inactivity</Label>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {SLEEP_MINUTES.map(mins => {
-            const on = (settings.idleSleepMinutes ?? 10) === mins
-            return (
-              <button
-                key={mins}
-                onClick={() => set('idleSleepMinutes', mins)}
-                style={{ padding: '7px 13px', borderRadius: 8, border: `1px solid ${on ? rgba(accent, 0.5) : 'var(--border-2)'}`, background: on ? rgba(accent, 0.12) : 'var(--surface-2)', color: on ? accent : 'var(--text-3)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-              >
-                {mins === 0 ? 'Off' : `${mins} min`}
-              </button>
-            )
-          })}
-        </div>
+        <Segment
+          accent={accent}
+          value={settings.idleSleepMinutes ?? 10}
+          onChange={mins => set('idleSleepMinutes', mins)}
+          options={SLEEP_MINUTES.map(mins => [mins, mins === 0 ? 'Off' : `${mins} min`])}
+        />
         <Hint>No input for this long and Sush dims, freezes animations, and stops every poll — terminals and agents keep running. Any key or click wakes it.</Hint>
       </Row>
     </Section>

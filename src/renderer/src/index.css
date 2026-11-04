@@ -3089,3 +3089,113 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .sush-t3 .sd-toolbar { height: 40px; border-bottom-color: rgba(255,255,255,.06); }
 .sush-t3 .sd-file-head { border-radius: 8px 8px 0 0; }
 .sush-t3 .sd-commit { border-radius: var(--mac-radius-control); }
+
+/* ── Settings as macOS System Settings ── */
+.st-root { background: var(--surface-0); }
+.st-nav { width: 240px; background: var(--mac-sidebar); border-right: 1px solid rgba(0,0,0,.5); box-shadow: inset -1px 0 0 rgba(255,255,255,.04); padding: 0 10px 16px; gap: 1px; }
+.st-nav-head { height: 52px; padding: 0 10px; display: flex; align-items: center; }
+.st-search { height: 28px; margin: 0 0 10px; border-radius: 7px; background: var(--mac-fill); box-shadow: none; }
+.st-search:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-accent) 45%, transparent); }
+.st-nav-group { margin-bottom: 12px; gap: 1px; }
+.st-nav-title { padding: 4px 10px 4px; font-size: 11px; font-weight: 700; color: var(--text-4); }
+.st-nav-item { height: 30px; gap: 9px; padding: 0 8px; border-radius: 6px; font-size: 13px; font-weight: 400; color: var(--text-1); cursor: default; }
+.st-nav-item:hover { background: rgba(255,255,255,.05); }
+.st-nav-item.is-active { background: var(--mac-accent-strong); color: #fff; }
+.st-tile {
+  flex-shrink: 0; display: inline-grid; place-items: center; border-radius: 22%; color: #fff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tile) 100%, #fff 12%), var(--tile));
+  box-shadow: inset 0 0.5px 0 rgba(255,255,255,.3), 0 0.5px 1.5px rgba(0,0,0,.4);
+}
+.st-tile svg { color: #fff !important; }
+.st-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.st-toolbar {
+  height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 16px;
+  background: var(--mac-toolbar); border-bottom: 1px solid rgba(0,0,0,.5); box-shadow: 0 1px 0 rgba(255,255,255,.035);
+  -webkit-app-region: drag;
+}
+.st-toolbar h1 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+.st-back { width: 28px; height: 28px; margin: 0; padding: 0; display: grid; place-items: center; border-radius: 6px; color: var(--text-2); -webkit-app-region: no-drag; cursor: default; }
+.st-back:hover { background: var(--mac-fill-2); }
+.st-column { max-width: 660px; margin: 0 auto; padding: 28px 32px 72px; }
+.st-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.st-hero h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.015em; }
+.st-hero p { margin: 3px 0 0; font-size: 12.5px; color: var(--text-3); line-height: 1.4; }
+.st-column:not(.is-search) .st-section-head { display: none; }
+.st-column.is-search .st-section-head { margin: 0 0 8px 4px; }
+.st-column.is-search .st-section-head h2 { font-size: 13px; font-weight: 700; }
+.st-column.is-search .st-section-head p { display: none; }
+.st-section + .st-section { margin-top: 26px; }
+/* Grouped inset list */
+.st-section-body {
+  border-radius: 10px; background: rgba(255,255,255,.04);
+  box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.09); overflow: hidden;
+}
+.st-section-body > * { padding-left: 16px; padding-right: 16px; }
+.st-section-body > :first-child { padding-top: 14px; }
+.st-section-body > :last-child { padding-bottom: 14px; }
+.st-row { position: relative; padding: 13px 16px; border-top: 0; }
+.st-row + .st-row::before, .st-section-body > * + .st-row::before {
+  content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: rgba(255,255,255,.07);
+}
+.st-section-body > .st-row:first-child::before { display: none; }
+.st-row:last-child { padding-bottom: 13px; }
+.st-label { font-size: 13px; font-weight: 500; color: var(--text-1); margin-bottom: 8px; }
+.st-hint { font-size: 11.5px; color: var(--text-4); }
+.st-toggle { font-size: 13px; font-weight: 400; color: var(--text-1); }
+.st-toggle > svg { color: var(--text-3); }
+.st-toggle.is-on > svg { color: var(--text-3); }
+.st-switch { width: 38px; height: 22px; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.2); }
+.st-switch > span { top: 2px; left: 2px; width: 18px; height: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 0 0 0.5px rgba(0,0,0,.1); }
+.st-toggle.is-on .st-switch { background: var(--mac-accent-strong); }
+.st-toggle.is-on .st-switch > span { transform: translateX(16px); }
+.st-toggle.is-on:active:not(:disabled) .st-switch > span { transform: translateX(13px); }
+.st-segment { background: var(--mac-fill); box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.06); border-radius: 7px; }
+.st-root input[type="text"], .st-root input:not([type]), .st-root input[type="time"], .st-root input[type="number"], .st-root select, .st-root textarea {
+  border-radius: 6px !important; background: rgba(255,255,255,.06) !important; border: 0 !important;
+  box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.14), 0 0.5px 1px rgba(0,0,0,.2); color: var(--text-1) !important;
+}
+.st-root input[type="range"] { accent-color: var(--st-accent); }
+/* Checkbox grid (sidebar tabs) */
+.st-check-groups { display: grid; gap: 12px; }
+.st-check-title { font-size: 11.5px; color: var(--text-4); margin-bottom: 6px; }
+.st-check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }
+.st-check { display: flex; align-items: center; gap: 8px; height: 26px; font-size: 13px; color: var(--text-1); cursor: default; }
+.st-check input { position: absolute; opacity: 0; pointer-events: none; }
+.st-check-box {
+  width: 15px; height: 15px; flex-shrink: 0; display: grid; place-items: center; border-radius: 4px;
+  background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.2), 0 0.5px 1px rgba(0,0,0,.3);
+  transition: background-color var(--dur-quick) ease;
+}
+.st-check-box svg { width: 11px; height: 11px; opacity: 0; }
+.st-check-box path { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.st-check input:checked + .st-check-box { background: var(--mac-accent-strong); box-shadow: inset 0 0.5px 0 rgba(255,255,255,.25); }
+.st-check input:checked + .st-check-box svg { opacity: 1; }
+.st-check input:focus-visible + .st-check-box { outline: 3px solid color-mix(in srgb, var(--st-accent) 55%, transparent); }
+.st-check svg:not(.st-check-box svg) { color: var(--text-3); }
+.st-check.is-locked { opacity: .55; }
+/* Accent / theme swatches */
+.st-swatches { display: flex; flex-wrap: wrap; gap: 14px 18px; }
+.st-swatch { display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: default; color: var(--text-3); font: 400 11px/1.2 var(--font-ui); max-width: 84px; text-align: center; }
+.st-swatch-dot {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--sw);
+  box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.25), 0 1px 2px rgba(0,0,0,.35);
+  transition: box-shadow var(--dur-quick) ease, transform var(--dur-base) var(--ease-sheet);
+}
+.st-swatch:hover .st-swatch-dot { transform: scale(1.08); }
+.st-swatch[aria-checked="true"] { color: var(--text-1); }
+.st-swatch[aria-checked="true"] .st-swatch-dot { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--sw); }
+.st-root .st-search input { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; }
+/* Push buttons: every plain button inside a settings row reads as a macOS
+   push button (sections still carry older inline styles). */
+.st-row button:not([class]), .st-row button.flex:not(.st-toggle):not(.st-swatch):not(.st-segment > button) {
+  min-height: 28px; height: auto; padding: 5px 12px !important; gap: 6px !important;
+  border-radius: 6px !important; border: 0 !important;
+  background: rgba(255,255,255,.11) !important; color: var(--text-1) !important;
+  font-size: 13px !important; font-weight: 500 !important;
+  box-shadow: inset 0 0.5px 0 rgba(255,255,255,.12), 0 0.5px 1.5px rgba(0,0,0,.35) !important;
+  cursor: default !important; transition: background-color var(--dur-quick) ease;
+}
+.st-row button:not([class]):hover, .st-row button.flex:not(.st-toggle):not(.st-swatch):not(.st-segment > button):hover { background: rgba(255,255,255,.16) !important; }
+.st-row button:not([class]):active, .st-row button.flex:not(.st-toggle):not(.st-swatch):not(.st-segment > button):active { background: rgba(255,255,255,.22) !important; }
+.st-row button:not([class]) svg, .st-row button.flex:not(.st-toggle):not(.st-swatch):not(.st-segment > button) svg { color: var(--text-2) !important; }
+.st-row button:not([class]):disabled { opacity: .45; }

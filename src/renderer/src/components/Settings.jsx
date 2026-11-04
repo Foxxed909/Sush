@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { useEntitlements } from '../hooks/useEntitlements'
+import TrafficLights from './shell/TrafficLights'
 import PlanSection from './settings/PlanSection'
 import AccountsSection from './settings/AccountsSection'
 import UsageSection from './settings/UsageSection'
@@ -11,6 +12,7 @@ import TerminalSection from './settings/TerminalSection'
 import AppearanceSection from './settings/AppearanceSection'
 import PowerSection from './settings/PowerSection'
 import SystemSection from './settings/SystemSection'
+import { SECTION_DESCRIPTIONS } from './settings/primitives'
 
 // The Settings shell: header, searchable nav, scroll-spy, and the sections —
 // each of which lives in its own file under ./settings. The nav array below
@@ -20,17 +22,23 @@ import SystemSection from './settings/SystemSection'
 // Search is row-level: the query matches each setting row's rendered text
 // (label, state text, description), not just section names — so "tray",
 // "wallpaper" or "quiet hours" land on the exact control.
+// `tile`: the System Settings-style coloured square behind each icon.
 const SETTINGS_NAV = [
-  { id: 'Plan', label: 'Profile & plan', icon: 'star', group: 'You' },
-  { id: 'Accounts', label: 'Accounts', icon: 'users', group: 'You' },
-  { id: 'Usage & Guard', label: 'Usage & limits', icon: 'activity', group: 'You' },
-  { id: 'Agents & Seducia', label: 'Agents', icon: 'rocket', group: 'Agents' },
-  { id: 'Voice & Dictation', label: 'Voice', icon: 'mic', group: 'Agents' },
-  { id: 'Appearance', label: 'Appearance', icon: 'palette', group: 'Workspace' },
-  { id: 'Terminal', label: 'Terminal', icon: 'terminal', group: 'Workspace' },
-  { id: 'Power', label: 'Performance', icon: 'leaf', group: 'Workspace' },
-  { id: 'System', label: 'Advanced', icon: 'layers', group: 'Workspace' }
+  { id: 'Plan', label: 'Profile & plan', icon: 'star', group: 'You', tile: 'accent' },
+  { id: 'Accounts', label: 'Accounts', icon: 'users', group: 'You', tile: '#0a84ff' },
+  { id: 'Usage & Guard', label: 'Usage & limits', icon: 'activity', group: 'You', tile: '#30d158' },
+  { id: 'Agents & Seducia', label: 'Agents', icon: 'rocket', group: 'Agents', tile: '#bf5af2' },
+  { id: 'Voice & Dictation', label: 'Voice', icon: 'mic', group: 'Agents', tile: '#ff453a' },
+  { id: 'Appearance', label: 'Appearance', icon: 'palette', group: 'Workspace', tile: '#5e5ce6' },
+  { id: 'Terminal', label: 'Terminal', icon: 'terminal', group: 'Workspace', tile: '#3a3a3c' },
+  { id: 'Power', label: 'Performance', icon: 'leaf', group: 'Workspace', tile: '#ff9f0a' },
+  { id: 'System', label: 'Advanced', icon: 'layers', group: 'Workspace', tile: '#8e8e93' }
 ]
+const Tile = ({ item, size = 20 }) => (
+  <span className="st-tile" style={{ '--tile': item.tile === 'accent' ? 'var(--st-accent)' : item.tile, width: size, height: size }} aria-hidden>
+    <Icon name={item.icon} size={Math.round(size * 0.62)} strokeWidth={2.1} />
+  </span>
+)
 const NAV_GROUPS = ['You', 'Agents', 'Workspace']
 const LAST_KEY = 'sush-settings-page'
 
@@ -118,10 +126,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
     <div className="st-root sush-page-in" style={{ '--st-accent': accent, '--st-accent-soft': rgba(accent, 0.12) }}>
       <nav className="st-nav sush-scroll" aria-label="Settings sections">
         <div className="st-nav-head">
-          <button type="button" className="st-back" onClick={onClose} title="Back to Sush (Esc)">
-            <Icon name="chevronLeft" size={14} /> Back
-          </button>
-          <h1>Settings</h1>
+          <TrafficLights />
         </div>
         <label className="st-search">
           <Icon name="search" size={13} />
@@ -148,7 +153,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
                   aria-current={!q && page === item.id ? 'page' : undefined}
                   onClick={() => goTo(item.id)}
                 >
-                  <Icon name={item.icon} size={15} strokeWidth={1.8} />
+                  <Tile item={item} />
                   <span>{item.label}</span>
                 </button>
               ))}
@@ -158,8 +163,24 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
         {q && !matchedSecs.size && <div className="st-nav-empty">No settings match “{query}”.</div>}
       </nav>
 
+      <div className="st-main">
+      <header className="st-toolbar">
+        <button type="button" className="st-back" onClick={onClose} title="Back to Sush (Esc)" aria-label="Back to Sush">
+          <Icon name="chevronLeft" size={16} strokeWidth={2.2} />
+        </button>
+        <h1>{q ? 'Search' : current?.label}</h1>
+      </header>
       <main ref={bodyRef} className="st-body sush-scroll" aria-label={q ? 'Search results' : current?.label}>
-        <div className="st-column" key={q ? 'search' : page}>
+        <div className={`st-column${q ? " is-search" : ""}`} key={q ? "search" : page}>
+          {!q && current && (
+            <div className="st-hero">
+              <Tile item={current} size={44} />
+              <div>
+                <h2>{current.label}</h2>
+                <p>{SECTION_DESCRIPTIONS[current.id]}</p>
+              </div>
+            </div>
+          )}
           {q && <div className="st-results-head">Results for “{query}”</div>}
           {show('Plan') && <PlanSection accent={accent} ent={ent} settings={settings} onChange={onChange} />}
           {show('Accounts') && <AccountsSection accent={accent} />}
@@ -173,6 +194,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {q && !matchedSecs.size && <div className="st-empty">Nothing matches “{query}”. Try a shorter word.</div>}
         </div>
       </main>
+      </div>
     </div>
   )
 }
