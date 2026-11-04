@@ -82,6 +82,7 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           <button
+            type="button"
             onClick={() => window.sush.openExternal({ url: device.verificationUri })}
             style={{
               ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer',
@@ -90,7 +91,7 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
           >
             <Icon name="github" size={13} /> Open github.com
           </button>
-          <button onClick={cancel} style={{ ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer' }}>Cancel</button>
+          <button type="button" onClick={cancel} style={{ ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer' }}>Cancel</button>
         </div>
         <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 8 }}>Waiting for you to approve in the browser...</div>
       </div>
@@ -103,7 +104,7 @@ export default function ProviderButtons({ mode, userId, accent = '#ff6b9d', comp
         <div style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 700, marginBottom: 8 }}>
           Check your browser to finish signing in with Google
         </div>
-        <button onClick={cancel} style={{ ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer' }}>Cancel</button>
+        <button type="button" onClick={cancel} style={{ ...btnStyle, flex: 'none', opacity: 1, cursor: 'pointer' }}>Cancel</button>
       </div>
     )
   }

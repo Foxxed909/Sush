@@ -666,7 +666,7 @@ export default function App() {
 
   // ── Nightly shell (T3-style) vs Stable (Quiet Nights) ──────────────────────
   const {
-    uiChannel, nightlyShell, currentShellMode, setShellMode, setUiChannel,
+    uiChannel, nightlyShell, currentShellMode, setShellMode, leaveCoveringMode, setUiChannel,
     drawerOpen, toggleDrawer, drawerHeight, startDrawerDrag,
     officeFocus, setOfficeFocus, placement, threadInCenter, coverSurface
   } = useNightlyShell({
@@ -1294,8 +1294,8 @@ export default function App() {
     setActiveId(id)
     setView('terminal')
     // T3: picking a thread shows it, so leave the covering Chat/Office modes.
-    setShellModeState(mode => (mode === 'chat' || mode === 'office') ? 'code' : mode)
-  }, [])
+    leaveCoveringMode()
+  }, [leaveCoveringMode])
 
   const openTab = useCallback((profile, options = {}) => {
     const prof = profile ?? profiles[0]
