@@ -131,11 +131,17 @@ export default function NightlyModelMenu({
                 if (!dirty || busy) return
                 setBusy(true)
                 setError('')
-                const result = await onApply?.({
-                  model: String(nextModel || '').trim() || null,
-                  effort: String(nextEffort || '').trim() || null
-                })
-                setBusy(false)
+                let result
+                try {
+                  result = await onApply?.({
+                    model: String(nextModel || '').trim() || null,
+                    effort: String(nextEffort || '').trim() || null
+                  })
+                } catch {
+                  result = { ok: false, error: 'restart-failed' }
+                } finally {
+                  setBusy(false)
+                }
                 if (result?.ok !== false) {
                   setOpen(false)
                 } else {

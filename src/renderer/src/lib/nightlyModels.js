@@ -1,8 +1,9 @@
 // Nightly provider/model adapter.
 //
-// Model IDs are deliberately treated as opaque CLI values. We only ship stable
-// aliases we can verify across provider CLIs; users can enter a concrete model
-// id without Sush having to ship a constantly-stale catalog.
+// Model IDs are opaque CLI values. Each provider lists its stable aliases
+// plus the current generation by explicit id (refreshed Nov 2026); any other
+// id can still be typed into the picker. `note` is the one-line description
+// shown under a row, `badge` a short tag ('New', 'Free', 'Fast').
 
 // Must start alphanumeric: a value like `--dangerously-skip-permissions` is
 // shell-safe but would be read by the CLI as a flag, not a model id.
@@ -12,11 +13,16 @@ export const NIGHTLY_MODEL_SPECS = {
   claude: {
     flag: '--model',
     options: [
-      { value: '', label: 'Default' },
-      { value: 'sonnet', label: 'Sonnet' },
-      { value: 'opus', label: 'Opus' }
+      { value: '', label: 'Default', note: 'Whatever your Claude plan picks' },
+      { value: 'claude-fable-5-1', label: 'Fable 5.1', note: 'Most capable · long, hard work', badge: 'New' },
+      { value: 'claude-opus-5-5', label: 'Opus 5.5', note: 'Deep reasoning and large refactors', badge: 'New' },
+      { value: 'claude-sonnet-5-5', label: 'Sonnet 5.5', note: 'Fast everyday coding', badge: 'New' },
+      { value: 'claude-haiku-5-5', label: 'Haiku 5.5', note: 'Quickest and cheapest', badge: 'Fast' },
+      { value: 'opus', label: 'Opus (latest)', note: 'Alias, follows the newest Opus' },
+      { value: 'sonnet', label: 'Sonnet (latest)', note: 'Alias, follows the newest Sonnet' },
+      { value: 'haiku', label: 'Haiku (latest)', note: 'Alias, follows the newest Haiku' }
     ],
-    placeholder: 'sonnet, opus, or full model id',
+    placeholder: 'Search or type a model id',
     effort: {
       label: 'Effort',
       options: ['', 'low', 'medium', 'high', 'xhigh', 'max'],
@@ -28,8 +34,11 @@ export const NIGHTLY_MODEL_SPECS = {
   },
   codex: {
     flag: '--model',
-    options: [{ value: '', label: 'Default' }],
-    placeholder: 'Codex model id',
+    options: [
+      { value: '', label: 'Default', note: 'Codex picks from your ChatGPT plan' },
+      { value: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', note: 'Agentic coding model' }
+    ],
+    placeholder: 'Search or type a Codex model id',
     effort: {
       label: 'Reasoning',
       options: ['', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
@@ -41,18 +50,33 @@ export const NIGHTLY_MODEL_SPECS = {
   gemini: {
     flag: '--model',
     options: [
-      { value: '', label: 'Default (Auto)' },
-      { value: 'auto', label: 'Auto' },
-      { value: 'pro', label: 'Pro' },
-      { value: 'flash', label: 'Flash' },
-      { value: 'flash-lite', label: 'Flash Lite' }
+      { value: '', label: 'Default (Auto)', note: 'Gemini routes per request' },
+      { value: 'auto', label: 'Auto', note: 'Routes between Pro and Flash' },
+      { value: 'pro', label: 'Pro', note: 'Strongest reasoning' },
+      { value: 'flash', label: 'Flash', note: 'Fast and capable', badge: 'Fast' },
+      { value: 'flash-lite', label: 'Flash Lite', note: 'Lightest and cheapest' }
     ],
-    placeholder: 'auto, pro, flash, or model id'
+    placeholder: 'Search or type a Gemini model id'
   },
   opencode: {
     flag: '--model',
-    options: [{ value: '', label: 'Default / last used' }],
-    placeholder: 'provider/model'
+    // OpenCode Zen's free tier (from `opencode models`). Any provider/model
+    // the user has connected in OpenCode can be typed in.
+    options: [
+      { value: '', label: 'Default / last used', note: 'Whatever OpenCode used last' },
+      { value: 'opencode/big-pickle', label: 'Big Pickle', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'opencode/deepseek-v4.1-flash-free', label: 'DeepSeek V4.1 Flash', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'opencode/glm-5.3-flash-free', label: 'GLM 5.3 Flash', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'opencode/mimo-v2.6-flash-free', label: 'MiMo V2.6 Flash', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'opencode/nemotron-3-ultra-free', label: 'Nemotron 3 Ultra', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'opencode/nemotron-3.5-super-vl-free', label: 'Nemotron 3.5 Super VL', note: 'OpenCode Zen · vision', badge: 'Free' },
+      { value: 'opencode/nemotron-3.5-lightning-free', label: 'Nemotron 3.5 Lightning', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'opencode/beam-free', label: 'Beam', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'opencode/flint-40b-free', label: 'Flint 40B', note: 'OpenCode Zen', badge: 'Free' },
+      { value: 'anthropic/claude-sonnet-5-5', label: 'Claude Sonnet 5.5', note: 'Needs Anthropic connected in OpenCode' },
+      { value: 'github-copilot/claude-sonnet-5-5', label: 'Sonnet 5.5 via Copilot', note: 'Needs GitHub Copilot connected in OpenCode' }
+    ],
+    placeholder: 'Search or type provider/model'
   }
 }
 
@@ -169,12 +193,15 @@ export function pickerRows({ section = 'claude', query = '', favorites = new Set
       const key = modelKey(provider, option.value)
       if (section === 'favorites' && !q && !favorites.has(key)) continue
       const label = option.label || option.value
-      if (q && !`${label} ${option.value} ${provider}`.toLowerCase().includes(q)) continue
-      rows.push({ key, provider, value: option.value || null, label, favorite: favorites.has(key) })
+      if (q && !`${label} ${option.value} ${option.note || ''} ${option.badge || ''} ${provider}`.toLowerCase().includes(q)) continue
+      rows.push({ key, provider, value: option.value || null, label, note: option.note || '', badge: option.badge || '', favorite: favorites.has(key) })
     }
   }
   if (q && section !== 'favorites') {
-    const custom = normalizeModel(section, query)
+    // Only offer "Use …" for something shaped like a model id, so a half-typed
+    // search word ("sonne") never restarts the CLI with a bogus --model.
+    const typed = String(query || '').trim()
+    const custom = /[-./:0-9]/.test(typed) ? normalizeModel(section, typed) : null
     const known = rows.some(r => String(r.value || '').toLowerCase() === custom?.toLowerCase())
     if (custom && !known) {
       rows.push({ key: modelKey(section, custom), provider: section, value: custom, label: `Use “${custom}”`, custom: true, favorite: false })

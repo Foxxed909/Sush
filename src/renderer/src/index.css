@@ -2311,7 +2311,15 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .mp-row.is-busy { opacity: .7; }
 .mp-row > svg { color: var(--text-1); flex-shrink: 0; }
 .mp-row-text { flex: 1; min-width: 0; }
-.mp-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; line-height: 1.35; }
+.mp-row-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; font-weight: 500; line-height: 1.35; }
+.mp-row-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-badge {
+  flex-shrink: 0; height: 16px; padding: 0 5px; display: inline-flex; align-items: center; border-radius: 4px;
+  font: 600 9.5px/1 var(--font-ui); letter-spacing: .02em; color: var(--text-2); background: rgba(255,255,255,.07);
+}
+.mp-badge.is-new { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.mp-badge.is-free { color: #5fd3a8; background: rgba(95,211,168,.12); }
+.mp-badge.is-fast { color: #82aaff; background: rgba(130,170,255,.12); }
 .mp-row-sub { margin-top: 3px; display: flex; align-items: center; gap: 6px; color: var(--text-4); font-size: 11.5px; }
 .mp-row-sub span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-row-note { color: var(--text-3); font-size: 11px; }

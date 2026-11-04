@@ -84,8 +84,14 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     if (resumeOff) { setError(errorText('resume-unsupported')); return }
     setBusy(row.key)
     setError('')
-    const result = await onApply?.({ model: row.value, effort: effort || null })
-    setBusy(null)
+    let result
+    try {
+      result = await onApply?.({ model: row.value, effort: effort || null })
+    } catch (err) {
+      result = { ok: false, error: err?.message || 'restart-failed' }
+    } finally {
+      setBusy(null)
+    }
     if (result?.ok === false) setError(errorText(result.error))
     else setOpen(false)
   }
@@ -167,13 +173,18 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                     onClick={() => choose(row)}
                   >
                     <div className="mp-row-text">
-                      <div className="mp-row-name">{row.label}</div>
-                      {(query || section === 'favorites' || other) && (
+                      <div className="mp-row-name">
+                        <span>{row.label}</span>
+                        {row.badge && <span className={`mp-badge is-${row.badge.toLowerCase()}`}>{row.badge}</span>}
+                      </div>
+                      {(query || section === 'favorites' || other) ? (
                         <div className="mp-row-sub">
                           <ProviderMark provider={row.provider} size={12} />
-                          <span>{agent?.label || row.provider}{other ? ' · new thread' : ''}</span>
+                          <span>{agent?.label || row.provider}{other ? ' · new thread' : ''}{row.note ? ` · ${row.note}` : ''}</span>
                         </div>
-                      )}
+                      ) : row.note ? (
+                        <div className="mp-row-sub"><span>{row.note}</span></div>
+                      ) : null}
                     </div>
                     {busy === row.key && <span className="mp-row-note">Restarting…</span>}
                     {selected && <Icon name="check" size={14} />}

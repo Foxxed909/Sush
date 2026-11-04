@@ -1075,8 +1075,8 @@ await shot('12-fresh-start')
   await page.locator('.mp-trigger').click()
   await page.locator('.mp-shell').waitFor({ state: 'visible', timeout: 5000 })
   {
-    const names = await page.locator('.mp-row-name').allInnerTexts()
-    if (!names.includes('Sonnet') || !names.includes('Opus')) throw new Error(`Model picker did not list Claude models: ${names.join(', ')}`)
+    const names = await page.locator('.mp-row-name > span:first-child').allInnerTexts()
+    if (!names.includes('Sonnet 5.5') || !names.includes('Opus 5.5') || !names.includes('Fable 5.1')) throw new Error(`Model picker did not list Claude models: ${names.join(', ')}`)
     if (await page.locator('.mp-rail-btn').count() < 5) throw new Error('Model picker is missing the provider rail')
   }
   await shot('n2b-model-picker')
@@ -1084,7 +1084,7 @@ await shot('12-fresh-start')
   await page.waitForTimeout(200)
   {
     const subs = await page.locator('.mp-row-sub').allInnerTexts()
-    if (!subs.length || !subs.every(t => /Gemini/.test(t) && /new thread/.test(t))) throw new Error(`Cross-provider search should offer Gemini as a new thread: ${subs.join(' | ')}`)
+    if (!subs.some(t => /Gemini/.test(t)) || !subs.every(t => /new thread/.test(t))) throw new Error(`Cross-provider search should offer other providers as a new thread: ${subs.join(' | ')}`)
   }
   await page.keyboard.press('Escape')
   await page.locator('[aria-label="More composer controls"]').click()
