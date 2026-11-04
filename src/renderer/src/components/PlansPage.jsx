@@ -128,7 +128,7 @@ export default function PlansPage({ accent, ent, onDismiss }) {
   }
 
   return (
-    <div className="sush-page-in sush-scroll" style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'var(--surface-0)', overflowY: 'auto' }}>
+    <div className="sush-page-in sush-scroll" style={{ position: 'fixed', inset: 0, zIndex: 1950, background: 'var(--surface-0)', overflowY: 'auto' }}>
       {/* Header */}
       <div className="flex items-center" style={{ gap: 12, padding: '16px 26px', position: 'sticky', top: 0, zIndex: 2, background: 'rgba(8,9,10,0.92)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border-1)' }}>
         <span className="flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: 10, background: rgba(accent, 0.12), border: `1px solid ${rgba(accent, 0.35)}`, color: accent }}>

@@ -41,7 +41,7 @@ export default function ChangelogPage({ accent, onDismiss }) {
   }, [onDismiss])
 
   return (
-    <div className="sush-page-in" style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', flexDirection: 'column', background: 'var(--surface-0)' }}>
+    <div className="sush-page-in" style={{ position: 'fixed', inset: 0, zIndex: 1950, display: 'flex', flexDirection: 'column', background: 'var(--surface-0)' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 26px', borderBottom: '1px solid var(--border-1)', flexShrink: 0 }}>
         <div className="flex items-center" style={{ gap: 13 }}>

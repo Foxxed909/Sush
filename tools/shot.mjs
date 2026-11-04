@@ -904,7 +904,21 @@ await shot('05e-saved-split')
 
 // 6 — Settings
 await page.keyboard.press('Control+,')
+await page.locator('.st-root').waitFor({ state: 'visible', timeout: 5000 })
+await page.locator('.st-nav-item', { hasText: 'Profile & plan' }).click()
 await shot('06-settings')
+for (const [label, name] of [['Appearance', '06a-settings-appearance'], ['Terminal', '06b-settings-terminal'], ['Agents', '06c-settings-agents'], ['Performance', '06d-settings-performance']]) {
+  await page.locator('.st-nav-item', { hasText: label }).first().click()
+  await page.waitForTimeout(250)
+  if ((await page.locator('.st-section').count()) !== 1) throw new Error(`Settings page ${label} did not render alone`)
+  await shot(name)
+}
+await page.locator('.st-search input').fill('wallpaper')
+await page.waitForTimeout(250)
+if (!(await page.locator('.st-row:visible').count())) throw new Error('Settings search found nothing for "wallpaper"')
+await shot('06e-settings-search')
+await page.locator('.st-search input').fill('')
+await page.locator('.st-nav-item', { hasText: 'Profile & plan' }).click()
 await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
 // Close settings if Escape didn't (click the backdrop-ish close button)

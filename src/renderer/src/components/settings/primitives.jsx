@@ -10,75 +10,85 @@ import { rgba } from '../../lib/ui'
 
 export const inputStyle = {
   width: '100%',
+  height: 34,
   background: 'var(--surface-2)',
   border: '1px solid var(--border-2)',
-  color: 'var(--text-2)',
+  color: 'var(--text-1)',
   borderRadius: 8,
-  padding: '7px 10px',
-  fontSize: 12,
+  padding: '0 11px',
+  fontSize: 13,
   outline: 'none'
 }
 
+// A row's title: sentence case, readable size. (The old 10.5px uppercase
+// 800-weight eyebrows on every row were most of the page's visual noise.)
 export function Label({ children }) {
-  return <div style={{ color: 'var(--text-3)', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 7 }}>{children}</div>
+  return <div className="st-label">{children}</div>
 }
 
 // Every setting lives in a Row. `data-setting-row` is what powers row-level
 // search in the shell: the query is matched against each row's rendered text,
 // so a control is findable by its label, its state text, or its description.
 export function Row({ children }) {
-  return <div data-setting-row style={{ marginBottom: 16 }}>{children}</div>
+  return <div data-setting-row className="st-row">{children}</div>
 }
 
 // The small gray explainer under a control.
 export function Hint({ children, warn }) {
-  return <div style={{ fontSize: 10.5, color: warn ? '#ffb74d' : 'var(--text-4)', marginTop: 6, lineHeight: 1.5 }}>{children}</div>
+  return <div className={`st-hint${warn ? ' is-warn' : ''}`}>{children}</div>
 }
 
-// Section header + scroll anchor. Self-describing (id/icon/label as props) so
-// the shell's nav and the body can never disagree about a section again.
-export function Section({ id, icon, label, accent, children }) {
+// Section = one settings page (or one block of results while searching).
+// Self-describing (id/icon/label as props) so the shell's nav and the body
+// can never disagree about a section.
+export const SECTION_DESCRIPTIONS = {
+  Plan: 'Your plan, unlock codes and settings backup.',
+  Accounts: 'CLI logins Sush can rotate between when one hits its limit.',
+  'Usage & Guard': 'Track usage and stop agents before they hit a limit.',
+  'Agents & Seducia': 'Which agents you launch, and how Seducia helps.',
+  'Voice & Dictation': 'Talk to your agents and hear them back.',
+  Terminal: 'Fonts, cursor, scrollback and shell behaviour.',
+  Appearance: 'Theme, accent, wallpaper and motion.',
+  Power: 'Battery, quiet hours and performance.',
+  System: 'Startup, notifications, data and advanced options.'
+}
+
+export const SECTION_TITLES = {
+  Plan: 'Profile & plan', 'Usage & Guard': 'Usage & limits', 'Agents & Seducia': 'Agents',
+  'Voice & Dictation': 'Voice', Power: 'Performance', System: 'Advanced'
+}
+
+export function Section({ id, label, description, children }) {
+  const desc = description ?? SECTION_DESCRIPTIONS[id]
+  label = SECTION_TITLES[id] || label
   return (
-    <div data-settings-sec={id} style={{ marginBottom: 30, scrollMarginTop: 12 }}>
-      <div className="flex items-center" style={{ gap: 10, marginBottom: 16, paddingBottom: 10, borderBottom: '1px solid var(--border-1)' }}>
-        {icon && (
-          <span className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 8, background: `linear-gradient(145deg, ${rgba(accent, 0.22)}, ${rgba(accent, 0.05)})`, border: `1px solid ${rgba(accent, 0.28)}`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)', color: accent, flexShrink: 0 }}>
-            <Icon name={icon} size={13} strokeWidth={2} />
-          </span>
-        )}
-        <span style={{ color: 'var(--text-1)', fontSize: 'var(--fs-lg)', fontWeight: 800, letterSpacing: 0.2 }}>{label}</span>
-      </div>
-      {children}
-    </div>
+    <section data-settings-sec={id} className="st-section">
+      <header className="st-section-head">
+        <h2>{label}</h2>
+        {desc && <p>{desc}</p>}
+      </header>
+      <div className="st-section-body">{children}</div>
+    </section>
   )
 }
 
-// The house toggle: a full-width button whose label IS the state, per the
-// design system ("state is always written out"). `on` decides the accent
-// treatment; `onText`/`offText` are the written states.
-export function Toggle({ accent, on, onText, offText, icon, onClick, disabled = false, fullWidth = true }) {
+// A switch row. The written state stays (DESIGN: "state is always written
+// out") as the row's label, with a real switch beside it so on/off reads at
+// a glance.
+export function Toggle({ accent, on, onText, offText, icon, onClick, disabled = false }) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={!!on}
       onClick={onClick}
       disabled={disabled}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 9,
-        padding: '8px 12px',
-        borderRadius: 8,
-        background: on ? rgba(accent, 0.1) : 'var(--surface-2)',
-        border: `1px solid ${on ? rgba(accent, 0.4) : 'var(--border-2)'}`,
-        color: on ? accent : 'var(--text-3)',
-        cursor: disabled ? 'default' : 'pointer',
-        fontSize: 12.5,
-        fontWeight: 700,
-        width: fullWidth ? '100%' : undefined,
-        opacity: disabled ? 0.7 : 1
-      }}
+      className={`st-toggle${on ? ' is-on' : ''}`}
+      style={{ '--st-accent': accent }}
     >
-      {icon && <Icon name={icon} size={14} strokeWidth={2} />}
-      {on ? onText : offText}
+      {icon && <Icon name={icon} size={15} strokeWidth={1.8} />}
+      <span className="st-toggle-text">{on ? onText : offText}</span>
+      <span className="st-switch" aria-hidden><span /></span>
     </button>
   )
 }
@@ -87,7 +97,7 @@ export function Toggle({ accent, on, onText, offText, icon, onClick, disabled = 
 // Locked options render with a lock glyph and don't fire.
 export function Segment({ accent, value, options, onChange, disabled = false }) {
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
+    <div className="st-segment">
       {options.map(([val, lbl, meta]) => {
         const on = value === val
         const locked = !!meta?.locked
@@ -101,15 +111,17 @@ export function Segment({ accent, value, options, onChange, disabled = false }) 
             style={{
               gap: 5,
               flex: 1,
-              padding: '7px 0',
-              borderRadius: 'var(--r-sm)',
-              fontSize: 11.5,
-              fontWeight: 700,
+              height: 28,
+              borderRadius: 6,
+              fontSize: 12.5,
+              fontWeight: on ? 600 : 500,
               cursor: (locked || disabled) ? 'default' : 'pointer',
               opacity: locked ? 0.55 : 1,
-              background: on ? accent : 'var(--surface-2)',
-              color: on ? '#0a0a0a' : 'var(--text-3)',
-              border: `1px solid ${on ? accent : 'var(--border-2)'}`
+              background: on ? 'var(--surface-4, rgba(255,255,255,.12))' : 'transparent',
+              color: on ? 'var(--text-1)' : 'var(--text-3)',
+              border: 0,
+              boxShadow: on ? '0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.08)' : 'none',
+              transition: 'background-color var(--dur-quick) ease, color var(--dur-quick) ease'
             }}
           >
             {locked && <Icon name="lock" size={10} strokeWidth={2.2} />}

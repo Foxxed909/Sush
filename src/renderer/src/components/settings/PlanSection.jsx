@@ -97,7 +97,7 @@ function RedeemRow({ accent, ent }) {
         </button>
       </div>
       {msg && <div style={{ fontSize: 11, fontWeight: 700, color: msg.ok ? '#7fd6a0' : '#ff8aa0', marginTop: 6 }}>{msg.text}</div>}
-      <Hint>Offline unlock — no account, no payment rails. Ladder layout docs: docs/ladder-pricing-tier-layout.md</Hint>
+      <Hint>Works offline. No account or payment details needed.</Hint>
     </Row>
   )
 }
@@ -119,7 +119,7 @@ export default function PlanSection({ accent, ent, settings, onChange }) {
             <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>{meta.blurb}</div>
           </div>
         </div>
-        <Hint>Plans comparison page is soft-retired (solo). Redeem a code below if you have one.</Hint>
+        <Hint>Have an unlock code? Redeem it below.</Hint>
       </Row>
       <RedeemRow accent={accent} ent={ent} />
       <Row>
