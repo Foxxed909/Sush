@@ -1058,6 +1058,18 @@ await shot('12-fresh-start')
     if (!/unmodified line/.test(gap)) throw new Error('Diff panel does not fold unmodified lines')
   }
   await shot('n1-code-diff')
+  // Code mode keeps the model picker in the composer: show it on OpenCode.
+  await page.locator('.mp-trigger').click()
+  await page.locator('.mp-shell').waitFor({ state: 'visible', timeout: 5000 })
+  await page.locator('.mp-rail-btn[aria-label="OpenCode"]').click()
+  await page.waitForTimeout(250)
+  {
+    const names = await page.locator('.mp-row-name > span:first-child').allInnerTexts()
+    if (!names.includes('Big Pickle')) throw new Error(`Code-mode picker did not list OpenCode models: ${names.join(', ')}`)
+  }
+  await shot('n1c-code-model-picker')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(150)
   // Turn scope: Turn 2 edited scrollback.js (and wrote a test that is not in the diff).
   await page.locator('.sd-scope select').selectOption({ label: 'Turn 2' })
   await page.waitForTimeout(300)
