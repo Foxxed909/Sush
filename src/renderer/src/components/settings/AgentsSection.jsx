@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import ProviderLogo from '../ProviderLogo'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { loadCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../../lib/agents'
@@ -96,7 +97,7 @@ export default function AgentsSection({ accent, ent, settings, set }) {
         </div>
         {custom.map(a => (
           <div key={a.id} className="flex items-center sush-row-hover" style={{ gap: 10, padding: '7px 11px', borderRadius: 'var(--r-md)', border: '1px solid rgba(255,255,255,0.07)', marginBottom: 6 }}>
-            <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: 7, background: rgba(a.color, 0.14), border: `1px solid ${rgba(a.color, 0.4)}`, color: a.color, fontSize: 10, fontWeight: 900, flexShrink: 0 }}>{a.mono}</span>
+            <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: 7, background: rgba(a.color, 0.14), border: `1px solid ${rgba(a.color, 0.4)}`, color: a.color, fontSize: 10, fontWeight: 900, flexShrink: 0 }}><ProviderLogo provider={a.id} size={14} /></span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)' }}>{a.label}</div>
               <div className="sush-mono" style={{ fontSize: 10, color: 'var(--text-4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.command}{a.resumeCommand ? `  ·  resume: ${a.resumeCommand}` : ''}</div>

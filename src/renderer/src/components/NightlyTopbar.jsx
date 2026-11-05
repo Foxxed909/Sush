@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react'
+import StatusIcon, { toneForState } from './StatusIcon'
+import ProviderLogo from './ProviderLogo'
 import { usePolling } from '../hooks/usePolling'
 import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
@@ -104,7 +106,7 @@ export default function NightlyTopbar({
           // priority order; the strip sheds trailing ones whole when narrow.
           <div className="nightly-session-strip">
             <span className={`nightly-strip-seg nightly-meta-provider${providerMeta?.model ? ' has-model' : ''}`} title={providerMeta?.model ? `${providerLabel} · model ${providerMeta.model}` : providerLabel}>
-              <span className="nightly-strip-mono" style={{ color: agent?.color || accent }}>{agent?.mono || '>_'}</span>
+              <span className="nightly-strip-mono" style={{ color: agent?.color || accent }}><ProviderLogo provider={agent?.id || 'shell'} size={13} /></span>
               <span className="nightly-strip-provider">{providerLabel}</span>
               {providerMeta?.model && <strong>{providerMeta.model}</strong>}
               {providerMeta?.effort && <span className="nightly-effort-tag">{providerMeta.effort}</span>}
@@ -130,7 +132,7 @@ export default function NightlyTopbar({
               </span>
             )}
             <span className={`nightly-strip-seg nightly-meta-state${limited || guardTrip ? ' is-limit' : ''}`} title={`${workspaceTabs.length} agent${workspaceTabs.length === 1 ? '' : 's'} in this project`}>
-              <span className="nightly-strip-dot" style={{ background: limited || guardTrip ? '#ff9f43' : state.dot }} />
+              <StatusIcon tone={limited || guardTrip ? 'warning' : toneForState(state.id)} size={12} />
               {guardTrip ? `Guard ${guardTrip.pct}%` : limited ? 'Limit reached' : state.label}
             </span>
           </div>

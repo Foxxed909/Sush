@@ -1782,7 +1782,6 @@ p { text-wrap: pretty; }
   display: inline-flex; align-items: center; gap: 3px; min-width: 0; max-width: 84px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   font: 500 10.5px/1 var(--font-mono); color: var(--text-4);
 }
-.ts-project-branch.is-dirty::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #ffcb6b; margin-left: 2px; flex-shrink: 0; }
 .ts-count {
   min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 999px;
   font: 600 10.5px/1 var(--font-ui); font-variant-numeric: tabular-nums; color: var(--text-4); background: rgba(255,255,255,.045);
@@ -1909,7 +1908,6 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .shell-menu-btn:hover { color: var(--text-1); background: rgba(255,255,255,.04); }
 .shell-menu-btn svg + svg { color: var(--text-4); }
 .shell-menu-btn.is-dirty { position: relative; }
-.shell-menu-btn.is-dirty::after { content: ''; position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: #ffcb6b; }
 
 /* T3 timeline: Worked-for fold + changed files */
 .shell-work { border: 0; background: transparent; border-radius: 0; border-bottom: 1px solid var(--border-1); padding-bottom: 6px; }
@@ -3604,7 +3602,7 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
 .sz-msg.is-error .sz-md { color: #ff8197; }
 .sz-caret { display: inline-block; width: 7px; height: 14px; margin-left: 3px; vertical-align: -2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: sz-caret 1s steps(2, jump-none) infinite; }
 @keyframes sz-caret { 50% { opacity: .15; } }
-.sz-thinking { display: inline-flex; gap: 4px; padding: 6px 0; }
+.sz-thinking { display: inline-flex; align-items: center; gap: 7px; padding: 4px 0; font-size: 12.5px; color: var(--text-3); }
 .sz-thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: .3; animation: sz-think 1.2s steps(6) infinite; }
 .sz-thinking i:nth-child(2) { animation-delay: .2s; }
 .sz-thinking i:nth-child(3) { animation-delay: .4s; }
@@ -3721,3 +3719,21 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
 @keyframes ts-chat-spin { to { transform: rotate(360deg); } }
 :root.sush-motion-reduced .ts-chat.is-working .ts-chat-icon svg { animation: none; }
 .ts-chat-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Status glyphs (components/StatusIcon.jsx): the working arc spins. */
+.status-icon.is-working { animation: status-spin 0.9s linear infinite; }
+@keyframes status-spin { to { transform: rotate(360deg); } }
+:root.sush-motion-reduced .status-icon.is-working, .sush-saver .status-icon.is-working { animation: none; }
+.ts-row-badge-icon { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--mac-sidebar, var(--surface-0)); }
+/* Permission flyout markers use small shields instead of dots. */
+.mp-perm-dot { display: none; }
+.mp-perm-glyph { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border-radius: 7px; color: var(--text-3); background: var(--mac-fill); }
+.mp-perm-glyph.is-ask, .mp-perm-glyph.is-plan { color: #7cc4ff; background: rgba(124,196,255,.12); }
+.mp-perm-glyph.is-edits, .mp-perm-glyph.is-auto { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.mp-perm-glyph.is-full { color: #ff6b81; background: rgba(255,77,109,.14); }
+.mp-flyout-item:hover .mp-perm-glyph { color: #fff; background: rgba(255,255,255,.16); }
+
+.mp-rail-live { width: auto !important; height: auto !important; background: var(--surface-2) !important; border-radius: 50%; padding: 1px; display: grid; place-items: center; }
+.shell-menu-badge { margin-left: -2px; }
+.ag-col-head svg, .ag-status svg, .ag-stat svg { flex-shrink: 0; }
+.ag-stat { display: inline-flex; align-items: center; gap: 5px; }

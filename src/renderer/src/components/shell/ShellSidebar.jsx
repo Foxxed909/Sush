@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import { threadStatus, useSeduciaThreads } from '../../lib/seduciaThreads'
 import NightlyProfileMenu from '../NightlyProfileMenu'
@@ -108,7 +109,7 @@ function SessionRow({ tab, tabs, active, stateId, limited, pinned, settled, edit
       >
         <span className="ts-row-lead">
           <ProviderLogo provider={tab.agentId} size={13} title={agent?.label} className="ts-provider ts-row-logo" />
-          {status && <span className={`ts-row-badge is-${status.tone}${status.id === 'working' ? ' is-spinning' : ''}`} aria-hidden />}
+          {status && <span className="ts-row-badge-icon"><StatusIcon tone={{ warning: 'attention', info: 'working', destructive: 'error' }[status.tone] || 'idle'} size={12} /></span>}
         </span>
         <span className="ts-row-text">
           {editing ? (
@@ -185,11 +186,11 @@ function ProjectGroup({ group, open, onToggle, branch, active, children, onNewSe
         <span className="ts-project-name">{group.label}</span>
         {branch && (
           <span className={`ts-project-branch${branch.dirty ? ' is-dirty' : ''}`} title={`Branch ${branch.name}${branch.dirty ? ' · uncommitted changes' : ''}`}>
-            <Icon name="gitBranch" size={10} />{branch.name}
+            <Icon name="gitBranch" size={10} />{branch.name}{branch.dirty ? <StatusIcon tone="attention" size={12} /> : null}
           </span>
         )}
         <span className="ts-flex" />
-        {status && !shown && <span className={`ts-head-dot is-${status.tone}`} title={status.label} />}
+        {status && !shown && <StatusIcon tone={{ warning: 'attention', info: 'working', destructive: 'error' }[status.tone] || 'idle'} size={12} title={status.label} />}
         <span className="ts-count">{group.tabs.length}</span>
         <button
           type="button"

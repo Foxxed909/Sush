@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { useOnline } from '../../hooks/useOnline'
@@ -63,7 +64,7 @@ function SlotUsage({ usage, history, accent }) {
         </>
       ) : usage.kind === 'health' ? (
         <div style={{ fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: usage.healthy ?? usage.signedIn ? '#5fd3a8' : '#ff7a8a', flexShrink: 0 }} />
+          <StatusIcon tone={usage.healthy ?? usage.signedIn ? 'ok' : 'error'} size={12} />
           <span style={{ color: usage.healthy ?? usage.signedIn ? 'var(--text-2)' : '#ff9aa8' }}>{usage.status}</span>
           {usage.note && <span style={{ color: 'var(--text-4)', fontWeight: 600 }}>· {usage.note}</span>}
           {usage.detail && <span style={{ color: 'var(--text-4)', fontWeight: 600 }} title={usage.detail}>· {usage.detail.slice(0, 80)}</span>}
@@ -178,7 +179,7 @@ export default function AccountsSection({ accent }) {
               return (
                 <div key={slot.id} className="sush-row-hover">
                   <div className="flex items-center" style={{ gap: 10, padding: '8px 13px' }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: on ? '#5fd3a8' : 'rgba(255,255,255,0.16)', boxShadow: on ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
+                    <StatusIcon tone={on ? 'ok' : 'idle'} size={13} title={on ? 'Active account' : undefined} />
                     {isEditing ? (
                       <input
                         autoFocus

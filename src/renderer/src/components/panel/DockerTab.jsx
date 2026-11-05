@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { usePolling } from '../../hooks/usePolling'
@@ -65,7 +66,7 @@ function DockerTab({ accent, onRun }) {
           return (
             <div key={id} style={{ marginBottom: 8, border: '1px solid var(--border-1)', borderRadius: 9, background: 'var(--surface-2)', overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 9px' }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#c3e88d', flexShrink: 0 }} />
+                <StatusIcon tone="ok" size={13} title="Running" />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                   <div style={{ fontSize: 10, color: 'var(--text-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image}</div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import StatusIcon, { toneForState } from './StatusIcon'
 import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
 import { rgba } from '../lib/ui'
@@ -35,7 +36,7 @@ function RenameField({ initial, state, pulse, onCommit, onCancel }) {
   useEffect(() => { ref.current?.focus(); ref.current?.select() }, [])
   return (
     <span className="nightly-thread-main is-editing">
-      <span className={pulse ? 'sush-pulse-dot' : undefined} style={{ width: 6, height: 6, borderRadius: '50%', background: state.dot, flexShrink: 0 }} />
+      <StatusIcon tone={toneForState(state.id)} size={12} />
       <input
         ref={ref}
         className="nightly-thread-rename"
@@ -196,11 +197,7 @@ export default function NightlyWorkspaceRail({
                     <Icon name="star" size={9} />
                   </span>
                 )}
-                <span
-                  className={aggregate.id === 'working' || aggregate.id === 'waiting' ? 'nightly-project-state sush-pulse-dot' : 'nightly-project-state'}
-                  title={aggregate.state.label}
-                  style={{ background: aggregate.state.dot, '--pulse': rgba(aggregate.state.color, 0.5) }}
-                />
+                <StatusIcon tone={toneForState(aggregate.id)} size={12} title={aggregate.state.label} />
                 <span className="nightly-workspace-count">{workspace.tabs.length}</span>
                 <span className="nightly-workspace-chevron" aria-hidden>
                   <Icon name="chevronDown" size={10} />
@@ -240,10 +237,7 @@ export default function NightlyWorkspaceRail({
                             onClick={() => onSelect?.(tab.id)}
                             title={tab.cwd || tab.profileLabel || tab.shell}
                           >
-                            <span
-                              className={stateId === 'working' || stateId === 'waiting' ? 'sush-pulse-dot' : undefined}
-                              style={{ width: 6, height: 6, borderRadius: '50%', background: state.dot, '--pulse': rgba(state.color, 0.55), flexShrink: 0 }}
-                            />
+                            <StatusIcon tone={toneForState(stateId)} size={12} title={state.label} />
                             <span className="nightly-thread-copy">
                               <span>{tab.label}</span>
                               {(() => {

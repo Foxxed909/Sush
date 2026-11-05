@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import StatusIcon from './StatusIcon'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
 // One stripAnsi for the whole renderer (this file and App used to carry
@@ -172,7 +173,7 @@ export default function HomeDashboard({
                     padding: '4px 11px'
                   }}
                 >
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: tabs.length ? '#5fd3a8' : 'var(--text-5)' }} />
+                  <StatusIcon tone={tabs.length ? 'ok' : 'idle'} size={12} />
                   {tabs.length} session{tabs.length === 1 ? '' : 's'}
                 </span>
               </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import ProviderLogo from './ProviderLogo'
 import Icon from './Icons'
 import { agentById } from '../lib/agents'
 import NightlyModelMenu from './NightlyModelMenu'
@@ -124,7 +125,7 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
             </>
           ) : (
           <span className="nightly-model-control">
-            <span className="nightly-model-provider" style={{ color: agent?.color || accent }}>{agent?.mono || '>_'}</span>
+            <span className="nightly-model-provider" style={{ color: agent?.color || accent }}><ProviderLogo provider={agent?.id || 'shell'} size={13} /></span>
             <NightlyModelMenu
               provider={activeTab?.agentId || 'shell'}
               model={providerMeta?.model || activeTab?.model || null}

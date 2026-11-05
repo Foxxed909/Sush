@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react'
+import StatusIcon from './StatusIcon'
+import ProviderLogo from './ProviderLogo'
 import Icon from './Icons'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 import { agentById } from '../lib/agents'
@@ -37,12 +39,12 @@ export default function NightlyAttention({ items = [], onFocus, onHandoff }) {
           return (
             <div key={item.id} className="nightly-attention-row">
               <button type="button" className="nightly-attention-main" onClick={() => { setOpen(false); onFocus?.(item.id) }}>
-                <span className="nightly-attention-dot" style={{ background: KIND_COLOR[item.kind] }} />
+                <StatusIcon tone={item.kind === 'error' ? 'error' : 'attention'} size={14} />
                 <span className="nightly-attention-copy">
                   <strong>{item.label}</strong>
                   <small>{item.project} · {item.reason}</small>
                 </span>
-                <span className="nightly-attention-mono" style={{ color: agent?.color }}>{agent?.mono || '>_'}</span>
+                <span className="nightly-attention-mono" style={{ color: agent?.color }}><ProviderLogo provider={agent?.id || 'shell'} size={13} /></span>
               </button>
               {item.kind === 'limit' && onHandoff && (
                 <button type="button" className="nightly-attention-act" onClick={() => { setOpen(false); onHandoff(item.id) }}>Hand off</button>

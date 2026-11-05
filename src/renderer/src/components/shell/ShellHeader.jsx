@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import StatusIcon, { toneForState } from '../StatusIcon'
 import { useGitBranch } from '../../hooks/useGitBranch'
 import Icon from '../Icons'
 import NightlyContextMenu from '../NightlyContextMenu'
@@ -82,7 +83,7 @@ export default function ShellHeader({
                 className={`shell-header-state${limited || guardTrip ? ' is-limit' : ''}`}
                 title={guardTrip ? `Usage Guard at ${guardTrip.pct}%` : `${agent?.label || 'Shell'} · ${state.label}`}
               >
-                <span style={{ background: limited || guardTrip ? '#ff9f43' : state.dot }} />
+                <StatusIcon tone={limited || guardTrip ? 'warning' : toneForState(stateId)} size={14} />
               </span>
             </h2>
             <button className="mac-subtitle" onClick={onHome} title={projectCwd || workspaceLabel(activeTab)}>
@@ -133,8 +134,8 @@ export default function ShellHeader({
         <button className="shell-menu-btn" onClick={e => openMenuUnder(e, newItems())} title="New" aria-haspopup="menu">
           <Icon name="plus" size={13} /><Icon name="chevronDown" size={10} />
         </button>
-        <button className={`shell-menu-btn${branch?.dirty ? ' is-dirty' : ''}`} onClick={e => openMenuUnder(e, gitItems())} title={branch ? `Git · ${branch.name}` : 'Git'} aria-haspopup="menu">
-          <Icon name="github" size={13} /><Icon name="chevronDown" size={10} />
+        <button className="shell-menu-btn" onClick={e => openMenuUnder(e, gitItems())} title={branch ? `Git · ${branch.name}${branch.dirty ? ' · uncommitted changes' : ''}` : 'Git'} aria-haspopup="menu">
+          <Icon name="github" size={13} />{branch?.dirty && <StatusIcon tone="attention" size={12} className="shell-menu-badge" />}<Icon name="chevronDown" size={10} />
         </button>
         {drawerRelevant && (
           <button

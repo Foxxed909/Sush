@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { cliComplete } from '../../lib/ai'
@@ -303,7 +304,7 @@ function ChangesTab({ accent, cwd, onOpenFile, settings = {} }) {
               title="AI suggest"
               style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${rgba(accent, 0.3)}`, background: rgba(accent, 0.08), color: suggesting ? 'var(--text-5)' : accent, cursor: suggesting ? 'default' : 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}
             >
-              {suggesting ? '...' : '✦'}
+              {suggesting ? <StatusIcon tone="working" size={13} ring={false} /> : <Icon name="sparkles" size={13} />}
             </button>
           </div>
           <button

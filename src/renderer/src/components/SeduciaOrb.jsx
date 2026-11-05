@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import StatusIcon from './StatusIcon'
 import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
 import { useSeducia } from '../hooks/useSeducia'
@@ -156,7 +157,7 @@ export default function SeduciaOrb({
       data-glass
       style={{ gap: 8, padding: '7px 13px', borderRadius: 999, background: 'rgba(8,10,14,0.88)', border: `1px solid ${rgba(accent, 0.35)}`, boxShadow: '0 8px 24px rgba(0,0,0,0.45)' }}
     >
-      <span className="sush-pulse-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: pillColor, '--pulse': rgba(pillColor, 0.6), flexShrink: 0 }} />
+      <StatusIcon tone={speaking || busyVoice || streaming ? 'working' : 'ok'} size={13} />
       <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{pillLabel}</span>
       {working > 0 && busyVoice && (
         <span style={{ fontSize: 8.5, fontWeight: 900, color: '#0a0a0c', background: '#5fd3a8', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.6, whiteSpace: 'nowrap' }}>

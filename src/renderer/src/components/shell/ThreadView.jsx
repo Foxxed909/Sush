@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import { useThreadFeed } from '../../hooks/useThreadFeed'
 import { clip, prettyInput } from '../panel/ThreadTab'
@@ -84,7 +85,7 @@ export default function ThreadView({ accent, activeTab, onOpenDiff }) {
 
           {working && (
             <div className="shell-working" style={{ '--pulse': accent }}>
-              <span className="sush-pulse-dot" style={{ background: accent }} /> Working…
+              <StatusIcon tone="working" size={13} ring={false} /> Working…
             </div>
           )}
         </div>

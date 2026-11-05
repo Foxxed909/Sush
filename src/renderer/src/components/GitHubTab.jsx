@@ -308,7 +308,7 @@ export default function GitHubTab({ accent, onRun, onConnect }) {
               title="Mark read"
               style={{ width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: accent }} />
+              <Icon name="check" size={12} color={accent} />
             </button>
           )}
         </div>

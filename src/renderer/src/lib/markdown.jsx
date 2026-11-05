@@ -177,7 +177,10 @@ export function renderMarkdown(content, accent) {
         const done = task[1].toLowerCase() === 'x'
         listItems.push(
           <li key={`li${i}`} style={{ marginBottom: 2, listStyle: 'none', marginLeft: -16 }}>
-            <span style={{ color: done ? accent : '#5a646d', marginRight: 6 }}>{done ? '☑' : '☐'}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={done ? accent : 'var(--text-4)'} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 7, verticalAlign: '-2px', display: 'inline-block' }} aria-label={done ? 'Done' : 'To do'}>
+              <rect x="3.5" y="3.5" width="17" height="17" rx="5" fill={done ? rgba(accent, 0.16) : 'none'} />
+              {done && <polyline points="8 12.5 11 15.5 16.5 9" />}
+            </svg>
             <span style={done ? { textDecoration: 'line-through', color: '#6b757e' } : undefined}>{parseInline(task[2], accent)}</span>
           </li>
         )

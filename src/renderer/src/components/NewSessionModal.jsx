@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import ProviderLogo from './ProviderLogo'
 import Icon from './Icons'
 import PathField from './PathField'
 import { rgba, accentVars } from '../lib/ui'
@@ -452,14 +453,13 @@ export default function NewSessionModal({ accent, activeCwd, recentSessions = []
                       height: 38,
                       borderRadius: 10,
                       flexShrink: 0,
-                      fontSize: agent.mono.length > 1 ? 12 : 15,
                       fontWeight: 900,
                       color: locked ? 'var(--text-4)' : agent.color,
                       background: rgba(locked ? 'var(--text-4)' : agent.color, 0.14),
                       border: `1px solid ${rgba(locked ? 'var(--text-4)' : agent.color, 0.4)}`
                     }}
                   >
-                    {agent.mono}
+                    <ProviderLogo provider={agent.id} size={20} />
                   </span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: 'var(--text-2)' }}>{agent.label}</span>

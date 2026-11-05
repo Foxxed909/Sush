@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import UsageBar from '../UsageBar'
 import { rgba } from '../../lib/ui'
@@ -142,7 +143,7 @@ export default function UsageSection({ accent, settings, set }) {
     return (
       <div style={{ marginBottom: 12, borderRadius: 'var(--r-lg)', border: '1px solid var(--border-2)', background: 'var(--surface-2)', overflow: 'hidden' }}>
         <div className="flex items-center" style={{ gap: 9, padding: '10px 13px', borderBottom: '1px solid var(--border-1)' }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: installed ? '#5fd3a8' : 'rgba(255,255,255,0.18)', boxShadow: installed ? '0 0 7px rgba(95,211,168,0.6)' : 'none' }} />
+          <StatusIcon tone={installed ? 'ok' : 'idle'} size={14} title={installed ? 'Installed' : 'Not installed'} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--text-2)' }}>{label}</div>
             <div style={{ fontSize: 10, color: 'var(--text-4)', marginTop: 1 }}>{sub}</div>

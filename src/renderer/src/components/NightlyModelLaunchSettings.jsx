@@ -1,4 +1,5 @@
 import React from 'react'
+import ProviderLogo from './ProviderLogo'
 import { effortLabelFor, effortOptionsFor, modelSpecFor } from '../lib/nightlyModels'
 import { rgba } from '../lib/ui'
 
@@ -20,7 +21,7 @@ export default function NightlyModelLaunchSettings({ agents = [], counts = {}, m
           return (
             <div key={agent.id} className="nightly-launch-model">
               <div className="nightly-launch-model-who">
-                <span style={{ color: agent.color, background: rgba(agent.color, .1), borderColor: rgba(agent.color, .22) }}>{agent.mono}</span>
+                <span style={{ color: agent.color, background: rgba(agent.color, .1), borderColor: rgba(agent.color, .22) }}><ProviderLogo provider={agent.id} size={13} /></span>
                 <strong>{agent.label}</strong>
               </div>
               <div className={`nightly-launch-model-fields${spec.effort ? ' has-effort' : ''}`}>

@@ -24,7 +24,7 @@ function ChangeGroup({ group, items, accent }) {
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 }}>
         {items.map((text, i) => (
           <li key={i} className="flex" style={{ gap: 9, fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-2)' }}>
-            <span style={{ flexShrink: 0, marginTop: 7, width: 4, height: 4, borderRadius: '50%', background: rgba(group.color, 0.8) }} />
+            <span style={{ flexShrink: 0, marginTop: 4, color: group.color, display: 'inline-flex' }}><Icon name="chevronRight" size={11} strokeWidth={2.6} /></span>
             <span style={{ minWidth: 0 }}>{text}</span>
           </li>
         ))}

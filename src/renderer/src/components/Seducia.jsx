@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import StatusIcon from './StatusIcon'
 import Icon from './Icons'
 import { accentVars } from '../lib/ui'
 import { getStreamer, parseAIResponse } from '../lib/ai'
@@ -583,7 +584,7 @@ export default function Seducia({
               <ActivityGroup entry={entry} />
               {entry.text
                 ? <div className="sz-md">{renderMarkdown(entry.text, accent)}{entry.streaming && <span className="sz-caret" aria-hidden />}</div>
-                : entry.streaming ? <div className="sz-thinking" aria-label="Thinking"><i /><i /><i /></div> : null}
+                : entry.streaming ? <div className="sz-thinking"><StatusIcon tone="working" size={14} ring={false} /><span>Thinking</span></div> : null}
               {entry.engine && !entry.streaming && (
                 <div className="sz-via">
                   <ProviderLogo provider={entry.engine} size={11} />

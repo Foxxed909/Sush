@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ProviderLogo from '../ProviderLogo'
 import Icon from '../Icons'
 import { stripAnsi } from '../../lib/agentActivity'
 import { rgba } from '../../lib/ui'
@@ -178,7 +179,7 @@ export default function ContextTab({ accent, cwd, activeTab, tabs = [], provider
       <div className="flex-1 overflow-y-auto sush-scroll" style={{ padding: 10 }}>
         <section className="nightly-context-card">
           <div className="nightly-context-hero">
-            <span className="nightly-context-mono" style={{ color: agent?.color || accent, background: rgba(agent?.color || accent, 0.1), borderColor: rgba(agent?.color || accent, 0.22) }}>{agent?.mono || '>_'}</span>
+            <span className="nightly-context-mono" style={{ color: agent?.color || accent, background: rgba(agent?.color || accent, 0.1), borderColor: rgba(agent?.color || accent, 0.22) }}><ProviderLogo provider={agent?.id || 'shell'} size={13} /></span>
             <span className="nightly-context-hero-copy">
               <strong>{providerName(activeTab)}</strong>
               <small>{model}{effort ? ` · ${effort}` : ''}</small>

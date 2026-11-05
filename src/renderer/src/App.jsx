@@ -1,4 +1,5 @@
 import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import StatusIcon, { toneForState } from './components/StatusIcon'
 import ProfileManager, { useProfiles } from './components/ProfileManager'
 import HomeDashboard from './components/HomeDashboard'
 import SeduciaOrb from './components/SeduciaOrb'
@@ -2717,7 +2718,7 @@ export default function App() {
                                 <span className="nightly-tile-label">{tab.label}</span>
                                 {tab.model && <span className="nightly-tile-model">{tab.model}{tab.effort ? ` · ${tab.effort}` : ''}</span>}
                                 <span className="nightly-tile-state" title={st?.label || 'Sleeping'}>
-                                  <span className={pulse ? 'sush-pulse-dot' : undefined} style={{ background: dot, '--pulse': rgba(dot, 0.6) }} />
+                                  <StatusIcon tone={booted ? toneForState(agentStates[tab.id]) : 'idle'} size={12} />
                                   {st?.label || 'Sleeping'}
                                 </span>
                                 <button
@@ -3121,7 +3122,7 @@ export default function App() {
           className="sush-fade-up"
           style={{ position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)', zIndex: 350, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 999, background: 'rgba(10,12,16,0.92)', border: '1px solid rgba(255,159,67,0.45)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
         >
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff9f43', flexShrink: 0 }} className="sush-pulse-dot" />
+          <StatusIcon tone="warning" size={15} />
           <span style={{ fontSize: 11.5, fontWeight: 800, color: '#ffb877' }}>
             Usage Guard · Claude at {guardTrip.pct}%
             {guardMode === 'block' ? ' — input to Claude sessions paused' : guardMode === 'handoff' ? ' — handing work to your next model' : ''}

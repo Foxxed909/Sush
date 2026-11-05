@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import StatusIcon, { toneForState } from './StatusIcon'
 import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
 import { agentById } from '../lib/agents'
@@ -67,7 +68,7 @@ function AgentCard({ tab, stateId, limited, metric, project, accent, onFocus, on
         <Icon name="arrowRight" size={13} className="ag-open" />
       </header>
       <div className="ag-status">
-        <span className={`ag-dot is-${tone}`} aria-hidden />
+        <StatusIcon tone={tone === 'limit' ? 'warning' : toneForState(tone)} size={13} />
         <span>{statusLabel}</span>
         <span className="ag-flex" />
         <span className="ag-time">{relTime(tab.lastActiveAt)}</span>
@@ -184,7 +185,7 @@ export default function NightlyOverview({
                 ['idle', 'Idle', columns.idle.length]
               ].map(([k, label, n]) => (
                 <span key={k} className={`ag-stat is-${k}${n ? ' has' : ''}`}>
-                  <i aria-hidden /> <b>{n}</b> {label}
+                  <StatusIcon tone={{ needs: 'attention', working: 'working', idle: 'idle' }[k]} size={14} /> <b>{n}</b> {label}
                 </span>
               ))}
             </div>
@@ -195,7 +196,7 @@ export default function NightlyOverview({
         {terminalSessions.length > 0 && (
           <section className="ag-term" aria-label="In your terminal">
             <header className="ag-col-head">
-              <span className="ag-col-dot is-working" aria-hidden />
+              <Icon name="terminal" size={13} />
               <span>In your terminal</span>
               <span className="ag-col-count">{terminalSessions.length}</span>
               <span className="ag-term-hint">from Sush Terminal · <code>sush board</code></span>
@@ -214,7 +215,7 @@ export default function NightlyOverview({
                       <strong>{s.label}</strong>
                       <small>{[s.model ? pickerModelLabel(s.agent, s.model) : null, s.cwd?.split(/[\\/]/).pop()].filter(Boolean).join(' · ')}</small>
                     </span>
-                    <span className="ag-status"><span className={`ag-dot is-${tone === 'idle' ? 'idle' : tone}`} aria-hidden />{label}</span>
+                    <span className="ag-status"><StatusIcon tone={toneForState(tone)} size={12} />{label}</span>
                     {s.last && <span className="ag-term-last" title={s.last}>{s.last}</span>}
                   </div>
                 )
@@ -228,7 +229,7 @@ export default function NightlyOverview({
             {COLUMNS.map(col => (
               <section key={col.id} className={`ag-col is-${col.id}`} aria-label={col.label}>
                 <header className="ag-col-head">
-                  <span className={`ag-col-dot is-${col.id}`} aria-hidden />
+                  <StatusIcon tone={{ needs: 'attention', working: 'working', idle: 'idle' }[col.id]} size={13} />
                   <span>{col.label}</span>
                   <span className="ag-col-count">{columns[col.id].length}</span>
                 </header>

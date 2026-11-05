@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import StatusIcon from './StatusIcon'
 import Icon from './Icons'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 import { recordUsage, usageRunway, runwayLabel } from '../lib/usageRunway.mjs'
@@ -111,7 +112,7 @@ export default function NightlyAccountMenu({ provider, label, count = 0, usagePc
                 }}
                 className={`nightly-account-row${active ? ' is-active' : ''}`}
               >
-                <span className="nightly-account-dot" style={{ background: active ? accent : 'var(--text-5)' }} />
+                <StatusIcon tone={active ? 'ok' : 'idle'} size={13} />
                 <span className="nightly-account-copy">
                   <strong>{slot.label}</strong>
                   <small>

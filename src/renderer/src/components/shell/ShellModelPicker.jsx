@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import NightlyAnchoredPopover from '../NightlyAnchoredPopover'
 import ProviderLogo from '../ProviderLogo'
@@ -213,7 +214,7 @@ export function ShellModelPicker({ provider, model, effort, permission = null, o
                 aria-label={agentById(id)?.label || id}
               >
                 <ProviderMark provider={id} size={18} />
-                {id === provider && <i className="mp-rail-live" aria-label="This thread's provider" />}
+                {id === provider && <span className="mp-rail-live" aria-label="This thread's provider"><StatusIcon tone="ok" size={11} /></span>}
               </button>
             ))}
           </nav>
@@ -366,7 +367,7 @@ export function ShellModelPicker({ provider, model, effort, permission = null, o
                       className={`mp-flyout-item${current ? ' is-on' : ''}${m.danger ? ' is-danger' : ''}`}
                       onClick={() => choosePermission(m.value)}
                     >
-                      <span className={`mp-perm-dot is-${m.value || 'default'}`} aria-hidden />
+                      <span className={`mp-perm-glyph is-${m.value || 'default'}`} aria-hidden><Icon name={{ '': 'settings', ask: 'shield', plan: 'eye', edits: 'edit', auto: 'sparkles', full: 'key' }[m.value || '']} size={13} /></span>
                       <span className="mp-flyout-text">
                         <b>{m.label}</b>
                         <small>{m.hint}</small>

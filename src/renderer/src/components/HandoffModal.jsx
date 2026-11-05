@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import ProviderLogo from './ProviderLogo'
 import Icon from './Icons'
 import { rgba } from '../lib/ui'
 import { agentById } from '../lib/agents'
@@ -198,7 +199,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
                           background: on ? rgba(a.color, 0.16) : 'transparent', color: on ? a.color : 'var(--text-3)',
                           border: `1px solid ${on ? rgba(a.color, 0.5) : '#20272e'}` }}
                       >
-                        <span style={{ fontWeight: 900 }}>{a.mono}</span>
+                        <ProviderLogo provider={a.id} size={12} />
                         {a.label}
                       </button>
                     )
@@ -213,7 +214,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r-md)', cursor: 'pointer', textAlign: 'left',
                   background: targetId === t.id ? rgba(accent, 0.1) : '#0f1318', border: `1px solid ${targetId === t.id ? rgba(accent, 0.45) : '#20272e'}`, color: 'var(--text-2)' }}
               >
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#42d392', flexShrink: 0 }} />
+                <ProviderLogo provider={t.agentId || 'shell'} size={14} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.label}</span>
                   <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.cwd || t.profileLabel || t.shell}</span>
