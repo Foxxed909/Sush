@@ -3,7 +3,7 @@
 //
 //   node tools/term-shot.mjs [outDir]
 import { execFileSync } from 'child_process'
-import { mkdirSync, existsSync, writeFileSync, rmSync } from 'fs'
+import { mkdirSync, existsSync, writeFileSync, rmSync, utimesSync } from 'fs'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { chromium } from 'playwright-core'
@@ -74,6 +74,34 @@ await grab('t5-help')
 tmux('send-keys', '-t', 'sushterm', 'Escape')
 tmux('send-keys', '-t', 'sushterm', 'C-c')
 try { tmux('kill-session', '-t', 'sushterm') } catch {}
+
+// The live board, from fixtures: a Claude session waiting on you (its log),
+// a desktop session working, and an account ~8 minutes from its guard.
+{
+  const fx = join(outDir, '.board')
+  rmSync(fx, { recursive: true, force: true })
+  const proj = join(fx, 'sush')
+  const slug = proj.replace(/[^a-zA-Z0-9]/g, '-')
+  mkdirSync(join(fx, '.claude', 'projects', slug), { recursive: true })
+  mkdirSync(join(fx, '.sush', 'crew'), { recursive: true })
+  mkdirSync(proj, { recursive: true })
+  const log = [
+    { type: 'user', message: { content: 'Fix the flaky scrollback test and add a regression test' } },
+    { type: 'assistant', message: { content: [{ type: 'text', text: 'Done. Restore is idempotent and all 178 tests pass. Open a PR?' }], stop_reason: 'end_turn' } }
+  ].map(r => JSON.stringify(r)).join('\n')
+  const logFile = join(fx, '.claude', 'projects', slug, 's1.jsonl')
+  writeFileSync(logFile, log + '\n')
+  const old = new Date(Date.now() - 40e3); utimesSync(logFile, old, old)
+  const now = Date.now()
+  writeFileSync(join(fx, '.sush', 'crew', 't-1.json'), JSON.stringify({ id: 't-1', agent: 'claude', label: 'Claude Code', model: 'claude-opus-5-5', cwd: proj, pid: process.pid, startedAt: now - 9 * 60e3 }))
+  writeFileSync(join(fx, '.sush', 'crew', 't-2.json'), JSON.stringify({ id: 't-2', agent: 'opencode', label: 'OpenCode', model: 'opencode/big-pickle', cwd: proj, pid: process.pid, startedAt: now - 3 * 60e3 }))
+  writeFileSync(join(fx, '.sush', 'crew', 'desktop.json'), JSON.stringify({ updatedAt: now + 60e3, sessions: [{ id: 'tab-1', label: 'Codex Review', agentId: 'codex', model: 'gpt-6.1-sol', cwd: proj, state: 'working', startedAt: now - 5 * 60e3 }], usage: [{ provider: 'claude', providerLabel: 'Claude', label: 'Personal', pct: 72, guardPct: 80, samples: [0, 4, 8, 10].map(m => ({ t: now - (10 - m) * 60e3, pct: 62 + m })) }] }))
+  try { tmux('kill-session', '-t', 'sushboard') } catch {}
+  tmux('new-session', '-d', '-s', 'sushboard', '-x', String(COLS), '-y', String(ROWS), `cd ${proj} && env COLORTERM=truecolor HOME=${fx} node ${join(root, 'term/bin/sush.mjs')} board`)
+  await sleep(2500)
+  shots.push(['t6-board', tmux('capture-pane', '-t', 'sushboard', '-p', '-e')])
+  try { tmux('kill-session', '-t', 'sushboard') } catch {}
+}
 
 const browserPath = [process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE, chromium.executablePath(), '/opt/pw-browsers/chromium', '/usr/bin/chromium', '/usr/bin/google-chrome'].filter(Boolean).find(existsSync)
 const browser = await chromium.launch({ executablePath: browserPath })

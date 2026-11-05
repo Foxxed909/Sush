@@ -62,9 +62,12 @@ export function gather({ cwd = process.cwd(), all = false, now = Date.now(), ter
 
 export function renderBoard({ rows, usage, desktopOn }, { cols = 100, rows: height = 30, cwd = process.cwd(), all = false, frame = 0, now = Date.now() } = {}) {
   const out = []
-  const title = logoLines()[0]
+  const logo = logoLines()
   out.push('')
-  out.push('  ' + title + '  ' + paint(ACCENT, bold('board')) + '  ' + paint(MUTED, all ? 'every folder' : shortPath(cwd)))
+  out.push('  ' + logo[0])
+  out.push('  ' + logo[1] + '   ' + paint(ACCENT, bold('board')) + '  ' + paint(MUTED, all ? 'every folder' : shortPath(cwd)))
+  out.push('  ' + logo[2])
+  out.push('')
   const counts = ['waiting', 'working', 'idle', 'done'].map(k => [k, rows.filter(r => r.state === k).length]).filter(([, n]) => n)
   out.push('  ' + counts.map(([k, n]) => paint(TONE[k].colour, `● ${n} ${TONE[k].label.toLowerCase()}`)).join(paint(MUTED, '   ')) + (desktopOn ? paint(MUTED, '   · desktop app connected') : paint(MUTED, '   · desktop app not running')))
   out.push('')
