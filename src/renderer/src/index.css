@@ -2899,30 +2899,46 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
    separators at 8–12% white; label ramp after Apple's systemGray; the pink
    accent as the system accent. Last in the file so it wins.
    ═══════════════════════════════════════════════════════════════════════════ */
-:root, .sush-t3 {
-  --surface-0: #1e1e20;   /* window content */
-  --surface-1: #252527;   /* sidebar, panels */
-  --surface-2: #2c2c2f;   /* fields, raised rows */
-  --surface-3: #38383b;   /* hover, popovers */
-  --border-1: rgba(255,255,255,0.08);
-  --border-2: rgba(255,255,255,0.12);
-  --border-3: rgba(255,255,255,0.18);
-  --text-1: #f2f2f7;
-  --text-2: #d1d1d6;
-  --text-3: #a1a1a6;
-  --text-4: #8e8e93;
-  --text-5: #545458;
-  --mac-sidebar: #262628;
-  --mac-toolbar: #202022;
-  --mac-fill: rgba(255,255,255,0.07);      /* quiet control fill */
-  --mac-fill-2: rgba(255,255,255,0.11);    /* hover */
-  --mac-fill-3: rgba(255,255,255,0.16);    /* pressed / selected */
-  --mac-select: rgba(255,255,255,0.10);    /* source-list selection */
-  --mac-accent-strong: color-mix(in srgb, var(--accent) 72%, #000); /* white text sits on it */
-  --mac-menu: rgba(40,40,43,0.86);
-  --mac-shadow-menu: 0 0 0 0.5px rgba(0,0,0,.7), 0 12px 36px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+:root {
+  /* Mac helpers + Sush glow, defined globally (Stable's Settings uses them),
+     tuned for the plum-black canvas. Surfaces themselves are NOT changed
+     here: Stable keeps its own near-black plum ramp. */
+  --mac-sidebar: #17131f;
+  --mac-toolbar: #130f1a;
+  --mac-fill: rgba(226,206,255,0.07);
+  --mac-fill-2: rgba(226,206,255,0.11);
+  --mac-fill-3: rgba(226,206,255,0.16);
+  --mac-select: color-mix(in srgb, var(--accent) 17%, rgba(255,255,255,0.03));
+  --mac-accent-strong: color-mix(in srgb, var(--accent) 74%, #1a0610);
+  --mac-menu: rgba(30,23,40,0.84);
+  --mac-shadow-menu: 0 0 0 0.5px rgba(0,0,0,.7), 0 14px 40px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3), 0 18px 60px -20px color-mix(in srgb, var(--accent) 30%, transparent);
   --mac-radius-control: 6px;
   --mac-radius-menu: 10px;
+  /* Glow: the Sush signature. Pink light, never a flat fill. */
+  --glow-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  --glow-soft: 0 0 0 0.5px color-mix(in srgb, var(--accent) 34%, transparent), 0 6px 22px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+  --glow-strong: 0 0 0 0.5px color-mix(in srgb, var(--accent) 60%, transparent), 0 8px 30px -6px color-mix(in srgb, var(--accent) 65%, transparent), 0 0 18px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+  --glow-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 34%, transparent), 0 0 22px -2px color-mix(in srgb, var(--accent) 45%, transparent);
+  --glow-text: 0 0 14px color-mix(in srgb, var(--accent) 55%, transparent);
+  --wash:
+    radial-gradient(1100px 620px at 88% -12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 62%),
+    radial-gradient(900px 640px at -6% 108%, rgba(150, 96, 255, 0.11), transparent 62%),
+    radial-gradient(700px 420px at 40% 120%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%);
+}
+.sush-t3 {
+  /* macOS luminance steps, hue-shifted into Sush plum. */
+  --surface-0: #120f18;   /* window content */
+  --surface-1: #17131f;   /* sidebar, panels */
+  --surface-2: #1f1a29;   /* fields, raised rows */
+  --surface-3: #2a2336;   /* hover, popovers */
+  --border-1: rgba(214,190,255,0.075);
+  --border-2: rgba(214,190,255,0.12);
+  --border-3: rgba(214,190,255,0.18);
+  --text-1: #f5f1fb;
+  --text-2: #d8d1e6;
+  --text-3: #a79fb8;
+  --text-4: #9088a3;
+  --text-5: #4f4762;
 }
 .sush-t3.sush-app-bg, .sush-t3 .sush-app-bg { background-color: var(--surface-0); }
 ::selection { background: color-mix(in srgb, var(--accent) 38%, transparent); color: #fff; }
@@ -3262,3 +3278,138 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .sush-lite .office-chip, .sush-saver .office-chip { -webkit-backdrop-filter: none; backdrop-filter: none; background: #2a2a2d; }
 .sush-t3 .office-chip.is-button:hover { background: rgba(58,58,62,.9); }
 .sush-t3 .office-keys, .sush-t3 .office-hint { border-radius: 8px; background: rgba(40,40,43,.82); box-shadow: inset 0 0 0 0.5px rgba(255,255,255,.12), 0 4px 14px rgba(0,0,0,.35); border: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Sush glow (round 3). Mac structure, Sush soul: plum-black, pink light.
+   Glows are static gradients/shadows (no animated filters), so they stay
+   cheap on Windows; lite/saver tone them down rather than remove them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Ambient window wash: pink from the top right, violet from the bottom left. */
+.sush-t3.sush-app-bg { background-image: var(--wash); background-attachment: fixed; }
+.sush-t3 .shell-thread-slot, .sush-t3 .shell-cover, .sush-t3 .ag-board, .st-body, .sush-t3 .nightly-overview {
+  background-color: var(--surface-0); background-image: var(--wash); background-attachment: fixed;
+}
+
+/* Sidebar: the night-sky stage returns behind the traffic lights. */
+.sush-t3 .ts-sidebar { background: var(--mac-sidebar); border-right: 1px solid rgba(0,0,0,.55); box-shadow: inset -1px 0 0 rgba(214,190,255,.05); }
+.sush-t3 .ts-stage-art { height: 118px; }
+.sush-t3 .ts-stage-art::after {
+  background: linear-gradient(to bottom, transparent 0%, transparent 34%,
+    color-mix(in srgb, var(--mac-sidebar) 30%, transparent) 52%,
+    color-mix(in srgb, var(--mac-sidebar) 72%, transparent) 70%,
+    var(--mac-sidebar) 92%);
+}
+.sush-t3 .ts-stage { position: relative; z-index: 2; }
+.sush-t3 .ts-controls { position: relative; z-index: 3; }
+.sush-t3 .ts-search { background: rgba(10,6,18,.42); box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.12); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.sush-t3 .ts-search:hover { background: rgba(20,12,32,.55); }
+.sush-lite .ts-search, .sush-saver .ts-search { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.ts-nav-row svg, .sush-t3 .ts-folder { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent)); }
+.sush-saver .ts-nav-row svg, .sush-saver .ts-folder { filter: none; }
+
+/* Active row: pink light, not a flat grey slab. */
+.sush-t3 .ts-row.is-active .ts-row-surface {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 7%, transparent) 70%, color-mix(in srgb, var(--accent) 4%, transparent));
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 38%, transparent), 0 4px 18px -8px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.sush-t3 .ts-row.is-active .ts-row-title { color: #fff; text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+.sush-t3 .ts-row-surface:hover, .sush-t3 .ts-project-head:hover, .ts-nav-row:hover { background: rgba(226,206,255,.055); }
+.sush-t3 .ts-project-group.has-active > .ts-project-head .ts-project-name { color: #fff; }
+
+/* Toolbar: a pink hairline glows along its bottom edge. */
+.sush-t3 .shell-header { background: color-mix(in srgb, var(--mac-toolbar) 88%, transparent); border-bottom: 1px solid rgba(0,0,0,.55); box-shadow: none; }
+.sush-t3 .shell-header::after, .st-toolbar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent 4%, color-mix(in srgb, var(--accent) 55%, transparent) 38%, rgba(160,110,255,.45) 66%, transparent 96%);
+  opacity: .55;
+}
+.st-toolbar { position: relative; background: color-mix(in srgb, var(--mac-toolbar) 88%, transparent); }
+.sush-t3 .shell-header-state span { box-shadow: 0 0 8px currentColor, 0 0 0 0 transparent; }
+
+/* Segmented control: the selected segment holds a little pink light. */
+.sush-t3 .shell-modes { background: rgba(226,206,255,.06); }
+.sush-t3 .shell-modes button.is-active {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 34%, rgba(255,255,255,.08)), color-mix(in srgb, var(--accent) 22%, rgba(255,255,255,.05)));
+  box-shadow: inset 0 0.5px 0 rgba(255,255,255,.22), 0 1px 2px rgba(0,0,0,.4), 0 4px 16px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.sush-t3 .nightly-icon-btn.is-active, .sush-t3 .shell-header .nightly-icon-btn.is-active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); box-shadow: var(--glow-soft);
+}
+
+/* Composer: lit from within when focused. */
+.sush-t3 .nightly-composer-wrap.is-t3 .nightly-composer, .sush-t3 .nightly-composer {
+  background: linear-gradient(180deg, rgba(36,28,48,.92), rgba(28,22,38,.92));
+  box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.14), 0 1px 2px rgba(0,0,0,.3), 0 14px 40px -12px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.sush-t3 .nightly-composer:focus-within {
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 0 3.5px color-mix(in srgb, var(--accent) 22%, transparent), 0 16px 48px -10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.sush-t3 .nightly-send:not(:disabled) { background: var(--accent); color: #1a0610; box-shadow: var(--glow-strong); }
+
+/* Focus halo glows. */
+.sush-t3 button:focus-visible, .sush-t3 [role="button"]:focus-visible, .sush-t3 input:focus-visible,
+.st-root button:focus-visible, .st-root input:focus-visible, .st-root select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px;
+  box-shadow: 0 0 16px -2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* Menus and popovers: plum vibrancy with a pink under-glow. */
+.nightly-ctx, .t3-menu, .sush-t3 .mp-shell { background: var(--mac-menu); box-shadow: var(--mac-shadow-menu), inset 0 0 0 0.5px rgba(214,190,255,.16), inset 0 1px 0 rgba(255,255,255,.06); }
+.nightly-ctx-item:hover:not(:disabled), .nightly-ctx-item:focus-visible,
+.sush-t3 .t3-menu-item:hover:not(:disabled), .t3-menu-item:hover:not(:disabled) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #1a0610), var(--mac-accent-strong)) !important;
+  box-shadow: 0 2px 12px -4px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.sush-t3 .mp-row.is-active { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 28%, transparent); }
+
+/* Primary buttons glow. */
+.sush-t3 .ag-new, .onb-btn.is-primary { background: var(--accent); color: #1a0610; box-shadow: var(--glow-strong), inset 0 0.5px 0 rgba(255,255,255,.35); }
+.sush-t3 .ag-new:hover, .onb-btn.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #fff); }
+
+/* Agents board: plum cards, needs-you cards glow amber. */
+.sush-t3 .ag-col { background: rgba(214,190,255,.03); box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.09); }
+.sush-t3 .ag-card { background: linear-gradient(180deg, rgba(40,32,54,.9), rgba(30,24,42,.9)); box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.12), 0 2px 8px rgba(0,0,0,.35); }
+.sush-t3 .ag-card:hover { box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 40%, transparent), 0 10px 30px -10px color-mix(in srgb, var(--accent) 50%, transparent); }
+.sush-t3 .ag-card.is-waiting, .sush-t3 .ag-card.is-limit { box-shadow: inset 0 0 0 0.5px rgba(255,203,107,.4), 0 8px 26px -12px rgba(255,203,107,.45); }
+
+/* Settings carries the glow too. */
+.st-root { background: var(--surface-0); }
+.st-nav { position: relative; background: var(--mac-sidebar); overflow: hidden auto; }
+.st-nav::before {
+  content: ''; position: absolute; left: -40px; top: -60px; width: 300px; height: 220px; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 26%, transparent), rgba(150,96,255,.12) 55%, transparent);
+}
+.st-nav > * { position: relative; }
+.st-nav-item.is-active { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #1a0610), var(--mac-accent-strong)); box-shadow: 0 4px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+.st-hero .st-tile { box-shadow: inset 0 0.5px 0 rgba(255,255,255,.3), 0 8px 26px -6px var(--tile); }
+.st-section-body { background: rgba(214,190,255,.035); box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.1); }
+.st-toggle.is-on .st-switch { background: var(--accent); box-shadow: 0 0 14px -2px color-mix(in srgb, var(--accent) 70%, transparent); }
+.st-check input:checked + .st-check-box { background: var(--accent); box-shadow: 0 0 10px -2px color-mix(in srgb, var(--accent) 70%, transparent); }
+.st-check-box path { stroke: #1a0610; }
+
+/* Onboarding + lock: plum-black canvas with the pink bloom. */
+.onb-root { background: #0b0910; }
+.sush-lock-time { text-shadow: 0 2px 30px rgba(0,0,0,.35), 0 0 60px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Power tiers keep the glow, just cheaper. */
+.sush-saver .sush-t3, .sush-saver.sush-t3 { --wash: radial-gradient(900px 500px at 88% -12%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%); }
+
+/* Stable (Quiet Nights) keeps its plum-black canvas and gets the same glow:
+   a wash on Home (layered over any wallpaper, transparent elsewhere) and a
+   pink/violet bloom at the top of the rail. */
+.sush-home { background-image: var(--wash); }
+.nightly-rail { position: relative; isolation: isolate; }
+.nightly-rail::before {
+  content: ''; position: absolute; left: -60px; top: -80px; width: 340px; height: 240px; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 22%, transparent), rgba(150,96,255,.1) 55%, transparent);
+}
+.nightly-topbar { box-shadow: inset 0 -1px 0 rgba(0,0,0,.3); }
+.nightly-topbar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent 4%, color-mix(in srgb, var(--accent) 45%, transparent) 40%, rgba(160,110,255,.35) 68%, transparent 96%);
+}
+/* Onboarding aurora: pink from the top right, violet low left, accent bloom centre. */
+.onb-root::before, .onb-root::after { content: ''; position: absolute; pointer-events: none; z-index: 0; }
+.onb-root::before { right: -12%; top: -24%; width: 70vw; height: 70vh; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 24%, transparent), transparent 72%); }
+.onb-root::after { left: -14%; bottom: -30%; width: 70vw; height: 75vh; background: radial-gradient(closest-side, rgba(150,96,255,.18), transparent 72%); }

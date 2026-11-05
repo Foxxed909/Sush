@@ -316,7 +316,7 @@ export default function LockScreen({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#161618',
+        background: '#0b0910',
         overflow: 'hidden',
         WebkitAppRegion: 'drag'
       }}

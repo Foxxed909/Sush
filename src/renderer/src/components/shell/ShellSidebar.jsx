@@ -4,6 +4,7 @@ import NightlyProfileMenu from '../NightlyProfileMenu'
 import NightlyContextMenu from '../NightlyContextMenu'
 import NightlyStatusStrip from '../NightlyStatusStrip'
 import TrafficLights from './TrafficLights'
+import StageBackdrop from './StageBackdrop'
 import ProviderLogo from '../ProviderLogo'
 import { usePolling } from '../../hooks/usePolling'
 import { agentById } from '../../lib/agents'
@@ -317,6 +318,7 @@ export default function ShellSidebar({
 
   return (
     <aside className="ts-sidebar">
+      <StageBackdrop />
       <div className="ts-stage">
         <TrafficLights />
         <span className="ts-flex" />

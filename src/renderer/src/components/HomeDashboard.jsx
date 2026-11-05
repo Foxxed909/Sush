@@ -90,7 +90,7 @@ export default function HomeDashboard({
 
   return (
     <div
-      className="absolute inset-0 overflow-y-auto sush-scroll"
+      className="absolute inset-0 overflow-y-auto sush-scroll sush-home"
       style={{
         ...accentVars(accent),
         // Base is transparent so the app-level wallpaper (already dimmed in
