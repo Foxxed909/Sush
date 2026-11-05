@@ -84,3 +84,31 @@ export const EFFORT_OPTIONS = {
   codex: ['', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh']
 }
 export const EFFORT_LABELS = { none: 'None', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' }
+
+// Permission modes, one Sush vocabulary mapped onto each CLI's own flags
+// ('' = the CLI's default, no flag). Flags checked against the installed
+// CLIs: claude --permission-mode, codex -a/-s and --approve-for-me, gemini
+// --approval-mode, opencode --auto. A provider missing a mode has no
+// equivalent; that mode is not offered for it.
+export const PERMISSION_MODES = [
+  { value: '', label: 'Default', hint: 'Whatever the CLI is set to' },
+  { value: 'ask', label: 'Ask first', hint: 'Approve every edit and command' },
+  { value: 'plan', label: 'Plan only', hint: 'Read and plan, change nothing' },
+  { value: 'edits', label: 'Auto-accept edits', hint: 'Edits go through, commands still ask' },
+  { value: 'auto', label: 'Auto', hint: 'The agent decides what needs you' },
+  { value: 'full', label: 'Full access', hint: 'No prompts, no sandbox. Trusted repos only', danger: true }
+]
+export const PERMISSION_FLAGS = {
+  claude: { ask: '--permission-mode manual', plan: '--permission-mode plan', edits: '--permission-mode acceptEdits', auto: '--permission-mode auto', full: '--permission-mode bypassPermissions' },
+  codex: { ask: '-a on-request', plan: '-s read-only', edits: '-s workspace-write', auto: '--approve-for-me', full: '--dangerously-bypass-approvals-and-sandbox' },
+  gemini: { ask: '--approval-mode default', plan: '--approval-mode plan', edits: '--approval-mode auto_edit', full: '--approval-mode yolo' },
+  opencode: { full: '--auto' }
+}
+export function permissionModesFor(provider) {
+  const flags = PERMISSION_FLAGS[provider]
+  if (!flags) return []
+  return PERMISSION_MODES.filter(m => !m.value || flags[m.value])
+}
+export function permissionFlag(provider, mode) {
+  return (mode && PERMISSION_FLAGS[provider]?.[mode]) || null
+}

@@ -138,3 +138,14 @@ describe('Sush Terminal effort', () => {
     expect(planCrew(spec, { env: {}, have: () => false, platform: 'linux' }).panes[0]).toContain("--effort 'max'")
   })
 })
+
+describe('permission modes in the CLI', () => {
+  it('puts the flag right after the command, never in the prompt', async () => {
+    const { commandFor } = await import('../term/src/agents.mjs')
+    expect(commandFor('claude', { permission: 'plan', prompt: 'hi' })).toEqual(['claude', '--permission-mode', 'plan', 'hi'])
+    expect(commandFor('codex', { permission: 'full', resume: true })).toEqual(['codex', 'resume', '--last', '--dangerously-bypass-approvals-and-sandbox'])
+    expect(commandFor('gemini', { permission: 'edits' })).toEqual(['gemini', '--approval-mode', 'auto_edit'])
+    expect(commandFor('opencode', { permission: 'plan' })).toEqual(['opencode'])
+    expect(commandFor('claude', { permission: '; rm -rf /' })).toEqual(['claude'])
+  })
+})

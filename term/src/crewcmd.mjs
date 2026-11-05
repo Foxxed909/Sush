@@ -20,6 +20,7 @@ export function parseCrew(args) {
   const efforts = {}
   const words = []
   let board = false
+  let permission = null
   for (let i = 0; i < args.length; i++) {
     const a = args[i]
     if (a === '--model' || a === '-m') {
@@ -32,22 +33,23 @@ export function parseCrew(args) {
       if (k && v) efforts[k] = v
       continue
     }
+    if (a === '--permission' || a === '--mode') { permission = args[++i] || null; continue }
     if (a === '--board') { board = true; continue }
     if (a === '--dry-run') continue
     if (!words.length && agentById(a)) { agents.push(a); continue }
     words.push(a)
   }
-  return { agents, models, efforts, prompt: words.join(' ').trim(), board }
+  return { agents, models, efforts, permission, prompt: words.join(' ').trim(), board }
 }
 
 // The shell command each pane runs.
-export function paneCommand(agent, { model, effort, prompt, crewId, node = process.execPath }) {
-  return [q(node), q(SUSH), 'run', agent, ...(model ? ['--model', q(model)] : []), ...(effort ? ['--effort', q(effort)] : []), '--crew', crewId, ...(prompt ? [q(prompt)] : [])].join(' ')
+export function paneCommand(agent, { model, effort, permission, prompt, crewId, node = process.execPath }) {
+  return [q(node), q(SUSH), 'run', agent, ...(model ? ['--model', q(model)] : []), ...(effort ? ['--effort', q(effort)] : []), ...(permission ? ['--permission', q(permission)] : []), '--crew', crewId, ...(prompt ? [q(prompt)] : [])].join(' ')
 }
 
-export function planCrew({ agents, models, efforts = {}, prompt, board }, { env = process.env, platform = process.platform, have = has } = {}) {
+export function planCrew({ agents, models, efforts = {}, permission = null, prompt, board }, { env = process.env, platform = process.platform, have = has } = {}) {
   const crewId = newId().replace('t-', 'crew-')
-  const panes = agents.map(a => paneCommand(a, { model: models[a], effort: efforts[a], prompt, crewId }))
+  const panes = agents.map(a => paneCommand(a, { model: models[a], effort: efforts[a], permission, prompt, crewId }))
   if (board) panes.push([q(process.execPath), q(SUSH), 'board'].join(' '))
   if (env.TMUX) return { kind: 'tmux-inside', crewId, panes }
   if (have('tmux')) return { kind: 'tmux-new', crewId, panes, session: `sush-${crewId.slice(-6)}` }

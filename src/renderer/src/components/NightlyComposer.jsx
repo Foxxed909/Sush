@@ -99,9 +99,10 @@ export default function NightlyComposer({ activeTab, providerMeta, accent, disab
                 provider={activeTab?.agentId || 'shell'}
                 model={providerMeta?.model || activeTab?.model || null}
                 effort={providerMeta?.effort || activeTab?.effort || null}
+                permission={activeTab?.permission || null}
                 disabled={!activeTab?.id}
                 onApply={onChangeSessionModel}
-                onNewThread={({ agentId, model: nextModel, effort: nextEffort } = {}) => onNewThread ? onNewThread({ agentId, model: nextModel, effort: nextEffort }) : onOpenLauncher?.()}
+                onNewThread={({ agentId, model: nextModel, effort: nextEffort, permission: nextPermission } = {}) => onNewThread ? onNewThread({ agentId, model: nextModel, effort: nextEffort, permission: nextPermission }) : onOpenLauncher?.()}
               />
               <ShellContextControl
                 provider={activeTab?.agentId || 'shell'}

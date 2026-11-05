@@ -5,7 +5,7 @@ import ProviderLogo from '../ProviderLogo'
 import { agentById } from '../../lib/agents'
 import { budgetRange, clampBudget, geminiThreshold, loadContextBudget, saveContextBudget } from '../../lib/contextBudget'
 import {
-  CONTEXT_COMMANDS, contextWindowFor, formatTokens, PICKER_PROVIDERS, effortLabelFor, effortOptionsFor, modelSpecFor, pickerModelLabel, pickerRows, providerCapabilities
+  CONTEXT_COMMANDS, contextWindowFor, formatTokens, PICKER_PROVIDERS, effortLabelFor, effortOptionsFor, modelSpecFor, permissionLabel, permissionModesFor, pickerModelLabel, pickerRows, providerCapabilities
 } from '../../lib/nightlyModels'
 
 // Nightly composer model controls, after T3 Code's ProviderModelPicker,
@@ -48,7 +48,7 @@ const EFFORT_HINTS = {
   max: 'The longest, deepest thinking'
 }
 
-export function ShellModelPicker({ provider, model, effort, onApply, onNewThread, disabled = false }) {
+export function ShellModelPicker({ provider, model, effort, permission = null, onApply, onNewThread, disabled = false }) {
   const [open, setOpen] = useState(false)
   const [section, setSection] = useState(provider || 'claude')
   const [query, setQuery] = useState('')
@@ -59,6 +59,8 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
   // Effort flyout: hover a model (or press →, or click its ›) and its effort
   // levels open beside the list. Picking one applies model + effort.
   const [flyout, setFlyout] = useState(null) // { row, top }
+  const [permOpen, setPermOpen] = useState(false)
+  const permModes = permissionModesFor(provider)
   const flyTimer = useRef(null)
   const anchorRef = useRef(null)
   const searchRef = useRef(null)
@@ -72,6 +74,7 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     setQuery('')
     setError('')
     setFlyout(null)
+    setPermOpen(false)
     requestAnimationFrame(() => searchRef.current?.focus())
   }, [open, provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -90,6 +93,7 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
 
   const openFlyout = (row, el) => {
     clearTimeout(flyTimer.current)
+    setPermOpen(false)
     if (!row || !effortOptionsFor(row.provider, row.value).length || !el) { setFlyout(null); return }
     const shell = el.closest('.mp-shell')
     const shellBox = shell?.getBoundingClientRect()
@@ -118,7 +122,7 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     if (row.provider !== provider) {
       // A running CLI can't become another provider; that's a new thread.
       setOpen(false)
-      onNewThread?.({ agentId: row.provider, model: row.value, effort: nextEffort })
+      onNewThread?.({ agentId: row.provider, model: row.value, effort: nextEffort, permission: permission || null })
       return
     }
     if ((row.value || null) === (model || null) && (nextEffort || null) === (effort || null)) { setOpen(false); return }
@@ -136,6 +140,25 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     if (result?.ok === false) setError(errorText(result.error))
     else setOpen(false)
   }
+
+  const choosePermission = async (value) => {
+    setPermOpen(false)
+    if (busy || (value || '') === (permission || '')) return
+    if (resumeOff) { setError(errorText('resume-unsupported')); return }
+    setBusy('perm')
+    setError('')
+    let result
+    try {
+      result = await onApply?.({ model: model || null, effort: effort || null, permission: value || '' })
+    } catch (err) {
+      result = { ok: false, error: err?.message || 'restart-failed' }
+    } finally {
+      setBusy(null)
+    }
+    if (result?.ok === false) setError(errorText(result.error))
+    else setOpen(false)
+  }
+  const permCurrent = permModes.find(m => m.value === (permission || '')) || permModes[0]
 
   const onKeyDown = (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => Math.min(rows.length - 1, i + 1)) }
@@ -162,6 +185,11 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
       >
         <ProviderMark provider={provider || 'shell'} />
         <span className="mp-trigger-label">{label}</span>
+        {spec && permission && (
+          <span className={`mp-perm-chip is-${permission}`} title={`Permissions: ${permissionLabel(permission)}`}>
+            <Icon name="shield" size={11} />
+          </span>
+        )}
         <Icon name="chevronDown" size={12} />
       </button>
       <NightlyAnchoredPopover open={open} anchorRef={anchorRef} align="left" className="mp-popover" onClose={() => setOpen(false)}>
@@ -292,6 +320,56 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                       <span className="mp-flyout-text">
                         <b>{v ? effortLabelFor(flyout.row.provider, v) : 'Default'}</b>
                         <small>{EFFORT_HINTS[v || 'default']}</small>
+                      </span>
+                      {current && <Icon name="check" size={13} />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {permModes.length > 1 && (
+              <button
+                type="button"
+                className={`mp-perm-row${permOpen ? ' is-open' : ''}${permission ? ` is-${permission}` : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={permOpen}
+                onClick={() => { setFlyout(null); setPermOpen(v => !v) }}
+                onMouseEnter={() => { clearTimeout(flyTimer.current); flyTimer.current = setTimeout(() => { setFlyout(null); setPermOpen(true) }, 160) }}
+                onMouseLeave={() => { clearTimeout(flyTimer.current); flyTimer.current = setTimeout(() => setPermOpen(false), 260) }}
+              >
+                <Icon name="shield" size={13} />
+                <span className="mp-perm-label">Permissions</span>
+                <span className="mp-perm-value">{busy === 'perm' ? 'Restarting…' : permCurrent?.label}</span>
+                <Icon name="chevronRight" size={12} />
+              </button>
+            )}
+            {permOpen && (
+              <div
+                className="mp-flyout is-perm"
+                role="menu"
+                aria-label="Permissions"
+                onMouseEnter={() => clearTimeout(flyTimer.current)}
+                onMouseLeave={() => { clearTimeout(flyTimer.current); flyTimer.current = setTimeout(() => setPermOpen(false), 260) }}
+              >
+                <div className="mp-flyout-head">
+                  <strong>Permissions</strong>
+                  <small>{agentById(provider)?.label || provider} · restarts and resumes</small>
+                </div>
+                {permModes.map(m => {
+                  const current = (m.value || '') === (permission || '')
+                  return (
+                    <button
+                      key={m.value || 'default'}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={current}
+                      className={`mp-flyout-item${current ? ' is-on' : ''}${m.danger ? ' is-danger' : ''}`}
+                      onClick={() => choosePermission(m.value)}
+                    >
+                      <span className={`mp-perm-dot is-${m.value || 'default'}`} aria-hidden />
+                      <span className="mp-flyout-text">
+                        <b>{m.label}</b>
+                        <small>{m.hint}</small>
                       </span>
                       {current && <Icon name="check" size={13} />}
                     </button>

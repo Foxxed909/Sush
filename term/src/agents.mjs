@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { MODEL_OPTIONS, EFFORT_OPTIONS, EFFORT_LABELS } from '../../src/renderer/src/lib/modelCatalog.mjs'
+import { MODEL_OPTIONS, EFFORT_OPTIONS, EFFORT_LABELS, PERMISSION_MODES, permissionFlag, permissionModesFor } from '../../src/renderer/src/lib/modelCatalog.mjs'
 
 // The agents Sush Terminal can launch. Model lists come from the same
 // catalog the desktop app uses (src/renderer/src/lib/modelCatalog.mjs).
@@ -25,6 +25,8 @@ export function modelsFor(id) {
 }
 
 export function effortsFor(id) { return EFFORT_OPTIONS[id] || [] }
+export function permissionsFor(id) { return permissionModesFor(id).map(m => m.value) }
+export function permissionLabel(value) { return PERMISSION_MODES.find(m => m.value === (value || ''))?.label || 'Default' }
 export function effortLabel(value) { return value ? (EFFORT_LABELS[value] || value) : 'Default' }
 
 export function modelLabel(id, value) {
@@ -49,12 +51,18 @@ export function detectInstalled(run = execFileSync) {
 
 // The argv to run, validated: models are plain ids, prompts are one argument.
 const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/
-export function commandFor(id, { model = null, prompt = '', resume = false, effort = null } = {}) {
+export function commandFor(id, { model = null, prompt = '', resume = false, effort = null, permission = null } = {}) {
   const agent = agentById(id)
   if (!agent) return null
   const m = model && SAFE_MODEL.test(model) ? model : null
   const p = String(prompt || '').trim()
   // Only levels this CLI accepts; anything else is dropped, never passed.
   const e = effort && effortsFor(id).includes(effort) ? effort : null
-  return agent.launch({ model: m, prompt: p, resume, effort: e })
+  const argv = agent.launch({ model: m, prompt: p, resume, effort: e })
+  // Permission mode: the same Sush vocabulary as the desktop picker, mapped
+  // onto each CLI's own flag. Goes right after the command (after
+  // `resume --last` for Codex) so it never lands inside the prompt.
+  const flag = permissionFlag(id, permission)
+  if (flag) argv.splice(argv[1] === 'resume' ? 3 : 1, 0, ...flag.split(' '))
+  return argv
 }

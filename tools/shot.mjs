@@ -1123,6 +1123,19 @@ await shot('12-fresh-start')
   await page.waitForTimeout(200)
   await shot('n2e-effort-flyout')
   await page.mouse.move(5, 5)
+  // Permissions: a footer row in the picker, same flyout style.
+  await page.waitForTimeout(300)
+  await page.locator('.mp-perm-row').click()
+  await page.locator('.mp-flyout.is-perm').waitFor({ state: 'visible', timeout: 3000 })
+  {
+    const modes = await page.locator('.mp-flyout.is-perm .mp-flyout-text b').allInnerTexts()
+    if (modes.join('|') !== 'Default|Ask first|Plan only|Auto-accept edits|Auto|Full access') throw new Error(`Permission flyout lists the wrong modes: ${modes.join(', ')}`)
+  }
+  await page.locator('.mp-flyout.is-perm .mp-flyout-item', { hasText: 'Auto-accept edits' }).hover()
+  await page.waitForTimeout(200)
+  await shot('n2p-permission-flyout')
+  await page.locator('.mp-perm-row').click()
+  await page.mouse.move(5, 5)
   await page.locator('.mp-search input').fill('flash')
   await page.waitForTimeout(200)
   {

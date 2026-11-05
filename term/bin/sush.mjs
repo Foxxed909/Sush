@@ -28,6 +28,7 @@ function help() {
     ['   --model <id>', 'with a model, e.g. claude-opus-5-5 or opencode/big-pickle'],
     ['   --effort <level>', 'low · medium · high · xhigh · max (Claude) / none … xhigh (Codex)'],
     ['   --resume', 'continue the last conversation in this folder'],
+    ['   --permission <mode>', 'ask · plan · edits · auto · full (also for crew, handoff)'],
     ['sush crew <agents…> [prompt]', 'several agents side by side on one prompt (tmux / Windows Terminal)'],
     ['   --model agent=id', 'per-agent model, e.g. --model codex=gpt-6.1-sol'],
     ['   --effort agent=level', 'per-agent effort, e.g. --effort claude=max'],
@@ -44,12 +45,13 @@ function help() {
 }
 
 export function parseArgs(argv) {
-  const out = { cmd: argv[0] || null, rest: [], model: null, effort: null, resume: false, help: false, version: false, crew: null, from: null, all: false, once: false, dryRun: false }
+  const out = { cmd: argv[0] || null, rest: [], model: null, effort: null, permission: null, resume: false, help: false, version: false, crew: null, from: null, all: false, once: false, dryRun: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--model' || a === '-m') { out.model = argv[++i] || null; continue }
     if (a === '--resume' || a === '-c') { out.resume = true; continue }
     if ((a === '--effort' || a === '-e') && argv[0] !== 'crew') { out.effort = argv[++i] || null; continue }
+    if (a === '--permission' || a === '--mode') { out.permission = argv[++i] || null; continue }
     if (a === '--crew') { out.crew = argv[++i] || null; continue }
     if (a === '--from') { out.from = argv[++i] || null; continue }
     if (a === '--all') { out.all = true; continue }
@@ -89,7 +91,7 @@ async function main(argv) {
   if (args.cmd === 'run') {
     const id = args.rest[0]
     if (!agentById(id)) { say(paint(PINK, `unknown agent: ${id || '(none)'}`) + paint(MUTED, `  try: ${AGENTS.map(a => a.id).join(', ')}`)); process.exitCode = 1; return }
-    const res = await launchAgent({ agent: id, model: args.model, effort: args.effort, prompt: args.rest.slice(1).join(' '), resume: args.resume, crewId: args.crew })
+    const res = await launchAgent({ agent: id, model: args.model, effort: args.effort, permission: args.permission, prompt: args.rest.slice(1).join(' '), resume: args.resume, crewId: args.crew })
     if (res.error) say(paint(PINK, `could not start ${id}: ${res.error}`))
     process.exitCode = res.code ?? 0
     return
@@ -122,7 +124,7 @@ async function main(argv) {
     if (prep.brief.split('\n').length > 14) say(paint(MUTED, '  …'))
     say()
     if (args.dryRun) return
-    const res = await launchAgent({ agent: to, model: args.model, effort: args.effort, prompt: prep.brief, handoffFrom: prep.from })
+    const res = await launchAgent({ agent: to, model: args.model, effort: args.effort, permission: args.permission, prompt: prep.brief, handoffFrom: prep.from })
     if (res.error) say(paint(PINK, `could not start ${to}: ${res.error}`))
     process.exitCode = res.code ?? 0
     return

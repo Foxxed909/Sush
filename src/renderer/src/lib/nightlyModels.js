@@ -7,7 +7,8 @@
 
 // Must start alphanumeric: a value like `--dangerously-skip-permissions` is
 // shell-safe but would be read by the CLI as a flag, not a model id.
-import { MODEL_OPTIONS, EFFORT_OPTIONS } from './modelCatalog.mjs'
+import { MODEL_OPTIONS, EFFORT_OPTIONS, PERMISSION_MODES, permissionModesFor, permissionFlag } from './modelCatalog.mjs'
+export { PERMISSION_MODES, permissionModesFor, permissionFlag }
 
 const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/
 
@@ -126,14 +127,25 @@ export function normalizeEffort(provider, value, model = null) {
   return v
 }
 
-export function buildAgentCommand(agent, { model, effort, resume = false } = {}) {
+export function normalizePermission(provider, value) {
+  const v = String(value ?? '').trim()
+  return v && permissionFlag(provider, v) ? v : null
+}
+
+export function permissionLabel(value) {
+  return PERMISSION_MODES.find(m => m.value === (value || ''))?.label || 'Default'
+}
+
+export function buildAgentCommand(agent, { model, effort, resume = false, permission = null } = {}) {
   if (!agent) return null
   const base = resume ? (agent.resumeCommand || agent.command) : agent.command
   if (!base) return null
   const spec = modelSpecFor(agent.id)
-  if (!spec) return base
+  const permFlag = permissionFlag(agent.id, normalizePermission(agent.id, permission))
+  if (!spec) return permFlag ? `${base} ${permFlag}` : base
 
   const parts = [base]
+  if (permFlag) parts.push(permFlag)
   const safeModel = normalizeModel(agent.id, model)
   if (safeModel) parts.push(spec.flag, safeModel)
 

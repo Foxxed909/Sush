@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { basename } from 'node:path'
 import { ACCENT, MUTED, logoLines, logoWidth } from './logo.mjs'
 import { bold, center, dim, fg, padEnd, paint, reset, screen, truncate, width } from './ansi.mjs'
-import { AGENTS, agentById, commandFor, effortLabel, effortsFor, modelLabel, modelsFor } from './agents.mjs'
+import { AGENTS, agentById, commandFor, effortLabel, effortsFor, modelLabel, modelsFor, permissionLabel, permissionsFor } from './agents.mjs'
 import { loadState, saveState } from './state.mjs'
 
 export const TAGLINE = 'quietly in your terminal'
@@ -40,7 +40,7 @@ export function render(st, cols = 80, rows = 24) {
   const pad = ' '.repeat(Math.max(0, Math.floor((cols - boxW) / 2)))
   const agent = agentById(st.agent) || AGENTS[0]
   const installed = st.installed?.[agent.id]?.installed !== false
-  const model = modelLabel(agent.id, st.models?.[agent.id]) + (st.efforts?.[agent.id] ? ` · ${effortLabel(st.efforts[agent.id])}` : '')
+  const model = modelLabel(agent.id, st.models?.[agent.id]) + (st.efforts?.[agent.id] ? ` · ${effortLabel(st.efforts[agent.id])}` : '') + (st.permissions?.[agent.id] ? ` · ${permissionLabel(st.permissions[agent.id])}` : '')
 
   const body = []
   for (const l of logo) body.push(center(l, cols))
@@ -81,7 +81,7 @@ export function render(st, cols = 80, rows = 24) {
   } else if (st.overlay === 'help') {
     const rowsHelp = [
       ['enter', 'start the agent (with your prompt, if any)'], ['tab / shift+tab', 'next / previous agent'],
-      ['ctrl+t', 'choose a model'], ['ctrl+e', 'cycle effort / reasoning'], ['ctrl+r', 'resume the last conversation here'],
+      ['ctrl+t', 'choose a model'], ['ctrl+e', 'cycle effort / reasoning'], ['ctrl+p', 'cycle permissions (ask · plan · edits · auto · full)'], ['ctrl+r', 'resume the last conversation here'],
       ['↑ / ↓', 'prompt history'], ['ctrl+u', 'clear the line'], ['esc', 'close this'], ['ctrl+c', 'quit']
     ]
     for (const [k, v] of rowsHelp) body.push(pad + ' ' + paint(ACCENT, padEnd(k, 16)) + paint(SOFT, v))
@@ -147,6 +147,13 @@ export function reduce(st, key) {
       const next = levels[(cur + 1) % levels.length]
       return { ...st, efforts: { ...st.efforts, [st.agent]: next || null }, toast: `Effort: ${effortLabel(next)}` }
     }
+    case 'ctrl+p': {
+      const modes = permissionsFor(st.agent)
+      if (modes.length < 2) return { ...st, toast: `${agentById(st.agent).label} has no permission modes` }
+      const cur = modes.indexOf(st.permissions?.[st.agent] || '')
+      const next = modes[(cur + 1) % modes.length]
+      return { ...st, permissions: { ...st.permissions, [st.agent]: next || null }, toast: `Permissions: ${permissionLabel(next)}${next === 'full' ? ' (no prompts, no sandbox)' : ''}` }
+    }
     case 'backspace': return { ...st, input: st.input.slice(0, -1), histIdx: -1 }
     case 'ctrl+u': return { ...st, input: '', histIdx: -1 }
     case 'ctrl+w': return { ...st, input: st.input.replace(/\S+\s*$/, ''), histIdx: -1 }
@@ -175,7 +182,7 @@ export function keyName(data) {
   const map = {
     '\r': 'enter', '\n': 'enter', '\t': 'tab', '\x1b[Z': 'shift+tab', '\x7f': 'backspace', '\b': 'backspace',
     '\x1b[A': 'up', '\x1b[B': 'down', '\x1bOA': 'up', '\x1bOB': 'down', '\x1b': 'esc',
-    '\x03': 'quit', '\x04': 'quit', '\x14': 'ctrl+t', '\x05': 'ctrl+e', '\x12': 'ctrl+r', '\x15': 'ctrl+u', '\x17': 'ctrl+w', '\x0c': 'ctrl+l'
+    '\x03': 'quit', '\x04': 'quit', '\x14': 'ctrl+t', '\x05': 'ctrl+e', '\x10': 'ctrl+p', '\x12': 'ctrl+r', '\x15': 'ctrl+u', '\x17': 'ctrl+w', '\x0c': 'ctrl+l'
   }
   if (map[data]) return map[data]
   if (data.startsWith('\x1b')) return null
@@ -190,6 +197,7 @@ export async function runInteractive({ installed, cwd = process.cwd() } = {}) {
     agent: saved.agent && agentById(saved.agent) ? saved.agent : (AGENTS.find(a => installed?.[a.id]?.installed)?.id || 'claude'),
     models: saved.models || {},
     efforts: saved.efforts || {},
+    permissions: saved.permissions || {},
     history: saved.history || [],
     histIdx: -1, input: '', overlay: null, cursor: 0, toast: '', cwd, installed
   }
@@ -205,7 +213,7 @@ export async function runInteractive({ installed, cwd = process.cwd() } = {}) {
     stdin.pause()
     process.stdout.write(reset + screen.show + screen.main)
   }
-  const persist = () => saveState({ agent: st.agent, models: st.models, efforts: st.efforts, history: st.history.slice(-50) })
+  const persist = () => saveState({ agent: st.agent, models: st.models, efforts: st.efforts, permissions: st.permissions, history: st.history.slice(-50) })
   const onResize = () => draw(st)
 
   return new Promise(resolve => {
@@ -224,14 +232,14 @@ export async function runInteractive({ installed, cwd = process.cwd() } = {}) {
         return
       }
       const prompt = resume ? '' : st.input.trim()
-      const argv = commandFor(agent.id, { model: st.models[agent.id], prompt, resume, effort: st.efforts?.[agent.id] })
+      const argv = commandFor(agent.id, { model: st.models[agent.id], prompt, resume, effort: st.efforts?.[agent.id], permission: st.permissions?.[agent.id] })
       if (prompt) st.history = [...st.history.filter(h => h !== prompt), prompt]
       persist()
       stdin.off('data', onData)
       leave()
       process.stdout.write(paint(ACCENT, '\n  sush ') + paint(MUTED, '› ') + paint(SOFT, argv.map(a => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ')) + reset + '\n\n')
       const started = Date.now()
-      launchAgent({ agent: agent.id, model: st.models[agent.id], effort: st.efforts?.[agent.id], prompt, resume, cwd: st.cwd }).then(({ code, error }) => {
+      launchAgent({ agent: agent.id, model: st.models[agent.id], effort: st.efforts?.[agent.id], permission: st.permissions?.[agent.id], prompt, resume, cwd: st.cwd }).then(({ code, error }) => {
         const secs = Math.round((Date.now() - started) / 1000)
         const took = secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`
         st = { ...st, input: '', histIdx: -1, toast: error ? `Could not start ${agent.label}: ${error}` : `${agent.label} ${code === 0 || code == null ? 'finished' : `exited (${code})`} · ${took}` }

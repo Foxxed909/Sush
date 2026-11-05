@@ -42,7 +42,7 @@ import Icon from './components/Icons'
 import NightlyWorkspaceRail from './components/NightlyWorkspaceRail'
 import NightlyTopbar from './components/NightlyTopbar'
 import NightlyComposer from './components/NightlyComposer'
-import { buildAgentCommand, normalizeEffort, normalizeModel, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
+import { buildAgentCommand, normalizeEffort, normalizeModel, normalizePermission, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 import { useOfficeProgress } from './hooks/useOfficeProgress'
 import ShellHeader from './components/shell/ShellHeader'
@@ -230,6 +230,7 @@ function makeTab(profile, options = {}) {
     agentId: options.agentId ?? null,
     model: options.model ?? null,
     effort: options.effort ?? null,
+    permission: options.permission ?? null,
     threadBridge: options.threadBridge ?? null,
     handoffFrom: options.handoffFrom ?? null,
     tag: options.tag ?? null,
@@ -294,7 +295,7 @@ function loadRecentSessions() {
 // boot command. Plain shells (no agent / no command) stay bare.
 function restoreBootCommand(item) {
   const agent = item.agentId && item.agentId !== 'shell' ? agentById(item.agentId) : null
-  if (agent) return buildAgentCommand(agent, { model: item.model, effort: item.effort, resume: true }) ?? item.bootCommand ?? null
+  if (agent) return buildAgentCommand(agent, { model: item.model, effort: item.effort, permission: item.permission, resume: true }) ?? item.bootCommand ?? null
   return item.bootCommand ?? null
 }
 
@@ -325,6 +326,7 @@ function loadSessionLayout(profiles) {
         agentId: item.agentId,
         model: item.model,
         effort: item.effort,
+        permission: item.permission || null,
         tag: item.tag,
         groupId: item.groupId,
         groupLabel: item.groupLabel,
@@ -1053,6 +1055,7 @@ export default function App() {
         agentId: tab.agentId,
         model: tab.model,
         effort: tab.effort,
+        permission: tab.permission || null,
         tag: tab.tag,
         groupId: tab.groupId,
         groupLabel: tab.groupLabel,
@@ -1441,10 +1444,11 @@ export default function App() {
           cwd: sessionCwd,
           workspaceCwd: workspaceCwd || sessionCwd,
           sessionRootCwd: sessionCwd,
-          command: buildAgentCommand(spec.agent, { model: spec.agent.model, effort: spec.agent.effort }) || undefined,
+          command: buildAgentCommand(spec.agent, { model: spec.agent.model, effort: spec.agent.effort, permission: spec.agent.permission }) || undefined,
           agentId: spec.agent.id,
           model: spec.agent.model || null,
           effort: spec.agent.effort || null,
+          permission: spec.agent.permission || null,
           handoffFrom: handoffFrom || null,
           tag: `sess-${nextSessionTag++}`,
           groupId,
@@ -1660,6 +1664,7 @@ export default function App() {
         agentId: closing.agentId || null,
         model: closing.model || null,
         effort: closing.effort || null,
+        permission: closing.permission || null,
         groupId: closing.groupId || null,
         groupLabel: closing.groupLabel || null
       })
@@ -1721,13 +1726,16 @@ export default function App() {
     const effort = requestedEffort == null ? null : normalizeEffort(provider, requestedEffort, model || requestedModel)
     if (requestedModel && !model) return { ok: false, error: 'invalid-model' }
     if (requestedEffort && !effort) return { ok: false, error: 'invalid-effort' }
+    // Permission is sticky: a model change keeps the session's mode unless
+    // the picker sends a new one ('' = back to the CLI default).
+    const permission = next.permission === undefined ? (tab.permission || null) : normalizePermission(provider, next.permission)
     let resumeAgent = agent
     try {
       const bound = await window.sush.threadRead?.({ tabId })
       const exact = bound?.bound && bound.provider === provider ? exactResumeCommand(provider, bound.sessionId) : null
       if (exact) resumeAgent = { ...agent, resumeCommand: exact }
     } catch {}
-    const command = buildAgentCommand(resumeAgent, { model, effort, resume: true })
+    const command = buildAgentCommand(resumeAgent, { model, effort, permission, resume: true })
     if (!command) return { ok: false, error: 'unsupported-provider' }
 
     const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel } = tab
@@ -1739,6 +1747,7 @@ export default function App() {
       agentId: provider,
       model,
       effort,
+      permission,
       command,
       label,
       groupId,
@@ -1760,7 +1769,7 @@ export default function App() {
     try {
       const sw = await window.sush.accountsSwitch({ provider, slotId })
       if (!sw?.ok) return sw || { ok: false }
-      const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, model, effort } = tab
+      const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, model, effort, permission } = tab
       closeTab(tabId, { rememberClosed: false, returnHome: false })
       openTab(profiles[0], {
         cwd: sessionRootCwd || cwd,
@@ -1769,7 +1778,8 @@ export default function App() {
         agentId: provider,
         model: model || null,
         effort: effort || null,
-        command: buildAgentCommand(agent, { model, effort, resume: true }) || agent.resumeCommand,
+        permission: permission || null,
+        command: buildAgentCommand(agent, { model, effort, permission, resume: true }) || agent.resumeCommand,
         label,
         groupId,
         groupLabel,
@@ -1870,7 +1880,7 @@ export default function App() {
     const prof = profiles.find(p => p.id === last.profileId) ?? profiles[0]
     const agent = last.agentId && last.agentId !== 'shell' ? agentById(last.agentId) : null
     const command = agent
-      ? (buildAgentCommand(agent, { model: last.model, effort: last.effort, resume: true }) || last.bootCommand || undefined)
+      ? (buildAgentCommand(agent, { model: last.model, effort: last.effort, permission: last.permission, resume: true }) || last.bootCommand || undefined)
       : (last.bootCommand || undefined)
 
     openTab(prof, {
@@ -1884,6 +1894,7 @@ export default function App() {
       agentId: last.agentId || null,
       model: last.model || null,
       effort: last.effort || null,
+      permission: last.permission || null,
       groupId: last.groupId || null,
       groupLabel: last.groupLabel || null,
       tag: `reopen-${Date.now()}`
@@ -1919,11 +1930,12 @@ export default function App() {
       shell: tab.shell,
       label: `${tab.label} (copy)`,
       command: agent
-        ? (buildAgentCommand(agent, { model: tab.model, effort: tab.effort }) || tab.bootCommand || undefined)
+        ? (buildAgentCommand(agent, { model: tab.model, effort: tab.effort, permission: tab.permission }) || tab.bootCommand || undefined)
         : (tab.bootCommand || undefined),
       agentId: tab.agentId || null,
       model: tab.model || null,
       effort: tab.effort || null,
+      permission: tab.permission || null,
       groupId: tab.groupId || null,
       groupLabel: tab.groupLabel || null,
       tag: `copy-${Date.now()}`
@@ -2835,11 +2847,11 @@ export default function App() {
           {view === 'terminal' && !zenMode && !coverSurface && (
             <NightlyComposer
               variant={nightlyShell ? 't3' : 'default'}
-              onNewThread={({ agentId, model, effort } = {}) => {
+              onNewThread={({ agentId, model, effort, permission } = {}) => {
                 // T3: a different provider is a new thread in the same project.
                 const cwd = activeTab?.workspaceCwd || activeTab?.cwd || null
                 if (!agentId || !cwd) { setLauncherCwd(cwd); setShowLauncher(true); return }
-                launchSessions({ cwd, agents: [{ id: agentId, count: 1, model: model || null, effort: effort || null }], groupId: activeTab?.groupId })
+                launchSessions({ cwd, agents: [{ id: agentId, count: 1, model: model || null, effort: effort || null, permission: permission || null }], groupId: activeTab?.groupId })
               }}
               onOpenPane={(pane) => { setPaneDock('right'); setRightTab(pane); setRightOpen(true) }}
               activeTab={activeTab}
