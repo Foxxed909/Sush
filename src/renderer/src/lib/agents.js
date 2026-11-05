@@ -89,7 +89,7 @@ export const LOGIN_COMMANDS = {
   claude: { command: 'claude', label: 'Claude sign-in' },
   codex: { command: 'codex', label: 'Codex sign-in' },
   gemini: { command: 'gemini', label: 'Gemini sign-in' },
-  opencode: { command: 'opencode auth login', label: 'OpenCode sign-in' },
+  opencode: { command: 'opencode providers login', label: 'OpenCode sign-in' },
   grok: { command: 'grok login', label: 'Grok Build sign-in' }
 }
 

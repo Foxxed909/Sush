@@ -41,7 +41,7 @@ describe('Sush Terminal', () => {
     st = reduce(st, 'shift+tab'); expect(st.agent).toBe('claude')
     st = reduce(st, 'ctrl+t'); expect(st.overlay).toBe('models')
     st = reduce(st, 'down'); st = reduce(st, 'enter')
-    expect(st.models.claude).toBe('claude-fable-5-1')
+    expect(st.models.claude).toBe('claude-opus-5-5')
     st = reduce(st, 'up'); expect(st.input).toBe('old prompt')
     st = reduce(st, 'ctrl+u'); expect(st.input).toBe('')
     expect(keyName('\x1b[Z')).toBe('shift+tab')

@@ -1102,7 +1102,7 @@ await shot('12-fresh-start')
   await page.locator('.mp-shell').waitFor({ state: 'visible', timeout: 5000 })
   {
     const names = await page.locator('.mp-row-name > span:first-child').allInnerTexts()
-    if (!names.includes('Sonnet 5.5') || !names.includes('Opus 5.5') || !names.includes('Fable 5.1')) throw new Error(`Model picker did not list Claude models: ${names.join(', ')}`)
+    if (!names.includes('Claude Sonnet 5.5') || !names.includes('Claude Opus 5.5') || !names.includes('Claude Fable 5.1')) throw new Error(`Model picker did not list Claude models: ${names.join(', ')}`)
     if (await page.locator('.mp-rail-btn').count() < 5) throw new Error('Model picker is missing the provider rail')
   }
   await shot('n2b-model-picker')
