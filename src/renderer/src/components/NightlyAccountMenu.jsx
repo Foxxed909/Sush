@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
-import { recordUsage, usageRunway, runwayLabel } from '../lib/usageRunway'
+import { recordUsage, usageRunway, runwayLabel } from '../lib/usageRunway.mjs'
 
 function usageOf(slot) {
   const u = slot?.usage

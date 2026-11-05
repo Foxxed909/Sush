@@ -55,3 +55,66 @@ describe('Sush Terminal', () => {
     expect(parseArgs([])).toMatchObject({ cmd: null })
   })
 })
+
+describe('Sush Terminal crew features', () => {
+  it('reads a Claude log: working while fresh, needs-you when it spoke last, waiting on a stalled tool', async () => {
+    const { claudeItems, stateFromItems, claudeSlug } = await import('../term/src/transcripts.mjs')
+    expect(claudeSlug('/home/a/my.app')).toBe('-home-a-my-app')
+    const rows = [
+      { type: 'user', message: { content: 'fix it' } },
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'Done.' }], stop_reason: 'end_turn' } }
+    ]
+    const now = 1_000_000
+    expect(stateFromItems(claudeItems(rows), now - 2000, now)).toBe('working')
+    expect(stateFromItems(claudeItems(rows), now - 60000, now)).toBe('waiting')
+    const stalled = [...rows, { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'x', name: 'Bash', input: {} }] } }]
+    expect(stateFromItems(claudeItems(stalled), now - 60000, now)).toBe('waiting')
+  })
+
+  it('writes a hand-off brief with the ask, progress and files', async () => {
+    const { handoffBrief } = await import('../term/src/transcripts.mjs')
+    const brief = handoffBrief('Claude Code', '/p', [
+      { role: 'user', text: 'Add login' }, { role: 'tool', tool: 'Edit', file: '/p/a.js' }, { role: 'assistant', text: 'Login works.' }
+    ])
+    expect(brief).toContain('from Claude Code in /p')
+    expect(brief).toContain('- Add login')
+    expect(brief).toContain('Login works.')
+    expect(brief).toContain('- /p/a.js')
+  })
+
+  it('board merges terminal and desktop sessions, needs-you first, with a usage runway', async () => {
+    const { gather, renderBoard, transitions } = await import('../term/src/board.mjs')
+    const { stripAnsi } = await import('../term/src/ansi.mjs')
+    const now = 10_000_000
+    const data = gather({
+      cwd: '/p', now,
+      terminal: [{ id: 't1', agent: 'claude', label: 'Claude Code', cwd: '/p', startedAt: now - 60e3 }, { id: 't2', agent: 'opencode', cwd: '/elsewhere', startedAt: now }],
+      desktop: { sessions: [{ id: 'd1', label: 'Codex Review', agentId: 'codex', cwd: '/p/sub', state: 'working' }], usage: [{ provider: 'claude', label: 'Work', pct: 70, guardPct: 80, samples: [0, 5, 10].map(m => ({ t: now - (10 - m) * 60e3, pct: 60 + m })) }] },
+      insight: () => ({ state: 'waiting', lastText: 'Your turn' })
+    })
+    expect(data.rows.map(r => r.id)).toEqual(['t1', 'd:d1'])
+    expect(data.usage[0].runway).toBe(10)
+    const text = stripAnsi(renderBoard(data, { cols: 100, rows: 30, cwd: '/p', now }))
+    expect(text).toContain('Needs you')
+    expect(text).toContain('sush handoff')
+    expect(transitions(new Map([['t1', 'working']]), data.rows).map(r => r.id)).toEqual(['t1'])
+  })
+
+  it('plans a crew: tmux inside, new tmux session, or nothing to split with', async () => {
+    const { parseCrew, planCrew } = await import('../term/src/crewcmd.mjs')
+    const spec = parseCrew(['claude', 'codex', '--model', 'codex=gpt-6.1-sol', 'fix', 'the', 'test', '--board', '--dry-run'])
+    expect(spec).toMatchObject({ agents: ['claude', 'codex'], models: { codex: 'gpt-6.1-sol' }, prompt: 'fix the test', board: true })
+    expect(planCrew(spec, { env: { TMUX: '1' } }).kind).toBe('tmux-inside')
+    expect(planCrew(spec, { env: {}, have: () => true }).kind).toBe('tmux-new')
+    const none = planCrew(spec, { env: {}, have: () => false, platform: 'linux' })
+    expect(none.kind).toBe('none')
+    expect(none.panes).toHaveLength(3)
+    expect(none.panes[1]).toContain("--model 'gpt-6.1-sol'")
+  })
+
+  it('notifications ring the bell and wrap OSC for tmux', async () => {
+    const { notification } = await import('../term/src/notify.mjs')
+    expect(notification('Sush', 'Claude needs you', {})).toMatch(/^\x07\x1b\]9;Sush: Claude needs you\x07/)
+    expect(notification('Sush', 'x', { TMUX: '1' })).toContain('\x1bPtmux;')
+  })
+})

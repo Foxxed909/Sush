@@ -234,7 +234,7 @@ describe('custom theme builder', () => {
 
 describe('usageRunway', () => {
   it('projects minutes to the guard from a steady burn, and declines without a trend', async () => {
-    const { usageRunway, runwayLabel } = await import('../src/renderer/src/lib/usageRunway.js')
+    const { usageRunway, runwayLabel } = await import('../src/renderer/src/lib/usageRunway.mjs')
     const now = 1_000_000_000
     const steady = [0, 5, 10, 15, 20].map(m => ({ t: now - (20 - m) * 60e3, pct: 40 + m }))  // 1%/min, at 60% now
     expect(usageRunway(steady, 80, { now })).toBe(20)

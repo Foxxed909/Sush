@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { launchAgent } from './launch.mjs'
 import { homedir } from 'node:os'
 import { basename } from 'node:path'
 import { ACCENT, MUTED, logoLines, logoWidth } from './logo.mjs'
@@ -223,16 +223,13 @@ export async function runInteractive({ installed, cwd = process.cwd() } = {}) {
       leave()
       process.stdout.write(paint(ACCENT, '\n  sush ') + paint(MUTED, '› ') + paint(SOFT, argv.map(a => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ')) + reset + '\n\n')
       const started = Date.now()
-      const child = spawn(argv[0], argv.slice(1), { stdio: 'inherit', cwd: st.cwd, shell: process.platform === 'win32' })
-      const back = (code) => {
+      launchAgent({ agent: agent.id, model: st.models[agent.id], prompt, resume, cwd: st.cwd }).then(({ code, error }) => {
         const secs = Math.round((Date.now() - started) / 1000)
         const took = secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`
-        st = { ...st, input: '', histIdx: -1, toast: `${agent.label} ${code === 0 || code == null ? 'finished' : `exited (${code})`} · ${took}` }
+        st = { ...st, input: '', histIdx: -1, toast: error ? `Could not start ${agent.label}: ${error}` : `${agent.label} ${code === 0 || code == null ? 'finished' : `exited (${code})`} · ${took}` }
         stdin.on('data', onData)
         enter()
-      }
-      child.on('exit', back)
-      child.on('error', (e) => { st = { ...st, toast: `Could not start ${agent.label}: ${e.message}` }; stdin.on('data', onData); enter() })
+      })
     }
     const onData = (buf) => {
       const key = keyName(buf.toString('utf8'))

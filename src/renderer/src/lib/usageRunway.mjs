@@ -39,3 +39,6 @@ export function recordUsage(key, pct, now = Date.now()) {
   store.set(key, list)
   return list
 }
+
+export function usageSamples(key) { return (store.get(key) || []).slice() }
+export function usageKeys() { return [...store.keys()] }
