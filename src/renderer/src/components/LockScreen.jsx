@@ -492,13 +492,14 @@ function unlockBtn(accent, disabled) {
     padding: '10px 30px',
     borderRadius: 10,
     border: 'none',
-    background: accent,
-    color: '#0a0a0c',
-    fontWeight: 900,
+    // Disabled is a quiet neutral (the old 45%-opacity pink read as mud at
+    // ~2.2:1); only an enabled Unlock glows.
+    background: disabled ? 'rgba(226,206,255,0.1)' : accent,
+    color: disabled ? 'var(--text-4)' : '#1a0610',
+    fontWeight: 700,
     fontSize: 13,
     cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.45 : 1,
-    boxShadow: `0 8px 24px ${rgba(accent, 0.35)}`,
-    transition: 'opacity .15s ease'
+    boxShadow: disabled ? 'none' : `0 0 0 0.5px ${rgba(accent, 0.6)}, 0 10px 30px -6px ${rgba(accent, 0.6)}`,
+    transition: 'background-color .15s ease, box-shadow .2s ease, color .15s ease'
   }
 }

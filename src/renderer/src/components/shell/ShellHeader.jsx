@@ -38,7 +38,8 @@ export default function ShellHeader({
   onNewInProject,
   onNewTerminal,
   onDuplicate,
-  onHome
+  onHome,
+  guardPct = 80
 }) {
   const gitRoot = activeTab?.sessionRootCwd || activeTab?.workspaceCwd || activeTab?.cwd
   const branch = useGitBranch(gitRoot)
@@ -125,6 +126,7 @@ export default function ShellHeader({
             usageTitle={`Session ${providerMeta.sessionPct ?? '—'}% · week ${providerMeta.weekPct ?? '—'}%`}
             accent={accent}
             onSwitch={providerMeta.onSwitch}
+            guardPct={guardPct}
           />
         )}
         <NightlyAttention items={attention} onFocus={onAttentionFocus} onHandoff={onAttentionHandoff} />

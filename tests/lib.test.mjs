@@ -231,3 +231,18 @@ describe('custom theme builder', () => {
     expect(t.ui.accent).toBe('#9aabd4') // glassdark's accent
   })
 })
+
+describe('usageRunway', () => {
+  it('projects minutes to the guard from a steady burn, and declines without a trend', async () => {
+    const { usageRunway, runwayLabel } = await import('../src/renderer/src/lib/usageRunway.js')
+    const now = 1_000_000_000
+    const steady = [0, 5, 10, 15, 20].map(m => ({ t: now - (20 - m) * 60e3, pct: 40 + m }))  // 1%/min, at 60% now
+    expect(usageRunway(steady, 80, { now })).toBe(20)
+    expect(runwayLabel(20)).toBe('80% in ~20 min')
+    expect(usageRunway(steady.slice(0, 2), 80, { now })).toBeNull()
+    const flat = steady.map(s => ({ ...s, pct: 50 }))
+    expect(usageRunway(flat, 80, { now })).toBeNull()
+    const past = steady.map(s => ({ ...s, pct: s.pct + 40 }))
+    expect(usageRunway(past, 80, { now })).toBeNull()
+  })
+})

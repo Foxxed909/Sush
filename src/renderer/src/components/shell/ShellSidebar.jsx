@@ -92,6 +92,7 @@ function SessionRow({ tab, tabs, active, stateId, limited, pinned, settled, edit
     <li
       className={`ts-row${active ? ' is-active' : ''}${settled ? ' is-settled' : ''}${status && !active ? ` has-${status.tone}` : ''}`}
       data-thread-id={tab.id}
+      data-tone={status ? (status.id === 'working' ? 'working' : status.tone) : 'idle'}
     >
       <div
         role="button"

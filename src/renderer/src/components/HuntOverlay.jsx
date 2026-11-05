@@ -79,12 +79,12 @@ export default function HuntOverlay({ accent, tabs = [], onJump, onClose }) {
 
   return (
     <div
-      className="sush-backdrop"
+      className="sush-backdrop sush-scrim"
       style={{ position: 'fixed', inset: 0, zIndex: 2100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', paddingTop: '14vh' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="sush-pop"
+        className="sush-pop sush-sheet"
         style={{ width: '100%', maxWidth: 640, background: '#0d1015', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 'var(--r-xl)', boxShadow: `0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px ${rgba(accent, 0.1)}`, overflow: 'hidden' }}
       >
         <div className="flex items-center" style={{ gap: 10, padding: '12px 16px', borderBottom: `1px solid ${rgba(accent, 0.12)}` }}>

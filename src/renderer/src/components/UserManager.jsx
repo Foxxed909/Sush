@@ -76,11 +76,11 @@ export default function UserManager({ users, currentUser, accent, onClose, onCha
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 3000, background: 'rgba(4,6,9,0.7)', backdropFilter: 'blur(6px)' }} onMouseDown={onClose}>
+    <div className="fixed inset-0 flex items-center justify-center sush-scrim" style={{ zIndex: 3000, background: 'rgba(4,6,9,0.7)', backdropFilter: 'blur(6px)' }} onMouseDown={onClose}>
       <div
         data-glass
         onMouseDown={e => e.stopPropagation()}
-        className="sush-fade-up"
+        className="sush-fade-up sush-sheet"
         style={{
           width: 'min(92vw, 520px)',
           maxHeight: '82vh',

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Icon from './Icons'
 import NightlyAnchoredPopover from './NightlyAnchoredPopover'
+import { recordUsage, usageRunway, runwayLabel } from '../lib/usageRunway'
 
 function usageOf(slot) {
   const u = slot?.usage
@@ -8,7 +9,7 @@ function usageOf(slot) {
   return values.length ? Math.max(...values) : null
 }
 
-export default function NightlyAccountMenu({ provider, label, count = 0, usagePct = null, usageTitle, accent, onSwitch }) {
+export default function NightlyAccountMenu({ provider, label, count = 0, usagePct = null, usageTitle, accent, onSwitch, guardPct = 80 }) {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState(null)
@@ -33,6 +34,11 @@ export default function NightlyAccountMenu({ provider, label, count = 0, usagePc
   }, [open, provider])
 
   if (!provider || provider === 'shell' || !label) return null
+  // Runway: how long until this account crosses the Usage Guard at the
+  // current burn rate. Samples accumulate across renders per account.
+  const samples = usagePct != null ? recordUsage(`${provider}:${label}`, usagePct) : []
+  const runway = usagePct != null && usagePct < guardPct ? usageRunway(samples, guardPct) : null
+  const runwayText = runwayLabel(runway, guardPct)
   const slots = state?.slots || []
   const activeId = state?.active
 
@@ -44,15 +50,21 @@ export default function NightlyAccountMenu({ provider, label, count = 0, usagePc
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(v => !v)}
-        title={[count > 1 ? `${count} connected account slots` : 'Active CLI account', usagePct != null ? usageTitle : null].filter(Boolean).join(' · ')}
+        title={[count > 1 ? `${count} connected account slots` : 'Active CLI account', usagePct != null ? usageTitle : null, runwayText ? `At this pace: ${runwayText}` : null].filter(Boolean).join(' · ')}
       >
         <Icon name="users" size={11} />
         <span className="nightly-account-label">{label}</span>
         {usagePct != null && (
           <span className="nightly-usage" aria-label={`Usage ${usagePct}%`}>
-            <span className="nightly-usage-bar"><span style={{ width: `${Math.max(3, Math.min(100, usagePct))}%` }} /></span>
+            <span className="nightly-usage-bar">
+              <span style={{ width: `${Math.max(3, Math.min(100, usagePct))}%` }} />
+              <i className="nightly-usage-guard" style={{ left: `${guardPct}%` }} aria-hidden />
+            </span>
             <strong>{usagePct}%</strong>
           </span>
+        )}
+        {runwayText && (
+          <span className={`nightly-runway${runway <= 15 ? ' is-soon' : ''}`}>{runwayText}</span>
         )}
         <Icon name="chevronDown" size={9} />
       </button>

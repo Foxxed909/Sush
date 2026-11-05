@@ -2418,7 +2418,7 @@ export default function App() {
 
         <div className="flex flex-col flex-1 min-w-0">
           {!zenMode && nightlyShell && (
-            <ShellHeader
+            <ShellHeader guardPct={settings.usageGuardPct ?? 80}
               activeTab={view === 'home' || !tabs.length ? null : activeTab}
               accent={accent}
               activity={agentStates}
