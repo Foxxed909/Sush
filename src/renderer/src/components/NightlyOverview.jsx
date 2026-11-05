@@ -46,6 +46,7 @@ function AgentCard({ tab, stateId, limited, metric, project, accent, onFocus, on
   const statusLabel = limited ? 'Usage limit' : stateId === 'waiting' ? 'Needs input' : stateId === 'error' ? 'Stopped' : state.label
   return (
     <article
+      style={{ '--agent': color }}
       className={`ag-card is-${tone}`}
       role="button"
       tabIndex={0}
@@ -54,8 +55,10 @@ function AgentCard({ tab, stateId, limited, metric, project, accent, onFocus, on
       aria-label={`${tab.label}, ${statusLabel}. Open session`}
     >
       <header className="ag-card-head">
-        <span className="ag-mark" style={{ color, background: rgba(color, 0.12), boxShadow: `inset 0 0 0 1px ${rgba(color, 0.25)}` }}>
-          <ProviderLogo provider={tab.agentId} size={15} title={agent?.label} />
+        <span className="ag-avatar">
+          <span className="ag-mark" style={{ color, background: rgba(color, 0.14), boxShadow: `inset 0 0 0 1px ${rgba(color, 0.3)}` }}>
+            <ProviderLogo provider={tab.agentId} size={16} title={agent?.label} />
+          </span>
         </span>
         <span className="ag-title">
           <strong>{tab.label}</strong>
@@ -71,7 +74,7 @@ function AgentCard({ tab, stateId, limited, metric, project, accent, onFocus, on
       </div>
       <footer className="ag-meta">
         <span className="ag-chip">{agent?.label || 'Terminal'}</span>
-        {tab.model && <span className="ag-chip is-mono">{tab.model}</span>}
+        {tab.model && <span className="ag-chip">{pickerModelLabel(tab.agentId, tab.model)}</span>}
         {tab.effort && <span className="ag-chip">{tab.effort}</span>}
         {metric && (
           <span className="ag-chip is-mono" title="CPU · memory">
@@ -84,7 +87,45 @@ function AgentCard({ tab, stateId, limited, metric, project, accent, onFocus, on
           <Icon name="send" size={12} /> Hand off to another account
         </button>
       )}
+      <div className="ag-quick" aria-hidden={false}>
+        <button type="button" onClick={e => { e.stopPropagation(); onFocus?.(tab.id) }}><Icon name="arrowRight" size={12} /> Open</button>
+        {onHandoff && tab.agentId && tab.agentId !== 'shell' && !limited && (
+          <button type="button" onClick={e => { e.stopPropagation(); onHandoff(tab.id) }}><Icon name="send" size={12} /> Hand off</button>
+        )}
+      </div>
+      {tone === 'working' && <span className="ag-shimmer" aria-hidden />}
     </article>
+  )
+}
+
+// Crew pulse: a donut of the crew by state. The working arc carries a slow
+// orbiting light (a rotated group: compositor-only).
+function CrewPulse({ counts, total }) {
+  const R = 46, C = 2 * Math.PI * R
+  const order = [['waiting', '#ffcb6b'], ['working', 'var(--accent)'], ['idle', '#8f8396'], ['done', '#5fd3a8']]
+  let offset = 0
+  const arcs = order.map(([k, colour]) => {
+    const n = counts[k] || 0
+    const len = total ? (n / total) * C : 0
+    const gap = n && total > 1 ? 3 : 0
+    const arc = { k, colour, dash: `${Math.max(0, len - gap)} ${C}`, offset: -offset }
+    offset += len
+    return arc
+  }).filter(a => counts[a.k])
+  return (
+    <div className={`ag-pulse${counts.working ? ' is-live' : ''}`} aria-label={`${total} agents`}>
+      <svg viewBox="0 0 120 120" width="132" height="132" aria-hidden>
+        <circle cx="60" cy="60" r={R} className="ag-pulse-track" />
+        {arcs.map(a => (
+          <circle key={a.k} cx="60" cy="60" r={R} className={`ag-pulse-arc is-${a.k}`} style={{ stroke: a.colour, strokeDasharray: a.dash, strokeDashoffset: a.offset }} />
+        ))}
+        <g className="ag-pulse-orbit"><circle cx="60" cy="14" r="3.2" /></g>
+      </svg>
+      <div className="ag-pulse-centre">
+        <strong>{total}</strong>
+        <small>{total === 1 ? 'agent' : 'agents'}</small>
+      </div>
+    </div>
   )
 }
 
@@ -120,13 +161,33 @@ export default function NightlyOverview({
   return (
     <div className="nightly-overview ag-board sush-scroll">
       <div className="ag-inner">
-        <div className="ag-header">
-          <div>
+        <div className="ag-hero">
+          <CrewPulse
+            total={tabs.length + terminalSessions.length}
+            counts={{
+              waiting: columns.needs.length + terminalSessions.filter(t => t.state === 'waiting').length,
+              working: columns.working.length + terminalSessions.filter(t => t.state === 'working').length,
+              idle: columns.idle.length + terminalSessions.filter(t => t.state === 'idle' || t.state === 'running').length,
+              done: terminalSessions.filter(t => t.state === 'done').length
+            }}
+          />
+          <div className="ag-hero-copy">
             <h1>Agents</h1>
             <p>
               {tabs.length} session{tabs.length === 1 ? '' : 's'} in {workspaces.length} project{workspaces.length === 1 ? '' : 's'}
-              {columns.needs.length > 0 && <> · <span className="ag-needs-count">{columns.needs.length} need{columns.needs.length === 1 ? 's' : ''} you</span></>}
+              {terminalSessions.length > 0 && <> · {terminalSessions.length} in your terminal</>}
             </p>
+            <div className="ag-stats">
+              {[
+                ['needs', 'Needs you', columns.needs.length],
+                ['working', 'Working', columns.working.length],
+                ['idle', 'Idle', columns.idle.length]
+              ].map(([k, label, n]) => (
+                <span key={k} className={`ag-stat is-${k}${n ? ' has' : ''}`}>
+                  <i aria-hidden /> <b>{n}</b> {label}
+                </span>
+              ))}
+            </div>
           </div>
           <button type="button" className="ag-new" onClick={onNewSession}><Icon name="plus" size={14} /> New session</button>
         </div>
@@ -186,7 +247,12 @@ export default function NightlyOverview({
                       />
                     </div>
                   ))}
-                  {!columns[col.id].length && <div className="ag-col-empty">{col.empty}</div>}
+                  {!columns[col.id].length && (
+                    <div className="ag-col-empty">
+                      <Icon name={col.id === 'needs' ? 'check' : col.id === 'working' ? 'moon' : 'coffee'} size={16} />
+                      <span>{col.empty}</span>
+                    </div>
+                  )}
                 </div>
               </section>
             ))}

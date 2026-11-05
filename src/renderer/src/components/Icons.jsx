@@ -20,6 +20,8 @@ const PATHS = {
   doctor: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
   folder: <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />,
   folderOpen: <><path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" /></>,
+  moon: <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />,
+  coffee: <><path d="M17 8h1a4 4 0 0 1 0 8h-1" /><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" /><line x1="7" y1="2" x2="7" y2="5" /><line x1="11" y1="2" x2="11" y2="5" /></>,
   mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><polyline points="3 7 12 13 21 7" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   discord: <><path d="M8.5 7.5c-1.6.3-3 .9-4.2 1.7C3 12 2.6 14.7 3 17.4c1.4 1 2.8 1.7 4.3 2.1l1-1.6" /><path d="M15.5 7.5c1.6.3 3 .9 4.2 1.7 1.3 2.8 1.7 5.5 1.3 8.2-1.4 1-2.8 1.7-4.3 2.1l-1-1.6" /><path d="M7.5 16.5c2.9 1.3 6.1 1.3 9 0" /><path d="M8.6 8.2c2.2-.7 4.6-.7 6.8 0" /><circle cx="9.3" cy="13" r="1.1" fill="currentColor" stroke="none" /><circle cx="14.7" cy="13" r="1.1" fill="currentColor" stroke="none" /></>,
