@@ -56,7 +56,7 @@ import { consumeTicket, peekTicket } from './oauth/tickets'
 import { setOauthEventSender } from './oauth/events'
 import { listTerminal, writeDesktop } from '../../term/src/crew.mjs'
 import { sessionInsight } from '../../term/src/transcripts.mjs'
-import { latestConversation } from '../../term/src/handoff.mjs'
+import { latestConversation, prepareHandoff } from '../../term/src/handoff.mjs'
 import { resetSushUserData } from './factory-reset'
 import {
   getGitHubStatus, listRepos, getWork, getNotifications,
@@ -1696,6 +1696,28 @@ export function registerIpcHandlers(win) {
       }
     } catch (err) {
       return { ok: false, sessions: [], error: err?.message }
+    }
+  })
+
+  // Hand-off brief, shared with `sush handoff`: transcript-first (Claude,
+  // Codex), else the terminal tail / AI summary the renderer passes. Saved
+  // under ~/.sush/handoffs; the next agent gets a one-line pointer to it.
+  ipcMain.handle('sush:handoff-prepare', (event, { cwd, to = null, from = null, fromLabel = null, tail = '', summary = '', reason = '', git = null } = {}) => {
+    const dir = existingDirectory(cwd)
+    if (!dir) return { ok: false, error: 'Working directory does not exist' }
+    const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '')
+    try {
+      return prepareHandoff({
+        cwd: dir,
+        to: typeof to === 'string' && /^[a-z]+$/.test(to) ? to : null,
+        from: typeof from === 'string' && /^[\w-]{1,24}$/.test(from) ? from : null,
+        fromLabel: str(fromLabel, 80) || null,
+        tail: str(tail, 8000), summary: str(summary, 2000), reason: str(reason, 300),
+        // The renderer already knows the git state; never block main on git.
+        git: git && typeof git.branch === 'string' ? { branch: git.branch.slice(0, 120), dirty: Math.max(0, Number(git.dirty) || 0) } : null
+      })
+    } catch (e) {
+      return { ok: false, error: e.message }
     }
   })
 

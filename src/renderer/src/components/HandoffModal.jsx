@@ -52,6 +52,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
   const [inject, setInject] = useState('')
   const [summarizing, setSummarizing] = useState(false)
   const [sumError, setSumError] = useState('')
+  const [sending, setSending] = useState(false)
 
   const source = tabs.find(t => t.id === sourceId)
   const targets = useMemo(() => tabs.filter(t => t.id !== sourceId && t.status !== 'exited'), [tabs, sourceId])
@@ -100,13 +101,35 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
 
   const fullText = useMemo(() => buildFullCard(card), [card])
 
-  const submit = () => {
+  const submit = async () => {
+    if (sending) return
+    setSending(true)
+    // The shared hand-off (same brief as `sush handoff`): the agent's own
+    // transcript first, else this output tail; saved in the project's
+    // .sush/handoffs, and the next agent gets a one-line pointer to it. A
+    // hand-written note is kept as the brief's summary.
+    let injectText = inject
+    let brief = fullText
+    const toAgent = targetId === null ? agentId : (tabs.find(t => t.id === targetId)?.agentId || null)
+    const cwd = source?.cwd || source?.workspaceCwd
+    if (cwd && toAgent && toAgent !== 'shell') {
+      try {
+        const edited = inject.trim() && inject !== buildInject(card)
+        const prep = await window.sush.handoffPrepare?.({
+          cwd, to: toAgent, from: source?.agentId || null, fromLabel: agentById(source?.agentId)?.label || source?.label,
+          tail: String(card?.scroll || '').replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, '').slice(-4000),
+          summary: edited ? inject.trim() : '',
+          git: card?.branch ? { branch: card.branch, dirty: card.dirty } : null
+        })
+        if (prep?.ok && prep.pointer) { injectText = prep.pointer; brief = prep.brief }
+      } catch {}
+    }
     onSubmit({
       targetId,
       openNew: targetId === null,
       agentId: targetId === null ? agentId : undefined,
-      fullText,
-      injectText: inject,
+      fullText: brief,
+      injectText,
       // Project root, not the live shell cwd: after a `cd src` the handoff
       // must land in the same project, not open a new one called "src".
       sourceCwd: source?.workspaceCwd || source?.sessionRootCwd || source?.cwd || null
@@ -226,7 +249,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
           />
           <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.5 }}>
             {targetId === null && agentId !== 'shell'
-              ? 'A new agent session boots, then the brief is typed in and submitted automatically. The full context card lands on your clipboard for a richer paste.'
+              ? 'A new agent session boots and is pointed at a full brief (its conversation, files touched, git state) saved in .sush/handoffs. Your note above becomes the brief\'s summary. The brief also lands on your clipboard.'
               : 'Pasted as a single line at the target prompt - press Enter there to submit. The full multi-line card is copied to your clipboard.'}
           </div>
         </div>
@@ -240,12 +263,12 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
           </button>
           <button
             onClick={submit}
-            disabled={loading}
+            disabled={loading || sending}
             className="sush-btn"
             style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 800, color: '#0a0a0a', background: loading ? '#1c2126' : accent, border: 'none', borderRadius: 'var(--r-btn)', padding: '8px 16px', cursor: loading ? 'default' : 'pointer', boxShadow: loading ? 'none' : `0 4px 14px ${rgba(accent, 0.3)}` }}
           >
             <Icon name="send" size={13} strokeWidth={2.2} color="#0a0a0a" />
-            Hand off
+            {sending ? 'Writing brief…' : 'Hand off'}
           </button>
         </div>
       </div>

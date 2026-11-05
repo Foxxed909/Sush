@@ -2068,12 +2068,26 @@ export default function App() {
         { cwd: tab.cwd || undefined, engine: fallback }
       )
     } catch {}
-    const brief = [
+    let brief = [
       `You are taking over from another AI agent (${from}) that hit its usage limit mid-task.`,
       summary ? `Handoff summary: ${summary}` : `Recent output tail: ${scroll.slice(-900)}`,
       card?.branch ? `Git branch: ${card.branch}${card.dirty ? ` (${card.dirty} changed files)` : ''}.` : '',
       'Pick the work up from exactly where it stopped.'
     ].filter(Boolean).join(' ')
+    // The shared hand-off (same brief as `sush handoff`): transcript-first,
+    // saved to a file, and the next agent gets a one-line pointer to it.
+    const cwd = tab.cwd || tab.workspaceCwd
+    if (cwd) {
+      try {
+        const prep = await window.sush.handoffPrepare?.({
+          cwd, to: fallback, from, fromLabel: agentById(from)?.label || tab.label,
+          tail: scroll, summary: summary || '',
+          reason: `${agentById(from)?.label || from} hit its usage limit mid-task.`,
+          git: card?.branch ? { branch: card.branch, dirty: card.dirty } : null
+        })
+        if (prep?.ok && prep.pointer) brief = prep.pointer
+      } catch {}
+    }
     performHandoff({
       openNew: true,
       agentId: fallback,

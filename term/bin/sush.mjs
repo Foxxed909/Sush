@@ -124,7 +124,7 @@ async function main(argv) {
     if (prep.brief.split('\n').length > 14) say(paint(MUTED, '  …'))
     say()
     if (args.dryRun) return
-    const res = await launchAgent({ agent: to, model: args.model, effort: args.effort, permission: args.permission, prompt: prep.brief, handoffFrom: prep.from })
+    const res = await launchAgent({ agent: to, model: args.model, effort: args.effort, permission: args.permission, prompt: prep.pointer, handoffFrom: prep.from })
     if (res.error) say(paint(PINK, `could not start ${to}: ${res.error}`))
     process.exitCode = res.code ?? 0
     return

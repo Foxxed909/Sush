@@ -77,7 +77,7 @@ describe('Sush Terminal crew features', () => {
       { role: 'user', text: 'Add login' }, { role: 'tool', tool: 'Edit', file: '/p/a.js' }, { role: 'assistant', text: 'Login works.' }
     ])
     expect(brief).toContain('from Claude Code in /p')
-    expect(brief).toContain('- Add login')
+    expect(brief).toContain('## Latest ask\nAdd login')
     expect(brief).toContain('Login works.')
     expect(brief).toContain('- /p/a.js')
   })
@@ -147,5 +147,38 @@ describe('permission modes in the CLI', () => {
     expect(commandFor('gemini', { permission: 'edits' })).toEqual(['gemini', '--approval-mode', 'auto_edit'])
     expect(commandFor('opencode', { permission: 'plan' })).toEqual(['opencode'])
     expect(commandFor('claude', { permission: '; rm -rf /' })).toEqual(['claude'])
+  })
+})
+
+describe('unified hand-off', () => {
+  it('keeps the latest ask and reply, then earlier asks newest-first, under budget', async () => {
+    const { buildHandoffBrief } = await import('../src/renderer/src/lib/handoffBrief.mjs')
+    const items = []
+    for (let i = 1; i <= 30; i++) items.push({ role: 'user', text: `ask ${i} ` + 'x'.repeat(250) }, { role: 'assistant', text: `reply ${i}` })
+    const brief = buildHandoffBrief({ fromLabel: 'Codex', cwd: '/p', items, git: { branch: 'main', dirty: 2 }, maxChars: 3000 })
+    expect(brief.length).toBeLessThanOrEqual(3000)
+    expect(brief).toContain('## Latest ask\nask 30')
+    expect(brief).toContain('reply 30')
+    expect(brief).toContain('on main, 2 changed files')
+    expect(brief.indexOf('ask 29')).toBeLessThan(brief.indexOf('ask 28'))
+    expect(brief).not.toContain('ask 1 ')
+    expect(brief.endsWith('before making large changes.')).toBe(true)
+  })
+
+  it('falls back to the terminal tail and writes the brief inside the project', async () => {
+    const { mkdtempSync, readFileSync, existsSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { prepareHandoff } = await import('../term/src/handoff.mjs')
+    const cwd = mkdtempSync(join(tmpdir(), 'sush-ho-'))
+    const env = { HOME: cwd }
+    const prep = prepareHandoff({ to: 'claude', from: 'gemini', cwd, env, tail: 'npm test\n3 failing', git: null })
+    expect(prep.ok).toBe(true)
+    expect(prep.file.startsWith(join(cwd, '.sush', 'handoffs'))).toBe(true)
+    expect(readFileSync(join(cwd, '.sush', 'handoffs', '.gitignore'), 'utf8')).toBe('*\n')
+    expect(readFileSync(prep.file, 'utf8')).toContain('3 failing')
+    expect(prep.pointer).toMatch(/^Read the hand-off brief at \.sush\/handoffs\/.+-gemini-to-claude\.md/)
+    expect(existsSync(prep.file)).toBe(true)
+    expect(prepareHandoff({ to: 'claude', cwd, env, git: null }).ok).toBe(false)
   })
 })

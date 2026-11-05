@@ -1,3 +1,4 @@
+import { buildHandoffBrief } from '../../src/renderer/src/lib/handoffBrief.mjs'
 import { closeSync, openSync, readdirSync, readSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -185,23 +186,7 @@ export function sessionInsight(agent, cwd, { since = 0, env = process.env, now =
 }
 
 // A hand-off brief: the ask, where it got to, files touched, last words.
-export function handoffBrief(agentLabel, cwd, items, { maxChars = 6000 } = {}) {
-  const users = items.filter(i => i.role === 'user').map(i => i.text.trim()).filter(Boolean)
-  const said = items.filter(i => i.role === 'assistant').map(i => i.text.trim()).filter(Boolean)
-  const files = [...new Set(items.filter(i => i.role === 'tool' && i.file).map(i => i.file))].slice(-20)
-  const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
-  const lines = [
-    `You are taking over a coding session from ${agentLabel} in ${cwd}.`,
-    '',
-    '## What was asked',
-    ...(users.length ? users.slice(-4).map(u => `- ${clip(u.replace(/\s+/g, ' '), 400)}`) : ['- (no prompt recorded)']),
-    '',
-    '## Where it got to',
-    ...(said.length ? said.slice(-3).map(s => clip(s, 900)) : ['(no reply recorded)']),
-    ''
-  ]
-  if (files.length) lines.push('## Files touched', ...files.map(f => `- ${f}`), '')
-  lines.push('## Your job', 'Read the files above, check the current state (git status / tests), then continue the work. Tell me briefly what you found before making large changes.')
-  const text = lines.join('\n')
-  return text.length > maxChars ? text.slice(0, maxChars - 1) + '…' : text
+// The brief itself is shared with the desktop app (src/renderer/src/lib/handoffBrief.mjs).
+export function handoffBrief(agentLabel, cwd, items, { maxChars, ...rest } = {}) {
+  return buildHandoffBrief({ fromLabel: agentLabel, cwd, items, maxChars, ...rest })
 }
