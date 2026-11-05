@@ -19,9 +19,11 @@ import { subscribeThreadFeed } from '../../lib/threadFeedStore'
 import { terminalTail } from '../../lib/terminalRegistry'
 import { workspaceKey } from '../../lib/workspaces'
 import {
-  backdropTexture, box, buildBoard, buildBuilding, buildDesk, buildKiosk, buildMeetingTable, buildStatue, buildTree,
-  checkerTexture, disposeTree, mat, openingRing, paintScreen, sit, stand, voxelPerson
+  backdropTexture, box, buildBench, buildBoard, buildBuilding, buildDesk, buildFlowers, buildInteriorDecor, buildKiosk, buildLampPost,
+  buildMeetingTable, buildStatue, buildTree, checkerTexture, disposeTree, glow, hashSeed, lift, mat, openingRing, paintScreen,
+  plankTexture, rugTexture, sit, skyTexture, stand, tileTexture, voxelPerson, wallTexture
 } from './officeScene'
+import './office.css'
 import { threadCentered } from '../../lib/shellModes'
 import { playChime } from '../../lib/chime'
 
@@ -133,10 +135,10 @@ export default function SushOffice({
     host.appendChild(renderer.domElement)
 
     const scene = new Scene()
-    // Key from above-right, a warm low fill from the front-left so faces and
-    // desk fronts aren't black, and a brighter sky term overall.
-    const hemi = new HemisphereLight('#c9d2ff', '#2a1d1a', 2.1)
-    const sun = new DirectionalLight('#ffe9f1', 2.4)
+    // Key from above-right, a warm low fill from the front-left (below) so
+    // faces and desk fronts aren't black; the decor's light pools do the rest.
+    const hemi = new HemisphereLight('#c9d2ff', '#2a2030', 2.0)
+    const sun = new DirectionalLight('#ffe9f1', 1.7)
     sun.position.set(6, 14, 9)
     const fill = new DirectionalLight('#ffcfb8', 0.7)
     fill.position.set(-8, 5, 12)
@@ -277,8 +279,18 @@ export default function SushOffice({
           tmp.copy(engine.camTarget.pos)
           look.copy(engine.camTarget.look)
         } else {
-          tmp.set(engine.pos.x, campusCam ? 15 : 5.6, engine.pos.z + (campusCam ? 15 : 6.2))
-          look.set(engine.pos.x, 0.9, engine.pos.z - (campusCam ? 7 : 3.2))
+          if (campusCam) {
+            tmp.set(engine.pos.x, 15, engine.pos.z + 15)
+            look.set(engine.pos.x, 0.9, engine.pos.z - 7)
+          } else {
+            // Frame the whole room: back off until its width fits the view.
+            const room = layoutNow.room
+            const fitW = Math.min(room.maxX - room.minX, 10.6) / 2 + 0.6
+            const D = Math.min(24, Math.max(11, fitW / (0.384 * camera.aspect)))
+            const lz = ((room.minZ + room.maxZ) / 2) * 0.7 + engine.pos.z * 0.3 - 0.5
+            tmp.set(engine.pos.x * 0.25, D * 0.72, lz + D * 0.62)
+            look.set(engine.pos.x * 0.25, 0.3, lz)
+          }
         }
         if (!engine.look) { engine.look = look.clone(); camera.position.copy(tmp) }
         const flying = camera.position.distanceTo(tmp) > 0.02 || engine.look.distanceTo(look) > 0.02
@@ -363,6 +375,10 @@ export default function SushOffice({
             parts.armR.rotation.x = typing ? -1.1 + Math.cos(t * 18 + desk.z) * 0.25 : -0.9
             parts.armR.rotation.z = id === 'waiting' ? 2.6 : 0
             parts.head.rotation.x = id === 'limit' ? 0.5 : id === 'error' ? -0.2 : Math.sin(t * 1.3 + desk.x) * 0.05
+            // Breathing: a slow chest swell, shallower while typing.
+            parts.torso.scale.y = 1 + Math.sin(t * 2.1 + desk.x * 2) * (typing ? 0.012 : 0.03)
+            if (!typing && id !== 'waiting') parts.head.rotation.y = Math.sin(t * 0.5 + desk.z) * 0.25
+            else parts.head.rotation.y = 0
           }
         }
         for (const win of engine.windows) {
@@ -468,19 +484,20 @@ export default function SushOffice({
     if (interior) {
       const t = theme
       engine.scene.background = new Color(t.sky[0])
-      engine.scene.fog = new Fog(t.fog, 16, 34)
-      engine.hemi.color.set(t.light)
+      engine.scene.fog = new Fog(t.fog, 18, 40)
+      engine.hemi.color.set(lift(t.light, 0.1))
+      engine.hemi.groundColor.set('#2a2030')
       const { room } = interior
       const w = room.maxX - room.minX
       const d = room.maxZ - room.minZ
-      const ground = new Mesh(new PlaneGeometry(w, d), new MeshLambertMaterial({ map: checkerTexture(t.floorA, t.floorB, w / 2, d / 2) }))
+      const ground = new Mesh(new PlaneGeometry(w, d), new MeshLambertMaterial({ map: (t.floor === 'tile' ? tileTexture : plankTexture)(lift(t.floorA, 0.08), lift(t.floorB, 0.08), w / 2, d / 2) }))
       ground.rotation.x = -Math.PI / 2
       world.add(ground)
-      const rug = new Mesh(new PlaneGeometry(w - 2, d - 3), new MeshLambertMaterial({ color: t.rug }))
+      const rug = new Mesh(new PlaneGeometry(w - 2, 4.2), new MeshLambertMaterial({ map: rugTexture(t.rug, accent) }))
       rug.rotation.x = -Math.PI / 2
-      rug.position.set(0, 0.005, -0.5)
+      rug.position.set(0, 0.006, interior.desks[0].z + 0.4)
       world.add(rug)
-      const wall = mat(t.wall)
+      const wall = new MeshLambertMaterial({ map: wallTexture(lift(t.wall, 0.12), w), flatShading: true })
       const trim = mat(t.trim === 'accent' ? accent : t.trim)
       world.add(box(w, WALL_H, WALL_T, wall, 0, WALL_H / 2, room.minZ - WALL_T / 2))
       world.add(box(WALL_T, WALL_H, d, wall, room.minX - WALL_T / 2, WALL_H / 2, 0))
@@ -489,15 +506,16 @@ export default function SushOffice({
       world.add(box(side, 0.6, WALL_T, wall, room.minX + side / 2, 0.3, room.maxZ))
       world.add(box(side, 0.6, WALL_T, wall, room.maxX - side / 2, 0.3, room.maxZ))
       // Door marked on the floor, not with a lintel that blocks the camera.
-      const mat2 = new Mesh(new PlaneGeometry(interior.doorW, 0.6), new MeshLambertMaterial({ color: t.trim === 'accent' ? accent : t.trim }))
+      const mat2 = new Mesh(new PlaneGeometry(interior.doorW, 0.6), new MeshLambertMaterial({ color: new Color(t.trim === 'accent' ? accent : t.trim).multiplyScalar(0.6) }))
       mat2.rotation.x = -Math.PI / 2
       mat2.position.set(0, 0.01, room.maxZ - 0.4)
       world.add(mat2)
       world.add(box(w, 0.04, 0.04, trim, 0, WALL_H, room.minZ - 0.02))
       // Back-wall window onto the theme's backdrop.
-      const view = new Mesh(new PlaneGeometry(w * 0.7, 1.3), new MeshBasicMaterial({ map: backdropTexture(t) }))
+      const view = new Mesh(new PlaneGeometry(w * 0.5, 1.25), new MeshBasicMaterial({ map: backdropTexture(t) }))
       view.position.set(0, 1.45, room.minZ + 0.02)
       world.add(view)
+      world.add(buildInteriorDecor({ room, meeting: interior.meeting, doorW: interior.doorW, theme: t, accent, label: interior.label }))
 
       const seen = engine.seenDesks.get(interior.key)
       const nextSeen = new Set()
@@ -509,7 +527,7 @@ export default function SushOffice({
         if (!desk.tabId) continue
         nextSeen.add(desk.tabId)
         const agent = agentById(desk.agentId) || agentById('shell')
-        const person = voxelPerson(agent?.color || '#8b9bb0')
+        const person = voxelPerson(agent?.color || '#8b9bb0', hashSeed(desk.tabId))
         const seat = new Vector3(0, 0.05, 0.72)
         group.add(person)
         group.userData.person = person
@@ -531,17 +549,17 @@ export default function SushOffice({
       world.userData.meetingTable = table
       anchors.set('meeting', table.userData.anchors.label)
     } else {
-      engine.scene.background = new Color('#0c0a12')
-      engine.scene.fog = new Fog('#0c0a12', 30, 70)
+      engine.scene.background = skyTexture()
+      engine.scene.fog = new Fog('#1a1230', 34, 80)
       engine.hemi.color.set('#c9d2ff')
       const { floor } = campus
       const w = floor.maxX - floor.minX
       const d = floor.maxZ - floor.minZ
-      const ground = new Mesh(new PlaneGeometry(w, d), new MeshLambertMaterial({ map: checkerTexture('#15131d', '#191623', w / 2, d / 2) }))
+      const ground = new Mesh(new PlaneGeometry(w, d), new MeshLambertMaterial({ map: checkerTexture('#1d1a28', '#221e30', w / 2, d / 2) }))
       ground.rotation.x = -Math.PI / 2
       ground.position.set((floor.minX + floor.maxX) / 2, 0, (floor.minZ + floor.maxZ) / 2)
       world.add(ground)
-      const path = new Mesh(new PlaneGeometry(3, d), new MeshLambertMaterial({ color: '#211d2c' }))
+      const path = new Mesh(new PlaneGeometry(3, d), new MeshLambertMaterial({ map: tileTexture('#2c2740', '#322c48', 1.5, d / 2) }))
       path.rotation.x = -Math.PI / 2
       path.position.set(0, 0.004, (floor.minZ + floor.maxZ) / 2)
       world.add(path)
@@ -578,6 +596,12 @@ export default function SushOffice({
       anchors.set('kiosk', kiosk.userData.anchors.label)
       anchors.set('seducia', statue.userData.anchors.label)
       anchors.set('board', board.userData.anchors.label)
+      const lampTheme = OFFICE_THEMES[0]
+      for (let z = floor.maxZ - 3; z > campus.seducia.z - 14; z -= 6) {
+        world.add(buildLampPost(-2.2, z, lampTheme), buildLampPost(2.2, z, lampTheme))
+      }
+      world.add(buildBench(-3.4, campus.seducia.z + 3.5, accent), buildBench(3.4, campus.seducia.z + 3.5, accent))
+      world.add(buildFlowers(-3.2, campus.seducia.z - 3.4, accent), buildFlowers(3.2, campus.seducia.z - 3.4, accent))
       for (const [x, z] of [[floor.minX + 3, floor.maxZ - 3], [floor.maxX - 3, floor.maxZ - 3], [floor.minX + 3, campus.seducia.z], [floor.maxX - 3, campus.seducia.z]]) {
         world.add(buildTree(x, z))
       }

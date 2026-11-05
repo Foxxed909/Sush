@@ -95,6 +95,26 @@ function bounds(floor) {
 }
 
 // ── Interior ────────────────────────────────────────────────────────────────
+// Furniture that fills the floor around the desks. Pure placement data (shared
+// by the scene and by collisions): `solid` pieces block the player.
+export function interiorDecor(room, meeting, doorW = 2.4) {
+  const w = room.maxX - room.minX
+  const lz = meeting.z
+  const items = [
+    { type: 'sofa', x: room.minX + 0.75, z: lz + 0.2, w: 2.4, d: 1.0, rot: Math.PI / 2, solid: true },
+    { type: 'coffeetable', x: room.minX + 2.5, z: lz + 0.2, w: 0.9, d: 1.4, solid: true },
+    { type: 'lamp', x: room.minX + 0.6, z: lz - 1.9, w: 0.5, d: 0.5, solid: false },
+    { type: 'shelf', x: room.maxX - 0.35, z: lz - 0.9, w: 2.6, d: 0.5, rot: -Math.PI / 2, solid: true },
+    { type: 'counter', x: room.maxX - 0.45, z: lz + 1.5, w: 1.7, d: 0.7, rot: -Math.PI / 2, solid: true },
+    { type: 'plant', x: room.minX + 0.7, z: room.maxZ - 0.8, w: 0.7, d: 0.7, solid: true },
+    { type: 'plant', x: room.maxX - 0.7, z: room.maxZ - 0.8, w: 0.7, d: 0.7, solid: true },
+    { type: 'plant', x: room.minX + 0.7, z: room.minZ + 0.7, w: 0.7, d: 0.7, solid: true },
+    { type: 'plant', x: room.maxX - 0.7, z: room.minZ + 0.7, w: 0.7, d: 0.7, solid: true },
+    { type: 'plant', x: -(doorW / 2 + 0.7), z: room.maxZ - 0.55, w: 0.6, d: 0.6, solid: true }
+  ]
+  return { items, wide: w }
+}
+
 export function buildInteriorLayout(tabs = [], key) {
   const group = groupByWorkspace(tabs).find(g => g.key === key)
   const sessions = (group?.tabs || []).slice(0, MAX_DESKS - 1)
@@ -130,7 +150,13 @@ export function buildInteriorLayout(tabs = [], key) {
     // The doorway leads out, not into the void: stepping through is "exit".
     box(door.x - doorW / 2, door.x + doorW / 2, room.maxZ + 0.6, room.maxZ + 1),
     ...desks.map(k => box(k.x - DESK_W / 2, k.x + DESK_W / 2, k.z - DESK_D / 2, k.z + DESK_D / 2)),
-    box(meeting.x - MEETING_TABLE / 2, meeting.x + MEETING_TABLE / 2, meeting.z - MEETING_TABLE / 2, meeting.z + MEETING_TABLE / 2)
+    box(meeting.x - MEETING_TABLE / 2, meeting.x + MEETING_TABLE / 2, meeting.z - MEETING_TABLE / 2, meeting.z + MEETING_TABLE / 2),
+    ...interiorDecor(room, meeting, doorW).items.filter(i => i.solid).map(i => {
+      const rotated = Math.abs(Math.sin(i.rot || 0)) > 0.5
+      const hw = (rotated ? i.d : i.w) / 2
+      const hd = (rotated ? i.w : i.d) / 2
+      return box(i.x - hw, i.x + hw, i.z - hd, i.z + hd)
+    })
   ]
 
   const interactables = [

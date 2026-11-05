@@ -1,0 +1,3 @@
+/* Office-only polish. The base Office styles live in index.css; this file
+   only layers on top (loaded by SushOffice.jsx). */
+.office-canvas { image-rendering: pixelated; }
