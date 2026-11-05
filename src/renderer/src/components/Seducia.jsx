@@ -3,6 +3,9 @@ import Icon from './Icons'
 import { rgba, accentVars } from '../lib/ui'
 import { getStreamer, parseAIResponse } from '../lib/ai'
 import { applyAction } from '../lib/seduciaActions'
+import SushOrb from './SushOrb'
+import { agentById } from '../lib/agents'
+import { useMicLevel } from '../hooks/useMicLevel'
 import { parseIntent as parseSharedIntent, pathLabel as sharedPathLabel, summarize as summarizeAgents } from '../lib/seducia'
 
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
@@ -20,6 +23,11 @@ function speak(text, voiceSettings = {}) {
     const v = voices.find(v => v.voiceURI === voiceSettings.voiceURI)
     if (v) utt.voice = v
   }
+  // The orb animates while Seducia speaks.
+  const signal = on => window.dispatchEvent(new CustomEvent('sush:tts', { detail: { speaking: on } }))
+  utt.onstart = () => signal(true)
+  utt.onend = () => signal(false)
+  utt.onerror = () => signal(false)
   window.speechSynthesis.speak(utt)
 }
 
@@ -113,6 +121,33 @@ export default function Seducia({
   const [listening, setListening] = useState(false)
   const [handsFree, setHandsFree] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  useEffect(() => {
+    const on = e => setSpeaking(!!e.detail?.speaking)
+    window.addEventListener('sush:tts', on)
+    return () => window.removeEventListener('sush:tts', on)
+  }, [])
+  const micLevel = useMicLevel(listening)
+  // Pick up where you left off: the latest conversation in each project.
+  const [recentWork, setRecentWork] = useState([])
+  useEffect(() => {
+    if (!docked || !window.sush?.recentWork) return
+    const cwds = [...new Set([
+      ...tabs.map(t => t.workspaceCwd || t.sessionRootCwd || t.cwd),
+      ...recentSessions.map(r => r.cwd)
+    ].filter(Boolean))]
+    if (!cwds.length) return
+    let alive = true
+    window.sush.recentWork({ cwds }).then(r => { if (alive && r?.ok) setRecentWork(r.items || []) }).catch(() => {})
+    return () => { alive = false }
+  }, [docked]) // eslint-disable-line react-hooks/exhaustive-deps
+  const resumeWork = (w) => {
+    const open = tabs.find(t => t.status !== 'exited' && t.agentId === w.agent && (t.workspaceCwd || t.sessionRootCwd || t.cwd) === w.cwd)
+    if (open) { onFocus?.(open.label); return }
+    const agent = agentById(w.agent)
+    onLaunch?.({ cwd: w.cwd, agents: [{ id: w.agent, count: 1, command: agent?.resumeCommand || agent?.command, label: agent?.label }] })
+  }
+  const orbState = listening ? 'listening' : streaming ? 'thinking' : speaking ? 'speaking' : 'idle'
   const [aiMessages, setAiMessages] = useState([]) // { role: 'user'|'assistant', content: '' }
   const [log, setLog] = useState([
     { id: 0, role: 'seducia', text: "I'm Seducia. I can spin up agents ('build team in Rooms'), prompt them ('tell claude to run the tests'), or jump to one ('focus codex'). Tap the mic for voice.", streaming: false }
@@ -313,20 +348,7 @@ export default function Seducia({
       {/* Header */}
       <div className="flex items-center justify-between" style={{ padding: docked ? '12px 14px' : '16px 18px', borderBottom: '1px solid #171c22' }}>
         <div className="flex items-center" style={{ gap: 10 }}>
-          <span
-            className="flex items-center justify-center sush-orb"
-            style={{
-              width: docked ? 32 : 38,
-              height: docked ? 32 : 38,
-              borderRadius: '50%',
-              background: `radial-gradient(circle at 30% 30%, ${rgba(accent, 0.9)}, ${rgba(accent, 0.25)})`,
-              border: `1px solid ${rgba(accent, 0.6)}`,
-              color: '#0a0a0a',
-              boxShadow: `0 0 18px ${rgba(accent, 0.5)}`
-            }}
-          >
-            <Icon name="sparkles" size={docked ? 15 : 18} strokeWidth={2} />
-          </span>
+          <SushOrb size={docked ? 30 : 36} state={orbState} levelRef={micLevel} className="is-small" />
           <div>
             <div className="flex items-center" style={{ gap: 6 }}>
               <span style={{ fontSize: docked ? 13 : 14.5, fontWeight: 900, color: 'var(--text-1)' }}>Seducia</span>
@@ -384,9 +406,38 @@ export default function Seducia({
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto sush-scroll flex flex-col" style={{ padding: 12, gap: 10 }}>
         {docked && log.length <= 1 && (
           <div className="sz-welcome">
-            <span className="sz-orb" aria-hidden><Icon name="sparkles" size={26} strokeWidth={1.8} /></span>
+            <SushOrb
+              size={92}
+              state={orbState}
+              levelRef={micLevel}
+              onClick={voiceEnabled && SpeechRecognition ? toggleVoice : undefined}
+            />
+            {voiceEnabled && SpeechRecognition && (
+              <span className="sz-orb-hint">{listening ? 'Listening… tap to stop' : 'Tap the orb to talk'}</span>
+            )}
             <h2>Hi, I'm Seducia</h2>
             <p>I run your crew. Ask me to start agents, brief them, or check where everything stands. The mic works too.</p>
+            {recentWork.length > 0 && (
+              <div className="sz-recent">
+                <div className="sz-section">Pick up where you left off</div>
+                {recentWork.slice(0, 3).map(w => {
+                  const a = agentById(w.agent)
+                  const ago = Math.max(1, Math.round((Date.now() - w.at) / 60000))
+                  const when = ago < 60 ? `${ago}m ago` : ago < 1440 ? `${Math.round(ago / 60)}h ago` : `${Math.round(ago / 1440)}d ago`
+                  return (
+                    <button key={w.cwd + w.agent} type="button" className={`sz-work${w.question ? ' is-question' : ''}`} onClick={() => resumeWork(w)}>
+                      <span className="sz-work-top">
+                        <strong>{w.question ? `${a?.label || w.agent} asked you something` : `Continue: ${w.ask || 'your last task'}`}</strong>
+                        <small>{sharedPathLabel(w.cwd)} · {when}</small>
+                      </span>
+                      {w.last && <span className="sz-work-last">{w.last}</span>}
+                      <span className="sz-work-meta">{a?.label || w.agent}{w.files ? ` · ${w.files} file${w.files === 1 ? '' : 's'} touched` : ''} · {w.question ? 'Answer' : 'Resume'} →</span>
+                    </button>
+                  )
+                })}
+                <div className="sz-section">Or ask me to</div>
+              </div>
+            )}
             <div className="sz-cards">
               {QUICK.map(q => (
                 <button key={q.label} type="button" className="sz-card" onClick={() => handle(q.send)} disabled={streaming}>
@@ -459,7 +510,7 @@ export default function Seducia({
 
       {/* Composer */}
       <div style={{ padding: '0 12px 12px' }}>
-        <div className="sush-omni flex items-center" style={{ height: 44, gap: 8 }}>
+        <div className={`sush-omni sz-composer flex items-center${listening ? ' is-listening' : ''}`} style={{ height: 48, gap: 8 }}>
           <Icon name="sparkles" size={15} color={streaming ? accent : 'var(--text-4)'} className={streaming ? 'sush-spin' : undefined} />
           <input
             ref={inputRef}

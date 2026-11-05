@@ -37,6 +37,17 @@ function errorText(error) {
   return 'This session cannot be restarted with that setting.'
 }
 
+const EFFORT_HINTS = {
+  default: "The CLI's own default",
+  none: 'No extra reasoning',
+  minimal: 'The lightest touch',
+  low: 'Quick, light thinking',
+  medium: 'Balanced',
+  high: 'Deeper reasoning',
+  xhigh: 'Thinks hard before acting',
+  max: 'The longest, deepest thinking'
+}
+
 export function ShellModelPicker({ provider, model, effort, onApply, onNewThread, disabled = false }) {
   const [open, setOpen] = useState(false)
   const [section, setSection] = useState(provider || 'claude')
@@ -45,9 +56,10 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState('')
   const [active, setActive] = useState(0)
-  // Effort to launch with: chips under the list set it; picking a model (or
-  // re-picking the current one) applies model + effort together.
-  const [pickEffort, setPickEffort] = useState(effort || '')
+  // Effort flyout: hover a model (or press →, or click its ›) and its effort
+  // levels open beside the list. Picking one applies model + effort.
+  const [flyout, setFlyout] = useState(null) // { row, top }
+  const flyTimer = useRef(null)
   const anchorRef = useRef(null)
   const searchRef = useRef(null)
   const listRef = useRef(null)
@@ -59,7 +71,7 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     setSection(PICKER_PROVIDERS.includes(provider) ? provider : 'favorites')
     setQuery('')
     setError('')
-    setPickEffort(effort || '')
+    setFlyout(null)
     requestAnimationFrame(() => searchRef.current?.focus())
   }, [open, provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -76,10 +88,33 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     return next
   })
 
-  const choose = async (row) => {
+  const openFlyout = (row, el) => {
+    clearTimeout(flyTimer.current)
+    if (!row || !effortOptionsFor(row.provider, row.value).length || !el) { setFlyout(null); return }
+    const shell = el.closest('.mp-shell')
+    const shellBox = shell?.getBoundingClientRect()
+    const rowTop = el.getBoundingClientRect().top - (shellBox?.top || 0) - 8
+    // Keep the whole flyout on screen: shift it up when it would run off the bottom.
+    const height = 74 + effortOptionsFor(row.provider, row.value).length * 50
+    const maxTop = window.innerHeight - 12 - height - (shellBox?.top || 0)
+    setFlyout({ row, top: Math.min(Math.max(-((shellBox?.top || 0) - 12), rowTop), maxTop) })
+  }
+  const scheduleOpen = (row, el) => {
+    clearTimeout(flyTimer.current)
+    flyTimer.current = setTimeout(() => openFlyout(row, el), 140)
+  }
+  const scheduleClose = () => {
+    clearTimeout(flyTimer.current)
+    flyTimer.current = setTimeout(() => setFlyout(null), 220)
+  }
+  useEffect(() => () => clearTimeout(flyTimer.current), [])
+
+  // effortChoice: undefined = keep the thread's effort if the model takes it.
+  const choose = async (row, effortChoice) => {
     if (!row || busy) return
     const rowEfforts = effortOptionsFor(row.provider, row.value)
-    const nextEffort = rowEfforts.includes(pickEffort) ? (pickEffort || null) : null
+    const wanted = effortChoice !== undefined ? (effortChoice || '') : (row.provider === provider ? (effort || '') : '')
+    const nextEffort = rowEfforts.includes(wanted) ? (wanted || null) : null
     if (row.provider !== provider) {
       // A running CLI can't become another provider; that's a new thread.
       setOpen(false)
@@ -106,12 +141,12 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => Math.min(rows.length - 1, i + 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => Math.max(0, i - 1)) }
     else if (e.key === 'Enter') { e.preventDefault(); choose(rows[active]) }
+    else if (e.key === 'ArrowRight' && !query) { e.preventDefault(); openFlyout(rows[active], listRef.current?.querySelector(`[data-index="${active}"]`)) }
+    else if (e.key === 'ArrowLeft' && flyout) { e.preventDefault(); setFlyout(null) }
   }
 
   const label = spec ? pickerModelLabel(provider, model) + (effort ? ` · ${effortLabelFor(provider, effort)}` : '') : (agentById(provider)?.label || 'Terminal')
-  const effortProvider = PICKER_PROVIDERS.includes(section) ? section : provider
-  const effortChoices = effortOptionsFor(effortProvider, effortProvider === provider ? model : null)
-  const effortName = modelSpecFor(effortProvider)?.effort?.label || 'Effort'
+
 
   return (
     <>
@@ -178,7 +213,8 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                     role="option"
                     aria-selected={selected}
                     className={`mp-row${index === active ? ' is-active' : ''}${busy === row.key ? ' is-busy' : ''}`}
-                    onMouseEnter={() => setActive(index)}
+                    onMouseEnter={(e) => { setActive(index); scheduleOpen(row, e.currentTarget) }}
+                    onMouseLeave={scheduleClose}
                     onClick={() => choose(row)}
                   >
                     <div className="mp-row-text">
@@ -197,6 +233,17 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                     </div>
                     {busy === row.key && <span className="mp-row-note">Restarting…</span>}
                     {selected && <Icon name="check" size={14} />}
+                    {effortOptionsFor(row.provider, row.value).length > 0 && (
+                      <button
+                        type="button"
+                        className={`mp-row-more${flyout?.row?.key === row.key ? ' is-open' : ''}`}
+                        aria-label={`${row.label} effort levels`}
+                        title="Effort levels"
+                        onClick={e => { e.stopPropagation(); flyout?.row?.key === row.key ? setFlyout(null) : openFlyout(row, e.currentTarget.closest('.mp-row')) }}
+                      >
+                        <Icon name="chevronRight" size={12} />
+                      </button>
+                    )}
                     {!row.custom && (
                       <button
                         type="button"
@@ -217,29 +264,39 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                 </div>
               )}
             </div>
-            {effortChoices.length > 0 && (
-              <div className="mp-effort" role="radiogroup" aria-label={effortName}>
-                <span className="mp-effort-label">{effortName}</span>
-                <div className="mp-effort-chips">
-                  {effortChoices.map(v => (
+            {flyout && (
+              <div
+                className="mp-flyout"
+                style={{ top: flyout.top }}
+                role="menu"
+                aria-label={`${flyout.row.label} effort`}
+                onMouseEnter={() => clearTimeout(flyTimer.current)}
+                onMouseLeave={scheduleClose}
+              >
+                <div className="mp-flyout-head">
+                  <strong>{flyout.row.label}</strong>
+                  <small>{modelSpecFor(flyout.row.provider)?.effort?.label || 'Effort'}</small>
+                </div>
+                {effortOptionsFor(flyout.row.provider, flyout.row.value).map(v => {
+                  const current = flyout.row.provider === provider && (flyout.row.value || null) === (model || null) && (v || '') === (effort || '')
+                  return (
                     <button
                       key={v || 'default'}
                       type="button"
-                      role="radio"
-                      aria-checked={(pickEffort || '') === (v || '')}
-                      className={`mp-effort-chip${(pickEffort || '') === (v || '') ? ' is-on' : ''}`}
-                      onClick={() => setPickEffort(v || '')}
-                      title={v ? `${effortName}: ${effortLabelFor(effortProvider, v)}` : 'Use the CLI default'}
+                      role="menuitemradio"
+                      aria-checked={current}
+                      className={`mp-flyout-item${current ? ' is-on' : ''}`}
+                      onClick={() => { setFlyout(null); choose(flyout.row, v || null) }}
                     >
-                      {v ? effortLabelFor(effortProvider, v) : 'Default'}
+                      <span className={`mp-effort-bars is-${v || 'default'}`} aria-hidden><i /><i /><i /><i /><i /></span>
+                      <span className="mp-flyout-text">
+                        <b>{v ? effortLabelFor(flyout.row.provider, v) : 'Default'}</b>
+                        <small>{EFFORT_HINTS[v || 'default']}</small>
+                      </span>
+                      {current && <Icon name="check" size={13} />}
                     </button>
-                  ))}
-                </div>
-                {effortProvider === provider && (pickEffort || '') !== (effort || '') && (
-                  <button type="button" className="mp-effort-apply" onClick={() => choose({ key: 'effort', provider, value: model || null })}>
-                    Apply to this thread
-                  </button>
-                )}
+                  )
+                })}
               </div>
             )}
             {(error || resumeOff) && (

@@ -56,6 +56,7 @@ import { consumeTicket, peekTicket } from './oauth/tickets'
 import { setOauthEventSender } from './oauth/events'
 import { listTerminal, writeDesktop } from '../../term/src/crew.mjs'
 import { sessionInsight } from '../../term/src/transcripts.mjs'
+import { latestConversation } from '../../term/src/handoff.mjs'
 import { resetSushUserData } from './factory-reset'
 import {
   getGitHubStatus, listRepos, getWork, getNotifications,
@@ -1696,6 +1697,35 @@ export function registerIpcHandlers(win) {
     } catch (err) {
       return { ok: false, sessions: [], error: err?.message }
     }
+  })
+
+  // Recent work: the latest Claude/Codex conversation per project folder, for
+  // Seducia's "pick up where you left off" cards. Reads the agents' own logs.
+  ipcMain.handle('sush:recent-work', (event, { cwds = [] } = {}) => {
+    const out = []
+    const seen = new Set()
+    for (const raw of (Array.isArray(cwds) ? cwds : []).slice(0, 16)) {
+      const cwd = typeof raw === 'string' ? raw.slice(0, 400) : ''
+      if (!cwd || seen.has(cwd)) continue
+      seen.add(cwd)
+      try {
+        const conv = latestConversation(cwd)
+        if (!conv) continue
+        const users = conv.items.filter(i => i.role === 'user').map(i => i.text.trim()).filter(t => t && !t.startsWith('/'))
+        const said = conv.items.filter(i => i.role === 'assistant').map(i => i.text.trim()).filter(Boolean)
+        const files = new Set(conv.items.filter(i => i.role === 'tool' && i.file).map(i => i.file))
+        const last = said[said.length - 1] || ''
+        out.push({
+          cwd, agent: conv.agent, at: conv.mtimeMs,
+          ask: (users[users.length - 1] || '').replace(/\s+/g, ' ').slice(0, 200),
+          last: last.split('\n').filter(Boolean).pop()?.slice(0, 220) || '',
+          question: /\?\s*$/.test(last),
+          files: files.size
+        })
+      } catch {}
+    }
+    out.sort((a, b) => b.at - a.at)
+    return { ok: true, items: out.slice(0, 6) }
   })
 
   ipcMain.handle('sush:app-version', () => app.getVersion())

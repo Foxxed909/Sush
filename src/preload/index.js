@@ -140,6 +140,7 @@ contextBridge.exposeInMainWorld('sush', {
   usersCreate: (payload) => ipcRenderer.invoke('sush:users-create', payload),
   bridgePublish: (payload) => ipcRenderer.invoke('sush:bridge-publish', payload),
   bridgeTerminal: () => ipcRenderer.invoke('sush:bridge-terminal'),
+  recentWork: (payload) => ipcRenderer.invoke('sush:recent-work', payload),
   usersUpdate: (payload) => ipcRenderer.invoke('sush:users-update', payload),
   usersDelete: (payload) => ipcRenderer.invoke('sush:users-delete', payload),
   factoryReset: (payload) => ipcRenderer.invoke('sush:factory-reset', payload),

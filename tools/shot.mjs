@@ -103,6 +103,10 @@ const stub = `
       ]
     }),
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
+    recentWork: async () => ({ ok: true, items: [
+      { cwd: '/home/taylor/sush', agent: 'claude', at: now - 25 * 60e3, ask: 'Fix the flaky scrollback test and add a regression test', last: 'Done. Restore is idempotent and all 178 tests pass. Want me to open a PR?', question: true, files: 2 },
+      { cwd: '/home/taylor/other-project', agent: 'codex', at: now - 3 * 3600e3, ask: 'Migrate the settings store to the new schema', last: 'Migration written; two call sites still use the old keys.', question: false, files: 5 }
+    ] }),
     bridgePublish: async (payload) => { window.__bridgePublished = payload; return { ok: true } },
     bridgeTerminal: async () => ({ ok: true, sessions: [
       { id: 't-1', agent: 'opencode', label: 'OpenCode', model: 'opencode/big-pickle', cwd: '/home/taylor/sush', state: 'running', last: '', startedAt: now - 300e3 },
@@ -1111,6 +1115,14 @@ await shot('12-fresh-start')
     if (await page.locator('.mp-rail-btn').count() < 5) throw new Error('Model picker is missing the provider rail')
   }
   await shot('n2b-model-picker')
+  // Effort lives beside the list: hovering a model opens its flyout.
+  await page.locator('.mp-row', { hasText: 'Claude Opus 5.5' }).first().hover()
+  await page.locator('.mp-flyout').waitFor({ state: 'visible', timeout: 3000 })
+  if (await page.locator('.mp-flyout-item').count() < 4) throw new Error('Effort flyout did not list effort levels')
+  await page.locator('.mp-flyout-item', { hasText: 'High' }).first().hover()
+  await page.waitForTimeout(200)
+  await shot('n2e-effort-flyout')
+  await page.mouse.move(5, 5)
   await page.locator('.mp-search input').fill('flash')
   await page.waitForTimeout(200)
   {
