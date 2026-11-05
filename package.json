@@ -15,7 +15,9 @@
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
     "shots": "npm run build && node tools/shot.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "term": "node term/bin/sush.mjs",
+    "term:shots": "node tools/term-shot.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
