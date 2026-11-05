@@ -99,7 +99,7 @@ function SessionRow({ tab, tabs, active, stateId, limited, pinned, settled, edit
         tabIndex={0}
         className="ts-row-surface"
         aria-current={active ? 'page' : undefined}
-        title={[tab.label, tab.model, tab.cwd || tab.workspaceCwd].filter(Boolean).join(' · ')}
+        title={[tab.label, tab.model, tab.worktree?.branch, tab.cwd || tab.workspaceCwd].filter(Boolean).join(' · ')}
         onClick={() => onSelect(tab.id)}
         onKeyDown={e => { if (e.key === 'Enter') onSelect(tab.id) }}
         onDoubleClick={() => onRename(tab.id)}
@@ -119,7 +119,14 @@ function SessionRow({ tab, tabs, active, stateId, limited, pinned, settled, edit
           ) : (
             <span className="ts-row-title">{tab.label}</span>
           )}
-          {!settled && sub && <span className="ts-row-sub">{sub}</span>}
+          {!settled && (sub || tab.worktree?.branch) && (
+            <span className="ts-row-sub">
+              {tab.worktree?.branch && (
+                <span className="ts-row-wt" title={`Own worktree on ${tab.worktree.branch}`}><Icon name="gitBranch" size={9} />{tab.worktree.branch.replace(/^sush\//, '')}</span>
+              )}
+              {sub}
+            </span>
+          )}
         </span>
         {pinned && (
           <button type="button" className="ts-pin" aria-label="Unpin thread" title="Unpin thread" onClick={e => { e.stopPropagation(); onUnpin(tab) }}>

@@ -260,10 +260,12 @@ const stub = `
         shell: 'powershell',
         shellLabel: 'PowerShell',
         cwd: '/home/taylor/sush',
-        bootCommand: 'codex --model gpt-5.3-codex',
+        bootCommand: 'codex -s workspace-write --model gpt-6.1-sol',
         agentId: 'codex',
-        model: 'gpt-5.3-codex',
+        model: 'gpt-6.1-sol',
         effort: 'high',
+        permission: 'edits',
+        worktree: { path: '/home/taylor/sush/.sush-worktrees/codex-k3x9a-1', branch: 'sush/codex-k3x9a-1' },
         tag: 'sess-review',
         groupId: 'grp-demo',
         groupLabel: 'Sush dev',
@@ -1106,6 +1108,7 @@ await shot('12-fresh-start')
   }
   if (!(await page.locator('.shell-terminal-layer.is-drawer').count())) throw new Error('Thread mode did not dock the terminal in the drawer')
   await shot('n2-thread')
+  if (!(await page.locator('.ts-row-wt', { hasText: 'codex-k3x9a-1' }).count())) throw new Error('Sidebar does not show the worktree branch of a session in its own worktree')
   // T3 model picker: provider rail + searchable rows; another provider = new thread.
   await page.locator('.mp-trigger').click()
   await page.locator('.mp-shell').waitFor({ state: 'visible', timeout: 5000 })

@@ -3555,3 +3555,11 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
 .mp-perm-chip { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .mp-perm-chip.is-plan, .mp-perm-chip.is-ask { color: #7cc4ff; background: rgba(124,196,255,.14); }
 .mp-perm-chip.is-full { color: #ff6b81; background: rgba(255,77,109,.16); }
+
+/* Session in its own worktree: branch chip in the sidebar row. */
+.ts-row-wt {
+  display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; padding: 0 5px; height: 15px; border-radius: 5px;
+  font: 500 10px/15px var(--font-mono, ui-monospace, monospace); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 35%, transparent);
+  vertical-align: 1px;
+}

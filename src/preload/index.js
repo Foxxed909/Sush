@@ -130,6 +130,7 @@ contextBridge.exposeInMainWorld('sush', {
   geminiThread: (payload) => ipcRenderer.invoke('sush:gemini-thread', payload),
   geminiCompression: (payload) => ipcRenderer.invoke('sush:gemini-compression', payload),
   gitWorktreeAdd: (payload) => ipcRenderer.invoke('sush:git-worktree-add', payload),
+  gitWorktreeRemove: (payload) => ipcRenderer.invoke('sush:git-worktree-remove', payload),
   dockerPs: () => ipcRenderer.invoke('sush:docker-ps'),
   dockerStop: (payload) => ipcRenderer.invoke('sush:docker-stop', payload),
   dockerLogs: (payload) => ipcRenderer.invoke('sush:docker-logs', payload),

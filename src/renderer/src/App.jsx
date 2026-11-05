@@ -231,6 +231,7 @@ function makeTab(profile, options = {}) {
     model: options.model ?? null,
     effort: options.effort ?? null,
     permission: options.permission ?? null,
+    worktree: options.worktree ?? null,
     threadBridge: options.threadBridge ?? null,
     handoffFrom: options.handoffFrom ?? null,
     tag: options.tag ?? null,
@@ -327,6 +328,7 @@ function loadSessionLayout(profiles) {
         model: item.model,
         effort: item.effort,
         permission: item.permission || null,
+        worktree: item.worktree || null,
         tag: item.tag,
         groupId: item.groupId,
         groupLabel: item.groupLabel,
@@ -1056,6 +1058,7 @@ export default function App() {
         model: tab.model,
         effort: tab.effort,
         permission: tab.permission || null,
+        worktree: tab.worktree || null,
         tag: tab.tag,
         groupId: tab.groupId,
         groupLabel: tab.groupLabel,
@@ -1434,10 +1437,14 @@ export default function App() {
       let i = 0
       for (const spec of specs) {
         let sessionCwd = targetCwd
+        let worktree = null
         if (worktrees && targetCwd) {
+          // Unique per launch: a second crew must not reuse (and share) the
+          // first crew's checkout.
+          const stamp = Date.now().toString(36).slice(-5)
           try {
-            const r = await window.sush.gitWorktreeAdd?.({ cwd: targetCwd, name: `${spec.label}-${i + 1}` })
-            if (r?.ok && r.path) sessionCwd = r.path
+            const r = await window.sush.gitWorktreeAdd?.({ cwd: targetCwd, name: `${spec.agent.id}-${stamp}-${i + 1}` })
+            if (r?.ok && r.path) { sessionCwd = r.path; worktree = { path: r.path, branch: r.branch } }
           } catch {}
         }
         const tab = openTab(prof, {
@@ -1449,6 +1456,7 @@ export default function App() {
           model: spec.agent.model || null,
           effort: spec.agent.effort || null,
           permission: spec.agent.permission || null,
+          worktree,
           handoffFrom: handoffFrom || null,
           tag: `sess-${nextSessionTag++}`,
           groupId,
@@ -1665,6 +1673,7 @@ export default function App() {
         model: closing.model || null,
         effort: closing.effort || null,
         permission: closing.permission || null,
+        worktree: closing.worktree || null,
         groupId: closing.groupId || null,
         groupLabel: closing.groupLabel || null
       })
@@ -1679,6 +1688,21 @@ export default function App() {
     pendingPtyRef.current.delete(id)
 
     window.sush.closeTab({ tabId: id })
+    // A user close also retires the session's own worktree, once its PTY has
+    // let go of the folder. Restarts (rememberClosed=false) keep it. A worktree
+    // with uncommitted changes is left alone, and the branch always survives.
+    const wt = closing?.worktree
+    if (wt?.path && rememberClosed && !tabsRef.current.some(t => t.id !== id && t.worktree?.path === wt.path)) {
+      const reopen = lastClosedRef.current[lastClosedRef.current.length - 1]
+      setTimeout(() => {
+        window.sush.gitWorktreeRemove?.({ path: wt.path }).then(r => {
+          if (r?.ok && reopen && reopen.cwd === wt.path) {
+            // Reopening goes back to the main checkout; the branch remains.
+            reopen.cwd = reopen.sessionRootCwd = reopen.workspaceCwd
+          }
+        }).catch(() => {})
+      }, 1500)
+    }
     setTabs(prev => {
       const next = prev.filter(t => t.id !== id)
       // This updater runs at render time, AFTER anything queued in the same
@@ -1738,7 +1762,7 @@ export default function App() {
     const command = buildAgentCommand(resumeAgent, { model, effort, permission, resume: true })
     if (!command) return { ok: false, error: 'unsupported-provider' }
 
-    const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel } = tab
+    const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, worktree } = tab
     closeTab(tabId, { rememberClosed: false, returnHome: false })
     openTab(profiles[0], {
       cwd: sessionRootCwd || cwd,
@@ -1748,6 +1772,7 @@ export default function App() {
       model,
       effort,
       permission,
+      worktree: worktree || null,
       command,
       label,
       groupId,
@@ -1769,7 +1794,7 @@ export default function App() {
     try {
       const sw = await window.sush.accountsSwitch({ provider, slotId })
       if (!sw?.ok) return sw || { ok: false }
-      const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, model, effort, permission } = tab
+      const { cwd, workspaceCwd, sessionRootCwd, label, groupId, groupLabel, model, effort, permission, worktree } = tab
       closeTab(tabId, { rememberClosed: false, returnHome: false })
       openTab(profiles[0], {
         cwd: sessionRootCwd || cwd,
@@ -1779,6 +1804,7 @@ export default function App() {
         model: model || null,
         effort: effort || null,
         permission: permission || null,
+        worktree: worktree || null,
         command: buildAgentCommand(agent, { model, effort, permission, resume: true }) || agent.resumeCommand,
         label,
         groupId,
@@ -1895,6 +1921,7 @@ export default function App() {
       model: last.model || null,
       effort: last.effort || null,
       permission: last.permission || null,
+      worktree: last.worktree && last.cwd === last.worktree.path ? last.worktree : null,
       groupId: last.groupId || null,
       groupLabel: last.groupLabel || null,
       tag: `reopen-${Date.now()}`

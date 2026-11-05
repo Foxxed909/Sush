@@ -2,7 +2,7 @@ import { createPtyLaunchGate } from './pty-launch-gate'
 import { ipcMain, app, clipboard, Tray, Menu, nativeImage, powerMonitor } from 'electron'
 import { execFile, execFileSync, spawn } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, statSync, readdirSync, watch as fsWatch } from 'fs'
-import { join, parse, resolve } from 'path'
+import { dirname, isAbsolute, join, parse, resolve } from 'path'
 import { promisify } from 'util'
 import { fileURLToPath } from 'url'
 
@@ -2495,6 +2495,17 @@ export function registerIpcHandlers(win) {
       // Already there (a re-launch of the same crew) → reuse it.
       if (existsSync(wtDir)) return { ok: true, path: wtDir, branch, reused: true }
       mkdirSync(join(root, '.sush-worktrees'), { recursive: true })
+      // Keep the worktrees folder out of the main checkout's `git status`,
+      // without touching the tracked .gitignore.
+      try {
+        const common = (await execFileAsync('git', ['rev-parse', '--git-common-dir'], gitOpts(root))).stdout.trim()
+        const exclude = join(isAbsolute(common) ? common : join(root, common), 'info', 'exclude')
+        const cur = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
+        if (!/^\/?\.sush-worktrees\/?$/m.test(cur)) {
+          mkdirSync(dirname(exclude), { recursive: true })
+          writeFileSync(exclude, `${cur}${cur && !cur.endsWith('\n') ? '\n' : ''}.sush-worktrees/\n`)
+        }
+      } catch {}
 
       // Prefer a fresh branch off HEAD; if it already exists, check it out into
       // the new worktree instead of failing.
@@ -2510,6 +2521,24 @@ export function registerIpcHandlers(win) {
       return { ok: true, path: wtDir, branch }
     } catch (e) {
       return { ok: false, error: (e.stderr || e.message || 'git worktree failed').trim().slice(0, 300) }
+    }
+  })
+
+  // Remove a session's worktree when the session closes. Only paths under a
+  // repo's .sush-worktrees/ are touched, and only when there is nothing to
+  // lose: uncommitted changes keep the worktree (reported back as `dirty`).
+  // The branch always stays, so committed work is never deleted.
+  ipcMain.handle('sush:git-worktree-remove', async (event, { path } = {}) => {
+    const dir = existingDirectory(path)
+    if (!dir || !/[\\/]\.sush-worktrees[\\/][^\\/]+[\\/]?$/.test(dir)) return { ok: false, error: 'Not a Sush worktree' }
+    try {
+      const status = (await execFileAsync('git', ['status', '--porcelain'], gitOpts(dir))).stdout.trim()
+      if (status) return { ok: false, dirty: true, changes: status.split('\n').length }
+      const root = dirname(dirname(dir))
+      await execFileAsync('git', ['worktree', 'remove', dir], gitOpts(root, { timeout: 60000 }))
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e.stderr || e.message || 'git worktree remove failed').trim().slice(0, 300) }
     }
   })
 
