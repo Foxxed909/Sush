@@ -118,3 +118,23 @@ describe('Sush Terminal crew features', () => {
     expect(notification('Sush', 'x', { TMUX: '1' })).toContain('\x1bPtmux;')
   })
 })
+
+describe('Sush Terminal effort', () => {
+  it('passes effort in each CLI\'s own form and drops unknown levels', async () => {
+    const { commandFor } = await import('../term/src/agents.mjs')
+    expect(commandFor('claude', { model: 'claude-opus-5-5', effort: 'max', prompt: 'go' })).toEqual(['claude', '--model', 'claude-opus-5-5', '--effort', 'max', 'go'])
+    expect(commandFor('codex', { model: 'gpt-6.1-sol', effort: 'xhigh' })).toEqual(['codex', '--model', 'gpt-6.1-sol', '-c', "model_reasoning_effort='xhigh'"])
+    expect(commandFor('claude', { effort: 'ludicrous' })).toEqual(['claude'])
+    expect(commandFor('gemini', { effort: 'high' })).toEqual(['gemini'])
+  })
+  it('ctrl+e cycles effort per agent; crew takes --effort agent=level', async () => {
+    const { reduce } = await import('../term/src/app.mjs')
+    let st = { agent: 'claude', models: {}, efforts: {}, input: '', history: [], overlay: null }
+    st = reduce(st, 'ctrl+e'); expect(st.efforts.claude).toBe('low')
+    st = reduce(st, 'ctrl+e'); expect(st.efforts.claude).toBe('medium')
+    const { parseCrew, planCrew } = await import('../term/src/crewcmd.mjs')
+    const spec = parseCrew(['claude', 'codex', '--effort', 'claude=max', 'ship', 'it'])
+    expect(spec.efforts).toEqual({ claude: 'max' })
+    expect(planCrew(spec, { env: {}, have: () => false, platform: 'linux' }).panes[0]).toContain("--effort 'max'")
+  })
+})

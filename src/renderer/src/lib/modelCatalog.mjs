@@ -75,3 +75,12 @@ export const MODEL_OPTIONS = {
     { value: 'github-copilot/kimi-k3', label: 'Kimi K3 · Copilot', note: 'Needs GitHub Copilot connected in OpenCode' }
   ]
 }
+
+// Effort / reasoning levels each CLI accepts ('' = the CLI's default).
+// Claude Code: --effort. Codex: model_reasoning_effort. Gemini and OpenCode
+// have no such flag.
+export const EFFORT_OPTIONS = {
+  claude: ['', 'low', 'medium', 'high', 'xhigh', 'max'],
+  codex: ['', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh']
+}
+export const EFFORT_LABELS = { none: 'None', minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' }

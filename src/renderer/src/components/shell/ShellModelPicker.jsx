@@ -45,6 +45,9 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState('')
   const [active, setActive] = useState(0)
+  // Effort to launch with: chips under the list set it; picking a model (or
+  // re-picking the current one) applies model + effort together.
+  const [pickEffort, setPickEffort] = useState(effort || '')
   const anchorRef = useRef(null)
   const searchRef = useRef(null)
   const listRef = useRef(null)
@@ -56,8 +59,9 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     setSection(PICKER_PROVIDERS.includes(provider) ? provider : 'favorites')
     setQuery('')
     setError('')
+    setPickEffort(effort || '')
     requestAnimationFrame(() => searchRef.current?.focus())
-  }, [open, provider])
+  }, [open, provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useMemo(() => pickerRows({ section, query, favorites }), [section, query, favorites])
   useEffect(() => { setActive(0) }, [section, query])
@@ -74,19 +78,21 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
 
   const choose = async (row) => {
     if (!row || busy) return
+    const rowEfforts = effortOptionsFor(row.provider, row.value)
+    const nextEffort = rowEfforts.includes(pickEffort) ? (pickEffort || null) : null
     if (row.provider !== provider) {
       // A running CLI can't become another provider; that's a new thread.
       setOpen(false)
-      onNewThread?.({ agentId: row.provider, model: row.value })
+      onNewThread?.({ agentId: row.provider, model: row.value, effort: nextEffort })
       return
     }
-    if ((row.value || null) === (model || null)) { setOpen(false); return }
+    if ((row.value || null) === (model || null) && (nextEffort || null) === (effort || null)) { setOpen(false); return }
     if (resumeOff) { setError(errorText('resume-unsupported')); return }
     setBusy(row.key)
     setError('')
     let result
     try {
-      result = await onApply?.({ model: row.value, effort: effort || null })
+      result = await onApply?.({ model: row.value, effort: nextEffort })
     } catch (err) {
       result = { ok: false, error: err?.message || 'restart-failed' }
     } finally {
@@ -102,7 +108,10 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
     else if (e.key === 'Enter') { e.preventDefault(); choose(rows[active]) }
   }
 
-  const label = spec ? pickerModelLabel(provider, model) : (agentById(provider)?.label || 'Terminal')
+  const label = spec ? pickerModelLabel(provider, model) + (effort ? ` · ${effortLabelFor(provider, effort)}` : '') : (agentById(provider)?.label || 'Terminal')
+  const effortProvider = PICKER_PROVIDERS.includes(section) ? section : provider
+  const effortChoices = effortOptionsFor(effortProvider, effortProvider === provider ? model : null)
+  const effortName = modelSpecFor(effortProvider)?.effort?.label || 'Effort'
 
   return (
     <>
@@ -208,6 +217,31 @@ export function ShellModelPicker({ provider, model, effort, onApply, onNewThread
                 </div>
               )}
             </div>
+            {effortChoices.length > 0 && (
+              <div className="mp-effort" role="radiogroup" aria-label={effortName}>
+                <span className="mp-effort-label">{effortName}</span>
+                <div className="mp-effort-chips">
+                  {effortChoices.map(v => (
+                    <button
+                      key={v || 'default'}
+                      type="button"
+                      role="radio"
+                      aria-checked={(pickEffort || '') === (v || '')}
+                      className={`mp-effort-chip${(pickEffort || '') === (v || '') ? ' is-on' : ''}`}
+                      onClick={() => setPickEffort(v || '')}
+                      title={v ? `${effortName}: ${effortLabelFor(effortProvider, v)}` : 'Use the CLI default'}
+                    >
+                      {v ? effortLabelFor(effortProvider, v) : 'Default'}
+                    </button>
+                  ))}
+                </div>
+                {effortProvider === provider && (pickEffort || '') !== (effort || '') && (
+                  <button type="button" className="mp-effort-apply" onClick={() => choose({ key: 'effort', provider, value: model || null })}>
+                    Apply to this thread
+                  </button>
+                )}
+              </div>
+            )}
             {(error || resumeOff) && (
               <div className="mp-foot">
                 {error || 'This CLI does not advertise resume, so its model can only change in a new thread.'}

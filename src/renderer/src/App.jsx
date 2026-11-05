@@ -2835,11 +2835,11 @@ export default function App() {
           {view === 'terminal' && !zenMode && !coverSurface && (
             <NightlyComposer
               variant={nightlyShell ? 't3' : 'default'}
-              onNewThread={({ agentId, model } = {}) => {
+              onNewThread={({ agentId, model, effort } = {}) => {
                 // T3: a different provider is a new thread in the same project.
                 const cwd = activeTab?.workspaceCwd || activeTab?.cwd || null
                 if (!agentId || !cwd) { setLauncherCwd(cwd); setShowLauncher(true); return }
-                launchSessions({ cwd, agents: [{ id: agentId, count: 1, model: model || null }], groupId: activeTab?.groupId })
+                launchSessions({ cwd, agents: [{ id: agentId, count: 1, model: model || null, effort: effort || null }], groupId: activeTab?.groupId })
               }}
               onOpenPane={(pane) => { setPaneDock('right'); setRightTab(pane); setRightOpen(true) }}
               activeTab={activeTab}

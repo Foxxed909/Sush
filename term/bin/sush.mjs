@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { logoLines } from '../src/logo.mjs'
 import { paint, reset, bold } from '../src/ansi.mjs'
-import { AGENTS, agentById, commandFor, detectInstalled, modelsFor } from '../src/agents.mjs'
+import { AGENTS, agentById, commandFor, detectInstalled, effortsFor, modelsFor } from '../src/agents.mjs'
 import { TAGLINE, runInteractive } from '../src/app.mjs'
 import { launchAgent } from '../src/launch.mjs'
 import { runBoard } from '../src/board.mjs'
@@ -26,9 +26,11 @@ function help() {
     ['sush', 'open the home screen'],
     ['sush run <agent> [prompt]', 'start an agent here (claude, codex, gemini, opencode)'],
     ['   --model <id>', 'with a model, e.g. claude-opus-5-5 or opencode/big-pickle'],
+    ['   --effort <level>', 'low · medium · high · xhigh · max (Claude) / none … xhigh (Codex)'],
     ['   --resume', 'continue the last conversation in this folder'],
     ['sush crew <agents…> [prompt]', 'several agents side by side on one prompt (tmux / Windows Terminal)'],
     ['   --model agent=id', 'per-agent model, e.g. --model codex=gpt-6.1-sol'],
+    ['   --effort agent=level', 'per-agent effort, e.g. --effort claude=max'],
     ['   --board', 'add a live board pane'],
     ['sush board [--all]', 'every agent in this folder (or everywhere), live'],
     ['sush handoff <agent>', 'brief another agent from the latest conversation here'],
@@ -42,11 +44,12 @@ function help() {
 }
 
 export function parseArgs(argv) {
-  const out = { cmd: argv[0] || null, rest: [], model: null, resume: false, help: false, version: false, crew: null, from: null, all: false, once: false, dryRun: false }
+  const out = { cmd: argv[0] || null, rest: [], model: null, effort: null, resume: false, help: false, version: false, crew: null, from: null, all: false, once: false, dryRun: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--model' || a === '-m') { out.model = argv[++i] || null; continue }
     if (a === '--resume' || a === '-c') { out.resume = true; continue }
+    if ((a === '--effort' || a === '-e') && argv[0] !== 'crew') { out.effort = argv[++i] || null; continue }
     if (a === '--crew') { out.crew = argv[++i] || null; continue }
     if (a === '--from') { out.from = argv[++i] || null; continue }
     if (a === '--all') { out.all = true; continue }
@@ -78,7 +81,7 @@ async function main(argv) {
     for (const id of ids) {
       const a = agentById(id)
       if (!a) { say(paint(PINK, `unknown agent: ${id}`)); process.exitCode = 1; continue }
-      say(`  ${paint(a.colour, a.glyph)} ${bold(a.label)}`)
+      say(`  ${paint(a.colour, a.glyph)} ${bold(a.label)}${effortsFor(id).length ? paint(MUTED, `   effort: ${effortsFor(id).filter(Boolean).join(' · ')}`) : ''}`)
       for (const m of modelsFor(id)) say(`    ${paint(SOFT, (m.value || '(default)').padEnd(38))} ${m.label}${m.badge ? ' ' + paint(m.badge === 'Free' ? '#5fd3a8' : PINK, m.badge) : ''}`)
     }
     return
@@ -86,7 +89,7 @@ async function main(argv) {
   if (args.cmd === 'run') {
     const id = args.rest[0]
     if (!agentById(id)) { say(paint(PINK, `unknown agent: ${id || '(none)'}`) + paint(MUTED, `  try: ${AGENTS.map(a => a.id).join(', ')}`)); process.exitCode = 1; return }
-    const res = await launchAgent({ agent: id, model: args.model, prompt: args.rest.slice(1).join(' '), resume: args.resume, crewId: args.crew })
+    const res = await launchAgent({ agent: id, model: args.model, effort: args.effort, prompt: args.rest.slice(1).join(' '), resume: args.resume, crewId: args.crew })
     if (res.error) say(paint(PINK, `could not start ${id}: ${res.error}`))
     process.exitCode = res.code ?? 0
     return
@@ -119,7 +122,7 @@ async function main(argv) {
     if (prep.brief.split('\n').length > 14) say(paint(MUTED, '  …'))
     say()
     if (args.dryRun) return
-    const res = await launchAgent({ agent: to, model: args.model, prompt: prep.brief, handoffFrom: prep.from })
+    const res = await launchAgent({ agent: to, model: args.model, effort: args.effort, prompt: prep.brief, handoffFrom: prep.from })
     if (res.error) say(paint(PINK, `could not start ${to}: ${res.error}`))
     process.exitCode = res.code ?? 0
     return

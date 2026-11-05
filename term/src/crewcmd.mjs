@@ -17,6 +17,7 @@ const q = s => `'${String(s).replace(/'/g, `'\\''`)}'`
 export function parseCrew(args) {
   const agents = []
   const models = {}
+  const efforts = {}
   const words = []
   let board = false
   for (let i = 0; i < args.length; i++) {
@@ -26,22 +27,27 @@ export function parseCrew(args) {
       if (k && v) models[k] = v
       continue
     }
+    if (a === '--effort' || a === '-e') {
+      const [k, v] = String(args[++i] || '').split('=')
+      if (k && v) efforts[k] = v
+      continue
+    }
     if (a === '--board') { board = true; continue }
     if (a === '--dry-run') continue
     if (!words.length && agentById(a)) { agents.push(a); continue }
     words.push(a)
   }
-  return { agents, models, prompt: words.join(' ').trim(), board }
+  return { agents, models, efforts, prompt: words.join(' ').trim(), board }
 }
 
 // The shell command each pane runs.
-export function paneCommand(agent, { model, prompt, crewId, node = process.execPath }) {
-  return [q(node), q(SUSH), 'run', agent, ...(model ? ['--model', q(model)] : []), '--crew', crewId, ...(prompt ? [q(prompt)] : [])].join(' ')
+export function paneCommand(agent, { model, effort, prompt, crewId, node = process.execPath }) {
+  return [q(node), q(SUSH), 'run', agent, ...(model ? ['--model', q(model)] : []), ...(effort ? ['--effort', q(effort)] : []), '--crew', crewId, ...(prompt ? [q(prompt)] : [])].join(' ')
 }
 
-export function planCrew({ agents, models, prompt, board }, { env = process.env, platform = process.platform, have = has } = {}) {
+export function planCrew({ agents, models, efforts = {}, prompt, board }, { env = process.env, platform = process.platform, have = has } = {}) {
   const crewId = newId().replace('t-', 'crew-')
-  const panes = agents.map(a => paneCommand(a, { model: models[a], prompt, crewId }))
+  const panes = agents.map(a => paneCommand(a, { model: models[a], effort: efforts[a], prompt, crewId }))
   if (board) panes.push([q(process.execPath), q(SUSH), 'board'].join(' '))
   if (env.TMUX) return { kind: 'tmux-inside', crewId, panes }
   if (have('tmux')) return { kind: 'tmux-new', crewId, panes, session: `sush-${crewId.slice(-6)}` }

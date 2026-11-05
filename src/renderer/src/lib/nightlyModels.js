@@ -7,7 +7,7 @@
 
 // Must start alphanumeric: a value like `--dangerously-skip-permissions` is
 // shell-safe but would be read by the CLI as a flag, not a model id.
-import { MODEL_OPTIONS } from './modelCatalog.mjs'
+import { MODEL_OPTIONS, EFFORT_OPTIONS } from './modelCatalog.mjs'
 
 const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/
 
@@ -18,7 +18,7 @@ export const NIGHTLY_MODEL_SPECS = {
     placeholder: 'Search or type a model id',
     effort: {
       label: 'Effort',
-      options: ['', 'low', 'medium', 'high', 'xhigh', 'max'],
+      options: EFFORT_OPTIONS.claude,
       // `--effort` accepts low/medium/high/xhigh/max. Claude's interactive
       // `ultracode` mode is a separate workflow/session feature, not a valid
       // value for this CLI flag, so Nightly deliberately does not emit it.
@@ -31,7 +31,7 @@ export const NIGHTLY_MODEL_SPECS = {
     placeholder: 'Search or type a Codex model id',
     effort: {
       label: 'Reasoning',
-      options: ['', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+      options: EFFORT_OPTIONS.codex,
       // TOML literal strings keep this one argument portable through
       // PowerShell, cmd and POSIX shells.
       command: value => `--config "model_reasoning_effort='${value}'"`
