@@ -3373,9 +3373,6 @@ button:disabled[style*="--accent"], .ag-new:disabled, .sush-btn:disabled {
 .sz-card-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); margin-bottom: 4px; }
 .sz-card strong { font-size: 13px; font-weight: 600; color: var(--text-1); }
 .sz-card small { font-size: 11.5px; color: var(--text-4); line-height: 1.35; }
-.sush-t3 .sz-bubble { font-size: 13.5px !important; line-height: 1.55 !important; padding: 10px 13px !important; border-radius: 14px !important; }
-.sush-t3 .sz-bubble.is-her { background: linear-gradient(180deg, rgba(40,32,54,.9), rgba(30,24,42,.9)) !important; border: 0 !important; box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.12) !important; color: var(--text-1) !important; border-top-left-radius: 5px !important; }
-.sush-t3 .sz-bubble.is-you { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 34%, #2a1426), color-mix(in srgb, var(--accent) 24%, #22101e)) !important; border: 0 !important; box-shadow: 0 6px 20px -10px color-mix(in srgb, var(--accent) 60%, transparent) !important; border-top-right-radius: 5px !important; }
 
 /* ═══ Seducia orb (components/SushOrb.jsx) ═══════════════════════════════ */
 .sorb {
@@ -3457,15 +3454,6 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
 .sz-welcome h2 { margin-top: 16px; }
 .sz-welcome .sorb { margin-top: 18px; }
 /* Rounded composer: a glowing pill. */
-.sush-t3 .sz-composer, .sz-composer {
-  border-radius: 999px !important; padding: 0 6px 0 18px !important; border: 0 !important;
-  background: linear-gradient(180deg, rgba(40,32,54,.92), rgba(30,24,42,.92)) !important;
-  box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.16), 0 1px 2px rgba(0,0,0,.3), 0 14px 40px -14px color-mix(in srgb, var(--accent) 35%, transparent) !important;
-  transition: box-shadow var(--dur-base) ease;
-}
-.sz-composer:focus-within { box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 60%, transparent), 0 0 0 3.5px color-mix(in srgb, var(--accent) 20%, transparent), 0 16px 48px -12px color-mix(in srgb, var(--accent) 55%, transparent) !important; }
-.sz-composer.is-listening { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 30px -4px var(--accent) !important; }
-.sz-composer button { border-radius: 999px !important; }
 /* Pick up where you left off */
 .sz-recent { margin-top: 22px; width: 100%; display: grid; gap: 8px; text-align: left; }
 .sz-section { margin: 4px 2px 0; font-size: 11.5px; font-weight: 700; color: var(--text-4); }
@@ -3477,7 +3465,7 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
 }
 .sz-work:hover { transform: translateY(calc(-1px * var(--travel))); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 50%, transparent), 0 14px 34px -14px color-mix(in srgb, var(--accent) 60%, transparent); }
 .sz-work.is-question { box-shadow: inset 0 0 0 0.5px rgba(255,203,107,.45), 0 10px 30px -16px rgba(255,203,107,.5); }
-.sz-work-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.sz-work-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .sz-work-top strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 600; color: #fff; }
 .sz-work-top small { flex-shrink: 0; font-size: 11.5px; color: var(--text-4); }
 .sz-work-last { font-size: 12.5px; line-height: 1.45; color: var(--text-3); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -3563,3 +3551,136 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
   background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 35%, transparent);
   vertical-align: 1px;
 }
+
+/* ── Seducia, rebuilt (T3 chat grammar, Sush glow) ───────────────────────────
+   Theme tokens only: surfaces, borders and text follow the active theme and
+   the accent; no hard-coded greys. Assistant text flows on the canvas, only
+   your messages sit in a bubble; actions fold into "Worked for …"; approvals
+   attach to the composer. */
+.sz-root { height: 100%; }
+.sz-overlay { position: fixed; inset: 0; z-index: 350; display: flex; justify-content: flex-end; background: rgba(8,4,12,.5); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.sz-pane { display: flex; flex-direction: column; height: 100%; width: 100%; min-height: 0; }
+.sz-overlay .sz-pane {
+  width: min(420px, 92vw);
+  background: radial-gradient(700px 260px at 100% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%), var(--surface-0);
+  box-shadow: -24px 0 60px rgba(0,0,0,.5), inset 0.5px 0 0 color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.sz-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border-1); }
+.sz-head-text { flex: 1; min-width: 0; }
+.sz-head-title { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 650; color: var(--text-1); letter-spacing: -.01em; }
+.sz-head-sub { margin-top: 1px; font-size: 11px; color: var(--text-4); }
+.sz-tag { font-size: 9px; font-weight: 700; letter-spacing: .06em; padding: 1px 6px; border-radius: 99px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 35%, transparent); }
+.sz-icon-btn {
+  width: 28px; height: 28px; flex-shrink: 0; display: inline-grid; place-items: center; border: 0; border-radius: 8px; cursor: default;
+  color: var(--text-3); background: var(--mac-fill);
+  transition: background var(--dur-quick) ease, color var(--dur-quick) ease, box-shadow var(--dur-quick) ease;
+}
+.sz-icon-btn:hover { color: var(--text-1); background: var(--mac-fill-2); }
+.sz-icon-btn.is-on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 45%, transparent); }
+.sz-icon-btn.is-mic.is-live { color: #fff; background: #ff4d6d; box-shadow: 0 0 0 4px rgba(255,77,109,.18), 0 0 18px rgba(255,77,109,.55); animation: sz-mic-pulse 1.4s steps(14) infinite; }
+@keyframes sz-mic-pulse { 50% { box-shadow: 0 0 0 7px rgba(255,77,109,.08), 0 0 26px rgba(255,77,109,.7); } }
+.sz-notice { display: flex; gap: 8px; align-items: flex-start; margin: 10px 12px 0; padding: 9px 12px; border-radius: 10px; font-size: 11.5px; line-height: 1.45; color: var(--text-2); background: color-mix(in srgb, var(--accent) 8%, var(--surface-1)); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 22%, transparent); }
+.sz-notice svg { margin-top: 2px; color: var(--accent); flex-shrink: 0; }
+
+/* Transcript, with a soft fade where it scrolls under the header. */
+.sz-log {
+  flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 16px 16px 10px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px); mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
+}
+.sz-msg { display: flex; flex-direction: column; min-width: 0; animation: sz-msg-in var(--dur-base, 200ms) var(--ease-out, ease-out) backwards; }
+@keyframes sz-msg-in { from { opacity: 0; transform: translateY(calc(6px * var(--travel, 1))); } }
+.sz-msg.is-you { align-items: flex-end; }
+.sz-you {
+  max-width: 86%; padding: 9px 14px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 13.5px; line-height: 1.5; color: var(--text-1);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, var(--surface-2)), color-mix(in srgb, var(--accent) 14%, var(--surface-2)));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 30%, transparent), 0 8px 22px -14px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.sz-her-name { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: 12px; font-weight: 650; color: var(--text-2); }
+.sorb.is-chip { flex-shrink: 0; }
+.sz-md { font-size: 13.5px; line-height: 1.6; color: var(--text-2); overflow-wrap: anywhere; }
+.sz-md > :first-child { margin-top: 0 !important; }
+.sz-md > :last-child { margin-bottom: 0 !important; }
+.sz-msg.is-error .sz-md { color: #ff8197; }
+.sz-caret { display: inline-block; width: 7px; height: 14px; margin-left: 3px; vertical-align: -2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: sz-caret 1s steps(2, jump-none) infinite; }
+@keyframes sz-caret { 50% { opacity: .15; } }
+.sz-thinking { display: inline-flex; gap: 4px; padding: 6px 0; }
+.sz-thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: .3; animation: sz-think 1.2s steps(6) infinite; }
+.sz-thinking i:nth-child(2) { animation-delay: .2s; }
+.sz-thinking i:nth-child(3) { animation-delay: .4s; }
+@keyframes sz-think { 40% { opacity: 1; transform: translateY(-2px); } }
+.sz-via { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 10.5px; color: var(--text-4); }
+
+/* "Worked for 4.2s · 2 actions ›" */
+.sz-acts { margin: 0 0 8px; }
+.sz-acts-head {
+  display: inline-flex; align-items: center; gap: 8px; padding: 2px 0; border: 0; background: none; cursor: default;
+  font-size: 12px; color: var(--text-4);
+}
+.sz-acts-head:not(:disabled):hover { color: var(--text-2); }
+.sz-acts-title { font-variant-numeric: tabular-nums; }
+.sz-acts.is-live .sz-acts-title {
+  background: linear-gradient(90deg, var(--text-4) 0%, var(--text-4) 40%, var(--text-1) 50%, var(--text-4) 60%, var(--text-4) 100%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: sz-shine 2s steps(24) infinite;
+}
+@keyframes sz-shine { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+.sz-acts-count { padding: 0 6px; border-radius: 6px; font-size: 11px; background: var(--mac-fill); color: var(--text-3); }
+.sz-acts-chev { transition: transform var(--dur-quick) var(--ease-out); }
+.sz-acts.is-open .sz-acts-chev { transform: rotate(90deg); }
+.sz-acts-rows { display: grid; gap: 2px; margin-top: 6px; padding-left: 10px; border-left: 1px solid var(--border-1); animation: sz-msg-in 160ms var(--ease-out) backwards; }
+.sz-act { display: grid; grid-template-columns: 20px 1fr; align-items: center; column-gap: 6px; min-height: 24px; font-size: 12.5px; color: var(--text-2); }
+.sz-act-icon { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 6px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.sz-act.is-fail .sz-act-icon { color: #ff8197; background: rgba(255,77,109,.12); }
+.sz-act-detail { grid-column: 2; margin: 4px 0 6px; max-height: 180px; overflow: auto; padding: 8px 10px; border-radius: 8px; font: 11px/1.5 var(--font-mono, ui-monospace, monospace); color: var(--text-3); background: var(--surface-1); box-shadow: inset 0 0 0 0.5px var(--border-1); white-space: pre-wrap; }
+
+/* Composer card: textarea + action bar; banners attach on top. */
+.sz-dock { padding: 4px 12px 12px; }
+.sz-compose {
+  position: relative; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--surface-2)), var(--surface-1));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 0 0 0.5px var(--border-2), 0 14px 32px -18px rgba(0,0,0,.75), 0 14px 40px -18px color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: box-shadow var(--dur-base) ease;
+}
+.sz-compose:focus-within { box-shadow: inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 0 0.5px color-mix(in srgb, var(--accent) 60%, transparent), 0 0 0 3.5px color-mix(in srgb, var(--accent) 18%, transparent), 0 16px 48px -14px color-mix(in srgb, var(--accent) 55%, transparent); }
+.sz-compose.is-listening { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 30px -4px var(--accent); }
+.sz-compose textarea {
+  display: block; width: 100%; min-height: 44px; max-height: 148px; resize: none; padding: 12px 16px 4px; border: 0; outline: none;
+  background: transparent; color: var(--text-1); font: 13.5px/1.5 var(--font-ui); 
+}
+.sz-compose textarea::placeholder { color: var(--text-4); }
+.sz-compose-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px 8px 10px; }
+.sz-compose-hint { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10.5px; color: var(--text-5, var(--text-4)); opacity: 0; transition: opacity var(--dur-quick) ease; }
+.sz-compose:focus-within .sz-compose-hint { opacity: 1; }
+.sz-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 99px; font-size: 10.5px; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.sz-send {
+  width: 32px; height: 32px; flex-shrink: 0; margin-left: auto; display: grid; place-items: center; border: 0; border-radius: 50%; cursor: default;
+  color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent));
+  box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent) 80%, transparent), inset 0 1px 0 rgba(255,255,255,.3);
+  transition: transform var(--dur-quick) var(--ease-out), opacity var(--dur-quick) ease, box-shadow var(--dur-quick) ease;
+}
+.sz-send:hover:not(:disabled) { transform: translateY(calc(-1px * var(--travel, 1))); box-shadow: 0 8px 20px -6px var(--accent), inset 0 1px 0 rgba(255,255,255,.3); }
+.sz-send:active:not(:disabled) { transform: scale(.94); }
+.sz-send:disabled { opacity: .35; box-shadow: none; background: var(--mac-fill-2); color: var(--text-4); }
+.sz-send.is-stop { background: var(--mac-fill-2); box-shadow: inset 0 0 0 0.5px var(--border-2); }
+.sz-stop-square { width: 10px; height: 10px; border-radius: 2.5px; background: var(--text-1); }
+
+/* Approval banner, attached to the top of the composer. */
+.sz-banner { display: grid; gap: 6px; padding: 10px 10px 10px 12px; background: color-mix(in srgb, var(--accent) 10%, var(--surface-1)); box-shadow: inset 0 -10px 12px -12px rgba(0,0,0,.35), inset 0 -0.5px 0 var(--border-2); animation: sz-msg-in 180ms var(--ease-out) backwards; }
+.sz-banner-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--accent); }
+.sz-banner-item { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.sz-banner-kind { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--mac-fill); }
+.sz-banner-kind.is-run, .sz-banner-kind.is-close-session, .sz-banner-kind.is-close-workspace { color: #ffb3c0; background: rgba(255,77,109,.12); }
+.sz-banner-what { flex: 1; min-width: 0; display: grid; gap: 2px; padding-top: 1px; font-size: 12.5px; line-height: 1.4; color: var(--text-1); overflow-wrap: anywhere; }
+.sz-banner-what.is-mono { font: 12px/1.45 var(--font-mono, ui-monospace, monospace); }
+.sz-banner-what small { font: 11px/1.4 var(--font-ui); color: var(--text-3); }
+.sz-banner-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.sz-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border: 0; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: default; transition: background var(--dur-quick) ease, transform var(--dur-quick) var(--ease-out); }
+.sz-btn:active { transform: scale(.97); }
+.sz-btn.is-quiet { color: var(--text-2); background: var(--mac-fill); }
+.sz-btn.is-quiet:hover { background: var(--mac-fill-2); }
+.sz-btn.is-primary { color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent)); box-shadow: 0 4px 12px -4px var(--accent), inset 0 1px 0 rgba(255,255,255,.3); }
+.sz-kbd { padding: 0 5px; border-radius: 5px; font-size: 10.5px; font-variant-numeric: tabular-nums; background: rgba(0,0,0,.18); }
+:root.sush-motion-reduced .sz-msg, :root.sush-motion-reduced .sz-acts.is-live .sz-acts-title, :root.sush-motion-reduced .sz-thinking i, :root.sush-motion-reduced .sz-caret { animation: none; }
+:root.sush-motion-reduced .sz-acts.is-live .sz-acts-title { color: var(--text-3); background: none; }
+.sush-lite .sz-overlay, .sush-saver .sz-overlay { -webkit-backdrop-filter: none; backdrop-filter: none; }

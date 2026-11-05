@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import Icon from './Icons'
-import { rgba, accentVars } from '../lib/ui'
+import { accentVars } from '../lib/ui'
 import { getStreamer, parseAIResponse } from '../lib/ai'
 import { applyAction } from '../lib/seduciaActions'
 import SushOrb from './SushOrb'
+import ProviderLogo from './ProviderLogo'
+import { renderMarkdown } from '../lib/markdown'
 import { agentById } from '../lib/agents'
 import { useMicLevel } from '../hooks/useMicLevel'
+import { describeGatedIntent, needsApproval } from '../lib/seduciaSafety'
 import { parseIntent as parseSharedIntent, pathLabel as sharedPathLabel, summarize as summarizeAgents } from '../lib/seducia'
 
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
@@ -40,57 +43,107 @@ const QUICK = [
   { label: 'Next steps', send: 'what should each agent do next?', icon: 'send', hint: 'Suggestions for the crew' }
 ]
 
-// Confirm card for AI-proposed launches: shows what Seducia understood and
-// auto-proceeds after 5s ("mix of both" — she does it, you get a veto window).
-function LaunchCard({ accent, launch, status, onGo, onCancel }) {
-  const [left, setLeft] = useState(5)
-  // onGo is a fresh closure on every parent render (typing in the composer
-  // re-renders the transcript) — keep it in a ref so the countdown's 1s tick
-  // isn't torn down and re-armed mid-second, stalling the timer.
-  const goRef = useRef(onGo)
-  goRef.current = onGo
+// Anything a model proposes that changes what runs (launch, run, close) waits
+// in a banner attached to the composer and needs a click (seduciaSafety):
+// model output can carry text an agent read from the web or a file.
+function ApprovalBanner({ items, onResolve }) {
+  const goRef = useRef(onResolve)
+  goRef.current = onResolve
   useEffect(() => {
-    if (status) return
-    if (left <= 0) { goRef.current(); return }
-    const t = setTimeout(() => setLeft(l => l - 1), 1000)
-    return () => clearTimeout(t)
-  }, [left, status])
-  const total = (launch.agents || []).reduce((sum, a) => sum + Math.max(1, a.count || 1), 0)
-  const brief = launch.prompt ? String(launch.prompt) : ''
+    const onKey = e => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); goRef.current(true) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
-    <div style={{ maxWidth: '84%', borderRadius: 12, border: `1px solid ${rgba(accent, 0.4)}`, background: rgba(accent, 0.07), padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, fontWeight: 900, color: accent, letterSpacing: 1.2, marginBottom: 6 }}>LAUNCH PLAN</div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-2)', fontWeight: 700, lineHeight: 1.5 }}>
-        {summarizeAgents(launch.agents)} in {sharedPathLabel(launch.cwd)}
+    <div className="sz-banner" role="alertdialog" aria-label="Seducia needs your approval">
+      <div className="sz-banner-head">
+        <Icon name="shield" size={13} />
+        <span>Seducia wants to</span>
       </div>
-      {brief && (
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
-          brief: "{brief.slice(0, 160)}{brief.length > 160 ? '...' : ''}"
-        </div>
-      )}
-      {!status ? (
-        <div className="flex items-center" style={{ gap: 8, marginTop: 10 }}>
-          <button
-            onClick={onGo}
-            style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: accent, color: '#0a0a0c', fontWeight: 900, fontSize: 11.5, cursor: 'pointer' }}
-          >
-            Launch now
-          </button>
-          <button
-            onClick={onCancel}
-            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'transparent', color: 'var(--text-2)', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
-          >
-            Cancel
-          </button>
-          <span style={{ fontSize: 10, color: 'var(--text-4)', fontWeight: 700 }}>auto in {left}s</span>
-        </div>
-      ) : (
-        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: status === 'launched' ? '#5fd3a8' : 'var(--text-3)' }}>
-          {status === 'launched' ? `Launched ${total} session${total === 1 ? '' : 's'}.` : 'Cancelled.'}
+      {items.map(item => {
+        const d = describeGatedIntent(item.intent, { label: id => agentById(id)?.label || id })
+        const ids = item.intent.type === 'launch' ? [...new Set((item.intent.agents || []).map(a => a?.id).filter(id => agentById(id)))] : []
+        return (
+          <div key={item.key} className="sz-banner-item">
+            <span className={`sz-banner-kind is-${item.intent.type}`}>
+              {ids.length ? ids.slice(0, 3).map(id => <ProviderLogo key={id} provider={id} size={12} />) : <Icon name={item.intent.type === 'run' ? 'terminal' : 'x'} size={12} />}
+              {d.kind}
+            </span>
+            <span className={`sz-banner-what${d.mono ? ' is-mono' : ''}`}>{d.text}{d.detail ? <small>{d.detail}</small> : null}</span>
+          </div>
+        )
+      })}
+      <div className="sz-banner-actions">
+        <button type="button" className="sz-btn is-quiet" onClick={() => onResolve(false)}>Skip</button>
+        <button type="button" className="sz-btn is-primary" onClick={() => onResolve(true)} title="Approve (Ctrl/⌘ Enter)">
+          Approve{items.length > 1 ? ' all' : ''} <span className="sz-kbd">{/Mac/i.test(navigator.platform) ? '⌘↵' : 'Ctrl ↵'}</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// "Working for 3s" while a reply streams, then "Worked for 4.2s · 2 actions ›"
+// folding what Seducia did (T3's activity grammar). Plain-language rows, each
+// with an icon; readouts expand under their row.
+function useTicker(on) {
+  const [, setT] = useState(0)
+  useEffect(() => {
+    if (!on) return undefined
+    const id = setInterval(() => setT(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [on])
+}
+function fmtSecs(ms) {
+  const s = Math.max(0, ms) / 1000
+  if (s < 0.1) return 'a moment'
+  return s < 10 ? `${s.toFixed(1)}s` : s < 60 ? `${Math.round(s)}s` : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`
+}
+function ActivityGroup({ entry }) {
+  const [open, setOpen] = useState(false)
+  const rows = entry.activity || []
+  const live = !!entry.streaming
+  useTicker(live)
+  if (!live && !rows.length) return null
+  const took = fmtSecs((entry.doneAt || Date.now()) - (entry.startedAt || Date.now()))
+  return (
+    <div className={`sz-acts${open ? ' is-open' : ''}${live ? ' is-live' : ''}`}>
+      <button type="button" className="sz-acts-head" onClick={() => rows.length && setOpen(v => !v)} aria-expanded={open} disabled={!rows.length}>
+        <span className="sz-acts-title">{live ? `Working for ${took}` : `Worked for ${took}`}</span>
+        {rows.length > 0 && <span className="sz-acts-count">{rows.length} action{rows.length === 1 ? '' : 's'}</span>}
+        {rows.length > 0 && <Icon name="chevronRight" size={12} className="sz-acts-chev" />}
+      </button>
+      {open && (
+        <div className="sz-acts-rows">
+          {rows.map((r, i) => (
+            <div key={i} className={`sz-act is-${r.tone || 'done'}`}>
+              <span className="sz-act-icon"><Icon name={r.icon || 'check'} size={12} /></span>
+              <span className="sz-act-text">{r.text}</span>
+              {r.detail && <pre className="sz-act-detail sush-scroll">{r.detail}</pre>}
+            </div>
+          ))}
         </div>
       )}
     </div>
   )
+}
+
+// What an action result looks like as an activity row.
+function activityRow(res) {
+  if (!res) return null
+  const text = typeof res === 'string' ? res : res.text
+  const detail = typeof res === 'string' ? '' : res.detail || ''
+  const first = String(text || '').split('\n')[0].trim()
+  if (!first) return null
+  const rest = [String(text).split('\n').slice(1).join('\n').trim(), detail].filter(Boolean).join('\n\n')
+  const icon = /^(launch|start|spun|spin)/i.test(first) ? 'rocket'
+    : /^(focus|jump|switch)/i.test(first) ? 'eye'
+      : /^(sent|told|prompt|asked|brief)/i.test(first) ? 'send'
+        : /(fail|error|could not|can't|cannot|no )/i.test(first) ? 'x'
+          : 'check'
+  return { text: first, detail: rest, icon, tone: icon === 'x' ? 'fail' : 'done' }
 }
 
 export default function Seducia({
@@ -150,7 +203,7 @@ export default function Seducia({
   const orbState = listening ? 'listening' : streaming ? 'thinking' : speaking ? 'speaking' : 'idle'
   const [aiMessages, setAiMessages] = useState([]) // { role: 'user'|'assistant', content: '' }
   const [log, setLog] = useState([
-    { id: 0, role: 'seducia', text: "I'm Seducia. I can spin up agents ('build team in Rooms'), prompt them ('tell claude to run the tests'), or jump to one ('focus codex'). Tap the mic for voice.", streaming: false }
+    { id: 0, role: 'seducia', intro: true, text: "I'm Seducia. I can spin up agents ('build team in Rooms'), prompt them ('tell claude to run the tests'), or jump to one ('focus codex'). Tap the mic for voice.", streaming: false }
   ])
   const inputRef = useRef(null)
   const scrollRef = useRef(null)
@@ -179,9 +232,15 @@ export default function Seducia({
   const groups = new Set(scopedTabs.map(t => t.groupId).filter(Boolean)).size
 
   const push = useCallback((role, text, extra = {}) => {
-    setLog(prev => [...prev, { id: idRef.current++, role, text, ...extra }])
-    return idRef.current - 1
+    // Take the id now: the state updater runs later, so reading the counter
+    // after setLog returned a stale id and replies overwrote older entries.
+    const id = idRef.current++
+    setLog(prev => [...prev, { id, role, text, ...extra }])
+    return id
   }, [])
+
+  const logRef = useRef(log)
+  logRef.current = log
 
   const updateLast = useCallback((id, patch) => {
     setLog(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
@@ -198,24 +257,34 @@ export default function Seducia({
       onLaunch, onRun, onPrompt, onFocus, onOpenLauncher
     })
     if (!res) return null
-    if (res.readout?.length) {
-      const preview = res.readout
-        .map(r => `-- ${r.label} --\n${String(r.text || '').slice(-600)}`)
-        .join('\n\n')
-      return `${res.text}\n${preview}`
-    }
-    return res.text
+    const detail = res.readout?.length
+      ? res.readout.map(r => `── ${r.label} ──\n${String(r.text || '').slice(-600)}`).join('\n\n')
+      : ''
+    return { text: res.text || '', detail }
   }, [scopedTabs, scope, controls, scopedCwd, onPrompt, onFocus, onLaunch, onOpenLauncher, onRun])
 
-  // AI-proposed launches go through a confirm card (5s auto-proceed) — a
-  // misread request should not silently spawn a swarm. The ref guards the
-  // countdown timer and the button from double-firing.
-  const firedLaunchesRef = useRef(new Set())
-  const resolveLaunch = useCallback((entryId, launch, go) => {
-    if (firedLaunchesRef.current.has(entryId)) return
-    firedLaunchesRef.current.add(entryId)
-    if (go) applyIntent(launch)
-    setLog(prev => prev.map(e => e.id === entryId ? { ...e, launchStatus: go ? 'launched' : 'cancelled' } : e))
+  // Model-proposed launch/run/close actions wait for a click. Resolving runs
+  // (or skips) all of a message's pending actions and logs each as activity.
+  const resolvingRef = useRef(new Set())
+  const resolveApprovals = useCallback(async (entryId, go) => {
+    if (resolvingRef.current.has(entryId)) return
+    resolvingRef.current.add(entryId)
+    const entry = logRef.current.find(e => e.id === entryId)
+    const pendingItems = (entry?.approvals || []).filter(a => !a.status)
+    const rows = []
+    for (const item of pendingItems) {
+      const d = describeGatedIntent(item.intent, { label: id => agentById(id)?.label || id })
+      if (go) {
+        const res = await applyIntent(item.intent)
+        const row = activityRow(res) || { text: `${d.kind} ${d.text}`, icon: 'check', tone: 'done' }
+        rows.push(item.intent.type === 'launch' ? { ...row, icon: 'rocket' } : row)
+      } else {
+        rows.push({ text: `Skipped: ${d.kind.toLowerCase()} ${d.text}`, icon: 'x', tone: 'fail' })
+      }
+    }
+    setLog(prev => prev.map(e => e.id === entryId
+      ? { ...e, approvals: e.approvals.map(a => ({ ...a, status: a.status || (go ? 'approved' : 'skipped') })), activity: [...(e.activity || []), ...rows] }
+      : e))
   }, [applyIntent])
 
   const handleAI = useCallback(async (command) => {
@@ -226,7 +295,7 @@ export default function Seducia({
     const newHistory = [...aiMessages, userMsg]
     setAiMessages(newHistory)
 
-    const msgId = push('seducia', '', { streaming: true })
+    const msgId = push('seducia', '', { streaming: true, startedAt: Date.now() })
     setStreaming(true)
 
     const abort = new AbortController()
@@ -242,7 +311,7 @@ export default function Seducia({
       }
     } catch (e) {
       full = e.message?.includes('401') ? 'CLI auth failed -- check the selected agent CLI login.' : `AI error: ${e.message}`
-      updateLast(msgId, { text: full, streaming: false })
+      updateLast(msgId, { text: full, streaming: false, doneAt: Date.now(), error: true })
       setStreaming(false)
       return true
     }
@@ -254,18 +323,20 @@ export default function Seducia({
     // actions parsed out of a partial response.
     const actions = abort.signal.aborted ? [] : parsedActions
 
-    // Launches wait behind a confirm card; everything else applies now.
-    const launches = actions.filter(a => a?.type === 'launch')
-    const feedback = []
+    // Gated actions (launch, run, close) wait for a click; the rest apply now.
+    const gated = actions.filter(a => a && needsApproval(a))
+    const activity = []
     for (const act of actions) {
-      if (!act || act.type === 'launch') continue
-      const fb = await applyIntent(act)
-      if (fb && fb !== displayText) feedback.push(fb)
+      if (!act || needsApproval(act)) continue
+      const row = activityRow(await applyIntent(act))
+      if (row && row.text !== displayText) activity.push(row)
     }
 
-    const finalText = [displayText, ...feedback].filter(Boolean).join('\n')
-    updateLast(msgId, { text: finalText, streaming: false, engine })
-    launches.forEach(launch => push('seducia', '', { kind: 'launch-card', launch }))
+    const finalText = displayText
+    updateLast(msgId, {
+      text: finalText, streaming: false, engine, activity, doneAt: Date.now(),
+      approvals: gated.map((intent, i) => ({ key: `${msgId}:${i}`, intent, status: null }))
+    })
     setStreaming(false)
 
     // TTS: system voice (ElevenLabs streaming was retired).
@@ -292,9 +363,12 @@ export default function Seducia({
 
     // Deterministic fallback.
     const intent = parseSharedIntent(command, scopedCwd, dirs)
-    const response = (await applyIntent(intent)) || `Running "${command}".`
+    const startedAt = Date.now()
+    const res = await applyIntent(intent)
+    const response = res?.text || `Running "${command}".`
+    const row = res?.detail ? { ...activityRow(res), text: 'Read the latest output', icon: 'eye' } : null
 
-    push('seducia', response)
+    push('seducia', response, { startedAt, doneAt: Date.now(), activity: row ? [row] : [] })
 
     if (voiceEnabled && settings.ttsEnabled) {
       speak(response, { rate: settings.ttsRate, pitch: settings.ttsPitch, voiceURI: settings.ttsVoice })
@@ -333,90 +407,68 @@ export default function Seducia({
   }, [listening, voiceEnabled, handsFree, handle])
 
   const hasCliAI = aiEnabled
+  const pending = log.find(e => e.approvals?.some(a => !a.status)) || null
+  const fresh = docked && log.length <= 1
+  const voiceOk = voiceEnabled && !!SpeechRecognition
+
+  // Composer textarea grows with its content up to ~6 lines.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 148)}px`
+  }, [value])
 
   const body = (
-    <div
-      className="sush-fade-up flex flex-col"
-      style={{
-        width: docked ? '100%' : 'min(400px, 92vw)',
-        height: '100%',
-        background: docked ? 'transparent' : `radial-gradient(700px 260px at 100% 0%, ${rgba(accent, 0.12)}, transparent 60%), #0b0e11`,
-        borderLeft: docked ? 'none' : `1px solid ${rgba(accent, 0.28)}`,
-        boxShadow: docked ? 'none' : '-24px 0 60px rgba(0,0,0,0.5)'
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between" style={{ padding: docked ? '12px 14px' : '16px 18px', borderBottom: '1px solid #171c22' }}>
-        <div className="flex items-center" style={{ gap: 10 }}>
-          <SushOrb size={docked ? 30 : 36} state={orbState} levelRef={micLevel} className="is-small" />
-          <div>
-            <div className="flex items-center" style={{ gap: 6 }}>
-              <span style={{ fontSize: docked ? 13 : 14.5, fontWeight: 900, color: 'var(--text-1)' }}>Seducia</span>
-              {aiEnabled && hasCliAI && (
-                <span style={{ fontSize: 9, fontWeight: 800, color: accent, background: rgba(accent, 0.15), border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 99, padding: '1px 6px', letterSpacing: 0.5 }}>AI</span>
-              )}
-            </div>
-            <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 1 }}>
-              {scope?.kind === 'project' ? `${scope.label} · ` : ''}{scopedTabs.length} session{scopedTabs.length === 1 ? '' : 's'}{scope?.kind !== 'project' && groups ? ` · ${groups} workspace${groups === 1 ? '' : 's'}` : ''}
-            </div>
+    <div className={`sz-pane sush-fade-up${docked ? ' is-docked' : ''}`}>
+      <header className="sz-head">
+        <SushOrb size={docked ? 28 : 34} state={orbState} levelRef={micLevel} className="is-small" />
+        <div className="sz-head-text">
+          <div className="sz-head-title">
+            Seducia
+            {hasCliAI && <span className="sz-tag">AI</span>}
+          </div>
+          <div className="sz-head-sub">
+            {scope?.kind === 'project' ? `${scope.label} · ` : ''}{scopedTabs.length} session{scopedTabs.length === 1 ? '' : 's'}{scope?.kind !== 'project' && groups ? ` · ${groups} workspace${groups === 1 ? '' : 's'}` : ''}
           </div>
         </div>
-        <div className="flex items-center" style={{ gap: 6 }}>
-          {/* Hands-free toggle */}
-          {voiceEnabled && SpeechRecognition && (
-            <button
-              onClick={() => setHandsFree(prev => !prev)}
-              title={handsFree ? 'Disable hands-free mode' : 'Enable hands-free (auto-submit on voice)'}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                border: `1px solid ${handsFree ? rgba(accent, 0.5) : '#20272e'}`,
-                background: handsFree ? rgba(accent, 0.12) : '#11151a',
-                color: handsFree ? accent : 'var(--text-4)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Icon name="radio" size={13} strokeWidth={2} />
-            </button>
-          )}
-          {!docked && (
-            <button
-              onClick={onClose}
-              title="Close (Esc)"
-              style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid #20272e', background: '#11151a', color: 'var(--text-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Icon name="x" size={14} />
-            </button>
-          )}
-        </div>
-      </div>
+        {voiceOk && (
+          <button
+            type="button"
+            className={`sz-icon-btn${handsFree ? ' is-on' : ''}`}
+            onClick={() => setHandsFree(prev => !prev)}
+            title={handsFree ? 'Hands-free is on: voice sends by itself' : 'Hands-free: send when you stop talking'}
+            aria-pressed={handsFree}
+          >
+            <Icon name="radio" size={14} />
+          </button>
+        )}
+        {!docked && (
+          <button type="button" className="sz-icon-btn" onClick={onClose} title="Close (Esc)" aria-label="Close">
+            <Icon name="x" size={14} />
+          </button>
+        )}
+      </header>
 
-      {/* No CLI AI notice */}
       {!hasCliAI && (
-        <div style={{ margin: '8px 10px 0', padding: '8px 12px', borderRadius: 8, background: rgba(accent, 0.08), border: `1px solid ${rgba(accent, 0.2)}`, fontSize: 11, color: 'var(--text-2)' }}>
-          Seducia uses your logged-in Claude, Codex, Gemini, or OpenCode CLIs. Install or sign in to one of them to enable AI replies.
+        <div className="sz-notice">
+          <Icon name="info" size={13} />
+          <span>Seducia thinks with your logged-in Claude, Codex, Gemini or OpenCode CLI. Sign in to one to get AI replies; simple commands work without it.</span>
         </div>
       )}
 
-      {/* Transcript */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto sush-scroll flex flex-col" style={{ padding: 12, gap: 10 }}>
-        {docked && log.length <= 1 && (
+      <div ref={scrollRef} className="sz-log sush-scroll">
+        {fresh && (
           <div className="sz-welcome">
             <SushOrb
               size={92}
               state={orbState}
               levelRef={micLevel}
-              onClick={voiceEnabled && SpeechRecognition ? toggleVoice : undefined}
+              onClick={voiceOk ? toggleVoice : undefined}
             />
-            {voiceEnabled && SpeechRecognition && (
-              <span className="sz-orb-hint">{listening ? 'Listening… tap to stop' : 'Tap the orb to talk'}</span>
-            )}
+            {voiceOk && <span className="sz-orb-hint">{listening ? 'Listening… tap to stop' : 'Tap the orb to talk'}</span>}
             <h2>Hi, I'm Seducia</h2>
-            <p>I run your crew. Ask me to start agents, brief them, or check where everything stands. The mic works too.</p>
+            <p>I run your crew. Ask me to start agents, brief them, or check where everything stands.</p>
             {recentWork.length > 0 && (
               <div className="sz-recent">
                 <div className="sz-section">Pick up where you left off</div>
@@ -427,11 +479,15 @@ export default function Seducia({
                   return (
                     <button key={w.cwd + w.agent} type="button" className={`sz-work${w.question ? ' is-question' : ''}`} onClick={() => resumeWork(w)}>
                       <span className="sz-work-top">
+                        <ProviderLogo provider={w.agent} size={14} />
                         <strong>{w.question ? `${a?.label || w.agent} asked you something` : `Continue: ${w.ask || 'your last task'}`}</strong>
                         <small>{sharedPathLabel(w.cwd)} · {when}</small>
                       </span>
                       {w.last && <span className="sz-work-last">{w.last}</span>}
-                      <span className="sz-work-meta">{a?.label || w.agent}{w.files ? ` · ${w.files} file${w.files === 1 ? '' : 's'} touched` : ''} · {w.question ? 'Answer' : 'Resume'} →</span>
+                      <span className="sz-work-meta">
+                        {w.files ? `${w.files} file${w.files === 1 ? '' : 's'} touched · ` : ''}{w.question ? 'Answer' : 'Resume'}
+                        <Icon name="arrowRight" size={11} />
+                      </span>
                     </button>
                   )
                 })}
@@ -449,127 +505,109 @@ export default function Seducia({
             </div>
           </div>
         )}
-        {(docked && log.length <= 1 ? [] : log).map(entry => (
-          <div key={entry.id} className={`flex ${entry.role === 'you' ? 'justify-end' : 'justify-start'}`}>
-            {entry.role === 'seducia' && (
-              <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginRight: 8, marginTop: 2, background: rgba(accent, 0.15), border: `1px solid ${rgba(accent, 0.35)}`, color: accent }}>
-                <Icon name="sparkles" size={12} strokeWidth={2} />
-              </span>
-            )}
-            {entry.kind === 'launch-card' ? (
-              <LaunchCard
-                accent={accent}
-                launch={entry.launch}
-                status={entry.launchStatus}
-                onGo={() => resolveLaunch(entry.id, entry.launch, true)}
-                onCancel={() => resolveLaunch(entry.id, entry.launch, false)}
-              />
-            ) : (
-              <div
-                className={`sz-bubble ${entry.role === 'you' ? 'is-you' : 'is-her'}`}
-                style={{
-                  maxWidth: '84%',
-                  fontSize: 12.5,
-                  lineHeight: 1.55,
-                  padding: '8px 11px',
-                  borderRadius: 12,
-                  border: `1px solid ${entry.role === 'you' ? rgba(accent, 0.4) : '#1b2127'}`,
-                  background: entry.role === 'you' ? rgba(accent, 0.12) : '#0f1318',
-                  color: entry.role === 'you' ? 'var(--text-1)' : 'var(--text-2)',
-                  borderTopRightRadius: entry.role === 'you' ? 4 : 12,
-                  borderTopLeftRadius: entry.role === 'you' ? 12 : 4,
-                  whiteSpace: 'pre-wrap'
-                }}
-              >
-                {entry.text}
-                {entry.streaming && <span style={{ display: 'inline-block', width: 8, height: 12, background: accent, borderRadius: 2, marginLeft: 3, verticalAlign: 'middle', animation: 'sush-blink 0.8s step-start infinite' }} />}
-                {entry.engine && !entry.streaming && (
-                  <span style={{ display: 'block', marginTop: 5, fontSize: 9.5, fontWeight: 800, color: 'var(--text-3)', letterSpacing: 0.5 }}>
-                    via {entry.engine} CLI
-                  </span>
-                )}
+        {(fresh ? [] : docked ? log.filter(e => !e.intro) : log).map((entry, i, all) => {
+          if (entry.role === 'you') {
+            return (
+              <div key={entry.id} className="sz-msg is-you">
+                <div className="sz-you">{entry.text}</div>
               </div>
-            )}
-          </div>
-        ))}
+            )
+          }
+          // The name row only opens a run of Seducia messages.
+          const opensRun = i === 0 || all[i - 1].role !== 'seducia'
+          return (
+            <div key={entry.id} className={`sz-msg is-her${entry.error ? ' is-error' : ''}`}>
+              {opensRun && (
+                <div className="sz-her-name">
+                  <SushOrb size={18} state={entry.streaming ? 'thinking' : 'idle'} className="is-small is-chip" />
+                  <span>Seducia</span>
+                </div>
+              )}
+              <ActivityGroup entry={entry} />
+              {entry.text
+                ? <div className="sz-md">{renderMarkdown(entry.text, accent)}{entry.streaming && <span className="sz-caret" aria-hidden />}</div>
+                : entry.streaming ? <div className="sz-thinking" aria-label="Thinking"><i /><i /><i /></div> : null}
+              {entry.engine && !entry.streaming && (
+                <div className="sz-via">
+                  <ProviderLogo provider={entry.engine} size={11} />
+                  <span>via {agentById(entry.engine)?.label || entry.engine}</span>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* Quick actions (the welcome cards cover them on a fresh docked chat) */}
-      <div className="flex" style={{ gap: 6, flexWrap: 'wrap', padding: '0 12px 10px', display: docked && log.length <= 1 ? 'none' : 'flex' }}>
-        {QUICK.map(q => (
-          <button
-            key={q.label}
-            onClick={() => handle(q.send)}
-            disabled={streaming}
-            style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-2)', background: '#11151a', border: `1px solid ${rgba(accent, 0.22)}`, borderRadius: 999, padding: '4px 10px', cursor: streaming ? 'default' : 'pointer', opacity: streaming ? 0.5 : 1 }}
-          >
-            {q.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Composer */}
-      <div style={{ padding: '0 12px 12px' }}>
-        <div className={`sush-omni sz-composer flex items-center${listening ? ' is-listening' : ''}`} style={{ height: 48, gap: 8 }}>
-          <Icon name="sparkles" size={15} color={streaming ? accent : 'var(--text-4)'} className={streaming ? 'sush-spin' : undefined} />
-          <input
+      <div className="sz-dock">
+        <div className={`sz-compose${listening ? ' is-listening' : ''}${pending ? ' has-banner' : ''}`}>
+          {pending && (
+            <ApprovalBanner
+              key={pending.id}
+              items={pending.approvals.filter(a => !a.status)}
+              onResolve={go => resolveApprovals(pending.id, go)}
+            />
+          )}
+          <textarea
             ref={inputRef}
+            rows={1}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handle(value) }
+              if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) { e.preventDefault(); handle(value) }
             }}
-            placeholder={listening ? 'Listening...' : streaming ? 'Seducia is thinking...' : 'Launch, prompt, or ask anything...'}
+            placeholder={listening ? 'Listening…' : streaming ? 'Seducia is working…' : 'Launch, brief, or ask anything'}
             disabled={streaming}
             spellCheck={false}
-            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13.5, fontFamily: 'var(--font-ui)' }}
+            aria-label="Message Seducia"
           />
-          {voiceEnabled && SpeechRecognition && (
-            <button
-              onClick={toggleVoice}
-              title={listening ? 'Stop' : handsFree ? 'Speak (hands-free on)' : 'Dictate'}
-              className={`flex items-center justify-center ${listening ? 'sush-orb' : ''}`}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 8,
-                border: `1px solid ${listening ? 'transparent' : rgba(accent, 0.3)}`,
-                background: listening ? '#ff5370' : '#11151a',
-                color: listening ? '#0a0a0a' : accent,
-                cursor: 'pointer',
-                flexShrink: 0
-              }}
-            >
-              <Icon name="mic" size={14} strokeWidth={2} />
-            </button>
-          )}
-          {streaming ? (
-            <button
-              onClick={() => { streamAbortRef.current?.abort(); setStreaming(false) }}
-              title="Stop"
-              style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid rgba(255,83,112,0.4)`, background: 'rgba(255,83,112,0.1)', color: '#ff5370', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Icon name="stop" size={13} />
-            </button>
-          ) : (
-            <button
-              onClick={() => handle(value)}
-              disabled={!value.trim()}
-              style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: value.trim() ? accent : '#1c2126', color: value.trim() ? '#0a0a0a' : 'var(--text-4)', cursor: value.trim() ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Icon name="send" size={14} strokeWidth={2} />
-            </button>
-          )}
+          <div className="sz-compose-bar">
+            {voiceOk && (
+              <button
+                type="button"
+                className={`sz-icon-btn is-mic${listening ? ' is-live' : ''}`}
+                onClick={toggleVoice}
+                title={listening ? 'Stop listening' : handsFree ? 'Speak (hands-free on)' : 'Dictate'}
+                aria-pressed={listening}
+              >
+                <Icon name="mic" size={14} />
+              </button>
+            )}
+            {handsFree && <span className="sz-chip"><Icon name="radio" size={11} />Hands-free</span>}
+            <span className="sz-compose-hint">{streaming ? '' : 'Enter to send · Shift+Enter for a new line'}</span>
+            {streaming ? (
+              <button
+                type="button"
+                className="sz-send is-stop"
+                onClick={() => { streamAbortRef.current?.abort(); setStreaming(false) }}
+                title="Stop"
+                aria-label="Stop"
+              >
+                <span className="sz-stop-square" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="sz-send"
+                onClick={() => handle(value)}
+                disabled={!value.trim()}
+                title="Send"
+                aria-label="Send"
+              >
+                <Icon name="arrowUp" size={15} strokeWidth={2.4} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
   )
 
-  if (docked) return <div style={{ ...accentVars(accent), height: '100%' }}>{body}</div>
+  if (docked) return <div className="sz-root" style={accentVars(accent)}>{body}</div>
 
   return (
     <div
-      style={{ ...accentVars(accent), position: 'fixed', inset: 0, zIndex: 350, display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+      className="sz-root sz-overlay"
+      style={accentVars(accent)}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       {body}
