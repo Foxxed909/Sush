@@ -80,7 +80,7 @@ export default function HuntOverlay({ accent, tabs = [], onJump, onClose }) {
   return (
     <div
       className="sush-backdrop"
-      style={{ position: 'fixed', inset: 0, zIndex: 450, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', paddingTop: '14vh' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 2100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', paddingTop: '14vh' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div

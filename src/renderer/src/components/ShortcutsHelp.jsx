@@ -79,7 +79,7 @@ const SECTIONS = [
 export default function ShortcutsHelp({ accent, onClose }) {
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', overflowY: 'auto', padding: '32px 16px 48px' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 2100, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', overflowY: 'auto', padding: '32px 16px 48px' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="sush-fade-up" style={{ width: '100%', maxWidth: 720, background: '#0d1015', border: `1px solid ${rgba(accent, 0.3)}`, borderRadius: 16, boxShadow: '0 24px 64px rgba(0,0,0,0.7)', overflow: 'hidden' }}>

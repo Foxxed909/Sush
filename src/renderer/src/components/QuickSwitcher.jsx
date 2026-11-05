@@ -9,7 +9,7 @@ export default function QuickSwitcher({ accent, tabs, order, index }) {
   const items = order.map(id => byId.get(id)).filter(Boolean)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)' }}>
       <div
         className="sush-fade-up"
         style={{ width: '100%', maxWidth: 460, background: '#0d1015', border: `1px solid ${rgba(accent, 0.35)}`, borderRadius: 'var(--r-xl)', boxShadow: '0 24px 64px rgba(0,0,0,0.7)', overflow: 'hidden' }}

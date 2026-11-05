@@ -75,6 +75,12 @@
     "linux": {
       "target": "AppImage",
       "category": "Development"
-    }
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      "resources/**/*",
+      "!**/*.map"
+    ]
   }
 }

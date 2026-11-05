@@ -142,10 +142,6 @@ pre, code, kbd, .sush-mono,
    to buttons that should feel physical (primary actions, chrome). Deliberately
    opt-in per element so it never fights a control that manages its own motion.
    Frozen with the rest of motion in reduce-motion / saver. */
-.sush-press { transition: transform var(--dur-fast) var(--ease-out); }
-.sush-press:active { transform: scale(0.965); }
-.sush-reduce-motion .sush-press, .sush-saver .sush-press { transition: none; }
-.sush-reduce-motion .sush-press:active, .sush-saver .sush-press:active { transform: none; }
 
 /* Window material (Windows 11 Mica/Acrylic): when the OS paints a translucent
    desktop-tinted backing behind the window, the app's own base surface must be
@@ -233,57 +229,16 @@ pre, code, kbd, .sush-mono,
 }
 /* Skeleton shimmer for rows/cards that are still fetching. */
 /* Indeterminate hairline progress (splash / busy bars). */
-@keyframes sush-progress-slide {
-  from { transform: translateX(-100%); }
-  to   { transform: translateX(250%); }
-}
-.sush-progress {
-  position: relative;
-  height: 2px;
-  border-radius: 2px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.07);
-}
-.sush-progress::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  width: 40%;
-  border-radius: 2px;
-  background: var(--accent);
-  animation: sush-progress-slide 1.1s var(--ease-out) infinite;
-}
-.sush-lite .sush-skeleton, .sush-lite .sush-progress::after { animation-duration: 2.4s; }
 
 /* Splash letter stagger */
 /* Splash exit */
-@keyframes sush-splash-out {
-  from { opacity: 1; transform: scale(1); }
-  to   { opacity: 0; transform: scale(1.04); }
-}
-.sush-splash-out { animation: sush-splash-out 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards; pointer-events: none; }
 
 /* ── Splash: "shush → build" two-beat ────────────────────────────────────────
    Beat 1: a finger rises to pink lips (Sush = shush) with a soft breath glow.
    Beat 2: two terminal cursors — pink (you) + violet (Seducia) — converge and
    type the SUSH wordmark. All transform/opacity (GPU-cheap). Reduced-motion
    skips straight to the static wordmark (handled in JS). */
-@keyframes sush-finger-rise {
-  from { opacity: 0; transform: translateY(46px) rotate(-17deg); }
-  to   { opacity: 1; transform: translateY(0) rotate(-7deg); }
-}
-@keyframes sush-shh-glow {
-  0%   { opacity: 0; transform: scale(0.7); }
-  45%  { opacity: 0.85; }
-  100% { opacity: 0.4; transform: scale(1.18); }
-}
-@keyframes sush-beat-out {
-  to { opacity: 0; transform: scale(0.84); filter: blur(3px); }
-}
-@keyframes sush-type-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.8); }
-  to   { opacity: 1; transform: none; }
-}
+
 /* ---- Glassmorphism UI ----
    Frosted panels: a stronger blur + saturation lift makes the terminal read
    through the chrome as a soft wash of colour. A 1px top highlight gives every
@@ -526,24 +481,6 @@ pre, code, kbd, .sush-mono,
   -webkit-backdrop-filter: blur(16px) saturate(150%);
 }
 
-.sush-lock-input {
-  width: 100%;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: var(--text-1);
-  border-radius: 10px;
-  padding: 10px 13px;
-  font-size: var(--fs-lg);
-  font-family: inherit;
-  outline: none;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-.sush-lock-input::placeholder { color: var(--text-4); }
-.sush-lock-input:focus {
-  border-color: var(--accent-a55);
-  box-shadow: 0 0 0 3px var(--accent-a10);
-}
-
 /* Profile tiles fade up in sequence (one signature entrance; per-tile delay set
    inline). `backwards` fill so after the entrance the hover/selected transforms
    below take over cleanly instead of the keyframe holding. */
@@ -654,9 +591,6 @@ body[data-sleeping] *:not(.sush-sleep-breathe) {
 @media (prefers-reduced-motion: reduce) {
   .sush-sleep-breathe { animation: none; }
 }
-@media (max-width: 620px) {
-  .sush-plan-grid { grid-template-columns: 1fr !important; }
-}
 
 /* Explicit reduce-motion: user opt-in (Settings) OR the OS preference. Collapses
    every animation/transition to an imperceptible tick — nothing is disabled
@@ -706,7 +640,6 @@ p { text-wrap: pretty; }
   .sush-fan { height: auto !important; }
   .sush-fan-card { position: relative !important; transform: none !important; width: 100% !important; height: auto !important; margin-bottom: 10px; }
 }
-
 
 /* ==========================================================================
    Sush Nightly — Quiet Nights shell
@@ -954,7 +887,6 @@ p { text-wrap: pretty; }
   .nightly-composer-hint { display: none; }
 }
 
-
 /* Nightly integrated Overview ------------------------------------------------ */
 .nightly-overview {
   position: absolute; inset: 0; overflow-y: auto;
@@ -962,90 +894,13 @@ p { text-wrap: pretty; }
     radial-gradient(900px 420px at 14% -8%, var(--accent-a06), transparent 58%),
     var(--surface-0);
 }
-.nightly-overview-inner { max-width: 1180px; margin: 0 auto; padding: 28px 28px 44px; }
-.nightly-overview-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 20px; margin-bottom: 22px;
-}
-.nightly-overview-kicker {
-  color: var(--text-4); font-size: 11.5px; font-weight: 500; margin-bottom: 4px;
-}
-.nightly-overview-header h1 {
-  margin: 0; color: var(--text-1); font-size: 21px; line-height: 1.15;
-  font-weight: 650; letter-spacing: -.025em;
-}
-.nightly-overview-header p { margin: 6px 0 0; color: var(--text-4); font-size: 12px; }
-.nightly-overview-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
-.nightly-overview-state {
-  height: 27px; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px;
-  color: var(--text-3); border: 1px solid var(--border-1); background: rgba(255,255,255,.02);
-  border-radius: 7px; font-size: 11px; font-weight: 600;
-}
-.nightly-overview-state > span { width: 6px; height: 6px; border-radius: 50%; }
-.nightly-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(390px, 1fr)); gap: 12px; }
-.nightly-overview-card {
-  min-width: 0; overflow: hidden; border: 1px solid var(--border-1); border-radius: 12px;
-  background: rgba(15,16,17,.72); box-shadow: 0 8px 24px rgba(0,0,0,.14);
-}
-.nightly-overview-card > header {
-  min-height: 48px; display: flex; align-items: center; gap: 9px; padding: 8px 10px;
-  border-bottom: 1px solid var(--border-1); background: rgba(255,255,255,.012);
-}
-.nightly-overview-project { display: block; min-width: 0; flex: 1; }
-.nightly-overview-project strong {
-  display: block; color: var(--text-1); font-size: 12.5px; font-weight: 650;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.nightly-overview-project small {
-  display: block; margin-top: 2px; color: var(--text-4); font-size: 11px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.nightly-overview-sessions { padding: 5px; display: grid; gap: 2px; }
-.nightly-overview-row {
-  min-width: 0; min-height: 42px; display: flex; align-items: center; gap: 8px;
-  padding: 5px 6px; border-radius: 8px;
-}
-.nightly-overview-row:hover { background: rgba(255,255,255,.028); }
-.nightly-overview-agent {
-  width: 26px; height: 26px; border-radius: 7px; border: 1px solid;
-  display: grid; place-items: center; flex-shrink: 0; font-size: 10.5px; font-weight: 650;
-}
-.nightly-overview-copy { min-width: 90px; flex: 1; }
-.nightly-overview-copy > span {
-  display: block; color: var(--text-2); font-size: 11.5px; font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.nightly-overview-copy small {
-  display: block; margin-top: 1px; color: var(--text-5); font-size: 10.5px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.nightly-overview-status {
-  display: inline-flex; align-items: center; gap: 5px; color: var(--text-3);
-  font-size: 10.5px; font-weight: 600; white-space: nowrap;
-}
-.nightly-overview-status > span { width: 6px; height: 6px; border-radius: 50%; }
-.nightly-overview-status.is-limited { color: #ffb56e; }
-.nightly-overview-resource { color: var(--text-5); font-size: 10.5px; font-weight: 650; white-space: nowrap; }
-.nightly-overview-mini {
-  height: 25px; padding: 0 7px; border-radius: 6px; border: 1px solid rgba(255,159,67,.24);
-  background: rgba(255,159,67,.07); color: #ffb56e; font: inherit; font-size: 10.5px;
-  font-weight: 600; cursor: pointer;
-}
+
 .nightly-overview-empty {
   min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; color: var(--text-4); border: 1px dashed var(--border-2); border-radius: 12px;
 }
 .nightly-overview-empty strong { color: var(--text-2); font-size: 12px; }
 .nightly-overview-empty span { font-size: 11.5px; margin-bottom: 4px; }
-
-@media (max-width: 900px) {
-  .nightly-overview-inner { padding: 20px 16px 36px; }
-  .nightly-overview-header { flex-direction: column; }
-  .nightly-overview-actions { justify-content: flex-start; }
-  .nightly-overview-grid { grid-template-columns: 1fr; }
-  .nightly-overview-resource { display: none; }
-}
-
 
 /* Nightly inspector --------------------------------------------------------- */
 .nightly-inspector {
@@ -1062,7 +917,6 @@ p { text-wrap: pretty; }
 .nightly-inspector .sush-htabs::-webkit-scrollbar {
   display: none;
 }
-
 
 /* Nightly account popover --------------------------------------------------- */
 .nightly-account-menu { position: relative; -webkit-app-region: no-drag; }
@@ -1130,7 +984,6 @@ p { text-wrap: pretty; }
   font-size: 10px; font-weight: 650; letter-spacing: .1px; text-transform: lowercase;
 }
 
-
 /* Nightly profile menu ------------------------------------------------------ */
 .nightly-rail-footer { position: relative; display: grid; gap: 2px; }
 .nightly-profile-menu { position: relative; min-width: 0; }
@@ -1178,7 +1031,6 @@ p { text-wrap: pretty; }
   .nightly-profile-popover { left: 48px; bottom: 0; }
 }
 
-
 /* Nightly layout menu ------------------------------------------------------- */
 .nightly-layout-menu { position: relative; -webkit-app-region: no-drag; }
 .nightly-layout-popover {
@@ -1211,7 +1063,6 @@ p { text-wrap: pretty; }
   padding: 7px 8px 4px; margin-top: 3px; border-top: 1px solid var(--border-1);
   color: var(--text-5); font-size: 10px;
 }
-
 
 /* Nightly active model menu -------------------------------------------------
    Shared form controls (.nightly-field*) are also used by the launcher. */
@@ -1307,7 +1158,6 @@ p { text-wrap: pretty; }
   padding: 7px 8px 4px; margin-top: 3px; border-top: 1px solid var(--border-1);
   color: var(--text-5); font-size: 10px; line-height: 1.4;
 }
-
 
 /* Nightly Context inspector -------------------------------------------------
    Cards hold separated facts (label above value, gaps not hairlines): the old
@@ -1411,7 +1261,6 @@ p { text-wrap: pretty; }
   color: var(--text-4); font-size: 11.5px; line-height: 1.55;
 }
 
-
 .nightly-pane-dock-switch {
   display: grid; grid-template-columns: 1fr 1fr; gap: 5px;
   margin: 5px 4px 7px; padding: 4px; border-radius: 8px;
@@ -1433,7 +1282,6 @@ p { text-wrap: pretty; }
   box-shadow: 0 -8px 28px rgba(0,0,0,.12);
 }
 
-
 /* Nightly project rail hierarchy ------------------------------------------- */
 .nightly-workspace-head {
   width: 100%; border: 0; background: transparent; font: inherit;
@@ -1453,7 +1301,6 @@ p { text-wrap: pretty; }
 .nightly-workspace.is-collapsed .nightly-workspace-chevron { opacity: 1; }
 .nightly-workspace.is-collapsed .nightly-workspace-chevron { transform: rotate(-90deg); }
 .nightly-workspace.is-collapsed .nightly-workspace-head { margin-bottom: 1px; }
-
 
 /* Split / Grid pane headers ------------------------------------------------- */
 .nightly-tile-head {
@@ -1475,7 +1322,6 @@ p { text-wrap: pretty; }
 }
 .nightly-tile-btn:hover { background: rgba(255,255,255,.06); color: var(--text-1); }
 
-
 /* Launcher: per-agent model rows ------------------------------------------- */
 .nightly-launch-models { margin-top: 20px; }
 .nightly-launch-models-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
@@ -1494,7 +1340,6 @@ p { text-wrap: pretty; }
 .nightly-launch-model-who > strong { color: var(--text-1); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nightly-launch-model-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .nightly-launch-model-fields.has-effort { grid-template-columns: minmax(0, 1fr) 150px; }
-
 
 /* Broadcast: typing goes to several sessions, so it must be impossible to miss. */
 .nightly-broadcast {
@@ -1517,7 +1362,6 @@ p { text-wrap: pretty; }
 .nightly-tile-head button:focus-visible {
   outline: 2px solid var(--accent); outline-offset: -2px;
 }
-
 
 /* Seducia approval card: model-requested launches/commands wait for a click. */
 .seducia-approval {
@@ -1542,7 +1386,6 @@ p { text-wrap: pretty; }
 }
 .seducia-approval-actions button:hover { background: rgba(255,255,255,.05); }
 .seducia-approval-actions button.is-primary { border-color: transparent; background: var(--accent); color: #0a0a0a; font-weight: 600; }
-
 
 /* Rail context menu -------------------------------------------------------- */
 .nightly-ctx {
@@ -1572,7 +1415,6 @@ p { text-wrap: pretty; }
 }
 .nightly-ctx-confirm button.is-danger { border-color: transparent; background: #ff5370; color: #1a0508; font-weight: 600; }
 
-
 /* Rail status strip: silent while everything is normal. */
 .nightly-status {
   display: flex; flex-wrap: wrap; gap: 4px 6px; padding: 8px 14px; border-top: 1px solid var(--border-1);
@@ -1585,7 +1427,6 @@ p { text-wrap: pretty; }
 .nightly-status-item.is-ok { color: #7fdcbb; background: rgba(95,211,168,.08); }
 .nightly-status-item.is-warn, .nightly-status-item.is-warm { color: #ffcb6b; background: rgba(255,203,107,.08); }
 .nightly-status-item.is-hot { color: #ff8da0; background: rgba(255,83,112,.09); }
-
 
 /* Attention inbox ---------------------------------------------------------- */
 .nightly-bell { position: relative; }
@@ -1626,7 +1467,6 @@ p { text-wrap: pretty; }
 }
 .nightly-context-lineage strong { color: var(--text-1); font-weight: 500; }
 
-
 /* Changes pane: inline per-file diff ---------------------------------------- */
 .changes-diff-btn {
   width: 22px; height: 22px; display: grid; place-items: center; flex-shrink: 0;
@@ -1651,7 +1491,6 @@ p { text-wrap: pretty; }
 }
 .changes-diff-actions button:hover { background: rgba(255,255,255,.06); }
 .changes-diff-actions small { color: var(--text-4); font-size: 11.5px; }
-
 
 /* Nightly structured Thread ------------------------------------------------ */
 .nightly-thread-notice {
@@ -1721,12 +1560,9 @@ p { text-wrap: pretty; }
 }
 .shell-header button, .shell-header .nightly-account-menu { -webkit-app-region: no-drag; }
 .shell-header-where { min-width: 0; display: flex; align-items: center; gap: 8px; }
-.shell-header-mono { font: 700 11px/1 var(--font-mono); }
+
 .shell-header-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-1); font-size: 13px; font-weight: 650; }
-.shell-header-project {
-  flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: var(--text-4); font-size: 11.5px; padding: 2px 7px; border: 1px solid var(--border-1); border-radius: 999px;
-}
+
 .shell-header-state { display: inline-grid; place-items: center; width: 14px; height: 14px; }
 .shell-header-state span { width: 7px; height: 7px; border-radius: 50%; }
 
@@ -1745,14 +1581,7 @@ p { text-wrap: pretty; }
 
 .shell-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
 .shell-header-actions .nightly-icon-btn:disabled { opacity: .35; cursor: default; background: transparent; border-color: transparent; }
-.shell-git {
-  height: 27px; max-width: 170px; padding: 0 9px; display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--border-1); border-radius: 7px; background: transparent; color: var(--text-2);
-  font: 500 11.5px/1 var(--font-mono); cursor: pointer;
-}
-.shell-git span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-git i { width: 6px; height: 6px; border-radius: 50%; background: #ffcb6b; flex-shrink: 0; }
-.shell-git:hover { color: var(--text-1); border-color: var(--border-2); }
+
 .shell-channel {
   height: 22px; padding: 0 8px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--accent-a22); background: var(--accent-a06); color: var(--accent);
@@ -1826,9 +1655,7 @@ p { text-wrap: pretty; }
 }
 .shell-work-head small { color: var(--text-4); font-weight: 500; }
 .shell-work-head:hover { background: rgba(255,255,255,.025); }
-.shell-work-peek { list-style: none; margin: 0; padding: 0 12px 9px 31px; display: grid; gap: 3px; }
-.shell-work-peek li { color: var(--text-4); font: 500 11px/1.4 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-work-peek li.is-error { color: #ff8da0; }
+
 .shell-work-step { padding: 8px 12px 10px 31px; border-top: 1px solid var(--border-1); }
 .shell-work-step-title { color: var(--text-2); font: 600 11.5px/1.4 var(--font-mono); margin-bottom: 6px; }
 .shell-work-step pre {
@@ -1896,17 +1723,9 @@ p { text-wrap: pretty; }
 }
 .ts-sidebar > .ts-controls { position: relative; z-index: 3; }
 .ts-sidebar > .ts-list { position: relative; z-index: 1; }
-.ts-brand {
-  position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px; margin-left: -4px;
-  border: 0; border-radius: 6px; background: transparent; color: var(--text-1); cursor: pointer; -webkit-app-region: no-drag;
-}
-.ts-brand:hover { background: rgba(255,255,255,.05); }
-.ts-brand-mark { width: 13px; height: 13px; border-radius: 4px; }
-.ts-brand-word { font-size: 14px; font-weight: 700; letter-spacing: -.1px; }
-.ts-brand-channel { font: 600 10.5px/1 var(--font-ui); color: rgba(255,255,255,.82); padding: 3px 6px; border-radius: 999px; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
 
 .ts-controls { padding: 6px 8px 4px; display: grid; gap: 2px; }
-.ts-search-row, .ts-filter-row { display: flex; align-items: center; gap: 4px; }
+
 .ts-search, .ts-filter-btn {
   flex: 1; min-width: 0; height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 8px;
   border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; text-align: left;
@@ -1915,18 +1734,7 @@ p { text-wrap: pretty; }
 .ts-search svg, .ts-filter-btn svg { color: var(--text-3); flex-shrink: 0; }
 .ts-search.is-open { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-2); cursor: text; }
 .ts-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-1); font: inherit; font-size: 13px; }
-.ts-filter-btn span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ts-filter-menu {
-  position: absolute; top: 34px; left: 0; right: 0; z-index: 40; margin: 0; padding: 4px; list-style: none;
-  background: var(--surface-3); border: 1px solid var(--border-2); border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,.5);
-  max-height: 280px; overflow: auto;
-}
-.ts-filter-menu button {
-  width: 100%; height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px;
-  border: 0; border-radius: 5px; background: transparent; color: var(--text-2); font: inherit; font-size: 12.5px; cursor: pointer;
-}
-.ts-filter-menu button:hover, .ts-filter-menu button[aria-selected="true"] { background: rgba(255,255,255,.05); color: var(--text-1); }
-.ts-filter-menu button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .ts-icon {
   width: 30px; height: 30px; flex-shrink: 0; display: inline-grid; place-items: center; border: 0; border-radius: 6px;
   background: transparent; color: var(--text-3); cursor: pointer;
@@ -2041,12 +1849,7 @@ p { text-wrap: pretty; }
 .ts-status.is-info { color: #82aaff; }
 .ts-status.is-warning { color: #ffcb6b; }
 .ts-status.is-destructive { color: #ff6b81; }
-.ts-status-dot { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid currentColor; }
-.ts-status-dot.is-info { color: #82aaff; }
-.ts-status-dot.is-warning { color: #ffcb6b; background: currentColor; box-shadow: 0 0 0 3px rgba(255,203,107,.15); }
-.ts-status-dot.is-destructive { color: #ff6b81; background: currentColor; }
-.ts-status-dot.is-spinning { border-right-color: transparent; animation: ts-spin .9s linear infinite; }
-.sush-reduce-motion .ts-status-dot.is-spinning { animation: none; border-right-color: currentColor; }
+
 .sush-reduce-motion .ts-project-body, .sush-reduce-motion .ts-chevron { transition: none; }
 @media (prefers-reduced-motion: reduce) { .ts-project-body, .ts-chevron { transition: none; } }
 @keyframes ts-spin { to { transform: rotate(360deg); } }
@@ -2097,17 +1900,7 @@ p { text-wrap: pretty; }
 .t3-branch-name:hover { background: rgba(255,255,255,.05); color: var(--text-2); }
 
 /* T3 header crumbs + menus */
-.shell-crumb-project {
-  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 160px; padding: 2px 4px; margin-left: -4px;
-  border: 0; border-radius: 5px; background: transparent; color: var(--text-3); font: inherit; font-size: 13px; cursor: pointer;
-}
-.shell-crumb-project span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-crumb-project:hover { color: var(--text-1); }
-.shell-crumb-mark {
-  width: 15px; height: 15px; flex-shrink: 0; display: inline-grid; place-items: center; border-radius: 4px;
-  background: var(--surface-3); color: var(--text-2); font: 800 9px/1 var(--font-mono);
-}
-.shell-crumb-slash { color: var(--text-5, #4d525a); }
+
 h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .shell-menu-btn {
   height: 28px; padding: 0 7px; display: inline-flex; align-items: center; gap: 4px;
@@ -2267,8 +2060,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 }
 
 /* ── Nightly frame: neutral edges like T3 (no neon seams or glows) ────────── */
-.sush-t3 .ts-card.is-active .ts-card-surface::before { display: none; }
-.sush-t3 .ts-card.is-active .ts-card-surface { background: rgba(255,255,255,.07); }
+
 .sush-t3 .nightly-inspector { border-left-color: var(--border-1) !important; border-top-color: var(--border-1) !important; background: var(--surface-1) !important; }
 .sush-t3 .shell-header .nightly-icon-btn.is-active { color: var(--text-1); background: var(--surface-3); border-color: var(--border-2); }
 .sush-t3 .shell-channel { border-color: var(--border-2); background: transparent; color: var(--text-3); font-family: var(--font-ui); font-size: 10.5px; font-weight: 600; letter-spacing: 0; text-transform: none; }
@@ -2293,10 +2085,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .t3-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
 .mp-trigger { max-width: 220px; }
 .mp-trigger-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: inherit; }
-.mp-mark {
-  display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 5px;
-  font-family: var(--font-mono); font-weight: 800; line-height: 1;
-}
+
 .mp-popover {
   width: min(360px, calc(100vw - 16px)); border-radius: 12px; overflow: hidden;
   background: var(--surface-2); border: 1px solid var(--border-2); box-shadow: 0 18px 48px rgba(0,0,0,.55);
@@ -2309,7 +2098,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 }
 .mp-rail-btn:hover { background: rgba(255,255,255,.05); color: var(--text-2); }
 .mp-rail-btn.is-active { background: var(--surface-3); color: #ffcb6b; box-shadow: inset 0 0 0 1px var(--border-2); }
-.mp-rail-btn:not(.is-active) .mp-mark { filter: saturate(.55) brightness(.85); }
+
 .mp-rail-sep { height: 1px; margin: 2px 4px; background: var(--border-2); }
 .mp-rail-live { position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-radius: 50%; background: #5fd3a8; box-shadow: 0 0 0 2px var(--surface-2); }
 .mp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -2361,8 +2150,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .ts-provider { border: 0 !important; min-width: 0; padding: 0; background: transparent; }
 .mp-rail-btn:not(.is-active) .provider-logo { opacity: .55; filter: grayscale(.35); }
 .mp-rail-btn:hover .provider-logo { opacity: .85; }
-.ts-project-mark svg, .shell-crumb-mark svg { color: var(--text-3); }
-.ts-project-mark, .shell-crumb-mark { background: transparent !important; }
+
 .nightly-tile-mono.provider-logo { margin-right: 2px; }
 .ctx-trigger em { font-style: normal; color: var(--text-4); }
 .ctx-ring { flex-shrink: 0; }
@@ -2399,14 +2187,11 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 }
 .sush-t3 .sush-app-bg, .sush-t3.sush-app-bg { background-color: var(--surface-0); }
 .sush-t3 .shell-cover, .sush-t3 .office { background: var(--surface-0); }
-.sush-t3 .ts-card-surface:hover { background: rgba(196, 178, 255, .045); }
-.sush-t3 .ts-card.is-active .ts-card-surface { background: rgba(196, 178, 255, .085); }
+
 .sush-t3 .mp-row.is-active, .sush-t3 .t3-menu-item:hover:not(:disabled) { background: rgba(196, 178, 255, .07); }
 .sush-t3 .t3-control:hover, .sush-t3 .t3-control[aria-expanded="true"] { background: rgba(196, 178, 255, .07); }
 .sush-t3 .sd-file-body { background: #0e0c15; }
 
-.ts-brand-channel { position: relative; z-index: 1; border: 0; cursor: pointer; -webkit-app-region: no-drag; }
-.ts-brand-channel:hover { background: rgba(255,255,255,.18); }
 .shell-msg.is-user .shell-msg-bubble { max-width: 70%; }
 .mp-shell { height: auto; max-height: min(346px, 60vh); min-height: 220px; }
 
@@ -2535,7 +2320,6 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .office-chip.is-meeting button { height: 20px; padding: 0 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: var(--text-1); font: 600 11px var(--font-ui); cursor: pointer; }
 .office-chip.is-meeting button:hover { background: rgba(255,255,255,.12); }
 .office-chip.is-muted { color: var(--text-5); }
-
 
 /* ── Motion policy ──────────────────────────────────────────────────────────
    .sush-motion-reduced is set on <html> by lib/motionPolicy.js when the OS asks

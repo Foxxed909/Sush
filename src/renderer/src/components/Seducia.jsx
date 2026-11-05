@@ -135,6 +135,7 @@ export default function Seducia({
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }) }, [log])
   useEffect(() => () => {
     try { recognitionRef.current?.stop() } catch {}
+    recognitionRef.current = null
     streamAbortRef.current?.abort()
     window.speechSynthesis?.cancel()
   }, [])
@@ -286,7 +287,9 @@ export default function Seducia({
     rec.onend = () => {
       setListening(false)
       // Re-arm mic in hands-free mode.
-      if (handsFree) setTimeout(() => toggleVoice(), 400)
+      // Not after the panel has closed (it used to re-arm the mic on a
+      // closed panel).
+      if (handsFree) setTimeout(() => { if (recognitionRef.current === rec) toggleVoice() }, 400)
     }
     recognitionRef.current = rec
     setListening(true)

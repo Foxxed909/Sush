@@ -1976,7 +1976,11 @@ export default function App() {
         })
       } else {
         const target = openTab(profiles[0], { cwd: sourceCwd || null, label: 'handoff', tag: `handoff-${Date.now()}` })
-        if (oneLine) setTimeout(() => window.sush.ptyInput({ tabId: target.id, data: oneLine }), 1200)
+        // The tab may be closed before the shell is ready: only type into it
+        // if it still exists.
+        if (oneLine) setTimeout(() => {
+          if (tabsRef.current.some(t => t.id === target.id)) window.sush.ptyInput({ tabId: target.id, data: oneLine })
+        }, 1200)
       }
     } else {
       const target = tabsRef.current.find(t => t.id === targetId)
