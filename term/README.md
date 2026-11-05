@@ -40,16 +40,27 @@ cd term && npm link               # puts `sush` on your PATH
   State lives in `~/.config/sush-terminal/state.json`
   (`%APPDATA%\sush-terminal` on Windows) and never leaves the machine.
 
+## Crew features (v0.2)
+
+- **`sush crew claude codex opencode "fix the flaky test"`** opens one pane per agent, side by side, all started on the
+  same prompt. It uses tmux (splitting the current window, or a new tiled session with pink borders) or Windows
+  Terminal split panes. `--model codex=gpt-6.1-sol` sets a model per agent, and `--board` adds a live board pane.
+- **`sush board [--all]`** shows every agent in this folder (or every folder), live, from the terminal and the desktop app:
+  - needs-you first, with pink pilot lights and each agent's last words;
+  - a usage meter with the guard tick and a runway ("80% in ~8 min");
+  - "hand off before it does: `sush handoff codex`" when the limit is close.
+- **Notifications**: the bell plus OSC 9/777 (desktop notifications in iTerm2, Windows Terminal, Ghostty, WezTerm,
+  kitty and foot, wrapped for tmux) when an agent starts needing you, finishes, stops or hits a limit.
+- **`sush handoff codex [--from claude]`** writes a brief from the latest conversation here (what was asked, where it
+  got to, files touched), saves it to `~/.sush/handoffs/`, and starts the next agent with it.
+- **Desktop bridge**: both sides read and write `~/.sush/crew/`. The terminal's agents appear on the desktop's Agents
+  board ("In your terminal"), and the desktop's sessions and usage samples appear on `sush board`.
+
+Status comes from the agents' own conversation logs (Claude Code's `projects/` JSONL, Codex's session rollouts). Sush
+never reads credentials, and nothing leaves the machine.
+
 ## Roadmap
 
-1. **Crews**: launch several agents in tmux/Windows Terminal panes from one prompt (`sush crew`).
-2. **Live board**: `sush board` shows every running agent in the folder, with a
-   pilot-light status per agent (working / needs you / done), like the app's Agents view.
-3. **Usage and limits**: read the desktop app's account usage and show the runway ("80% in ~38 min").
-   Offer a hand-off to another account or agent before the limit hits.
-4. **Hand-off**: `sush handoff <to-agent>` writes a brief from the last
-   conversation and starts the next agent with it.
-5. **Desktop bridge**: when Sush desktop is running, `sush` lists its sessions and
-   can attach to one, so the terminal and the app share one crew.
-6. **Themes**: the wordmark and borders follow the app's accent (pink stays the default).
-7. **Notifications**: a terminal bell and OSC 9 notification when a backgrounded agent needs you.
+1. Attach from `sush board` to a pane (tmux `select-pane`) or a desktop session.
+2. Status for Gemini and OpenCode from their own logs (they show "Running" today).
+3. Themes: the wordmark and borders follow the app's accent (pink stays the default).

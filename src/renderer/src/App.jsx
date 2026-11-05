@@ -51,6 +51,7 @@ import ProviderLogo from './components/ProviderLogo'
 import { useNightlyShell } from './hooks/useNightlyShell'
 import { applyMotionPolicy } from './lib/motionPolicy'
 import Presence from './components/Presence'
+import { useCrewBridge } from './hooks/useCrewBridge'
 
 // xterm (and its GPU renderer) is by far the heaviest part of Sush. The app
 // opens on Home and restores terminals only on demand, so keep that code out
@@ -687,6 +688,7 @@ export default function App() {
     : []
 
   const nightlyProviderMeta = useNightlyProviderMeta(view === 'terminal' ? activeTab : null, !zenMode)
+
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
   const runningSessionCount = tabs.filter(t => t.status === 'running').length
 
@@ -719,6 +721,12 @@ export default function App() {
 
   // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
+  // Crew bridge: share sessions + usage with Sush Terminal, and show its
+  // sessions on the Agents board.
+  const terminalSessions = useCrewBridge({
+    tabs, states: agentStates, limits: agentLimits, guardPct: settings.usageGuardPct ?? 80,
+    enabled: identity.ready && settings.crewBridge !== false, readTerminal: view === 'overview', saver: effectiveSaver
+  })
   const officeProgress = useOfficeProgress(tabs, agentStates, agentLimits)
 
   // One list of sessions that need the user (limit, waiting, errored). Drives
@@ -2769,6 +2777,7 @@ export default function App() {
                   onFocus={(id) => { setActiveId(id); setView('terminal') }}
                   onHandoff={(id) => performLimitHandoff(id)}
                   onNewSession={() => setShowLauncher(true)}
+                  terminalSessions={terminalSessions}
                 />
               </div>
             )}

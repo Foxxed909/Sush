@@ -54,6 +54,8 @@ import { startGoogleFlow, cancelGoogleFlow } from './oauth/google'
 import { startConnectFlow, cancelConnectFlow, finishConnectFlow, connectStatus, disconnectProvider, testProvider } from './oauth/connect'
 import { consumeTicket, peekTicket } from './oauth/tickets'
 import { setOauthEventSender } from './oauth/events'
+import { listTerminal, writeDesktop } from '../../term/src/crew.mjs'
+import { sessionInsight } from '../../term/src/transcripts.mjs'
 import { resetSushUserData } from './factory-reset'
 import {
   getGitHubStatus, listRepos, getWork, getNotifications,
@@ -1651,6 +1653,50 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:tasks-add', (event, { cwd, task }) => addTask(cwd, task))
   ipcMain.handle('sush:tasks-update', (event, { cwd, id, patch }) => updateTask(cwd, id, patch))
   ipcMain.handle('sush:tasks-delete', (event, { cwd, id }) => deleteTask(cwd, id))
+
+  // ── Crew bridge (Sush Terminal ⇄ desktop) ────────────────────────────────
+  // The app publishes its sessions and usage samples to ~/.sush/crew so
+  // `sush board` sees one crew; it reads the terminal's records back to show
+  // them on the Agents board. Local files only; no tokens, no prompts.
+  const str = (v, n = 200) => (typeof v === 'string' ? v.slice(0, n) : null)
+  const num = v => (Number.isFinite(Number(v)) ? Number(v) : null)
+  ipcMain.handle('sush:bridge-publish', (event, payload = {}) => {
+    try {
+      const sessions = (Array.isArray(payload.sessions) ? payload.sessions : []).slice(0, 60).map(s => ({
+        id: str(s?.id, 80), label: str(s?.label, 80), agentId: str(s?.agentId, 32), model: str(s?.model, 120),
+        cwd: str(s?.cwd, 400), state: str(s?.state, 16), limited: !!s?.limited, startedAt: num(s?.startedAt)
+      })).filter(s => s.id)
+      const usage = (Array.isArray(payload.usage) ? payload.usage : []).slice(0, 12).map(u => ({
+        provider: str(u?.provider, 32), providerLabel: str(u?.providerLabel, 40), label: str(u?.label, 60),
+        pct: num(u?.pct), guardPct: num(u?.guardPct) ?? 80,
+        samples: (Array.isArray(u?.samples) ? u.samples : []).slice(-120).map(x => ({ t: num(x?.t), pct: num(x?.pct) })).filter(x => x.t != null && x.pct != null)
+      })).filter(u => u.provider && u.label)
+      writeDesktop({ app: 'sush', version: app.getVersion(), sessions, usage })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err?.message || 'bridge write failed' }
+    }
+  })
+  ipcMain.handle('sush:bridge-terminal', () => {
+    try {
+      const now = Date.now()
+      const recs = listTerminal({ now }).filter(r => !r.endedAt || now - r.endedAt < 10 * 60e3).slice(0, 40)
+      return {
+        ok: true,
+        sessions: recs.map(r => {
+          let state = r.endedAt ? 'done' : 'running'
+          let last = ''
+          if (!r.endedAt && (r.agent === 'claude' || r.agent === 'codex')) {
+            const info = sessionInsight(r.agent, r.cwd, { since: (r.startedAt || 0) - 60e3, now })
+            if (info) { state = info.state; last = info.lastText }
+          }
+          return { id: r.id, agent: r.agent, label: r.label || r.agent, model: r.model || null, cwd: r.cwd, state, last: last.slice(0, 240), startedAt: r.startedAt, crewId: r.crewId || null }
+        })
+      }
+    } catch (err) {
+      return { ok: false, sessions: [], error: err?.message }
+    }
+  })
 
   ipcMain.handle('sush:app-version', () => app.getVersion())
   ipcMain.handle('sush:home-dir', () => homedir())

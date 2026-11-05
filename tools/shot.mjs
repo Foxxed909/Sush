@@ -103,6 +103,11 @@ const stub = `
       ]
     }),
     usersList: async () => ({ users: [user], active: user, lastUserId: 'u1' }),
+    bridgePublish: async (payload) => { window.__bridgePublished = payload; return { ok: true } },
+    bridgeTerminal: async () => ({ ok: true, sessions: [
+      { id: 't-1', agent: 'opencode', label: 'OpenCode', model: 'opencode/big-pickle', cwd: '/home/taylor/sush', state: 'running', last: '', startedAt: now - 300e3 },
+      { id: 't-2', agent: 'claude', label: 'Claude Code', model: 'claude-opus-5-5', cwd: '/home/taylor/sush', state: 'waiting', last: 'Tests pass. Want me to open a PR?', startedAt: now - 900e3 }
+    ] }),
     usersActivate: async () => ({ ok: true, user }),
     licenseGet: async () => ({ tier: 'enterprise', expiry: null,
       features: { slots: 50, gridCap: 32, customAgents: true, cloudTts: true, usageGuard: true, autoHandoff: true, providerConnect: true, developerWorkflows: true, themes: 'all', fleetSeats: 20, privateFleet: true },
@@ -1158,6 +1163,12 @@ await shot('12-fresh-start')
   await page.keyboard.press('Alt+4')
   await page.waitForTimeout(700)
   if (!(await modeActive('Agents'))) throw new Error('Alt+4 did not open Agents')
+  await page.locator('.ag-term').waitFor({ state: 'visible', timeout: 7000 })
+  if (await page.locator('.ag-term-row').count() !== 2) throw new Error('Agents board did not show the Sush Terminal sessions')
+  {
+    const pub = await page.evaluate(() => window.__bridgePublished)
+    if (!pub?.sessions?.some(s => s.agentId === 'claude')) throw new Error('Desktop did not publish its sessions to the crew bridge')
+  }
   await shot('n5-agents')
 
   await page.evaluate(() => { window.__sushAllowWebgl = true })

@@ -4,6 +4,7 @@ import { STATES } from '../lib/agentActivity'
 import { agentById } from '../lib/agents'
 import { rgba } from '../lib/ui'
 import ProviderLogo from './ProviderLogo'
+import { pickerModelLabel } from '../lib/nightlyModels'
 import { groupByWorkspace } from '../lib/workspaces'
 
 function memLabel(mb) {
@@ -96,7 +97,8 @@ export default function NightlyOverview({
   accent,
   onFocus,
   onHandoff,
-  onNewSession
+  onNewSession,
+  terminalSessions = []
 }) {
   const workspaces = useMemo(() => groupByWorkspace(tabs), [tabs])
   const projectOf = useMemo(() => {
@@ -128,6 +130,37 @@ export default function NightlyOverview({
           </div>
           <button type="button" className="ag-new" onClick={onNewSession}><Icon name="plus" size={14} /> New session</button>
         </div>
+
+        {terminalSessions.length > 0 && (
+          <section className="ag-term" aria-label="In your terminal">
+            <header className="ag-col-head">
+              <span className="ag-col-dot is-working" aria-hidden />
+              <span>In your terminal</span>
+              <span className="ag-col-count">{terminalSessions.length}</span>
+              <span className="ag-term-hint">from Sush Terminal · <code>sush board</code></span>
+            </header>
+            <div className="ag-term-list">
+              {terminalSessions.map(s => {
+                const a = agentById(s.agent)
+                const tone = s.state === 'waiting' ? 'waiting' : s.state === 'working' ? 'working' : s.state === 'done' ? 'done' : 'idle'
+                const label = { waiting: 'Needs you', working: 'Working', done: 'Done', idle: s.state === 'running' ? 'Running' : 'Idle' }[tone]
+                return (
+                  <div key={s.id} className={`ag-term-row is-${tone}`}>
+                    <span className="ag-mark" style={{ color: a?.color || accent, background: rgba(a?.color || accent, 0.12) }}>
+                      <ProviderLogo provider={s.agent} size={14} title={a?.label} />
+                    </span>
+                    <span className="ag-title">
+                      <strong>{s.label}</strong>
+                      <small>{[s.model ? pickerModelLabel(s.agent, s.model) : null, s.cwd?.split(/[\\/]/).pop()].filter(Boolean).join(' · ')}</small>
+                    </span>
+                    <span className="ag-status"><span className={`ag-dot is-${tone === 'idle' ? 'idle' : tone}`} aria-hidden />{label}</span>
+                    {s.last && <span className="ag-term-last" title={s.last}>{s.last}</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {tabs.length > 0 ? (
           <div className="ag-columns">
