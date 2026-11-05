@@ -29,7 +29,7 @@ and every glass surface has a lite/saver/reduce-motion off-switch.
   match `TIER_META` in `PlansPage.jsx` and `TIER_FEATURES` in
   `main/license-core.mjs` exactly. It previously named only five, which left
   Dev and Enterprise shipping in the product but absent from the design
-  vocabulary; `learning.md` asks that each status word have exactly one
+  vocabulary; `docs/learning.md` asks that each status word have exactly one
   meaning, and a ladder documented at the wrong length breaks that at the
   first rung it omits.
 

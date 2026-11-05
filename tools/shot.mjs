@@ -5,7 +5,7 @@
 //
 //   npx electron-vite build && node tools/shot.mjs [outDir]
 //
-// NOTE (PRIVATE.md watchlist): the stub below mirrors the preload surface via
+// NOTE (docs/archive/PRIVATE.md watchlist): the stub below mirrors the preload surface via
 // a Proxy — update the explicit entries when a screen needs realistic data,
 // otherwise the Proxy answers `{ ok: true }` and the screen renders empty.
 import { createServer } from 'http'

@@ -37,23 +37,17 @@ settings, scrollback, and credits meter all live on your disk.
 See [`docs/SUSH_GUIDE.md`](docs/SUSH_GUIDE.md) for the full walkthrough,
 tips, and an honest pros/cons list.
 
-## Sush Air — a different application
+## Sush Terminal: Sush, quietly in your terminal
 
-Some days you want the orchestrator. Some days you want a terminal.
+[`term/`](term/README.md) is Sush as a TUI: no Electron, no window, just your
+terminal. It has a pink block-letter home screen, picks an agent (Claude Code,
+Codex, Gemini, OpenCode) and a model from the same catalog the app uses,
+launches it right there, and brings you back home when it exits. Zero
+dependencies; run it with `node term/bin/sush.mjs` or link it as `sush`.
 
-[**Sush Air**](air/README.md) lives in [`air/`](air/) and is **not part of
-Sush**. Separate `package.json`, separate dependencies, separate build,
-separate settings directory, separate installer. Install one without the other;
-uninstall one and the other does not notice. Nothing in this application knows
-Air exists.
-
-Air is a terminal and nothing else — no identity, no licence, no agents, no
-account rotation, no metrics, no browser panel, no network code. It offers to
-import your `~/.sushrc` aliases, env and start folder the first time it finds
-one, and copies them into its own settings rather than linking to yours.
-
-Two applications, two build jobs in CI, two test runs. If a change here could
-turn Air red, they were never really separate.
+(Sush Air, the earlier "terminal and nothing else" app, was retired in Nov
+2026 in favour of Sush Terminal. Its last state is on `main` before that
+change: `git checkout 41598db -- air`.)
 
 ## Stack
 
@@ -66,9 +60,6 @@ system (no UI framework) · xterm.js · node-pty · Vitest.
 npm install
 npm run dev       # electron-vite dev — hot-reloading renderer
 ```
-
-Sush Air is built and run from its own directory — `cd air && npm install &&
-npm run dev`. It does not share this project's `node_modules`.
 
 Other scripts:
 
@@ -98,13 +89,13 @@ Settings ▸ Plan, or run `unlock SUSH-...` in any session.
 | [`docs/SUSH_GUIDE.md`](docs/SUSH_GUIDE.md) | The master use case, tips & tricks, honest pros/cons |
 | [`PRODUCT.md`](PRODUCT.md) | Users, purpose, brand personality, design principles |
 | [`DESIGN.md`](DESIGN.md) | The visual system — color, type, spacing, motion, components |
-| [`THEME.md`](THEME.md) | Theme palette rules |
+| [`docs/archive/THEME.md`](docs/archive/THEME.md) | Theme palette rules |
 | [`PUBLIC.md`](PUBLIC.md) | User-facing "What's New" — the latest release highlights |
-| [`learning.md`](learning.md) | Engineering lessons carried across cycles |
-| [`GRAVEYARD.md`](GRAVEYARD.md) | Retired features and why — and what has risen |
-| [`REVIEW.md`](REVIEW.md) | 2026-07-24 codebase review: bugs found, what was left alone |
-| [`continue.md`](continue.md) | Claude/agent handoff: Quiet Nights state, architecture constraints, roadmap, testing and next steps |
-| [`air/README.md`](air/README.md) | Sush Air — the separate application, and its import flow |
+| [`docs/learning.md`](docs/learning.md) | Engineering lessons carried across cycles |
+| [`docs/archive/GRAVEYARD.md`](docs/archive/GRAVEYARD.md) | Retired features and why — and what has risen |
+| [`docs/archive/REVIEW.md`](docs/archive/REVIEW.md) | 2026-07-24 codebase review: bugs found, what was left alone |
+| [`docs/archive/continue.md`](docs/archive/continue.md) | Claude/agent handoff: Quiet Nights state, architecture constraints, roadmap, testing and next steps |
+| [`term/README.md`](term/README.md) | Sush Terminal: the TUI |
 
 ## License
 
