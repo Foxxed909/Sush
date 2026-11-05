@@ -24,11 +24,12 @@ function speak(text, voiceSettings = {}) {
 }
 
 const QUICK = [
-  { label: 'Build team', send: 'build team here' },
-  { label: 'Gather thoughts', send: 'gather thoughts' },
-  { label: 'Status', send: 'status' },
-  { label: '3× Claude', send: '3 claude here' },
-  { label: 'Doctor', send: 'doctor' }
+  { label: 'Build team', send: 'build team here', icon: 'users', hint: 'Spin up a crew in this project' },
+  { label: 'Gather thoughts', send: 'gather thoughts', icon: 'sparkles', hint: 'What every agent is doing' },
+  { label: 'Status', send: 'status', icon: 'activity', hint: 'Sessions, limits, usage' },
+  { label: '3× Claude', send: '3 claude here', icon: 'rocket', hint: 'Three Claude Code sessions here' },
+  { label: 'Doctor', send: 'doctor', icon: 'check', hint: 'Check CLIs and logins' },
+  { label: 'Next steps', send: 'what should each agent do next?', icon: 'send', hint: 'Suggestions for the crew' }
 ]
 
 // Confirm card for AI-proposed launches: shows what Seducia understood and
@@ -381,7 +382,23 @@ export default function Seducia({
 
       {/* Transcript */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto sush-scroll flex flex-col" style={{ padding: 12, gap: 10 }}>
-        {log.map(entry => (
+        {docked && log.length <= 1 && (
+          <div className="sz-welcome">
+            <span className="sz-orb" aria-hidden><Icon name="sparkles" size={26} strokeWidth={1.8} /></span>
+            <h2>Hi, I'm Seducia</h2>
+            <p>I run your crew. Ask me to start agents, brief them, or check where everything stands. The mic works too.</p>
+            <div className="sz-cards">
+              {QUICK.map(q => (
+                <button key={q.label} type="button" className="sz-card" onClick={() => handle(q.send)} disabled={streaming}>
+                  <span className="sz-card-icon"><Icon name={q.icon} size={15} /></span>
+                  <strong>{q.label}</strong>
+                  <small>{q.hint}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {(docked && log.length <= 1 ? [] : log).map(entry => (
           <div key={entry.id} className={`flex ${entry.role === 'you' ? 'justify-end' : 'justify-start'}`}>
             {entry.role === 'seducia' && (
               <span className="flex items-center justify-center" style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginRight: 8, marginTop: 2, background: rgba(accent, 0.15), border: `1px solid ${rgba(accent, 0.35)}`, color: accent }}>
@@ -398,6 +415,7 @@ export default function Seducia({
               />
             ) : (
               <div
+                className={`sz-bubble ${entry.role === 'you' ? 'is-you' : 'is-her'}`}
                 style={{
                   maxWidth: '84%',
                   fontSize: 12.5,
@@ -425,8 +443,8 @@ export default function Seducia({
         ))}
       </div>
 
-      {/* Quick actions */}
-      <div className="flex" style={{ gap: 6, flexWrap: 'wrap', padding: '0 12px 10px' }}>
+      {/* Quick actions (the welcome cards cover them on a fresh docked chat) */}
+      <div className="flex" style={{ gap: 6, flexWrap: 'wrap', padding: '0 12px 10px', display: docked && log.length <= 1 ? 'none' : 'flex' }}>
         {QUICK.map(q => (
           <button
             key={q.label}
@@ -453,7 +471,7 @@ export default function Seducia({
             placeholder={listening ? 'Listening...' : streaming ? 'Seducia is thinking...' : 'Launch, prompt, or ask anything...'}
             disabled={streaming}
             spellCheck={false}
-            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13 }}
+            style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', color: 'var(--text-1)', outline: 'none', fontSize: 13.5, fontFamily: 'var(--font-ui)' }}
           />
           {voiceEnabled && SpeechRecognition && (
             <button
