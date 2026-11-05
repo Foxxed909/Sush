@@ -13,6 +13,7 @@ import { useIdentity } from './hooks/useIdentity'
 import { usePolling } from './hooks/usePolling'
 import { allThemes, getTheme } from './themes'
 import { parseStoredObject } from './lib/storage'
+import { newThread, selectThread } from './lib/seduciaThreads'
 import { agentById, MAX_SESSIONS, LOGIN_COMMANDS, exactResumeCommand } from './lib/agents'
 import { loadCrews, crewToAgents } from './lib/crews'
 import { runningTargets as seduciaTargets } from './lib/seducia'
@@ -2407,6 +2408,9 @@ export default function App() {
         {!zenMode && nightlyShell && (
           <ShellSidebar
             onChannel={setUiChannel}
+            onOpenChat={(id) => { selectThread(id); setShellMode('chat') }}
+            onNewChat={() => { newThread(); setShellMode('chat') }}
+            chatOpen={coverSurface === 'chat'}
             tabs={tabs}
             activeId={view === 'home' ? null : activeId}
             accent={accent}

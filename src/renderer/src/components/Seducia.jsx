@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import Icon from './Icons'
 import { accentVars } from '../lib/ui'
 import { getStreamer, parseAIResponse } from '../lib/ai'
@@ -8,6 +8,7 @@ import ProviderLogo from './ProviderLogo'
 import { renderMarkdown } from '../lib/markdown'
 import { agentById } from '../lib/agents'
 import { useMicLevel } from '../hooks/useMicLevel'
+import { activeThread, newThread, nextEntryId, updateThread, useSeduciaThreads } from '../lib/seduciaThreads'
 import { describeGatedIntent, needsApproval } from '../lib/seduciaSafety'
 import { parseIntent as parseSharedIntent, pathLabel as sharedPathLabel, summarize as summarizeAgents } from '../lib/seducia'
 
@@ -34,10 +35,11 @@ function speak(text, voiceSettings = {}) {
   window.speechSynthesis.speak(utt)
 }
 
+// Three up front (Ctrl/⌘ 1–3 from the composer), the rest behind "More".
 const QUICK = [
   { label: 'Build team', send: 'build team here', icon: 'users', hint: 'Spin up a crew in this project' },
-  { label: 'Gather thoughts', send: 'gather thoughts', icon: 'sparkles', hint: 'What every agent is doing' },
   { label: 'Status', send: 'status', icon: 'activity', hint: 'Sessions, limits, usage' },
+  { label: 'Gather thoughts', send: 'gather thoughts', icon: 'sparkles', hint: 'What every agent is doing' },
   { label: '3× Claude', send: '3 claude here', icon: 'rocket', hint: 'Three Claude Code sessions here' },
   { label: 'Doctor', send: 'doctor', icon: 'check', hint: 'Check CLIs and logins' },
   { label: 'Next steps', send: 'what should each agent do next?', icon: 'send', hint: 'Suggestions for the crew' }
@@ -201,13 +203,18 @@ export default function Seducia({
     onLaunch?.({ cwd: w.cwd, agents: [{ id: w.agent, count: 1, command: agent?.resumeCommand || agent?.command, label: agent?.label }] })
   }
   const orbState = listening ? 'listening' : streaming ? 'thinking' : speaking ? 'speaking' : 'idle'
-  const [aiMessages, setAiMessages] = useState([]) // { role: 'user'|'assistant', content: '' }
-  const [log, setLog] = useState([
-    { id: 0, role: 'seducia', intro: true, text: "I'm Seducia. I can spin up agents ('build team in Rooms'), prompt them ('tell claude to run the tests'), or jump to one ('focus codex'). Tap the mic for voice.", streaming: false }
-  ])
+  // The conversation is the active thread in the shared store (the sidebar
+  // lists every thread with its status). Writes are bound to the thread a
+  // turn started in, so switching threads mid-reply never cross-posts.
+  const threads = useSeduciaThreads()
+  const thread = activeThread(threads)
+  const threadId = thread.id
+  const log = thread.log
+  const aiMessages = thread.ai
+  const setLog = useCallback(fn => updateThread(threadId, t => ({ ...t, log: fn(t.log) })), [threadId])
+  const setAiMessages = useCallback(ai => updateThread(threadId, t => ({ ...t, ai })), [threadId])
   const inputRef = useRef(null)
   const scrollRef = useRef(null)
-  const idRef = useRef(1)
   const recognitionRef = useRef(null)
   const streamAbortRef = useRef(null)
 
@@ -234,17 +241,17 @@ export default function Seducia({
   const push = useCallback((role, text, extra = {}) => {
     // Take the id now: the state updater runs later, so reading the counter
     // after setLog returned a stale id and replies overwrote older entries.
-    const id = idRef.current++
+    const id = nextEntryId()
     setLog(prev => [...prev, { id, role, text, ...extra }])
     return id
-  }, [])
+  }, [setLog])
 
   const logRef = useRef(log)
   logRef.current = log
 
   const updateLast = useCallback((id, patch) => {
     setLog(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
-  }, [])
+  }, [setLog])
 
   // Shared executor (same one the orb uses): returns { text, readout? }.
   // The docked panel surfaces readouts inline rather than looping the AI.
@@ -285,7 +292,7 @@ export default function Seducia({
     setLog(prev => prev.map(e => e.id === entryId
       ? { ...e, approvals: e.approvals.map(a => ({ ...a, status: a.status || (go ? 'approved' : 'skipped') })), activity: [...(e.activity || []), ...rows] }
       : e))
-  }, [applyIntent])
+  }, [applyIntent, setLog])
 
   const handleAI = useCallback(async (command) => {
     const streamer = getStreamer(settings)
@@ -347,7 +354,7 @@ export default function Seducia({
 
     setAiMessages([...newHistory, { role: 'assistant', content: full }])
     return true
-  }, [settings, aiMessages, scopedTabs, scopedCwd, scope, push, updateLast, applyIntent, voiceEnabled])
+  }, [settings, aiMessages, setAiMessages, scopedTabs, scopedCwd, scope, push, updateLast, applyIntent, voiceEnabled])
 
   const handle = useCallback(async (input) => {
     const command = input.trim()
@@ -408,7 +415,33 @@ export default function Seducia({
 
   const hasCliAI = aiEnabled
   const pending = log.find(e => e.approvals?.some(a => !a.status)) || null
-  const fresh = docked && log.length <= 1
+  const fresh = log.length === 0
+  const [moreOpen, setMoreOpen] = useState(false)
+  const modKey = /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl '
+
+  // Orb, hero to header: on the first message the big welcome orb flies up
+  // into the header slot (FLIP with the Web Animations API).
+  const heroRef = useRef(null)
+  const headOrbRef = useRef(null)
+  const heroRect = useRef(null)
+  const wasFresh = useRef(fresh)
+  if (fresh && heroRef.current) heroRect.current = heroRef.current.getBoundingClientRect()
+  useLayoutEffect(() => {
+    const from = heroRect.current
+    const el = headOrbRef.current
+    if (wasFresh.current && !fresh && from && el && !document.documentElement.classList.contains('sush-motion-reduced')) {
+      const to = el.getBoundingClientRect()
+      if (to.width && from.width) {
+        const dx = from.left + from.width / 2 - (to.left + to.width / 2)
+        const dy = from.top + from.height / 2 - (to.top + to.height / 2)
+        el.animate([
+          { transform: `translate(${dx}px, ${dy}px) scale(${from.width / to.width})`, opacity: 0.9 },
+          { transform: 'translate(0, 0) scale(1)', opacity: 1 }
+        ], { duration: 520, easing: 'cubic-bezier(.2, .9, .25, 1)' })
+      }
+    }
+    wasFresh.current = fresh
+  }, [fresh])
   const voiceOk = voiceEnabled && !!SpeechRecognition
 
   // Composer textarea grows with its content up to ~6 lines.
@@ -422,7 +455,9 @@ export default function Seducia({
   const body = (
     <div className={`sz-pane sush-fade-up${docked ? ' is-docked' : ''}`}>
       <header className="sz-head">
-        <SushOrb size={docked ? 28 : 34} state={orbState} levelRef={micLevel} className="is-small" />
+        <span ref={headOrbRef} className={`sz-head-orb${fresh ? ' is-waiting' : ''}`}>
+          <SushOrb size={docked ? 28 : 34} state={orbState} levelRef={micLevel} className="is-small" />
+        </span>
         <div className="sz-head-text">
           <div className="sz-head-title">
             Seducia
@@ -432,6 +467,11 @@ export default function Seducia({
             {scope?.kind === 'project' ? `${scope.label} · ` : ''}{scopedTabs.length} session{scopedTabs.length === 1 ? '' : 's'}{scope?.kind !== 'project' && groups ? ` · ${groups} workspace${groups === 1 ? '' : 's'}` : ''}
           </div>
         </div>
+        {!fresh && (
+          <button type="button" className="sz-icon-btn" onClick={() => { newThread(); requestAnimationFrame(() => inputRef.current?.focus()) }} title="New chat" aria-label="New chat">
+            <Icon name="edit" size={14} />
+          </button>
+        )}
         {voiceOk && (
           <button
             type="button"
@@ -460,12 +500,14 @@ export default function Seducia({
       <div ref={scrollRef} className="sz-log sush-scroll">
         {fresh && (
           <div className="sz-welcome">
-            <SushOrb
-              size={92}
-              state={orbState}
-              levelRef={micLevel}
-              onClick={voiceOk ? toggleVoice : undefined}
-            />
+            <span ref={heroRef} className="sz-hero-orb">
+              <SushOrb
+                size={92}
+                state={orbState}
+                levelRef={micLevel}
+                onClick={voiceOk ? toggleVoice : undefined}
+              />
+            </span>
             {voiceOk && <span className="sz-orb-hint">{listening ? 'Listening… tap to stop' : 'Tap the orb to talk'}</span>}
             <h2>Hi, I'm Seducia</h2>
             <p>I run your crew. Ask me to start agents, brief them, or check where everything stands.</p>
@@ -495,17 +537,32 @@ export default function Seducia({
               </div>
             )}
             <div className="sz-cards">
-              {QUICK.map(q => (
-                <button key={q.label} type="button" className="sz-card" onClick={() => handle(q.send)} disabled={streaming}>
-                  <span className="sz-card-icon"><Icon name={q.icon} size={15} /></span>
+              {QUICK.slice(0, 3).map((q, i) => (
+                <button key={q.label} type="button" className="sz-card" onClick={() => handle(q.send)} disabled={streaming} title={`${q.hint} (${modKey}${i + 1})`}>
+                  <span className="sz-card-top">
+                    <span className="sz-card-icon"><Icon name={q.icon} size={15} /></span>
+                    <span className="sz-card-key">{modKey}{i + 1}</span>
+                  </span>
                   <strong>{q.label}</strong>
                   <small>{q.hint}</small>
                 </button>
               ))}
             </div>
+            <button type="button" className={`sz-more${moreOpen ? ' is-open' : ''}`} onClick={() => setMoreOpen(v => !v)} aria-expanded={moreOpen}>
+              {moreOpen ? 'Fewer' : 'More'} <Icon name="chevronDown" size={12} />
+            </button>
+            <div className={`sz-more-panel${moreOpen ? ' is-open' : ''}`} aria-hidden={!moreOpen}>
+              <div className="sz-more-inner">
+                {QUICK.slice(3).map(q => (
+                  <button key={q.label} type="button" className="sz-chip-btn" tabIndex={moreOpen ? 0 : -1} onClick={() => handle(q.send)} disabled={streaming}>
+                    <Icon name={q.icon} size={13} />{q.label}<small>{q.hint}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
-        {(fresh ? [] : docked ? log.filter(e => !e.intro) : log).map((entry, i, all) => {
+        {(fresh ? [] : log).map((entry, i, all) => {
           if (entry.role === 'you') {
             return (
               <div key={entry.id} className="sz-msg is-you">
@@ -554,6 +611,11 @@ export default function Seducia({
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) { e.preventDefault(); handle(value) }
+              // Ctrl/⌘ 1–3 run the welcome cards on a fresh chat.
+              if (fresh && (e.metaKey || e.ctrlKey) && !e.altKey && /^[123]$/.test(e.key)) {
+                e.preventDefault(); e.stopPropagation()
+                handle(QUICK[Number(e.key) - 1].send)
+              }
             }}
             placeholder={listening ? 'Listening…' : streaming ? 'Seducia is working…' : 'Launch, brief, or ask anything'}
             disabled={streaming}

@@ -1210,6 +1210,19 @@ await shot('12-fresh-start')
     if (startsAfter !== startsBefore) throw new Error('Docked Seducia launched sessions after Skip')
     await page.waitForTimeout(250)
     await shot('n4c-chat-activity')
+    // Each Seducia conversation is a sidebar thread; a new chat shows the
+    // welcome with three numbered cards, and the old thread comes back.
+    const chatRow = page.locator('.ts-chat', { hasText: 'tidy up the repo' })
+    await chatRow.waitFor({ state: 'visible', timeout: 5000 })
+    if (!(await chatRow.evaluate(el => el.classList.contains('is-active')))) throw new Error('The open Seducia chat is not marked active in the sidebar')
+    await page.getByRole('button', { name: 'New chat' }).first().click()
+    await page.locator('.sz-welcome').waitFor({ state: 'visible', timeout: 5000 })
+    if (await page.locator('.sz-card').count() !== 3) throw new Error('Welcome should offer three cards')
+    await page.locator('.sz-more').click()
+    await page.waitForTimeout(350)
+    await shot('n4d-chat-welcome')
+    await chatRow.click()
+    await page.locator('.sz-you', { hasText: 'tidy up the repo' }).waitFor({ state: 'visible', timeout: 5000 })
   }
 
   await page.keyboard.press('Alt+4')

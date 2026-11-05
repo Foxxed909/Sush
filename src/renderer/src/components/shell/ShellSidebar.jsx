@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../Icons'
+import { threadStatus, useSeduciaThreads } from '../../lib/seduciaThreads'
 import NightlyProfileMenu from '../NightlyProfileMenu'
 import NightlyContextMenu from '../NightlyContextMenu'
 import NightlyStatusStrip from '../NightlyStatusStrip'
@@ -231,8 +232,12 @@ export default function ShellSidebar({
   onNewInProject,
   onOpenPane,
   onChannel,
+  onOpenChat,
+  onNewChat,
+  chatOpen = false,
   status = {}
 }) {
+  const chats = useSeduciaThreads()
   const [pinned, setPinned] = useState(() => loadSet(PINNED_KEY))
   const [settled, setSettled] = useState(() => loadSet(SETTLED_KEY))
   const [shelfOpen, setShelfOpen] = useState(() => localStorage.getItem(SHELF_KEY) === '1')
@@ -400,6 +405,41 @@ export default function ShellSidebar({
             </ul>
           </section>
         )}
+        {(() => {
+          const q = query.trim().toLowerCase()
+          const list = chats.threads.filter(t => t.log.length && (!q || (t.title || '').toLowerCase().includes(q))).slice(0, 6)
+          if (!list.length) return null
+          return (
+            <section className="ts-section">
+              <div className="ts-section-head">
+                <span>Seducia</span>
+                <button type="button" className="ts-section-action" onClick={onNewChat} title="New chat" aria-label="New chat">
+                  <Icon name="plus" size={13} />
+                </button>
+              </div>
+              <ul className="ts-group">
+                {list.map(t => {
+                  const st = threadStatus(t)
+                  const on = chatOpen && t.id === chats.activeId
+                  return (
+                    <li key={t.id}>
+                      <button type="button" className={`ts-chat${on ? ' is-active' : ''} is-${st}`} onClick={() => onOpenChat?.(t.id)} title={t.title}>
+                        <span className="ts-chat-icon" aria-hidden>
+                          <Icon name={st === 'working' ? 'loader' : st === 'needs' ? 'shield' : 'message'} size={13} />
+                        </span>
+                        <span className="ts-chat-title">{t.title || 'New chat'}</span>
+                        {st === 'needs'
+                          ? <span className="ts-status is-warning">Approve</span>
+                          : st === 'working' ? <span className="ts-status is-info">Working</span>
+                            : <span className="ts-time">{compactTimeLabel(t.updatedAt, Date.now())}</span>}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )
+        })()}
         {tree.settled.length > 0 && (
           <div className="ts-shelf">
             <button className="ts-shelf-head" onClick={toggleShelf} aria-expanded={shelfOpen}>
