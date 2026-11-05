@@ -3197,3 +3197,5 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
 .onb-root::before, .onb-root::after { content: ''; position: absolute; pointer-events: none; z-index: 0; }
 .onb-root::before { right: -12%; top: -24%; width: 70vw; height: 70vh; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 24%, transparent), transparent 72%); }
 .onb-root::after { left: -14%; bottom: -30%; width: 70vw; height: 75vh; background: radial-gradient(closest-side, rgba(150,96,255,.18), transparent 72%); }
+/* Only an enabled primary glows; disabled is a quiet neutral, not muddy pink. */
+.onb-btn.is-primary:disabled { background: rgba(226,206,255,.1); color: var(--text-4); box-shadow: none; opacity: 1; }

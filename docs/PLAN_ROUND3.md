@@ -75,3 +75,41 @@ All four are read-only. They work from fresh screenshots of both shells.
 1. P0 glow restoration (Stable first, then Nightly, Settings, onboarding), verified by screenshots.
 2. Read the four reports and merge them with this backlog into one ranked list.
 3. Ship in small commits: bugs, then the highest-impact design fixes, then features.
+
+---
+
+## Status after the reviews (Nov 5)
+
+**Shipped this round**
+- P0 glow restoration on both shells (see the "Sush glow" block at the end of `index.css`).
+- Audit quick fixes: `build.files` allowlist, two unguarded timers, overlay layering above Settings, dev copy, 92 dead CSS rules.
+
+**Reports** (scratchpad `reviews3/`): `sonnet-design-a.md` (Nightly, 25 items), `sonnet-design-b.md`
+(Stable, Settings, onboarding, lock; 19 items + consistency map), `haiku-10x.md` (12 design, 10 features,
+10 transitions, 5 signature moments), `sonnet-code-audit.md` (7 categories, safe-delete and decision lists).
+
+## Ranked next list (impact ÷ effort; merged from the reports and my backlog)
+1. **One sheet recipe for every overlay** (palette, Hunt, launcher, user manager, fresh start): plum vibrancy,
+   0.5px edge, accent halo, scrim with a bloom. The overlays still wear the old 1px pink rim on navy. *(B4)*
+2. **Disabled primaries go neutral**, and only an enabled primary glows (Continue, Unlock read as muddy ~2.2:1). *(B6)*
+3. **Pilot-light status bar** on each sidebar row (2px leading bar, opacity-only breath while working). *(10x #1)*
+4. **Usage runway** in the toolbar: guard tick at 80% plus "reaches 80% in ~38 min". *(10x #2)*
+5. **Tabular numerals** on every live number. *(10x #4)*
+6. **Terminal background into the plum family** (`#100d18`) so the code surface matches the chrome. *(A)*
+7. **Glow budget rule in DESIGN.md**: ambient washes ≤ 12% alpha; at most 3 lit elements at rest; one hero glow per surface. *(A, B)*
+8. **Composer Stop button** while an agent works, and drafts that survive reloads. *(backlog)*
+9. **Limit Relay**: propose the hand-off at the guard threshold, not after the limit hits. *(10x #7)*
+10. **"Last one home" moment**: when a crew finishes, the sidebar blooms once with a "+214 −38" summary. *(10x #9)*
+11. **Seducia orb as a state instrument** (rings = listening, arc = thinking, with labels). *(10x #6)*
+12. **Z-index scale** as tokens (base, chrome, popover, sheet, page, lock, splash) instead of 22 literals. *(audit)*
+13. **Provider registry**: derive every provider list, label and colour from `AGENTS` + capability flags (about 18 lists today). *(audit)*
+14. **IPC hygiene**: wire or remove `accountsPoolStats`; remove about 14 caller-less channels, especially the mutating ones. *(audit)*
+15. **Office night tint** after 20 min idle, and per-provider lamp colours for working agents. *(10x #10)*
+
+## Decisions for the owner
+- **Unlock codes** use an HMAC key that is compiled into the app, so anyone can extract it. Switching to signed codes
+  (Ed25519, public key in the app, private key off-repo) closes that. Do you want it?
+- **Two copies of the impeccable skill** (`.claude/skills` from this session, `.github/skills` from before). Keep one, and
+  should either live in the product repo?
+- **Root handoff docs** (continue.md, about 140 KB of notes): archive under `docs/archive/`?
+- **`air/`** is a separate app in this repo. It no longer ships in the package, but should it move out of the repo?
