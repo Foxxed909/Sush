@@ -1,6 +1,6 @@
 import {
-  AdditiveBlending, BoxGeometry, CanvasTexture, Color, CylinderGeometry, Group, IcosahedronGeometry, Mesh, MeshBasicMaterial,
-  MeshLambertMaterial, LinearFilter, NearestFilter, PlaneGeometry, RepeatWrapping, RingGeometry, Vector3
+  AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, CylinderGeometry, Group, IcosahedronGeometry, Mesh, MeshBasicMaterial,
+  MeshLambertMaterial, LinearFilter, NearestFilter, PlaneGeometry, Points, PointsMaterial, RepeatWrapping, RingGeometry, Vector3
 } from 'three'
 import { DESK_D, DESK_W, WALL_H, WALL_T, interiorDecor } from '../../lib/officeLayout'
 
@@ -316,7 +316,128 @@ export function backdropTexture(theme) {
     ctx.fillStyle = '#3b1d33'; ctx.fillRect(0, 56, 256, 8)
     for (let x = 0; x < 256; x += 10 + Math.floor(rand() * 10)) ctx.fillRect(x, 44 + Math.floor(rand() * 10), 7, 20)
   }
+  if (theme.backdrop === 'ocean') {
+    // Light shafts, drifting fish silhouettes, a seabed.
+    ctx.fillStyle = 'rgba(190,245,255,0.07)'
+    for (let x = 10; x < 256; x += 38) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 10, 0); ctx.lineTo(x + 34, 64); ctx.lineTo(x + 14, 64); ctx.fill() }
+    for (let i = 0; i < 9; i++) {
+      const fx = Math.floor(rand() * 240); const fy = 8 + Math.floor(rand() * 34)
+      ctx.fillStyle = i % 3 ? '#8fe9ff' : '#ffb86b'
+      ctx.fillRect(fx, fy, 6, 3); ctx.fillRect(fx + 6, fy - 1, 2, 5)
+    }
+    ctx.fillStyle = '#0a2433'; ctx.fillRect(0, 56, 256, 8)
+    ctx.fillStyle = '#12445a'
+    for (let x = 0; x < 256; x += 14) ctx.fillRect(x, 50 + Math.floor(rand() * 5), 3, 14)
+  }
+  if (theme.backdrop === 'dunes') {
+    ctx.fillStyle = '#ffe3a8'; ctx.beginPath(); ctx.arc(70, 40, 14, 0, Math.PI * 2); ctx.fill()
+    const ridge = (base, amp, color, k) => {
+      ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, 64)
+      for (let x = 0; x <= 256; x += 4) ctx.lineTo(x, base + Math.sin(x / k) * amp + Math.sin(x / (k * 0.37)) * amp * 0.3)
+      ctx.lineTo(256, 64); ctx.fill()
+    }
+    ridge(42, 6, '#b5603f', 31); ridge(50, 5, '#8a4033', 23); ridge(57, 3, '#5a2b2e', 17)
+    ctx.fillStyle = '#2a1626'; ctx.fillRect(196, 36, 3, 18); ctx.fillRect(192, 42, 4, 2); ctx.fillRect(199, 40, 4, 2) // cactus
+  }
+  if (theme.backdrop === 'snow') {
+    ctx.fillStyle = '#ffffff'
+    for (let i = 0; i < 40; i++) ctx.fillRect(Math.floor(rand() * 256), Math.floor(rand() * 50), 1, 1)
+    for (let x = -6; x < 260; x += 16) {
+      const h = 20 + Math.floor(rand() * 26)
+      ctx.fillStyle = '#1d3a34'; ctx.beginPath(); ctx.moveTo(x, 64); ctx.lineTo(x + 8, 64 - h); ctx.lineTo(x + 16, 64); ctx.fill()
+      ctx.fillStyle = '#f2f7ff'; ctx.beginPath(); ctx.moveTo(x + 8, 64 - h); ctx.lineTo(x + 12, 64 - h + 9); ctx.lineTo(x + 4, 64 - h + 9); ctx.fill()
+    }
+    ctx.fillStyle = '#e6eefa'; ctx.fillRect(0, 59, 256, 5)
+  }
+  if (theme.backdrop === 'sakura') {
+    ctx.fillStyle = '#fff2d8'; ctx.beginPath(); ctx.arc(190, 20, 9, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#4a2a33'; ctx.fillRect(30, 26, 5, 38); ctx.fillRect(30, 30, 22, 3); ctx.fillRect(18, 38, 16, 3)
+    for (let i = 0; i < 70; i++) {
+      ctx.fillStyle = i % 3 ? '#ff9ec0' : '#ffd1e0'
+      ctx.fillRect(10 + Math.floor(rand() * 60), 8 + Math.floor(rand() * 30), 3, 2)
+    }
+    ctx.fillStyle = '#2b1a2a'; ctx.fillRect(0, 58, 256, 6)
+    for (let i = 0; i < 24; i++) { ctx.fillStyle = '#ffb3cb'; ctx.fillRect(Math.floor(rand() * 256), 54 + Math.floor(rand() * 8), 2, 1) }
+  }
+  if (theme.backdrop === 'aurora') {
+    ctx.fillStyle = '#ffffff'
+    for (let i = 0; i < 50; i++) ctx.fillRect(Math.floor(rand() * 256), Math.floor(rand() * 40), 1, 1)
+    for (const [col, off] of [['rgba(109,255,184,0.28)', 0], ['rgba(122,184,255,0.22)', 9], ['rgba(190,120,255,0.18)', 17]]) {
+      ctx.fillStyle = col
+      for (let x = 0; x < 256; x += 2) {
+        const y = 12 + off + Math.sin(x / 22 + off) * 7
+        ctx.fillRect(x, y, 2, 22 + Math.sin(x / 9) * 6)
+      }
+    }
+    ctx.fillStyle = '#07121c'; ctx.beginPath(); ctx.moveTo(0, 64)
+    for (let x = 0; x <= 256; x += 8) ctx.lineTo(x, 44 + (Math.abs(Math.sin(x / 19)) * 16))
+    ctx.lineTo(256, 64); ctx.fill()
+  }
+  if (theme.backdrop === 'daytime') {
+    ctx.fillStyle = '#fff6c9'; ctx.beginPath(); ctx.arc(205, 16, 9, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'
+    for (const [cx, cy] of [[40, 16], [120, 26], [170, 12]]) { ctx.fillRect(cx, cy, 26, 5); ctx.fillRect(cx + 5, cy - 4, 14, 5); ctx.fillRect(cx - 4, cy + 2, 8, 4) }
+    ctx.fillStyle = '#7fa6c9'; ctx.beginPath(); ctx.moveTo(0, 64)
+    for (let x = 0; x <= 256; x += 8) ctx.lineTo(x, 40 + Math.abs(Math.sin(x / 31)) * 14)
+    ctx.lineTo(256, 64); ctx.fill()
+    ctx.fillStyle = '#5f9a6d'; ctx.fillRect(0, 56, 256, 8)
+  }
   return nearest(new CanvasTexture(canvas))
+}
+
+// ── Ambient particles ─────────────────────────────────────────────────────
+// A cheap Points cloud per theme (snow, petals, bubbles, fireflies…). Static
+// when reduce-motion is on (the caller skips `update`).
+const FX = {
+  dust: { count: 36, color: '#ffffff', size: 0.045, opacity: 0.35, vy: 0.02, sway: 0.05 },
+  snow: { count: 160, color: '#ffffff', size: 0.09, opacity: 0.85, vy: -0.9, sway: 0.35 },
+  petals: { count: 70, color: '#ffb3cb', size: 0.1, opacity: 0.9, vy: -0.55, sway: 0.7 },
+  bubbles: { count: 60, color: '#bff4ff', size: 0.08, opacity: 0.6, vy: 0.45, sway: 0.25 },
+  fireflies: { count: 40, color: '#e6ff8a', size: 0.09, opacity: 0.95, vy: 0, sway: 0.5, twinkle: true },
+  embers: { count: 50, color: '#ffb36b', size: 0.07, opacity: 0.85, vy: 0.3, sway: 0.3 },
+  rain: { count: 220, color: '#7fe9ff', size: 0.05, opacity: 0.55, vy: -9, sway: 0 },
+  stars: { count: 70, color: '#ffffff', size: 0.07, opacity: 0.8, vy: 0, sway: 0.02, twinkle: true }
+}
+
+// `area` is the world rectangle to fill: { minX, maxX, minZ, maxZ, top }.
+export function buildParticles(kind, area) {
+  const cfg = FX[kind]
+  if (!cfg) return null
+  const w = area.maxX - area.minX
+  const d = area.maxZ - area.minZ
+  const h = area.top
+  const n = Math.max(8, Math.round(cfg.count * Math.min(2.5, Math.max(0.5, (w * d) / 260))))
+  const pos = new Float32Array(n * 3)
+  const seed = new Float32Array(n)
+  let r = 11
+  const rand = () => { r = (r * 9301 + 49297) % 233280; return r / 233280 }
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = area.minX + rand() * w
+    pos[i * 3 + 1] = rand() * h
+    pos[i * 3 + 2] = area.minZ + rand() * d
+    seed[i] = rand() * Math.PI * 2
+  }
+  const geo = new BufferGeometry()
+  geo.setAttribute('position', new BufferAttribute(pos, 3))
+  const material = new PointsMaterial({ color: cfg.color, size: cfg.size, sizeAttenuation: true, transparent: true, opacity: cfg.opacity, depthWrite: false, ...(kind === 'rain' ? { blending: AdditiveBlending } : {}) })
+  const points = new Points(geo, material)
+  points.frustumCulled = false
+  points.renderOrder = 3
+  const update = (t, dt) => {
+    for (let i = 0; i < n; i++) {
+      const o = i * 3
+      pos[o] += Math.sin(t * 0.7 + seed[i]) * cfg.sway * dt
+      pos[o + 2] += Math.cos(t * 0.6 + seed[i] * 1.3) * cfg.sway * dt
+      pos[o + 1] += cfg.vy * dt
+      if (pos[o + 1] < 0) pos[o + 1] += h
+      else if (pos[o + 1] > h) pos[o + 1] -= h
+      if (pos[o] < area.minX) pos[o] += w; else if (pos[o] > area.maxX) pos[o] -= w
+      if (pos[o + 2] < area.minZ) pos[o + 2] += d; else if (pos[o + 2] > area.maxZ) pos[o + 2] -= d
+    }
+    geo.attributes.position.needsUpdate = true
+    if (cfg.twinkle) material.opacity = cfg.opacity * (0.7 + 0.3 * Math.sin(t * 3))
+  }
+  return { points, update }
 }
 
 
@@ -607,13 +728,19 @@ export function buildFlowers(x, z, accent) {
   return g
 }
 
-export function skyTexture() {
+export function skyTexture(theme) {
   const c = canvasOf(8, 128)
   const ctx = c.getContext('2d')
   const gr = ctx.createLinearGradient(0, 0, 0, 128)
-  gr.addColorStop(0, '#070510'); gr.addColorStop(0.55, '#1a1230'); gr.addColorStop(1, '#3a1f4a')
+  if (theme) {
+    gr.addColorStop(0, theme.sky[0]); gr.addColorStop(0.55, theme.sky[1]); gr.addColorStop(1, theme.fog)
+  } else {
+    gr.addColorStop(0, '#070510'); gr.addColorStop(0.55, '#1a1230'); gr.addColorStop(1, '#3a1f4a')
+  }
   ctx.fillStyle = gr; ctx.fillRect(0, 0, 8, 128)
-  return new CanvasTexture(c)
+  const tex = new CanvasTexture(c)
+  tex.magFilter = tex.minFilter = LinearFilter
+  return tex
 }
 
 // The "opening" flourish for a new office: a ring that spreads and fades.
