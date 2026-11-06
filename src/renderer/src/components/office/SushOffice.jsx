@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Color, DirectionalLight, Fog, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshLambertMaterial,
+  Color, DirectionalLight, PCFSoftShadowMap, Fog, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshLambertMaterial,
   PerspectiveCamera, PlaneGeometry, Raycaster, Scene, Vector2, Vector3, WebGLRenderer
 } from 'three'
 import Icon from '../Icons'
@@ -39,6 +39,16 @@ import { playChime } from '../../lib/chime'
 // otherwise the loop wakes at the ambient rate, and stops when hidden.
 
 const PIXEL = 2
+// Render modes: 'hd' is full-resolution 3D with real shadows and an orbit
+// camera; 'pixel' is the original 1/2-res retro look (cheaper on battery).
+const RENDER_KEY = 'sush-office-render'
+function loadRenderMode() {
+  try { return localStorage.getItem(RENDER_KEY) === 'pixel' ? 'pixel' : 'hd' } catch { return 'hd' }
+}
+const PITCH_MIN = -0.55
+const PITCH_MAX = 0.6
+// Rotate an (x, z) vector by yaw around +y, matching atan2(x, z) angles.
+const spin = (x, z, yaw) => [x * Math.cos(yaw) + z * Math.sin(yaw), -x * Math.sin(yaw) + z * Math.cos(yaw)]
 const WALK = 4.4
 const RUN = 7.5
 const IDLE_FPS = 20 // ambient redraw rate (breathing, glows)
@@ -103,6 +113,8 @@ export default function SushOffice({
   const [tokens, setTokens] = useState({})
   const [sound, setSound] = useState(loadSound)
   const [mapOn, setMapOn] = useState(loadMapOn)
+  const [renderMode, setRenderMode] = useState(loadRenderMode)
+  const hd = renderMode === 'hd'
   const [toast, setToast] = useState(null)
 
   const campusKey = campusLayoutKey(tabs)
@@ -141,13 +153,17 @@ export default function SushOffice({
     if (!host) return undefined
     let renderer
     try {
-      renderer = new WebGLRenderer({ antialias: false, powerPreference: 'low-power' })
+      renderer = new WebGLRenderer({ antialias: hd, powerPreference: hd ? 'high-performance' : 'low-power' })
     } catch {
       setFailed(true)
       return undefined
     }
-    renderer.setPixelRatio(1)
-    renderer.domElement.className = 'office-canvas'
+    renderer.setPixelRatio(hd ? Math.min(2, window.devicePixelRatio || 1) : 1)
+    if (hd) {
+      renderer.shadowMap.enabled = true
+      renderer.shadowMap.type = PCFSoftShadowMap
+    }
+    renderer.domElement.className = `office-canvas${hd ? ' is-hd' : ''}`
     host.appendChild(renderer.domElement)
 
     const scene = new Scene()
@@ -156,11 +172,21 @@ export default function SushOffice({
     const hemi = new HemisphereLight('#c9d2ff', '#2a2030', 2.0)
     const sun = new DirectionalLight('#ffe9f1', 1.7)
     sun.position.set(6, 14, 9)
+    if (hd) {
+      // One shadow-casting key light that follows the camera's focus.
+      sun.castShadow = true
+      sun.shadow.mapSize.set(2048, 2048)
+      sun.shadow.bias = -0.0006
+      sun.shadow.normalBias = 0.03
+      sun.shadow.camera.near = 1
+      sun.shadow.camera.far = 60
+    }
     const fill = new DirectionalLight('#ffcfb8', 0.7)
     fill.position.set(-8, 5, 12)
-    scene.add(hemi, sun, fill)
+    scene.add(hemi, sun, sun.target, fill)
     const camera = new PerspectiveCamera(42, 1, 0.1, 140)
     const player = voxelPerson(accent)
+    if (hd) player.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
     scene.add(player)
 
     const keys = new Set()
@@ -169,14 +195,16 @@ export default function SushOffice({
       world: null, layout: null, place: null, pos: { x: 0, z: 0 }, facing: 0, walkPhase: 0,
       dirty: true, nearest: null, lost: false, anchors: new Map(), desks: [], windows: [],
       animations: [], knownBuildings: null, seenDesks: new Map(), camTarget: null, look: null,
-      vel: { x: 0, z: 0 }, goal: null, zoom: 1, zoomTarget: 1, fx: null, wave: 0, attnIdx: 0, mapOn: loadMapOn(), mapAt: 0, mapXf: null
+      vel: { x: 0, z: 0 }, goal: null, zoom: 1, zoomTarget: 1, fx: null, wave: 0, attnIdx: 0, mapOn: loadMapOn(), mapAt: 0, mapXf: null,
+      hd, yaw: 0, yawTarget: 0, pitch: 0, pitchTarget: 0, walls: [], shadowExt: 0
     }
     engineRef.current = engine
 
     const resize = () => {
       const w = Math.max(1, host.clientWidth)
       const h = Math.max(1, host.clientHeight)
-      renderer.setSize(Math.ceil(w / PIXEL), Math.ceil(h / PIXEL), false)
+      if (hd) renderer.setSize(w, h, false)
+      else renderer.setSize(Math.ceil(w / PIXEL), Math.ceil(h / PIXEL), false)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       engine.dirty = true
@@ -253,7 +281,11 @@ export default function SushOffice({
         else if (key === 't') { e.preventDefault(); liveRef.current.cycleTheme?.() }
         else if (key === 'm') { e.preventDefault(); liveRef.current.toggleMap?.() }
         else if (key === 'p') { e.preventDefault(); engine.snap() }
+        else if (key === 'r') { e.preventDefault(); engine.yawTarget = 0; engine.pitchTarget = 0; engine.zoomTarget = 1; kick() }
+        else if (key === 'v') { e.preventDefault(); liveRef.current.toggleRender?.() }
       }
+      if (key === ',' || key === '[') { e.preventDefault(); engine.yawTarget -= Math.PI / 8; kick() }
+      if (key === '.' || key === ']') { e.preventDefault(); engine.yawTarget += Math.PI / 8; kick() }
       if (key === '=' || key === '+') { engine.zoomTarget = Math.max(ZOOM_MIN, engine.zoomTarget - 0.1); kick() }
       if (key === '-' || key === '_') { engine.zoomTarget = Math.min(ZOOM_MAX, engine.zoomTarget + 0.1); kick() }
       if ((key === 'e' || key === 'enter') && !e.repeat) { e.preventDefault(); interact() }
@@ -265,9 +297,44 @@ export default function SushOffice({
     host.addEventListener('keyup', onKeyUp)
     host.addEventListener('blur', onBlur)
 
+    // Drag (any button) to orbit the camera; a drag never counts as a click.
+    let drag = null
+    const onPointerDown = (e) => {
+      drag = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }
+    }
+    const onPointerMove = (e) => {
+      if (!drag || e.pointerId !== drag.id || !e.buttons || liveRef.current.focusTabId) return
+      const dx = e.clientX - drag.x
+      const dy = e.clientY - drag.y
+      if (!drag.moved && Math.hypot(dx, dy) < 5) return
+      if (!drag.moved) { drag.moved = true; try { renderer.domElement.setPointerCapture(e.pointerId) } catch {} }
+      drag.x = e.clientX
+      drag.y = e.clientY
+      engine.yawTarget -= dx * 0.006
+      engine.pitchTarget = Math.min(PITCH_MAX, Math.max(PITCH_MIN, engine.pitchTarget - dy * 0.005))
+      renderer.domElement.style.cursor = 'grabbing'
+      kick()
+    }
+    const onPointerUp = (e) => {
+      if (drag?.moved) {
+        engine.suppressClick = true
+        setTimeout(() => { engine.suppressClick = false }, 0)
+      }
+      drag = null
+      renderer.domElement.style.cursor = ''
+      try { renderer.domElement.releasePointerCapture(e.pointerId) } catch {}
+    }
+    const onContext = (e) => e.preventDefault()
+    renderer.domElement.addEventListener('pointerdown', onPointerDown)
+    renderer.domElement.addEventListener('pointermove', onPointerMove)
+    renderer.domElement.addEventListener('pointerup', onPointerUp)
+    renderer.domElement.addEventListener('pointercancel', onPointerUp)
+    renderer.domElement.addEventListener('contextmenu', onContext)
+
     const raycaster = new Raycaster()
     const onClick = (e) => {
       host.focus()
+      if (engine.suppressClick) return
       if (!engine.layout || !engine.world || liveRef.current.focusTabId) return
       const rect = renderer.domElement.getBoundingClientRect()
       raycaster.setFromCamera(new Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera)
@@ -372,7 +439,10 @@ export default function SushOffice({
           if (keys.has('a') || keys.has('arrowleft')) mx -= 1
           if (keys.has('d') || keys.has('arrowright')) mx += 1
         }
-        if (mx || mz) engine.goal = null
+        if (mx || mz) {
+          engine.goal = null
+          ;[mx, mz] = spin(mx, mz, engine.yaw) // W always walks away from the camera
+        }
         else if (engine.goal && !live.focusTabId) {
           const gx = engine.goal.x - engine.pos.x
           const gz = engine.goal.z - engine.pos.z
@@ -434,15 +504,58 @@ export default function SushOffice({
             look.set(engine.pos.x * 0.25, 0.3, lz)
           }
         }
-        // Mouse-wheel / +/- zoom scales the camera's offset from what it looks at.
-        engine.zoom += (engine.zoomTarget - engine.zoom) * (reduceMotion ? 1 : 1 - Math.exp(-dt * 9))
-        if (!live.focusTabId) tmp.sub(look).multiplyScalar(engine.zoom).add(look)
+        // Orbit (drag / , .) and zoom (wheel / + -) around what the camera looks at.
+        const camEase = reduceMotion ? 1 : 1 - Math.exp(-dt * 9)
+        engine.zoom += (engine.zoomTarget - engine.zoom) * camEase
+        engine.yaw += (engine.yawTarget - engine.yaw) * camEase
+        engine.pitch += (engine.pitchTarget - engine.pitch) * camEase
+        if (!live.focusTabId) {
+          if (campusCam) {
+            const [rx, rz] = spin(look.x - engine.pos.x, look.z - engine.pos.z, engine.yaw)
+            const [cx, cz] = spin(tmp.x - engine.pos.x, tmp.z - engine.pos.z, engine.yaw)
+            look.x = engine.pos.x + rx; look.z = engine.pos.z + rz
+            tmp.x = engine.pos.x + cx; tmp.z = engine.pos.z + cz
+          } else {
+            const [cx, cz] = spin(tmp.x - look.x, tmp.z - look.z, engine.yaw)
+            tmp.x = look.x + cx; tmp.z = look.z + cz
+          }
+          // Pitch: re-aim the offset's elevation, keeping its length and heading.
+          const ox = tmp.x - look.x
+          const oy = tmp.y - look.y
+          const oz = tmp.z - look.z
+          const flat = Math.hypot(ox, oz) || 1e-6
+          const dist = Math.hypot(flat, oy) * engine.zoom
+          const elev = Math.min(1.45, Math.max(0.18, Math.atan2(oy, flat) + engine.pitch))
+          tmp.set(look.x + (ox / flat) * Math.cos(elev) * dist, look.y + Math.sin(elev) * dist, look.z + (oz / flat) * Math.cos(elev) * dist)
+        }
         if (!engine.look) { engine.look = look.clone(); camera.position.copy(tmp) }
         const flying = camera.position.distanceTo(tmp) > 0.02 || engine.look.distanceTo(look) > 0.02
         camera.position.lerp(tmp, reduceMotion ? 1 : 1 - Math.exp(-dt * (live.focusTabId ? 4.5 : moving ? 6 : 7)))
         engine.look.lerp(look, reduceMotion ? 1 : 1 - Math.exp(-dt * 7))
         camera.lookAt(engine.look)
         if (flying) { engine.dirty = true; busy = true }
+
+        // ── HD: shadows follow the focus; walls between you and the camera fade ──
+        if (engine.hd) {
+          const ext = engine.shadowExt || 20
+          const texel = (ext * 2) / 2048
+          const fx0 = Math.round(engine.look.x / texel) * texel
+          const fz0 = Math.round(engine.look.z / texel) * texel
+          sun.target.position.set(fx0, 0, fz0)
+          sun.position.set(fx0 + 7, 16, fz0 + 9)
+          for (const wall of engine.walls) {
+            const want = wall.hides(camera.position) ? 0.14 : 1
+            const m = wall.mesh.material
+            if (Math.abs(m.opacity - want) > 0.01) {
+              m.opacity += (want - m.opacity) * (reduceMotion ? 1 : 1 - Math.exp(-dt * 10))
+              m.transparent = m.opacity < 0.99
+              m.depthWrite = !m.transparent
+              wall.mesh.castShadow = !m.transparent
+              engine.dirty = true
+              busy = true
+            }
+          }
+        }
 
         // ── agents + windows reflect live state ──
         const t = now / 1000
@@ -605,6 +718,11 @@ export default function SushOffice({
       host.removeEventListener('blur', onBlur)
       renderer.domElement.removeEventListener('click', onClick)
       renderer.domElement.removeEventListener('wheel', onWheel)
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown)
+      renderer.domElement.removeEventListener('pointermove', onPointerMove)
+      renderer.domElement.removeEventListener('pointerup', onPointerUp)
+      renderer.domElement.removeEventListener('pointercancel', onPointerUp)
+      renderer.domElement.removeEventListener('contextmenu', onContext)
       renderer.domElement.removeEventListener('webglcontextlost', onLost)
       renderer.domElement.removeEventListener('webglcontextrestored', onRestored)
       disposeTree(scene)
@@ -615,7 +733,7 @@ export default function SushOffice({
       renderer.domElement.remove()
       engineRef.current = null
     }
-  }, [accent, reduceMotion])
+  }, [accent, reduceMotion, hd])
 
   // ── World: rebuilt when the place, its sessions or its theme change. ──
   useEffect(() => {
@@ -630,6 +748,7 @@ export default function SushOffice({
     engine.windows = []
     engine.animations = []
     engine.fx = null
+    engine.walls = []
     const now = performance.now()
 
     if (interior) {
@@ -650,9 +769,17 @@ export default function SushOffice({
       world.add(rug)
       const wall = new MeshLambertMaterial({ map: wallTexture(lift(t.wall, 0.12), w), flatShading: true })
       const trim = mat(t.trim === 'accent' ? accent : t.trim)
-      world.add(box(w, WALL_H, WALL_T, wall, 0, WALL_H / 2, room.minZ - WALL_T / 2))
-      world.add(box(WALL_T, WALL_H, d, wall, room.minX - WALL_T / 2, WALL_H / 2, 0))
-      world.add(box(WALL_T, WALL_H, d, wall, room.maxX + WALL_T / 2, WALL_H / 2, 0))
+      // Each wall gets its own material so it can fade when the orbit camera
+      // swings behind it.
+      const backWall = box(w, WALL_H, WALL_T, wall.clone(), 0, WALL_H / 2, room.minZ - WALL_T / 2)
+      const leftWall = box(WALL_T, WALL_H, d, wall.clone(), room.minX - WALL_T / 2, WALL_H / 2, 0)
+      const rightWall = box(WALL_T, WALL_H, d, wall.clone(), room.maxX + WALL_T / 2, WALL_H / 2, 0)
+      world.add(backWall, leftWall, rightWall)
+      engine.walls = [
+        { mesh: backWall, hides: c => c.z < room.minZ + 1 },
+        { mesh: leftWall, hides: c => c.x < room.minX + 1 },
+        { mesh: rightWall, hides: c => c.x > room.maxX - 1 }
+      ]
       const side = (w - interior.doorW) / 2
       world.add(box(side, 0.6, WALL_T, wall, room.minX + side / 2, 0.3, room.maxZ))
       world.add(box(side, 0.6, WALL_T, wall, room.maxX - side / 2, 0.3, room.maxZ))
@@ -767,6 +894,23 @@ export default function SushOffice({
       if (fx) { world.add(fx.points); engine.fx = fx }
     }
 
+    if (engine.hd) {
+      // Real shadows: solid shaded meshes cast and receive; flat planes
+      // (floors, rugs, screens) only receive; glows and particles do neither.
+      world.traverse(o => {
+        if (!o.isMesh || !o.material?.isMeshLambertMaterial) return
+        o.receiveShadow = true
+        o.castShadow = o.geometry?.type !== 'PlaneGeometry'
+      })
+      const span = interior
+        ? Math.max(interior.room.maxX - interior.room.minX, interior.room.maxZ - interior.room.minZ) / 2 + 3
+        : 26
+      const sc = engine.sun.shadow.camera
+      sc.left = sc.bottom = -span
+      sc.right = sc.top = span
+      sc.updateProjectionMatrix()
+      engine.shadowExt = span
+    }
     engine.scene.add(world)
     engine.world = world
     engine.anchors = anchors
@@ -784,7 +928,7 @@ export default function SushOffice({
     engine.place = interior ? { kind: 'interior', key: interior.key } : { kind: 'campus' }
     engine.dirty = true
     engine.kick?.()
-  }, [layout, interior, campus, theme, campusTheme, themes, accent, reduceMotion]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [layout, interior, campus, theme, campusTheme, themes, accent, reduceMotion, hd]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly into a monitor when App focuses one; back out when it clears.
   useEffect(() => {
@@ -855,6 +999,13 @@ export default function SushOffice({
   })
   liveRef.current.cycleTheme = cycleTheme
   liveRef.current.toggleMap = toggleMap
+  const toggleRender = () => setRenderMode(prev => {
+    const next = prev === 'hd' ? 'pixel' : 'hd'
+    try { localStorage.setItem(RENDER_KEY, next) } catch {}
+    setToast({ text: next === 'hd' ? 'Full 3D · shadows on' : 'Retro pixel mode', at: Date.now() })
+    return next
+  })
+  liveRef.current.toggleRender = toggleRender
   useEffect(() => {
     if (!toast) return undefined
     const id = setTimeout(() => setToast(null), 1800)
@@ -1006,6 +1157,9 @@ export default function SushOffice({
             {OFFICE_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </label>
+        <button className={`office-chip is-button office-mode${hd ? ' is-on' : ''}`} onClick={toggleRender} aria-pressed={hd} title={hd ? 'Full 3D with shadows — switch to retro pixels (V)' : 'Retro pixels — switch to full 3D (V)'}>
+          {hd ? '3D' : 'Pixel'}
+        </button>
         <button className={`office-chip is-button${mapOn ? '' : ' is-muted'}`} onClick={toggleMap} aria-pressed={mapOn} title="Minimap (M)">
           <Icon name="compass" size={12} />
         </button>
@@ -1025,7 +1179,7 @@ export default function SushOffice({
           <i><b style={{ width: `${Math.round(officeLevel.progress * 100)}%` }} /></i>
         </span>
       </div>
-      <div className={`office-keys${(hint && !focusTabId) || focusTabId ? ' is-hidden' : ''}`}>WASD / click to walk · Shift run · E use · wheel zoom · Q wave · N next · T look · M map · P snap{interior ? ' · Esc campus' : ''}</div>
+      <div className={`office-keys${(hint && !focusTabId) || focusTabId ? ' is-hidden' : ''}`}>WASD / click to walk · drag to orbit · wheel zoom · R reset view · Shift run · E use · Q wave · N next · T look · M map · P snap{interior ? ' · Esc campus' : ''}</div>
 
       {mapOn && !focusTabId && (
         <canvas ref={mapRef} className="office-map" width={MAP_W} height={MAP_H} onClick={walkToMap} title="Click to walk there" aria-label="Minimap. Click to walk to a spot." />

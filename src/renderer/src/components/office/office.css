@@ -1,6 +1,9 @@
 /* Office-only polish. The base Office styles live in index.css; this file
    only layers on top (loaded by SushOffice.jsx). */
 .office-canvas { image-rendering: pixelated; }
+.office-canvas.is-hd { image-rendering: auto; cursor: grab; }
+.office-mode { font-family: var(--font-mono); letter-spacing: .02em; }
+.office-mode.is-on { color: var(--text-1); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 
 /* Minimap: bottom-right, click to walk. */
 .office-map {
