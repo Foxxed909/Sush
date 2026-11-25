@@ -11,7 +11,7 @@ settings, scrollback, and credits meter all live on your disk.
 
 - **Session orchestration** — launch a crew (agents × counts) into a
   workspace, brief them on boot, watch every session's live state (working /
-  needs-you / error / done) on one board (Mission Control, `Ctrl+Shift+M`).
+  needs-you / error / done) on one board (Overview, `Ctrl+Shift+M`).
 - **Seducia** — an AI orchestrator that drives your *already logged-in* agent
   CLIs over stdin (no API key to paste). Ask her to build a team, prompt one
   session, review another's output, or rename a workspace.
@@ -108,6 +108,8 @@ Settings ▸ Plan, or run `unlock SUSH-...` in any session.
 | [`docs/archive/GRAVEYARD.md`](docs/archive/GRAVEYARD.md) | Retired features and why — and what has risen |
 | [`docs/archive/REVIEW.md`](docs/archive/REVIEW.md) | 2026-07-24 codebase review: bugs found, what was left alone |
 | [`docs/archive/continue.md`](docs/archive/continue.md) | Claude/agent handoff: Quiet Nights state, architecture constraints, roadmap, testing and next steps |
+| [`docs/BRANCHES.md`](docs/BRANCHES.md) | Branch audit: what was merged, salvaged, and is safe to delete |
+| [`docs/REVIEW-2026-10-01.md`](docs/REVIEW-2026-10-01.md) | October reliability review and open product risks |
 | [`term/README.md`](term/README.md) | Sush Terminal: the TUI |
 
 ## License

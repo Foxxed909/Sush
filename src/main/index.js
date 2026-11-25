@@ -11,11 +11,6 @@ if (__SUSH_NIGHTLY__) {
   app.setPath('userData', join(app.getPath('appData'), 'Sush Nightly'))
 }
 
-// Sush Air used to live in this process, behind a `--air` flag. It is its own
-// application now — see ../air. Nothing in this file knows about it, which is
-// the point: two products that can be built, shipped, installed and uninstalled
-// without reference to each other.
-
 const trustedRendererContents = new Set()
 // The in-app Browser's cookies, storage and cache live in their own session,
 // separate from Sush's renderer (and its microphone grant).
