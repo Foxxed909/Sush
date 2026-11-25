@@ -25,6 +25,9 @@ export default defineConfig({
         plugins: [tailwindcss(), autoprefixer()]
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    // electron-vite leaves the renderer unminified by default. Minifying it
+    // roughly halves what the window parses on every cold start.
+    build: { minify: 'esbuild' }
   }
 })
