@@ -23,7 +23,7 @@ export default [
       ...reactHooks.configs.recommended.rules,
       'react/jsx-uses-vars': 'error',
       'react/jsx-uses-react': 'error',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
       'no-empty': ['warn', { allowEmptyCatch: true }],
       'react-hooks/exhaustive-deps': 'warn'
     }
@@ -36,7 +36,7 @@ export default [
       globals: { ...globals.node, ...globals.es2021, __SUSH_NIGHTLY__: 'readonly' }
     },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
       'no-empty': ['warn', { allowEmptyCatch: true }]
     }
   },

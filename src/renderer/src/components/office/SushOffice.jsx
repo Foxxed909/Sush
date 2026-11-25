@@ -20,7 +20,7 @@ import { terminalTail } from '../../lib/terminalRegistry'
 import { workspaceKey } from '../../lib/workspaces'
 import {
   backdropTexture, box, buildBench, buildBoard, buildBuilding, buildDesk, buildFlowers, buildInteriorDecor, buildKiosk, buildLampPost,
-  buildMeetingTable, buildParticles, buildStatue, buildTree, checkerTexture, disposeTree, glow, hashSeed, lift, mat, openingRing, paintScreen,
+  buildMeetingTable, buildParticles, buildStatue, buildTree, checkerTexture, disposeTree, hashSeed, lift, mat, openingRing, paintScreen,
   plankTexture, rugTexture, sit, skyTexture, stand, tileTexture, voxelPerson, wallTexture
 } from './officeScene'
 import './office.css'
@@ -943,7 +943,7 @@ export default function SushOffice({
     engine.paintNow = true
     engine.dirty = true
     engine.kick?.()
-  }, [layout, interior, campus, theme, campusTheme, themes, accent, reduceMotion, hd]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [layout, interior, campus, theme, campusTheme, themes, accent, reduceMotion, hd])  
 
   // Fly into a monitor when App focuses one; back out when it clears.
   useEffect(() => {

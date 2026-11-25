@@ -180,6 +180,7 @@ function DictationBlock({ accent, settings, set }) {
           )}
         </>
       )}
+      {err && <div role="alert" style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 6 }}>{err}</div>}
     </>
   )
 }
@@ -366,7 +367,7 @@ export default function VoiceSection({ accent, settings, set, voices, ent }) {
               {testing ? <span className="sush-spinner" style={{ width: 12, height: 12 }} /> : <Icon name="volume2" size={14} color={accent} strokeWidth={2} />}
               {testing ? 'Speaking…' : 'Test voice'}
             </button>
-            {err && <div style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 6 }}>{err}</div>}
+            {err && <div role="alert" style={{ color: '#ff8aa0', fontSize: 11, fontWeight: 700, marginTop: 6 }}>{err}</div>}
           </Row>
         </>
       )}

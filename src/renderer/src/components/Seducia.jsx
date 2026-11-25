@@ -11,7 +11,7 @@ import { agentById } from '../lib/agents'
 import { useMicLevel } from '../hooks/useMicLevel'
 import { activeThread, newThread, nextEntryId, updateThread, useSeduciaThreads } from '../lib/seduciaThreads'
 import { describeGatedIntent, needsApproval } from '../lib/seduciaSafety'
-import { parseIntent as parseSharedIntent, pathLabel as sharedPathLabel, summarize as summarizeAgents } from '../lib/seducia'
+import { parseIntent as parseSharedIntent, pathLabel as sharedPathLabel } from '../lib/seducia'
 
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
 

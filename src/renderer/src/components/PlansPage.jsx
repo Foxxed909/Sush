@@ -66,14 +66,6 @@ function FeatureLine({ name, value, color }) {
   )
 }
 
-function PlanBadge({ text, color }) {
-  return (
-    <span style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 900, letterSpacing: 0.8, textTransform: 'uppercase', color: '#05070b', background: color, borderRadius: 999, padding: '3px 11px', whiteSpace: 'nowrap' }}>
-      {text}
-    </span>
-  )
-}
-
 export default function PlansPage({ accent, ent, onDismiss }) {
   const tier = ent.tier || 'free'
   const tiers = ent.tiers && Object.keys(ent.tiers).length ? ent.tiers : null

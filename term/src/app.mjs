@@ -1,8 +1,8 @@
 import { launchAgent } from './launch.mjs'
 import { homedir } from 'node:os'
 import { basename } from 'node:path'
-import { ACCENT, MUTED, logoLines, logoWidth } from './logo.mjs'
-import { bold, center, dim, fg, padEnd, paint, reset, screen, truncate, width } from './ansi.mjs'
+import { ACCENT, MUTED, logoLines } from './logo.mjs'
+import { bold, center, padEnd, paint, reset, screen, truncate, width } from './ansi.mjs'
 import { AGENTS, agentById, commandFor, effortLabel, effortsFor, modelLabel, modelsFor, permissionLabel, permissionsFor } from './agents.mjs'
 import { loadState, saveState } from './state.mjs'
 

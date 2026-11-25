@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import ProviderLogo from '../ProviderLogo'
-import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { loadCustomAgents, addCustomAgent, removeCustomAgent, BUILTIN_AGENTS } from '../../lib/agents'
 import { Section, Row, Label, Hint, Segment, LockNote, Toggle, inputStyle } from './primitives'

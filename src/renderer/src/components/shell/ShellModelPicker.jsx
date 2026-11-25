@@ -77,7 +77,7 @@ export function ShellModelPicker({ provider, model, effort, permission = null, o
     setFlyout(null)
     setPermOpen(false)
     requestAnimationFrame(() => searchRef.current?.focus())
-  }, [open, provider]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, provider])  
 
   const rows = useMemo(() => pickerRows({ section, query, favorites }), [section, query, favorites])
   useEffect(() => { setActive(0) }, [section, query])

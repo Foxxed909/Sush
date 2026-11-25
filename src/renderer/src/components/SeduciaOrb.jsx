@@ -150,7 +150,6 @@ export default function SeduciaOrb({
   const pillLabel = busyVoice
     ? (STATE_LABEL[voiceState] || 'Busy')
     : streaming ? 'Thinking...' : `${working} agent${working === 1 ? '' : 's'} working`
-  const pillColor = speaking ? accent : busyVoice || streaming ? accent : '#5fd3a8'
   const pill = pillVisible ? (
     <div
       className="seducia-pill flex items-center"

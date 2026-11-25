@@ -236,7 +236,9 @@ export default function ShellSidebar({
   onOpenChat,
   onNewChat,
   chatOpen = false,
-  status = {}
+  status = {},
+  renameRequestId = null,
+  onRenameRequestHandled
 }) {
   const chats = useSeduciaThreads()
   const [pinned, setPinned] = useState(() => loadSet(PINNED_KEY))
@@ -247,6 +249,13 @@ export default function ShellSidebar({
   const [searching, setSearching] = useState(false)
   const [menu, setMenu] = useState(null)
   const [editingId, setEditingId] = useState(null)
+  // F2 and the palette's "Rename session" ask from outside the rail.
+  useEffect(() => {
+    if (!renameRequestId) return
+    setQuery('')
+    setEditingId(renameRequestId)
+    onRenameRequestHandled?.()
+  }, [renameRequestId, onRenameRequestHandled])
   const [now, setNow] = useState(() => Date.now())
   usePolling(useCallback(() => setNow(Date.now()), []), 30000, true)
 

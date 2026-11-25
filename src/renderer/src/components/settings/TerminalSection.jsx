@@ -1,6 +1,5 @@
 import React from 'react'
 import Icon from '../Icons'
-import { rgba } from '../../lib/ui'
 import { Section, Row, Label, Hint, Segment, Toggle, inputStyle } from './primitives'
 import { TAB_GROUPS, DEFAULT_HIDDEN_TABS } from '../../lib/panelTabs'
 import { LINE_HEIGHT_MAX, LINE_HEIGHT_MIN, clampLineHeight } from '../../lib/terminalPrefs'

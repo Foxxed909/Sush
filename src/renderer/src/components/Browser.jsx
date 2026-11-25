@@ -21,10 +21,6 @@ function normalizeUrl(input) {
   return `https://duckduckgo.com/?q=${encodeURIComponent(v)}`
 }
 
-function hostOf(url) {
-  try { return new URL(url).host } catch { return '' }
-}
-
 // An in-app browser backed by Electron's <webview>. Lives in the right panel so
 // you can preview a running dev server, read docs, or open a PR without leaving
 // Sush. The initial src is captured once; later navigation goes through loadURL
