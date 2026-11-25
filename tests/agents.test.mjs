@@ -12,6 +12,16 @@ beforeEach(() => {
 })
 
 describe('custom agents', () => {
+  it('reports storage failures instead of claiming the agent was saved', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => { throw new Error('storage unavailable') }
+    })
+    expect(addCustomAgent({ label: 'Agent', command: 'agent' })).toEqual({
+      ok: false, error: 'Could not save the custom agent'
+    })
+  })
+
   it('rejects additions beyond the stored limit instead of reporting false success', () => {
     for (let i = 0; i < 12; i++) {
       expect(addCustomAgent({ label: `Agent ${i}`, command: `agent-${i}` }).ok).toBe(true)
