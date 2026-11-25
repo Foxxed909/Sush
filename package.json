@@ -18,7 +18,8 @@
     "shots": "npm run build && node tools/shot.mjs",
     "test": "vitest run",
     "term": "node term/bin/sush.mjs",
-    "term:shots": "node tools/term-shot.mjs"
+    "term:shots": "node tools/term-shot.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
@@ -33,11 +34,16 @@
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.20",
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
     "playwright-core": "^1.61.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",

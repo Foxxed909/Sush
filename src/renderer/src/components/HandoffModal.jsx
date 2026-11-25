@@ -118,7 +118,7 @@ export default function HandoffModal({ accent, sourceId, tabs, build, onSubmit, 
         const edited = inject.trim() && inject !== buildInject(card)
         const prep = await window.sush.handoffPrepare?.({
           cwd, to: toAgent, from: source?.agentId || null, fromLabel: agentById(source?.agentId)?.label || source?.label,
-          tail: String(card?.scroll || '').replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, '').slice(-4000),
+          tail: String(card?.scroll || '').replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').slice(-4000),
           summary: edited ? inject.trim() : '',
           git: card?.branch ? { branch: card.branch, dirty: card.dirty } : null
         })

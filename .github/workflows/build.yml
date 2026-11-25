@@ -2,19 +2,26 @@ name: build
 
 on:
   push:
-    branches: [main, sush-nightly]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch or PR cancels the run it supersedes.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  # Two applications, two jobs. Deliberately not one job with two `cd`s: if a
-  # change to Sush can turn Air's build red, or the other way round, then they
-  # are not actually separate, and CI should be the thing that says so.
   sush:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,6 +29,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Lint (errors fail, warnings report)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run lint
       - run: npm test
       - run: npm run build
       - name: Nightly visual smoke
