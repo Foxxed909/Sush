@@ -482,6 +482,10 @@ export default function App() {
   const tabsRef = useRef(tabs)
   const activeIdRef = useRef(activeId)
   const closeTabRef = useRef(null)
+  // The global keydown handler is bound once, above these callbacks' own
+  // definitions, so it reads their latest versions through this ref. Calling
+  // them directly would capture the tab list from whenever it last re-bound.
+  const shortcutActionsRef = useRef({})
   const rightDragRef = useRef(null)
   const mruRef = useRef([])          // tab ids, most-recently-active first
   const switcherRef = useRef(null)
@@ -725,7 +729,7 @@ export default function App() {
       }
     }
     return { kind: 'main', focusedLabel }
-  }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
+  }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.workspaceCwd, activeTab?.label])
 
   // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
@@ -938,14 +942,14 @@ export default function App() {
       // Ctrl+Shift+G → grid layout (all sessions tiled)
       if (ctrl && e.shiftKey && key === 'g') {
         e.preventDefault()
-        toggleWorkspaceGrid()
+        shortcutActionsRef.current.toggleWorkspaceGrid?.()
       }
       // Ctrl+Shift+D → duplicate active tab
-      if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
+      if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) shortcutActionsRef.current.duplicateTab?.(activeIdRef.current) }
       // Ctrl+\ → toggle 2-up split (active + most recent other session)
-      if (ctrl && e.key === '\\') { e.preventDefault(); toggleWorkspaceSplit() }
+      if (ctrl && e.key === '\\') { e.preventDefault(); shortcutActionsRef.current.toggleWorkspaceSplit?.() }
       // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
-      if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); openTab(profiles[0]) }
+      if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); shortcutActionsRef.current.openTab?.(profiles[0]) }
       // Ctrl+W → close active tab
       if (ctrl && key === 'w' && !e.shiftKey) { e.preventDefault(); if (activeIdRef.current) closeTabRef.current?.(activeIdRef.current) }
     }
@@ -1973,6 +1977,9 @@ export default function App() {
       tag: `copy-${Date.now()}`
     })
   }, [profiles, openTab])
+  useEffect(() => {
+    shortcutActionsRef.current = { openTab, duplicateTab, toggleWorkspaceGrid, toggleWorkspaceSplit }
+  }, [openTab, duplicateTab, toggleWorkspaceGrid, toggleWorkspaceSplit])
 
   // ── Usage Guard (Pro+) ─────────────────────────────────────────────────────
   // Threshold + mode come from Settings; the watching/tripping lives in

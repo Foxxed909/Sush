@@ -188,16 +188,13 @@ const stub = `
     appVersion: async () => '${appVersion}',
     homeDir: async () => '/home/taylor',
     listDir: async ({ path } = {}) => ({ path: path || '', entries: [ { name: 'sush', dir: true }, { name: 'notes.md', dir: false } ], exists: true }),
-    sessionStats: async () => ({ sessions: 1, uptime: 4210, memoryMB: 182 }),
     getSystemStatsLite: async () => ({ cpu: { load: 23 }, memory: { total: 16e9, used: 9.2e9, available: 6.8e9 }, uptime: 4210 }),
     connectStatus: async () => ({ claude: { connected: true, account: 'taylor@example.com', expiresAt: now + 86400e3, expired: false, hasRefresh: true }, codex: { connected: false }, gemini: { connected: false } }),
-    oauthConfigGet: async () => ({ github: { clientId: '' }, google: { clientId: '', hasSecret: false }, safeStorage: true }),
     getNpmScripts: async () => ({ ok: true, name: 'sush', scripts: { dev: 'electron-vite dev', test: 'vitest run', build: 'electron-vite build' } }),
     tasksRead: async () => ({ ok: true, file: '', tasks: [] }),
     memoryList: async () => ({ dir: '', notes: [] }),
     getPorts: async () => ({ ok: true, ports: [ { port: '5173', address: '127.0.0.1', pid: 812, process: 'node', protocol: 'tcp' } ] }),
     dockerPs: async () => ({ ok: true, containers: [] }),
-    getTabMeta: async () => ({}),
     newTab: async ({ cwd } = {}) => ({ cwd: cwd || '/home/taylor' }),
     readFile: async ({ path } = {}) => {
       const normalized = String(path || '').replace(/\\\\/g, '/')

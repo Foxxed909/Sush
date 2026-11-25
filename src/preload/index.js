@@ -28,11 +28,8 @@ contextBridge.exposeInMainWorld('sush', {
   copyText: (text) => ipcRenderer.invoke('sush:copy-text', text),
   readClipboard: () => ipcRenderer.invoke('sush:read-clipboard'),
   runSmartInput: (payload) => ipcRenderer.invoke('sush:run-smart-input', payload),
-  runCommand: (payload) => ipcRenderer.invoke('sush:run-command', payload),
-  getCwd: (payload) => ipcRenderer.invoke('sush:get-cwd', payload),
   newTab: (payload) => ipcRenderer.invoke('sush:new-tab', payload),
   closeTab: (payload) => ipcRenderer.invoke('sush:close-tab', payload),
-  cancelCommand: (payload) => ipcRenderer.invoke('sush:cancel-command', payload),
   windowControl: (action) => ipcRenderer.invoke('sush:window-control', action),
   setOpacity: (value) => ipcRenderer.invoke('sush:set-opacity', value),
   setWindowMaterial: (material) => ipcRenderer.invoke('sush:set-window-material', material),
@@ -67,7 +64,6 @@ contextBridge.exposeInMainWorld('sush', {
   sttConfigSet: (payload) => ipcRenderer.invoke('sush:stt-config-set', payload),
   sttTranscribe: (payload) => ipcRenderer.invoke('sush:stt-transcribe', payload),
   creditsGet: () => ipcRenderer.invoke('sush:credits-get'),
-  creditsReset: () => ipcRenderer.invoke('sush:credits-reset'),
   onClaudePanelEvent: (callback) => {
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on('sush:claude-panel-event', listener)
@@ -97,7 +93,6 @@ contextBridge.exposeInMainWorld('sush', {
   snippetsDelete: (payload) => ipcRenderer.invoke('sush:snippets-delete', payload),
   sushrcRead: () => ipcRenderer.invoke('sush:sushrc-read'),
   sushrcWrite: (payload) => ipcRenderer.invoke('sush:sushrc-write', payload),
-  sushrcPath: () => ipcRenderer.invoke('sush:sushrc-path'),
   gitStatus: (payload) => ipcRenderer.invoke('sush:git-status', payload),
   listDir: (payload) => ipcRenderer.invoke('sush:list-dir', payload),
   dirExists: (payload) => ipcRenderer.invoke('sush:dir-exists', payload),
@@ -114,9 +109,6 @@ contextBridge.exposeInMainWorld('sush', {
   openExternal: (payload) => ipcRenderer.invoke('sush:open-external', payload),
   getNpmScripts: (payload) => ipcRenderer.invoke('sush:get-npm-scripts', payload),
   getAllCommands: () => ipcRenderer.invoke('sush:get-all-commands'),
-  sessionStats: () => ipcRenderer.invoke('sush:session-stats'),
-  setTabMeta: (payload) => ipcRenderer.invoke('sush:set-tab-meta', payload),
-  getTabMeta: (payload) => ipcRenderer.invoke('sush:get-tab-meta', payload),
   getSystemStats: () => ipcRenderer.invoke('sush:get-system-stats'),
   getSystemStatsLite: () => ipcRenderer.invoke('sush:get-system-stats-lite'),
   getPorts: () => ipcRenderer.invoke('sush:get-ports'),
@@ -135,8 +127,6 @@ contextBridge.exposeInMainWorld('sush', {
   dockerPs: () => ipcRenderer.invoke('sush:docker-ps'),
   dockerStop: (payload) => ipcRenderer.invoke('sush:docker-stop', payload),
   dockerLogs: (payload) => ipcRenderer.invoke('sush:docker-logs', payload),
-  watchPath: (payload) => ipcRenderer.invoke('sush:watch-path', payload),
-  unwatchPath: (payload) => ipcRenderer.invoke('sush:unwatch-path', payload),
   // Sush Identities (multi-user isolation)
   usersList: () => ipcRenderer.invoke('sush:users-list'),
   usersCreate: (payload) => ipcRenderer.invoke('sush:users-create', payload),
@@ -149,8 +139,6 @@ contextBridge.exposeInMainWorld('sush', {
   usersActivate: (payload) => ipcRenderer.invoke('sush:users-activate', payload),
   usersSignOut: () => ipcRenderer.invoke('sush:users-signout'),
   // OAuth providers (Google / GitHub sign-in)
-  oauthConfigGet: () => ipcRenderer.invoke('sush:oauth-config-get'),
-  oauthConfigSet: (payload) => ipcRenderer.invoke('sush:oauth-config-set', payload),
   oauthGitHubStart: (payload) => ipcRenderer.invoke('sush:oauth-github-start', payload),
   oauthGitHubCancel: () => ipcRenderer.invoke('sush:oauth-github-cancel'),
   oauthGoogleStart: (payload) => ipcRenderer.invoke('sush:oauth-google-start', payload),
@@ -175,11 +163,5 @@ contextBridge.exposeInMainWorld('sush', {
   githubNotifications: (payload) => ipcRenderer.invoke('sush:github-notifications', payload),
   githubNotificationRead: (payload) => ipcRenderer.invoke('sush:github-notification-read', payload),
   // Open in OS / editor
-  openPath: (payload) => ipcRenderer.invoke('sush:open-path', payload),
-  openInEditor: (payload) => ipcRenderer.invoke('sush:open-in-editor', payload),
-  onFileChanged: (callback) => {
-    const listener = (_event, payload) => callback(payload)
-    ipcRenderer.on('sush:file-changed', listener)
-    return () => ipcRenderer.removeListener('sush:file-changed', listener)
-  }
+  openPath: (payload) => ipcRenderer.invoke('sush:open-path', payload)
 })

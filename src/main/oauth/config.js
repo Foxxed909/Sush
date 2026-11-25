@@ -1,7 +1,6 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
-import { atomicWriteJson } from '../secure-storage'
 
 // Global (not per-identity) OAuth client config. It must be readable before
 // anyone signs in — the lock screen needs it — so it lives next to
@@ -49,40 +48,6 @@ export function getOauthConfig() {
     google: {
       clientId: s.google.clientId || DEFAULT_GOOGLE_CLIENT_ID,
       clientSecret: s.google.clientSecret || DEFAULT_GOOGLE_CLIENT_SECRET
-    }
-  }
-}
-
-export function setOauthConfig(patch = {}) {
-  const s = loadStored()
-  if (patch.github && typeof patch.github.clientId === 'string') s.github.clientId = patch.github.clientId.trim()
-  if (patch.google) {
-    if (typeof patch.google.clientId === 'string') s.google.clientId = patch.google.clientId.trim()
-    if (typeof patch.google.clientSecret === 'string') s.google.clientSecret = patch.google.clientSecret.trim()
-  }
-  try { atomicWriteJson(configFile(), s) } catch (e) {
-    return { ok: false, error: e.message }
-  }
-  return { ok: true }
-}
-
-// Renderer-safe shape: the secret never crosses the bridge, only its
-// presence; each provider exposes whether the built-in app is in play and
-// whether sign-in is ready to use at all.
-export function publicOauthConfig() {
-  const s = loadStored()
-  const eff = getOauthConfig()
-  return {
-    github: {
-      clientId: s.github.clientId,
-      usingBuiltIn: !s.github.clientId,
-      configured: !!eff.github.clientId
-    },
-    google: {
-      clientId: s.google.clientId,
-      hasSecret: !!s.google.clientSecret,
-      usingBuiltIn: !s.google.clientId && !s.google.clientSecret,
-      configured: !!(eff.google.clientId && eff.google.clientSecret)
     }
   }
 }
