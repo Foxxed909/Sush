@@ -24,7 +24,7 @@ import {
 } from './users'
 import {
   listAccounts, addAccount, switchAccount, removeAccount, renameAccount, nextAccount, peekNextAccount, markLimitHit,
-  getLimitPolicy, setLimitPolicy, setAccountUsage, slotEnv
+  getLimitPolicy, setLimitPolicy, setAccountUsage, slotEnv, getPoolStats
 } from './accounts'
 import {
   setClaudePanelSender, startClaudePanelRun, stopClaudePanelRun, stopAllClaudePanelRuns,
@@ -1048,7 +1048,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   let threadSink = null
   let bridgedBootCommand = bootCommand
   const budget = cleanBudget(contextBudget)
-  const identityEnv = activeUserEnv()
+  const identityEnv = activeUserEnv({ provider: agentId })
   const cliEnv = { ...process.env, ...sushrcEnv, ...identityEnv }
   if (agentId === 'claude' && bootCommand) {
     try {
@@ -1912,6 +1912,7 @@ export function registerIpcHandlers(win) {
     return fn(user, payload)
   }
   ipcMain.handle('sush:accounts-list', requireUser((user) => listAccounts(user.id)))
+  ipcMain.handle('sush:accounts-pool-stats', requireUser((user, { provider } = {}) => getPoolStats(user.id, provider)))
   ipcMain.handle('sush:accounts-add', requireUser((user, { provider, label }) => {
     // Tier gate: a plan caps how many account slots one CLI can hold. The
     // hard ceiling (MAX_SLOTS in accounts.js) still applies above this.

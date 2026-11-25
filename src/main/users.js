@@ -402,7 +402,7 @@ export function signOut() {
 
 // Environment overlay for PTYs spawned under the active identity. Returns {}
 // when nobody is signed in (solo/legacy mode keeps working untouched).
-export function activeUserEnv({ includeAccounts = true } = {}) {
+export function activeUserEnv({ includeAccounts = true, provider } = {}) {
   const user = findUser(store.activeId)
   if (!user) return {}
   const home = ensureUserDirs(user)
@@ -430,6 +430,7 @@ export function activeUserEnv({ includeAccounts = true } = {}) {
   }
   // Account slots last: non-default CLI slots re-point provider-specific
   // config/home overlays at the slot, beating the identity default above.
-  return includeAccounts ? { ...env, ...accountSlotEnv(user.id) } : env
+  // `provider` narrows them to the CLI being launched (see accountSlotEnv).
+  return includeAccounts ? { ...env, ...accountSlotEnv(user.id, { provider }) } : env
 }
 
