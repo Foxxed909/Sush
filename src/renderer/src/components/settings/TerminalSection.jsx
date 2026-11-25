@@ -3,6 +3,7 @@ import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { Section, Row, Label, Hint, Segment, Toggle, inputStyle } from './primitives'
 import { TAB_GROUPS, DEFAULT_HIDDEN_TABS } from '../../lib/panelTabs'
+import { LINE_HEIGHT_MAX, LINE_HEIGHT_MIN, clampLineHeight } from '../../lib/terminalPrefs'
 
 // Terminal — how sessions render and behave. Session behavior (history
 // restore, agent resume, the per-session resource meter) moved here from
@@ -67,6 +68,20 @@ export default function TerminalSection({ accent, settings, set }) {
         <select value={settings.fontFamily ?? FONTS[0]} onChange={e => set('fontFamily', e.target.value)} style={inputStyle}>
           {FONTS.map(f => <option key={f} value={f}>{f.replace(/'/g, '')}</option>)}
         </select>
+        <Hint>Falls back to your system's monospace font when this one isn't installed.</Hint>
+      </Row>
+      <Row>
+        <Label>Line height</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <input
+            type="range" min={LINE_HEIGHT_MIN} max={LINE_HEIGHT_MAX} step={0.02}
+            value={clampLineHeight(settings.lineHeight)}
+            onChange={e => set('lineHeight', Number(e.target.value))}
+            style={{ flex: 1, accentColor: accent }}
+            aria-label="Terminal line height"
+          />
+          <span style={{ color: 'var(--text-2)', fontSize: 12, width: 34, textAlign: 'right', fontWeight: 700 }}>{clampLineHeight(settings.lineHeight).toFixed(2)}</span>
+        </div>
       </Row>
       <Row>
         <Label>Cursor style</Label>

@@ -9,6 +9,7 @@ import { terminalInputAllowed, terminalInputTargets } from '../lib/terminalInput
 import '@xterm/xterm/css/xterm.css'
 import { registerTerminal, unregisterTerminal } from '../lib/terminalRegistry'
 import { loadContextBudget } from '../lib/contextBudget'
+import { FONT_FALLBACKS, LINE_HEIGHT_DEFAULT } from '../lib/terminalPrefs'
 
 export function useTerminal({
   containerRef,
@@ -19,7 +20,8 @@ export function useTerminal({
   initialCwd,
   bootCommand,
   fontSize = 14,
-  fontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
+  fontFamily = FONT_FALLBACKS,
+  lineHeight = LINE_HEIGHT_DEFAULT,
   cursorStyle = 'block',
   broadcastTabIds,
   restoreKey,
@@ -144,7 +146,7 @@ export function useTerminal({
     const term = new Terminal({
       fontFamily,
       fontSize,
-      lineHeight: 1.4,
+      lineHeight,
       cursorBlink: true,
       cursorStyle,
       theme: theme?.xterm,
@@ -383,6 +385,14 @@ export function useTerminal({
       resizePty()
     }
   }, [fontFamily, resizePty, safeFit])
+
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.lineHeight = lineHeight
+      safeFit()
+      resizePty()
+    }
+  }, [lineHeight, resizePty, safeFit])
 
   useEffect(() => {
     if (termRef.current) {

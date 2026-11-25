@@ -48,6 +48,7 @@ import { buildAgentCommand, normalizeEffort, normalizeModel, normalizePermission
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 import { useOfficeProgress } from './hooks/useOfficeProgress'
 import { broadcastTargetIds } from './lib/terminalInput'
+import { clampLineHeight, resolveFontFamily } from './lib/terminalPrefs'
 import ShellHeader from './components/shell/ShellHeader'
 import ShellSidebar from './components/shell/ShellSidebar'
 import ProviderLogo from './components/ProviderLogo'
@@ -810,7 +811,8 @@ export default function App() {
   const themeId = theme.id
   const accent = theme.ui.accent
   const fontSize = settings.fontSize ?? 14
-  const fontFamily = settings.fontFamily ?? "'Cascadia Code'"
+  const fontFamily = resolveFontFamily(settings.fontFamily)
+  const terminalLineHeight = clampLineHeight(settings.lineHeight)
   const cursorStyle = settings.cursorStyle ?? 'block'
 
   // "Show wallpaper through terminals": when a wallpaper is set and the user
@@ -2675,6 +2677,7 @@ export default function App() {
                                 bootCommand={tab.bootCommand}
                                 fontSize={inLayout ? Math.max(10, fontSize - 2) : fontSize}
                                 fontFamily={fontFamily}
+                                lineHeight={terminalLineHeight}
                                 cursorStyle={cursorStyle}
                                 broadcastTabIds={broadcastTargets}
                                 restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
