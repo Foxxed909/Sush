@@ -26,6 +26,7 @@ import {
   listAccounts, addAccount, switchAccount, removeAccount, renameAccount, nextAccount, peekNextAccount, markLimitHit,
   getLimitPolicy, setLimitPolicy, setAccountUsage, slotEnv, getPoolStats
 } from './accounts'
+import { financeSummary, setFinanceSettings } from './finance'
 import {
   setClaudePanelSender, startClaudePanelRun, stopClaudePanelRun, stopAllClaudePanelRuns,
   getClaudeLimits, checkClaudeLimits, probeClaudeUsage
@@ -1797,6 +1798,9 @@ export function registerIpcHandlers(win) {
   }
   ipcMain.handle('sush:accounts-list', requireUser((user) => listAccounts(user.id)))
   ipcMain.handle('sush:accounts-pool-stats', requireUser((user, { provider } = {}) => getPoolStats(user.id, provider)))
+  // Sush Finance: local transcripts → API-equivalent spend, plans, advice.
+  ipcMain.handle('sush:finance-summary', requireUser((user) => financeSummary(user.id, activeUserEnv({ includeAccounts: false }))))
+  ipcMain.handle('sush:finance-set', requireUser((user, patch) => setFinanceSettings(user.id, patch || {})))
   ipcMain.handle('sush:accounts-add', requireUser((user, { provider, label }) => {
     // Tier gate: a plan caps how many account slots one CLI can hold. The
     // hard ceiling (MAX_SLOTS in accounts.js) still applies above this.

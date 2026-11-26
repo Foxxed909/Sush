@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('sush', {
   accountsUsageRead: (payload) => ipcRenderer.invoke('sush:accounts-usage-read', payload),
   // Aggregate pool stats (N Free accounts as one capacity pool)
   accountsPoolStats: (payload) => ipcRenderer.invoke('sush:accounts-pool-stats', payload),
+  financeSummary: () => ipcRenderer.invoke('sush:finance-summary'),
+  financeSet: (patch) => ipcRenderer.invoke('sush:finance-set', patch),
   // Claude Code panel (stream-json driver)
   claudePanelStart: (payload) => ipcRenderer.invoke('sush:claude-panel-start', payload),
   claudePanelStop: (payload) => ipcRenderer.invoke('sush:claude-panel-stop', payload),

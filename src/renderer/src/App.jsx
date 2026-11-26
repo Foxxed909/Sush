@@ -366,6 +366,7 @@ export default function App() {
   const [homeView, setHomeView] = useState(() => localStorage.getItem(LAST_HOME_VIEW_KEY) || 'dashboard')
   const [showProfiles, setShowProfiles] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsPage, setSettingsPage] = useState(null)
   const [showLauncher, setShowLauncher] = useState(false)
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('sush-right-open') === '1')
   const [seduciaOpen, setSeduciaOpen] = useState(false)
@@ -2126,7 +2127,8 @@ export default function App() {
   const handlePaletteAction = useCallback((action) => {
     if (action === 'new-session') setShowLauncher(true)
     else if (action === 'open-seducia') { setSeduciaOpen(true) }
-    else if (action === 'settings') setShowSettings(true)
+    else if (action === 'settings') { setSettingsPage(null); setShowSettings(true) }
+    else if (action === 'finance') { setSettingsPage('Finance'); setShowSettings(true) }
     else if (action === 'toggle-panel') setRightOpen(prev => !prev)
     else if (action === 'pane-right') { setPaneDock('right'); setRightOpen(true) }
     else if (action === 'pane-bottom') { setPaneDock('bottom'); setRightOpen(true) }
@@ -3025,8 +3027,9 @@ export default function App() {
         <Settings
           settings={settings}
           onChange={saveSettings}
-          onClose={() => setShowSettings(false)}
+          onClose={() => { setShowSettings(false); setSettingsPage(null) }}
           accent={accent}
+          initialPage={settingsPage}
           onEditSushrc={() => { setShowSettings(false); setShowSushrc(true) }}
         />
       </Presence>

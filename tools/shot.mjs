@@ -155,6 +155,24 @@ const stub = `
       opencode: { provider: 'opencode', installed: false, version: null, models: { flag: null }, resume: null, reasoning: null, contextTelemetry: false, threadBridge: false }
     } }),
     checkClis: async ({ names } = {}) => ({ found: Object.fromEntries((names || []).map(n => [n, n === 'claude' || n === 'codex'])) }),
+    financeSummary: async () => ({
+      ok: true, month: '2026-11', pricesAsOf: '2026-11-03', usd: 184.62, tokens: 61_400_000, forecastUsd: 231.4, planUsd: 120, valueRatio: 1.5, budgetUsd: 200, budgetState: 'forecast-over',
+      unmetered: ['gemini', 'opencode', 'grok'], settings: { budgetUsd: 200, plans: { 'claude:default': 100, 'claude:acct-2': 20 }, prices: {} },
+      accounts: [
+        { key: 'claude:default', provider: 'claude', slotId: 'default', label: 'Claude · Personal', usd: 171.2, tokens: 52_100_000, unpricedTokens: 0, requests: 3120, lastUsedAt: now - 3600e3, planUsd: 100 },
+        { key: 'claude:acct-2', provider: 'claude', slotId: 'acct-2', label: 'Claude · Work', usd: 0, tokens: 0, unpricedTokens: 0, requests: 0, lastUsedAt: now - 19 * 864e5, planUsd: 20 },
+        { key: 'codex:default', provider: 'codex', slotId: 'default', label: 'Codex · Default', usd: 13.42, tokens: 9_300_000, unpricedTokens: 2_100_000, requests: 410, lastUsedAt: now - 86400e3, planUsd: 0 }
+      ],
+      projects: [{ key: 'sush', usd: 120.4, tokens: 40_000_000, requests: 2200 }, { key: 'api', usd: 64.22, tokens: 21_400_000, requests: 1330 }],
+      models: [{ key: 'claude-opus-5-5', usd: 160.1, tokens: 45_000_000, unpricedTokens: 0 }, { key: 'claude-sonnet-5-5', usd: 24.52, tokens: 14_300_000, unpricedTokens: 0 }, { key: 'gpt-5.3-codex', usd: 0, tokens: 2_100_000, unpricedTokens: 2_100_000 }],
+      unpricedModels: ['gpt-5.3-codex'],
+      advice: [
+        { kind: 'budget', severity: 'warn', saveUsd: 0, title: 'On pace for $231, over your $200 budget', detail: 'Lower effort on routine sessions or move them to a cheaper model to stay inside it.' },
+        { kind: 'idle', severity: 'save', key: 'claude:acct-2', saveUsd: 20, title: "Claude · Work hasn't been used in 19 days", detail: 'It costs $20.00/mo. Cancel it, or let rotation use it before the next renewal.' },
+        { kind: 'prices', severity: 'info', saveUsd: 0, title: 'No price for gpt-5.3-codex', detail: 'Their tokens are counted but not costed. Add a per-million-token price in Settings ▸ Finance.' }
+      ]
+    }),
+    financeSet: async () => ({ ok: true }),
     accountsList: async () => ({ ok: true, providers: {
       claude: { active: activeClaudeSlot, limitPolicy: 'ask', slots: [ { id: 'default', label: 'Personal', lastLimitAt: null, usage: { status: 'allowed', sessionPct: 42, weekPct: 18, at: now }, usageHistory: [] }, { id: 'acct-2', label: 'Work', lastLimitAt: now - 7200e3, usage: { status: 'allowed', sessionPct: 12, weekPct: 9, at: now }, usageHistory: [] } ] },
       codex: { active: 'default', limitPolicy: 'auto', slots: [ { id: 'default', label: 'Default', lastLimitAt: null, usage: null, usageHistory: [] } ] },
@@ -918,7 +936,7 @@ await page.keyboard.press('Control+,')
 await page.locator('.st-root').waitFor({ state: 'visible', timeout: 5000 })
 await page.locator('.st-nav-item', { hasText: 'Profile & plan' }).click()
 await shot('06-settings')
-for (const [label, name] of [['Appearance', '06a-settings-appearance'], ['Terminal', '06b-settings-terminal'], ['Agents', '06c-settings-agents'], ['Performance', '06d-settings-performance']]) {
+for (const [label, name] of [['Appearance', '06a-settings-appearance'], ['Terminal', '06b-settings-terminal'], ['Agents', '06c-settings-agents'], ['Performance', '06d-settings-performance'], ['Finance', '06f-settings-finance']]) {
   await page.locator('.st-nav-item', { hasText: label }).first().click()
   await page.waitForTimeout(250)
   if ((await page.locator('.st-section').count()) !== 1) throw new Error(`Settings page ${label} did not render alone`)

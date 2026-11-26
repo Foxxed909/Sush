@@ -45,6 +45,7 @@ export const SECTION_DESCRIPTIONS = {
   Plan: 'Your plan, unlock codes and settings backup.',
   Accounts: 'CLI logins Sush can rotate between when one hits its limit.',
   'Usage & Guard': 'Track usage and stop agents before they hit a limit.',
+  Finance: "What your agents' work is worth at API rates, against what your plans cost.",
   'Agents & Seducia': 'Which agents you launch, and how Seducia helps.',
   'Voice & Dictation': 'Talk to your agents and hear them back.',
   Terminal: 'Fonts, cursor, scrollback and shell behaviour.',

@@ -3,6 +3,7 @@ import React from 'react'
 // Lightweight Feather-style stroke icons, drawn inline so we add no dependency.
 const PATHS = {
   terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
+  chart: <><line x1="4" y1="20" x2="20" y2="20" /><line x1="7" y1="20" x2="7" y2="13" /><line x1="12" y1="20" x2="12" y2="7" /><line x1="17" y1="20" x2="17" y2="10" /></>,
   serve: (
     <>
       <rect x="2" y="3" width="20" height="8" rx="2" />

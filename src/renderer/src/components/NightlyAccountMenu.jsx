@@ -17,6 +17,7 @@ export default function NightlyAccountMenu({ provider, label, count = 0, usagePc
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const anchorRef = useRef(null)
+  const [spend, setSpend] = useState(null)
 
   useEffect(() => {
     if (!open || !provider || provider === 'shell') return
@@ -31,6 +32,19 @@ export default function NightlyAccountMenu({ provider, label, count = 0, usagePc
       })
       .catch(() => { if (live) setError('Could not load connected accounts.') })
       .finally(() => { if (live) setLoading(false) })
+    return () => { live = false }
+  }, [open, provider])
+
+  // Sush Finance figure for this provider, read only while the menu is open
+  // (it scans transcripts) and only for the CLIs that record token use.
+  useEffect(() => {
+    if (!open || (provider !== 'claude' && provider !== 'codex')) { setSpend(null); return }
+    let live = true
+    Promise.resolve(window.sush?.financeSummary?.()).then(r => {
+      if (!live || !r?.ok) return
+      const rows = r.accounts.filter(a => a.provider === provider)
+      setSpend({ usd: rows.reduce((n, a) => n + a.usd, 0), unpriced: rows.some(a => a.unpricedTokens > 0) })
+    }).catch(() => {})
     return () => { live = false }
   }, [open, provider])
 
@@ -132,6 +146,11 @@ export default function NightlyAccountMenu({ provider, label, count = 0, usagePc
             )
           })}
           <div className="nightly-account-foot">
+            {spend && (
+              <span className="nightly-account-spend">
+                This month: ${spend.usd.toFixed(2)} at API rates{spend.unpriced ? ' (some models unpriced)' : ''}. Details in Settings ▸ Finance.
+              </span>
+            )}
             Switching restarts this agent and resumes its conversation on the selected account.
           </div>
       </NightlyAnchoredPopover>

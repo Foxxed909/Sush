@@ -5,7 +5,8 @@ import { registry } from '../shell/registry'
 import { getCredits, resetCredits } from '../credits'
 import { getSttConfigPublic } from '../stt'
 import { runtime } from '../shell/runtime'
-import { getActiveUser } from '../users'
+import { activeUserEnv, getActiveUser } from '../users'
+import { financeSummary } from '../finance'
 
 export const help = {
   name: 'help',
@@ -124,6 +125,38 @@ export const credits = {
       ansi.dim(`  Refills ${reset || 'next month'}. Speak with the mic or Ctrl+Shift+S.`),
       ansi.dim(footer)
     ].join('\r\n'))
+  }
+}
+
+export const finance = {
+  name: 'finance',
+  description: "This month's API-equivalent agent spend, plans and savings",
+  usage: 'finance',
+  aliases: ['spend'],
+  async run() {
+    const user = getActiveUser()
+    if (!user) return err('finance: sign in to a profile first.')
+    const s = await financeSummary(user.id, activeUserEnv({ includeAccounts: false }))
+    if (!s?.ok) return err(`finance: ${s?.error || 'could not read usage'}`)
+    const usd = (n) => (n == null ? '—' : `$${n.toFixed(2)}`)
+    const lines = [
+      ansi.bold(ansi.pink('Sush Finance')) + ansi.dim(`  ·  ${s.month}`),
+      ansi.dim('─'.repeat(42)),
+      `  API-equivalent  ${ansi.cyan(usd(s.usd))}   on pace for ${usd(s.forecastUsd)}`,
+      `  Plans           ${s.planUsd ? `${usd(s.planUsd)}/mo` : ansi.dim('not set')}${s.valueRatio != null ? `   ${s.valueRatio}× their price` : ''}`
+    ]
+    if (s.budgetUsd != null) lines.push(`  Budget          ${usd(s.budgetUsd)}   ${s.budgetState.replace('-', ' ')}`)
+    const used = s.accounts.filter(a => a.tokens > 0)
+    if (used.length) {
+      lines.push('', ansi.dim('  Accounts'))
+      for (const a of used) lines.push(`    ${a.label.padEnd(26)} ${usd(a.usd).padStart(9)}`)
+    }
+    if (s.advice.length) {
+      lines.push('', ansi.dim('  Suggestions'))
+      for (const a of s.advice.slice(0, 4)) lines.push(`    • ${a.title}`, ansi.dim(`      ${a.detail}`))
+    }
+    lines.push('', ansi.dim('  Estimates from local Claude Code and Codex transcripts. Settings ▸ Finance for details.'))
+    return ok(lines.join('\r\n'))
   }
 }
 

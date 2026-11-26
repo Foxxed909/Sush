@@ -21,6 +21,7 @@ const STATIC_ACTIONS = [
   { id: 'new-session', label: 'New Session', description: 'Open the swarm launcher', icon: 'plus', action: 'new-session' },
   { id: 'open-seducia', label: 'Open Seducia', description: 'AI session orchestrator (Ctrl+K)', icon: 'sparkles', action: 'open-seducia' },
   { id: 'settings', label: 'Settings', description: 'Open settings panel', icon: 'settings', action: 'settings' },
+  { id: 'finance', label: 'Finance: this month', description: 'What your agents cost at API rates, against your plans', icon: 'chart', action: 'finance' },
   { id: 'plans', label: 'Plans & Billing', description: 'View plan tiers', icon: 'layers', action: 'plans' },
   { id: 'toggle-panel', label: 'Toggle Right Panel', description: 'Show/hide the right panel (Ctrl+B)', icon: 'panel', action: 'toggle-panel' },
   { id: 'zen', label: 'Toggle Zen Mode', description: 'Hide all panels for focus', icon: 'terminal', action: 'zen' },
