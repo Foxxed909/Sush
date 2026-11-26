@@ -109,6 +109,7 @@ Settings ▸ Plan, or run `unlock SUSH-...` in any session.
 | [`docs/archive/REVIEW.md`](docs/archive/REVIEW.md) | 2026-07-24 codebase review: bugs found, what was left alone |
 | [`docs/archive/continue.md`](docs/archive/continue.md) | Claude/agent handoff: Quiet Nights state, architecture constraints, roadmap, testing and next steps |
 | [`docs/BRANCHES.md`](docs/BRANCHES.md) | Branch audit: what was merged, salvaged, and is safe to delete |
+| [`docs/DESIGN_CRITIQUE.md`](docs/DESIGN_CRITIQUE.md) | Design and motion critique: what was fixed, what is proposed |
 | [`docs/REVIEW-2026-10-01.md`](docs/REVIEW-2026-10-01.md) | October reliability review and open product risks |
 | [`term/README.md`](term/README.md) | Sush Terminal: the TUI |
 
