@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { PanelEmpty, TabHeader } from './shared'

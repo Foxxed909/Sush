@@ -239,7 +239,7 @@ export function useSeducia({
     engineRef.current = engine
     return () => engine.destroy()
     // handle is stable enough via refs; we intentionally mount once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   // Keep the engine's config in sync with settings (system TTS only now).

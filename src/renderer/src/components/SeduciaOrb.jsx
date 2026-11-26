@@ -150,7 +150,6 @@ export default function SeduciaOrb({
   const pillLabel = busyVoice
     ? (STATE_LABEL[voiceState] || 'Busy')
     : streaming ? 'Thinking...' : `${working} agent${working === 1 ? '' : 's'} working`
-  const pillColor = speaking ? accent : busyVoice || streaming ? accent : '#5fd3a8'
   const pill = pillVisible ? (
     <div
       className="seducia-pill flex items-center"
@@ -278,9 +277,11 @@ export default function SeduciaOrb({
                   </li>
                 ))}
               </ul>
-              <div className="seducia-approval-actions">
-                <button type="button" onClick={() => approval.resolve(false)}>Skip</button>
-                <button type="button" className="is-primary" onClick={() => approval.resolve(true)} autoFocus>Approve{approval.items.length > 1 ? ' all' : ''}</button>
+              {/* Skip holds focus, so a stray Enter while typing or dictating
+                  never runs model output. Approving takes a click or Ctrl/⌘+Enter. */}
+              <div className="seducia-approval-actions" onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); approval.resolve(true) } }}>
+                <button type="button" onClick={() => approval.resolve(false)} autoFocus>Skip</button>
+                <button type="button" className="is-approve" onClick={() => approval.resolve(true)} title="Approve (Ctrl/⌘ Enter)">Approve{approval.items.length > 1 ? ' all' : ''}</button>
               </div>
             </div>
           )}

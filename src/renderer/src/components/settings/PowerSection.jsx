@@ -1,6 +1,4 @@
 import React from 'react'
-import Icon from '../Icons'
-import { rgba } from '../../lib/ui'
 import { PERF_MODES, perfModeOf, withPerfMode, isFeather, withFeather } from '../../lib/power'
 import { Section, Row, Label, Hint, Toggle, Segment } from './primitives'
 

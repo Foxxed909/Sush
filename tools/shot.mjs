@@ -155,6 +155,24 @@ const stub = `
       opencode: { provider: 'opencode', installed: false, version: null, models: { flag: null }, resume: null, reasoning: null, contextTelemetry: false, threadBridge: false }
     } }),
     checkClis: async ({ names } = {}) => ({ found: Object.fromEntries((names || []).map(n => [n, n === 'claude' || n === 'codex'])) }),
+    financeSummary: async () => ({
+      ok: true, month: '2026-11', pricesAsOf: '2026-11-03', usd: 184.62, tokens: 61_400_000, forecastUsd: 231.4, planUsd: 120, valueRatio: 1.5, budgetUsd: 200, budgetState: 'forecast-over',
+      unmetered: ['gemini', 'opencode', 'grok'], settings: { budgetUsd: 200, plans: { 'claude:default': 100, 'claude:acct-2': 20 }, prices: {} },
+      accounts: [
+        { key: 'claude:default', provider: 'claude', slotId: 'default', label: 'Claude · Personal', usd: 171.2, tokens: 52_100_000, unpricedTokens: 0, requests: 3120, lastUsedAt: now - 3600e3, planUsd: 100 },
+        { key: 'claude:acct-2', provider: 'claude', slotId: 'acct-2', label: 'Claude · Work', usd: 0, tokens: 0, unpricedTokens: 0, requests: 0, lastUsedAt: now - 19 * 864e5, planUsd: 20 },
+        { key: 'codex:default', provider: 'codex', slotId: 'default', label: 'Codex · Default', usd: 13.42, tokens: 9_300_000, unpricedTokens: 2_100_000, requests: 410, lastUsedAt: now - 86400e3, planUsd: 0 }
+      ],
+      projects: [{ key: 'sush', usd: 120.4, tokens: 40_000_000, requests: 2200 }, { key: 'api', usd: 64.22, tokens: 21_400_000, requests: 1330 }],
+      models: [{ key: 'claude-opus-5-5', usd: 160.1, tokens: 45_000_000, unpricedTokens: 0 }, { key: 'claude-sonnet-5-5', usd: 24.52, tokens: 14_300_000, unpricedTokens: 0 }, { key: 'gpt-5.3-codex', usd: 0, tokens: 2_100_000, unpricedTokens: 2_100_000 }],
+      unpricedModels: ['gpt-5.3-codex'],
+      advice: [
+        { kind: 'budget', severity: 'warn', saveUsd: 0, title: 'On pace for $231, over your $200 budget', detail: 'Lower effort on routine sessions or move them to a cheaper model to stay inside it.' },
+        { kind: 'idle', severity: 'save', key: 'claude:acct-2', saveUsd: 20, title: "Claude · Work hasn't been used in 19 days", detail: 'It costs $20.00/mo. Cancel it, or let rotation use it before the next renewal.' },
+        { kind: 'prices', severity: 'info', saveUsd: 0, title: 'No price for gpt-5.3-codex', detail: 'Their tokens are counted but not costed. Add a per-million-token price in Settings ▸ Finance.' }
+      ]
+    }),
+    financeSet: async () => ({ ok: true }),
     accountsList: async () => ({ ok: true, providers: {
       claude: { active: activeClaudeSlot, limitPolicy: 'ask', slots: [ { id: 'default', label: 'Personal', lastLimitAt: null, usage: { status: 'allowed', sessionPct: 42, weekPct: 18, at: now }, usageHistory: [] }, { id: 'acct-2', label: 'Work', lastLimitAt: now - 7200e3, usage: { status: 'allowed', sessionPct: 12, weekPct: 9, at: now }, usageHistory: [] } ] },
       codex: { active: 'default', limitPolicy: 'auto', slots: [ { id: 'default', label: 'Default', lastLimitAt: null, usage: null, usageHistory: [] } ] },
@@ -188,16 +206,13 @@ const stub = `
     appVersion: async () => '${appVersion}',
     homeDir: async () => '/home/taylor',
     listDir: async ({ path } = {}) => ({ path: path || '', entries: [ { name: 'sush', dir: true }, { name: 'notes.md', dir: false } ], exists: true }),
-    sessionStats: async () => ({ sessions: 1, uptime: 4210, memoryMB: 182 }),
     getSystemStatsLite: async () => ({ cpu: { load: 23 }, memory: { total: 16e9, used: 9.2e9, available: 6.8e9 }, uptime: 4210 }),
     connectStatus: async () => ({ claude: { connected: true, account: 'taylor@example.com', expiresAt: now + 86400e3, expired: false, hasRefresh: true }, codex: { connected: false }, gemini: { connected: false } }),
-    oauthConfigGet: async () => ({ github: { clientId: '' }, google: { clientId: '', hasSecret: false }, safeStorage: true }),
     getNpmScripts: async () => ({ ok: true, name: 'sush', scripts: { dev: 'electron-vite dev', test: 'vitest run', build: 'electron-vite build' } }),
     tasksRead: async () => ({ ok: true, file: '', tasks: [] }),
     memoryList: async () => ({ dir: '', notes: [] }),
     getPorts: async () => ({ ok: true, ports: [ { port: '5173', address: '127.0.0.1', pid: 812, process: 'node', protocol: 'tcp' } ] }),
     dockerPs: async () => ({ ok: true, containers: [] }),
-    getTabMeta: async () => ({}),
     newTab: async ({ cwd } = {}) => ({ cwd: cwd || '/home/taylor' }),
     readFile: async ({ path } = {}) => {
       const normalized = String(path || '').replace(/\\\\/g, '/')
@@ -323,7 +338,10 @@ await page.addInitScript(() => {
   }
 })
 await page.addInitScript(stub)
-page.on('pageerror', e => console.error('[pageerror]', e.message))
+// An uncaught renderer error fails the walk: a logged-only error is how a
+// ReferenceError in selectTab shipped unnoticed.
+const pageErrors = []
+page.on('pageerror', e => { pageErrors.push(e.message); console.error('[pageerror]', e.message) })
 await page.goto(url, { waitUntil: 'networkidle' })
 await page.waitForTimeout(1800)
 
@@ -918,7 +936,7 @@ await page.keyboard.press('Control+,')
 await page.locator('.st-root').waitFor({ state: 'visible', timeout: 5000 })
 await page.locator('.st-nav-item', { hasText: 'Profile & plan' }).click()
 await shot('06-settings')
-for (const [label, name] of [['Appearance', '06a-settings-appearance'], ['Terminal', '06b-settings-terminal'], ['Agents', '06c-settings-agents'], ['Performance', '06d-settings-performance']]) {
+for (const [label, name] of [['Appearance', '06a-settings-appearance'], ['Terminal', '06b-settings-terminal'], ['Agents', '06c-settings-agents'], ['Performance', '06d-settings-performance'], ['Finance', '06f-settings-finance']]) {
   await page.locator('.st-nav-item', { hasText: label }).first().click()
   await page.waitForTimeout(250)
   if ((await page.locator('.st-section').count()) !== 1) throw new Error(`Settings page ${label} did not render alone`)
@@ -1253,6 +1271,15 @@ await shot('12-fresh-start')
   if (await page.locator('.office-desk-tag').count() !== 2) throw new Error('Office interior does not seat every session')
   await page.waitForTimeout(1600)
   await shot('n7a-office-interior')
+  // Hovering a desk shows what that agent last put on screen.
+  await page.locator('.office-desk-tag').filter({ hasText: 'Claude' }).first().hover()
+  await page.locator('.office-peek').waitFor({ state: 'visible', timeout: 3000 })
+  {
+    const peek = await page.locator('.office-peek p').innerText()
+    if (!peek.trim()) throw new Error('Desk hover card is empty')
+  }
+  await shot('n7a2-office-peek')
+  await page.mouse.move(5, 5)
   // Zoom into a monitor: the real terminal appears in the screen frame.
   await page.locator('.office-desk-tag').filter({ hasText: 'Claude' }).first().click()
   await page.locator('.shell-terminal-layer.is-monitor').waitFor({ state: 'visible', timeout: 5000 })
@@ -1261,10 +1288,27 @@ await shot('12-fresh-start')
   await page.locator('.office-monitor-bar button', { hasText: 'Back to office' }).click()
   await page.waitForTimeout(500)
   if (await page.locator('.shell-terminal-layer.is-monitor').count()) throw new Error('Back to office did not release the terminal')
+  // Enter terminal from a monitor lands in Code, not back in the Office.
+  await page.locator('.office-desk-tag').filter({ hasText: 'Claude' }).first().click()
+  await page.locator('.office-monitor-bar button', { hasText: 'Enter terminal' }).click()
+  await page.waitForTimeout(600)
+  if (!(await modeActive('Code'))) throw new Error('Enter terminal did not switch to Code')
+  if (await page.locator('.office-canvas').count()) throw new Error('Enter terminal left the Office mounted')
+  await page.keyboard.press('Alt+5')
+  await page.locator('.office-canvas').waitFor({ state: 'attached', timeout: 10000 })
+  await page.waitForTimeout(800)
+  if (!(await page.locator('.office-desk-tag').count())) {
+    await page.locator('.office-sign').filter({ hasText: 'sush' }).first().click()
+    await page.locator('.office-desk-tag').first().waitFor({ state: 'visible', timeout: 5000 })
+  }
   await page.locator('.office-labels [role="button"]', { hasText: 'Hire an agent' }).click()
   await page.locator('.office-hire').waitFor({ state: 'visible', timeout: 5000 })
   await shot('n7c-office-hire')
-  await page.locator('.office-hire header button').click()
+  // Escape closes the Hire panel and hands keys back to the office.
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+  if (await page.locator('.office-hire').count()) throw new Error('Escape did not close the Hire panel')
+  if (!(await page.locator('.office-hud button', { hasText: 'Campus' }).count())) throw new Error('Escape in the Hire panel also left the office')
   await page.locator('.office-theme select').selectOption('neon')
   await page.waitForTimeout(900)
   await shot('n7d-office-neon')
@@ -1298,5 +1342,9 @@ await shot('12-fresh-start')
 
 await browser.close()
 server.close()
+if (pageErrors.length) {
+  console.error(`✗ ${pageErrors.length} uncaught renderer error(s):\n  ${pageErrors.join('\n  ')}`)
+  process.exit(1)
+}
 console.log('done →', outDir)
 

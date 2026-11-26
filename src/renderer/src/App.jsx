@@ -47,6 +47,8 @@ import NightlyComposer from './components/NightlyComposer'
 import { buildAgentCommand, normalizeEffort, normalizeModel, normalizePermission, setProviderCapabilities, supportsResume } from './lib/nightlyModels'
 import { useNightlyProviderMeta } from './hooks/useNightlyProviderMeta'
 import { useOfficeProgress } from './hooks/useOfficeProgress'
+import { broadcastTargetIds } from './lib/terminalInput'
+import { clampLineHeight, resolveFontFamily } from './lib/terminalPrefs'
 import ShellHeader from './components/shell/ShellHeader'
 import ShellSidebar from './components/shell/ShellSidebar'
 import ProviderLogo from './components/ProviderLogo'
@@ -364,6 +366,9 @@ export default function App() {
   const [homeView, setHomeView] = useState(() => localStorage.getItem(LAST_HOME_VIEW_KEY) || 'dashboard')
   const [showProfiles, setShowProfiles] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsPage, setSettingsPage] = useState(null)
+  // A one-off page request (palette ▸ Finance) ends with the sheet, however it closes.
+  useEffect(() => { if (!showSettings) setSettingsPage(null) }, [showSettings])
   const [showLauncher, setShowLauncher] = useState(false)
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('sush-right-open') === '1')
   const [seduciaOpen, setSeduciaOpen] = useState(false)
@@ -387,7 +392,6 @@ export default function App() {
   const [quietHoursActive, setQuietHoursActive] = useState(() => quietHoursNow(loadSettings()))
   const effectiveSaver = manualSaver || autoSaverActive || quietHoursActive
   const [recentSessions, setRecentSessions] = useState(loadRecentSessions)
-  const [smartBusy, setSmartBusy] = useState(false)
   const [smartResult, setSmartResult] = useState(null)
   const [zenMode, setZenMode] = useState(false)
   const terminalSaver = effectiveSaver || zenMode
@@ -438,8 +442,8 @@ export default function App() {
   }, [showPalette])
   const [broadcastMode, setBroadcastMode] = useState(false)
   // Broadcast scope: 'all' types into every session; 'workspace' fences it to
-  // the active session's workspace (its groupId) so briefing one crew can't
-  // leak keystrokes into another.
+  // the active session's project folder (lib/workspaces) so briefing one crew
+  // can't leak keystrokes into another.
   const [broadcastScope, setBroadcastScope] = useState('all')
   const [showHunt, setShowHunt] = useState(false)
   const [gridMode, setGridMode] = useState(false)   // all booted sessions tiled
@@ -447,6 +451,7 @@ export default function App() {
   const [paneDock, setPaneDock] = useState('right')
   const [bottomPaneHeight, setBottomPaneHeight] = useState(() => parseInt(localStorage.getItem('sush-bottom-pane-height') || '300', 10))
   const [renamingId, setRenamingId] = useState(null)
+  const clearRenameRequest = useCallback(() => setRenamingId(null), [])
   const [handoffSource, setHandoffSource] = useState(null)
   const [showSushrc, setShowSushrc] = useState(false)
   const [switcher, setSwitcher] = useState(null)  // { order:[ids], index } when open
@@ -480,7 +485,10 @@ export default function App() {
   const tabsRef = useRef(tabs)
   const activeIdRef = useRef(activeId)
   const closeTabRef = useRef(null)
-  const rightDragRef = useRef(null)
+  // The global keydown handler is bound once, above these callbacks' own
+  // definitions, so it reads their latest versions through this ref. Calling
+  // them directly would capture the tab list from whenever it last re-bound.
+  const shortcutActionsRef = useRef({})
   const mruRef = useRef([])          // tab ids, most-recently-active first
   const switcherRef = useRef(null)
   const lastClosedRef = useRef([])   // stack of recently closed sessions (for reopen)
@@ -678,7 +686,7 @@ export default function App() {
 
   // ── Nightly shell (T3-style) vs Stable (Quiet Nights) ──────────────────────
   const {
-    uiChannel, nightlyShell, currentShellMode, setShellMode, leaveCoveringMode, setUiChannel,
+    nightlyShell, currentShellMode, setShellMode, leaveCoveringMode, setUiChannel,
     drawerOpen, toggleDrawer, drawerHeight, startDrawerDrag,
     officeFocus, setOfficeFocus, placement, threadInCenter, coverSurface
   } = useNightlyShell({
@@ -696,15 +704,14 @@ export default function App() {
   const nightlyProviderMeta = useNightlyProviderMeta(view === 'terminal' ? activeTab : null, !zenMode)
 
   const activeProfile = profiles.find(p => p.id === activeTab?.profileId) ?? profiles[0]
-  const runningSessionCount = tabs.filter(t => t.status === 'running').length
 
   // Broadcast targets, honouring the scope. Workspace scope with no workspace
   // on the active session falls back to all (a solo session has no fence).
-  const broadcastTargets = broadcastMode
-    ? (broadcastScope === 'workspace' && activeTab?.groupId
-        ? tabs.filter(t => t.groupId === activeTab.groupId)
-        : tabs).map(t => t.id)
-    : null
+  const broadcastTargets = broadcastTargetIds(tabs, activeTab, { mode: broadcastMode, scope: broadcastScope })
+  // A fence belongs to the broadcast that set it (an Office meeting). Once it
+  // ends, the next Ctrl+Shift+B is an ordinary broadcast again, not one still
+  // silently limited to the last meeting's office.
+  useEffect(() => { if (!broadcastMode) setBroadcastScope('all') }, [broadcastMode])
 
   // One Seducia, two scopes: on Home she's Main (whole-app control); inside a
   // workspace she's that workspace's Project Seducia — own chat history,
@@ -723,7 +730,7 @@ export default function App() {
       }
     }
     return { kind: 'main', focusedLabel }
-  }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.label])
+  }, [view, activeTab?.groupId, activeTab?.groupLabel, activeTab?.cwd, activeTab?.workspaceCwd, activeTab?.label])
 
   // Nightly workspace activity: live per-session state inferred from the PTY stream.
   const { states: agentStates, limits: agentLimits, summary: agentSummary } = useAgentActivity(tabs, { notify: settings.agentNotifications !== false && !ecoMode, powerSaver: terminalSaver })
@@ -809,7 +816,8 @@ export default function App() {
   const themeId = theme.id
   const accent = theme.ui.accent
   const fontSize = settings.fontSize ?? 14
-  const fontFamily = settings.fontFamily ?? "'Cascadia Code'"
+  const fontFamily = resolveFontFamily(settings.fontFamily)
+  const terminalLineHeight = clampLineHeight(settings.lineHeight)
   const cursorStyle = settings.cursorStyle ?? 'block'
 
   // "Show wallpaper through terminals": when a wallpaper is set and the user
@@ -879,11 +887,6 @@ export default function App() {
     window.sush?.setWindowMaterial?.(materialActive ? settings.windowMaterial : 'none')
   }, [materialActive, settings.windowMaterial])
 
-  const openRight = useCallback((tab) => {
-    setRightTab(tab)
-    setRightOpen(true)
-  }, [])
-
   // NOTE: every chord handled below (and in the session-shortcut effect
   // further down) must be registered in lib/keymap.js — that's the one list
   // useTerminal consults to keep these keys out of the PTY.
@@ -935,14 +938,14 @@ export default function App() {
       // Ctrl+Shift+G → grid layout (all sessions tiled)
       if (ctrl && e.shiftKey && key === 'g') {
         e.preventDefault()
-        toggleWorkspaceGrid()
+        shortcutActionsRef.current.toggleWorkspaceGrid?.()
       }
       // Ctrl+Shift+D → duplicate active tab
-      if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) duplicateTab(activeIdRef.current) }
+      if (ctrl && e.shiftKey && key === 'd') { e.preventDefault(); if (activeIdRef.current) shortcutActionsRef.current.duplicateTab?.(activeIdRef.current) }
       // Ctrl+\ → toggle 2-up split (active + most recent other session)
-      if (ctrl && e.key === '\\') { e.preventDefault(); toggleWorkspaceSplit() }
+      if (ctrl && e.key === '\\') { e.preventDefault(); shortcutActionsRef.current.toggleWorkspaceSplit?.() }
       // Ctrl+T → new tab (Shift variant = reopen-closed, handled separately)
-      if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); openTab(profiles[0]) }
+      if (ctrl && key === 't' && !e.shiftKey) { e.preventDefault(); shortcutActionsRef.current.openTab?.(profiles[0]) }
       // Ctrl+W → close active tab
       if (ctrl && key === 'w' && !e.shiftKey) { e.preventDefault(); if (activeIdRef.current) closeTabRef.current?.(activeIdRef.current) }
     }
@@ -1558,28 +1561,6 @@ export default function App() {
     setTabs(prev => prev.map(t => t.groupId === groupId ? { ...t, groupLabel: next } : t))
   }, [])
 
-  // Close every session that has already exited — a one-click tidy for the rail
-  // after a swarm finishes, instead of dismissing each dead tab by hand.
-  const clearExitedSessions = useCallback(() => {
-    tabsRef.current.filter(t => t.status === 'exited').forEach(t => closeTabRef.current?.(t.id))
-  }, [])
-
-  // Grow an existing workspace: open a fresh shell inside the same group, in the
-  // group's working directory. `tag` forces a new session even when the cwd
-  // matches an existing one (openTab otherwise dedupes by cwd).
-  const addToGroup = useCallback((block) => {
-    if (!block?.id) return
-    const anchor = block.tabs?.find(t => t.workspaceCwd || t.cwd)
-    const cwd = anchor?.workspaceCwd || anchor?.cwd || null
-    openTab(profiles[0], {
-      cwd,
-      workspaceCwd: cwd,
-      groupId: block.id,
-      groupLabel: block.label,
-      tag: `sess-${nextSessionTag++}`
-    })
-  }, [openTab, profiles])
-
   // ── Seducia control surface ────────────────────────────────────────────────
   // Everything the UI buttons can do, exposed as callable actions so Seducia
   // can run the place. Workspace lookups accept a label or "this"/"current"
@@ -1643,18 +1624,6 @@ export default function App() {
       return reads.filter(Boolean)
     }
   }), [liveTargets, findGroupByName, closeGroup, renameGroup])
-
-  const reorderTabs = useCallback((from, to) => {
-    setTabs(prev => {
-      const fromIdx = prev.findIndex(t => t.id === from)
-      const toIdx = prev.findIndex(t => t.id === to)
-      if (fromIdx < 0 || toIdx < 0) return prev
-      const next = [...prev]
-      const [moved] = next.splice(fromIdx, 1)
-      next.splice(toIdx, 0, moved)
-      return next
-    })
-  }, [])
 
   const closeTab = useCallback((id, { rememberClosed = true, returnHome = true } = {}) => {
     const closing = tabsRef.current.find(t => t.id === id)
@@ -1819,23 +1788,6 @@ export default function App() {
     }
   }, [closeTab, openTab, profiles])
 
-  // Pick the best alternate account automatically for limit-hit recovery.
-  const switchAndResume = useCallback(async (tabId) => {
-    const tab = tabsRef.current.find(t => t.id === tabId)
-    const provider = tab?.agentId
-    const agent = agentById(provider)
-    if (!tab || !provider || !agent?.resumeCommand) return
-    try {
-      const list = await window.sush.accountsList?.()
-      const st = list?.providers?.[provider]
-      if (!st || (st.slots?.length || 0) < 2) return
-      const alt = st.slots
-        .filter(s => s.id !== st.active)
-        .sort((a, b) => (a.lastLimitAt || 0) - (b.lastLimitAt || 0))[0]
-      if (alt) await switchToAccountAndResume(tabId, alt.id)
-    } catch {}
-  }, [switchToAccountAndResume])
-
   const handleSessionState = useCallback((tabId, state) => {
     setTabs(prev => prev.map(tab => {
       if (tab.id !== tabId) return tab
@@ -1970,6 +1922,9 @@ export default function App() {
       tag: `copy-${Date.now()}`
     })
   }, [profiles, openTab])
+  useEffect(() => {
+    shortcutActionsRef.current = { openTab, duplicateTab, toggleWorkspaceGrid, toggleWorkspaceSplit }
+  }, [openTab, duplicateTab, toggleWorkspaceGrid, toggleWorkspaceSplit])
 
   // ── Usage Guard (Pro+) ─────────────────────────────────────────────────────
   // Threshold + mode come from Settings; the watching/tripping lives in
@@ -2150,7 +2105,6 @@ export default function App() {
   const runSmartInput = useCallback(async (input) => {
     const command = input.trim()
     if (!command) return
-    setSmartBusy(true)
     try {
       const target = tabsRef.current.find(tab => tab.id === activeId) ?? tabsRef.current[0]
       const result = await window.sush.runSmartInput({ tabId: target?.id, input: command })
@@ -2167,8 +2121,6 @@ export default function App() {
       if (!sensitive && nextResult.type !== 'error') { recordCommand(command); setNudgeHidden(false); setCmdTick(t => t + 1) }
     } catch (error) {
       setSmartResult({ input: command, type: 'error', output: error.message })
-    } finally {
-      setSmartBusy(false)
     }
   }, [activeId, applySmartAction])
 
@@ -2177,7 +2129,8 @@ export default function App() {
   const handlePaletteAction = useCallback((action) => {
     if (action === 'new-session') setShowLauncher(true)
     else if (action === 'open-seducia') { setSeduciaOpen(true) }
-    else if (action === 'settings') setShowSettings(true)
+    else if (action === 'settings') { setSettingsPage(null); setShowSettings(true) }
+    else if (action === 'finance') { setSettingsPage('Finance'); setShowSettings(true) }
     else if (action === 'toggle-panel') setRightOpen(prev => !prev)
     else if (action === 'pane-right') { setPaneDock('right'); setRightOpen(true) }
     else if (action === 'pane-bottom') { setPaneDock('bottom'); setRightOpen(true) }
@@ -2430,6 +2383,8 @@ export default function App() {
             onViewProfile={() => setShowProfile(true)}
             onCloseSession={(id) => closeTab(id)}
             onRenameSession={renameTab}
+            renameRequestId={renamingId}
+            onRenameRequestHandled={clearRenameRequest}
             onDuplicateSession={duplicateTab}
             onHandoffSession={(id) => setHandoffSource(id)}
             onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
@@ -2466,6 +2421,8 @@ export default function App() {
             onViewProfile={() => setShowProfile(true)}
             onCloseSession={(id) => closeTab(id)}
             onRenameSession={renameTab}
+            renameRequestId={renamingId}
+            onRenameRequestHandled={clearRenameRequest}
             onDuplicateSession={duplicateTab}
             onHandoffSession={(id) => setHandoffSource(id)}
             onNewInProject={(cwd) => { setLauncherCwd(cwd || null); setShowLauncher(true) }}
@@ -2674,6 +2631,7 @@ export default function App() {
                                 bootCommand={tab.bootCommand}
                                 fontSize={inLayout ? Math.max(10, fontSize - 2) : fontSize}
                                 fontFamily={fontFamily}
+                                lineHeight={terminalLineHeight}
                                 cursorStyle={cursorStyle}
                                 broadcastTabIds={broadcastTargets}
                                 restoreKey={tab.cwd ? `u:${identity.currentUser?.id ?? 'solo'}:${tabKey(tab)}` : null}
@@ -2709,8 +2667,6 @@ export default function App() {
                             // needs you — same classifier as the rail — without covering
                             // the terminal's first line.
                             const st = tab.status === 'exited' ? STATES.error : (booted ? (STATES[agentStates[tab.id]] || STATES.idle) : null)
-                            const dot = st?.dot ?? 'var(--text-5)'
-                            const pulse = booted && (agentStates[tab.id] === 'working' || agentStates[tab.id] === 'waiting')
                             const tileAgent = agentById(tab.agentId) || agentById('shell')
                             return (
                               <div className={`nightly-tile-head${focused ? ' is-focused' : ''}`}>
@@ -3073,8 +3029,9 @@ export default function App() {
         <Settings
           settings={settings}
           onChange={saveSettings}
-          onClose={() => setShowSettings(false)}
+          onClose={() => { setShowSettings(false); setSettingsPage(null) }}
           accent={accent}
+          initialPage={settingsPage}
           onEditSushrc={() => { setShowSettings(false); setShowSushrc(true) }}
         />
       </Presence>

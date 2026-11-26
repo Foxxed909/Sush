@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Color, DirectionalLight, Fog, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshLambertMaterial,
+  Color, DirectionalLight, PCFSoftShadowMap, Fog, Group, HemisphereLight, Mesh, MeshBasicMaterial, MeshLambertMaterial,
   PerspectiveCamera, PlaneGeometry, Raycaster, Scene, Vector2, Vector3, WebGLRenderer
 } from 'three'
 import Icon from '../Icons'
@@ -12,15 +12,15 @@ import {
   WALL_H, WALL_T, buildCampusLayout, buildInteriorLayout, campusLayoutKey, interiorLayoutKey,
   meetingSeat, moveWithCollisions, nearestInteractable
 } from '../../lib/officeLayout'
-import { levelFor, officeHeadcount, transcriptTokens } from '../../lib/officeStats'
-import { OFFICE_THEMES, loadOfficeThemes, officeTheme, saveOfficeTheme } from '../../lib/officeThemes'
+import { deskPeek, levelFor, officeHeadcount, officeState, transcriptTokens } from '../../lib/officeStats'
+import { CAMPUS_THEME_KEY, OFFICE_THEMES, loadOfficeThemes, officeTheme, saveOfficeTheme } from '../../lib/officeThemes'
 import { threadKey } from '../../lib/shellSidebar'
 import { subscribeThreadFeed } from '../../lib/threadFeedStore'
 import { terminalTail } from '../../lib/terminalRegistry'
 import { workspaceKey } from '../../lib/workspaces'
 import {
   backdropTexture, box, buildBench, buildBoard, buildBuilding, buildDesk, buildFlowers, buildInteriorDecor, buildKiosk, buildLampPost,
-  buildMeetingTable, buildStatue, buildTree, checkerTexture, disposeTree, glow, hashSeed, lift, mat, openingRing, paintScreen,
+  buildMeetingTable, buildParticles, buildStatue, buildTree, checkerTexture, disposeTree, hashSeed, lift, mat, openingRing, paintScreen,
   plankTexture, rugTexture, sit, skyTexture, stand, tileTexture, voxelPerson, wallTexture
 } from './officeScene'
 import './office.css'
@@ -39,9 +39,25 @@ import { playChime } from '../../lib/chime'
 // otherwise the loop wakes at the ambient rate, and stops when hidden.
 
 const PIXEL = 2
+// Render modes: 'hd' is full-resolution 3D with real shadows and an orbit
+// camera; 'pixel' is the original 1/2-res retro look (cheaper on battery).
+const RENDER_KEY = 'sush-office-render'
+function loadRenderMode() {
+  try { return localStorage.getItem(RENDER_KEY) === 'pixel' ? 'pixel' : 'hd' } catch { return 'hd' }
+}
+const PITCH_MIN = -0.55
+const PITCH_MAX = 0.6
+// Rotate an (x, z) vector by yaw around +y, matching atan2(x, z) angles.
+const spin = (x, z, yaw) => [x * Math.cos(yaw) + z * Math.sin(yaw), -x * Math.sin(yaw) + z * Math.cos(yaw)]
 const WALK = 4.4
 const RUN = 7.5
-const IDLE_FPS = 12
+const IDLE_FPS = 20 // ambient redraw rate (breathing, glows)
+const FX_FPS = 30 // smoother while particles drift
+const ZOOM_MIN = 0.55
+const ZOOM_MAX = 1.5
+const MAP_W = 176
+const MAP_H = 128
+const ATTENTION = new Set(['waiting', 'limit', 'error'])
 const WALK_IN_MS = 2600
 const TRIP_MS = 1900
 const SEAT = new Vector3(0, 0.05, 0.72)
@@ -51,11 +67,13 @@ function loadSound() {
   try { return localStorage.getItem(SOUND_KEY) !== 'off' } catch { return true }
 }
 const OPENING_MS = 1100
+const MAP_KEY = 'sush-office-map'
+function loadMapOn() {
+  try { return localStorage.getItem(MAP_KEY) !== 'off' } catch { return true }
+}
 
 function stateOf(tabId, states, limits, tabs) {
-  if (limits[tabId]) return 'limit'
-  if (tabs.find(t => t.id === tabId)?.status === 'exited') return 'error'
-  return states[tabId] || 'idle'
+  return officeState(tabs.find(t => t.id === tabId) || { id: tabId }, states, limits)
 }
 const STATE_COLOR = id => (id === 'limit' ? '#ff9f43' : STATES[id]?.color || STATES.idle.color)
 
@@ -82,6 +100,7 @@ export default function SushOffice({
 }) {
   const hostRef = useRef(null)
   const overlayRef = useRef(null)
+  const mapRef = useRef(null)
   const engineRef = useRef(null)
   const liveRef = useRef({})
   const [place, setPlace] = useState({ kind: 'campus' })
@@ -91,6 +110,12 @@ export default function SushOffice({
   const [failed, setFailed] = useState(false)
   const [tokens, setTokens] = useState({})
   const [sound, setSound] = useState(loadSound)
+  const [mapOn, setMapOn] = useState(loadMapOn)
+  const [renderMode, setRenderMode] = useState(loadRenderMode)
+  const hd = renderMode === 'hd'
+  const [toast, setToast] = useState(null)
+  const [peekId, setPeekId] = useState(null)
+  const [replies, setReplies] = useState({})
 
   const campusKey = campusLayoutKey(tabs)
   const campus = useMemo(() => buildCampusLayout(tabs), [campusKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -102,6 +127,8 @@ export default function SushOffice({
   const layout = interior || campus
   const officeKey = interior?.key || null
   const theme = officeTheme(officeKey ? themes[officeKey] : 'loft')
+  const campusTheme = officeTheme(themes[CAMPUS_THEME_KEY])
+  const activeTheme = interior ? theme : campusTheme
 
   // A closed project's building disappears; don't leave the player inside it.
   useEffect(() => {
@@ -117,6 +144,7 @@ export default function SushOffice({
   }, [interior, meetingTabIds])
   const meetingOn = meetingSet.size > 0
 
+  if (engineRef.current) engineRef.current.mapOn = mapOn
   liveRef.current = { tabs, states, limits, focusTabId, onFocusMonitor, onNewOffice, onChat, onAgents, setPlace, setHireOpen, meetingSet, onMeeting, interior }
 
   // ── Engine: renderer, camera, player, input, loop. Once per accent/motion. ──
@@ -125,13 +153,17 @@ export default function SushOffice({
     if (!host) return undefined
     let renderer
     try {
-      renderer = new WebGLRenderer({ antialias: false, powerPreference: 'low-power' })
+      renderer = new WebGLRenderer({ antialias: hd, powerPreference: hd ? 'high-performance' : 'low-power' })
     } catch {
       setFailed(true)
       return undefined
     }
-    renderer.setPixelRatio(1)
-    renderer.domElement.className = 'office-canvas'
+    renderer.setPixelRatio(hd ? Math.min(2, window.devicePixelRatio || 1) : 1)
+    if (hd) {
+      renderer.shadowMap.enabled = true
+      renderer.shadowMap.type = PCFSoftShadowMap
+    }
+    renderer.domElement.className = `office-canvas${hd ? ' is-hd' : ''}`
     host.appendChild(renderer.domElement)
 
     const scene = new Scene()
@@ -140,11 +172,21 @@ export default function SushOffice({
     const hemi = new HemisphereLight('#c9d2ff', '#2a2030', 2.0)
     const sun = new DirectionalLight('#ffe9f1', 1.7)
     sun.position.set(6, 14, 9)
+    if (hd) {
+      // One shadow-casting key light that follows the camera's focus.
+      sun.castShadow = true
+      sun.shadow.mapSize.set(2048, 2048)
+      sun.shadow.bias = -0.0006
+      sun.shadow.normalBias = 0.03
+      sun.shadow.camera.near = 1
+      sun.shadow.camera.far = 60
+    }
     const fill = new DirectionalLight('#ffcfb8', 0.7)
     fill.position.set(-8, 5, 12)
-    scene.add(hemi, sun, fill)
+    scene.add(hemi, sun, sun.target, fill)
     const camera = new PerspectiveCamera(42, 1, 0.1, 140)
     const player = voxelPerson(accent)
+    if (hd) player.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
     scene.add(player)
 
     const keys = new Set()
@@ -152,14 +194,17 @@ export default function SushOffice({
       renderer, scene, camera, player, keys, hemi, sun,
       world: null, layout: null, place: null, pos: { x: 0, z: 0 }, facing: 0, walkPhase: 0,
       dirty: true, nearest: null, lost: false, anchors: new Map(), desks: [], windows: [],
-      animations: [], knownBuildings: null, seenDesks: new Map(), camTarget: null, look: null
+      animations: [], knownBuildings: null, seenDesks: new Map(), camTarget: null, look: null,
+      vel: { x: 0, z: 0 }, goal: null, zoom: 1, zoomTarget: 1, fx: null, wave: 0, attnIdx: 0, mapOn: loadMapOn(), mapAt: 0, mapXf: null,
+      hd, yaw: 0, yawTarget: 0, pitch: 0, pitchTarget: 0, walls: [], shadowExt: 0
     }
     engineRef.current = engine
 
     const resize = () => {
       const w = Math.max(1, host.clientWidth)
       const h = Math.max(1, host.clientHeight)
-      renderer.setSize(Math.ceil(w / PIXEL), Math.ceil(h / PIXEL), false)
+      if (hd) renderer.setSize(w, h, false)
+      else renderer.setSize(Math.ceil(w / PIXEL), Math.ceil(h / PIXEL), false)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       engine.dirty = true
@@ -186,10 +231,63 @@ export default function SushOffice({
       else if (target.kind === 'meeting') live.onMeeting?.(live.interior, live.meetingSet.size === 0)
     }
     const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'])
+    const flash = (text) => {
+      setToast({ text, at: Date.now() })
+    }
+    // Walk to the next agent (or, on the campus, office) that needs you.
+    engine.gotoNext = () => {
+      const lay = engine.layout
+      const live = liveRef.current
+      if (!lay) return
+      const flagged = lay.kind === 'interior'
+        ? lay.desks.filter(d => d.tabId && ATTENTION.has(stateOf(d.tabId, live.states, live.limits, live.tabs))).map(d => d.id)
+        : lay.buildings.filter(b => b.tabIds.some(id => ATTENTION.has(stateOf(id, live.states, live.limits, live.tabs)))).map(b => `door:${b.key}`)
+      if (!flagged.length) { flash('Nobody needs you right now'); return }
+      const spot = lay.interactables.find(i => i.id === flagged[engine.attnIdx++ % flagged.length])
+      if (spot) { engine.goal = { x: spot.x, z: spot.z }; kick() }
+    }
+    // A crisp 2x PNG of the current view.
+    engine.snap = () => {
+      try {
+        renderer.render(scene, camera)
+        const src = renderer.domElement
+        const out = document.createElement('canvas')
+        out.width = src.width * 2
+        out.height = src.height * 2
+        const ctx = out.getContext('2d')
+        ctx.imageSmoothingEnabled = false
+        ctx.drawImage(src, 0, 0, out.width, out.height)
+        out.toBlob(blob => {
+          if (!blob) return
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(blob)
+          a.download = `sush-office-${(engine.layout?.label || 'campus').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}.png`
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+          flash('Snapshot saved')
+        })
+      } catch { flash('Snapshot failed') }
+    }
     const onKeyDown = (e) => {
       if (liveRef.current.focusTabId) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       const key = e.key.toLowerCase()
       if (MOVE_KEYS.has(key)) { keys.add(key); e.preventDefault(); kick() }
+      if (!e.repeat) {
+        if (key === 'q') { engine.wave = performance.now(); kick() }
+        else if (key === 'n') { e.preventDefault(); engine.gotoNext() }
+        else if (key === 't') { e.preventDefault(); liveRef.current.cycleTheme?.() }
+        else if (key === 'm') { e.preventDefault(); liveRef.current.toggleMap?.() }
+        else if (key === 'p') { e.preventDefault(); engine.snap() }
+        else if (key === 'r') { e.preventDefault(); engine.yawTarget = 0; engine.pitchTarget = 0; engine.zoomTarget = 1; kick() }
+        else if (key === 'v') { e.preventDefault(); liveRef.current.toggleRender?.() }
+      }
+      if (key === ',' || key === '[') { e.preventDefault(); engine.yawTarget -= Math.PI / 8; kick() }
+      if (key === '.' || key === ']') { e.preventDefault(); engine.yawTarget += Math.PI / 8; kick() }
+      if (key === '=' || key === '+') { engine.zoomTarget = Math.max(ZOOM_MIN, engine.zoomTarget - 0.1); kick() }
+      if (key === '-' || key === '_') { engine.zoomTarget = Math.min(ZOOM_MAX, engine.zoomTarget + 0.1); kick() }
       if ((key === 'e' || key === 'enter') && !e.repeat) { e.preventDefault(); interact() }
       if (key === 'escape' && engine.place?.kind === 'interior') { e.preventDefault(); liveRef.current.setPlace({ kind: 'campus' }) }
     }
@@ -199,9 +297,44 @@ export default function SushOffice({
     host.addEventListener('keyup', onKeyUp)
     host.addEventListener('blur', onBlur)
 
+    // Drag (any button) to orbit the camera; a drag never counts as a click.
+    let drag = null
+    const onPointerDown = (e) => {
+      drag = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }
+    }
+    const onPointerMove = (e) => {
+      if (!drag || e.pointerId !== drag.id || !e.buttons || liveRef.current.focusTabId) return
+      const dx = e.clientX - drag.x
+      const dy = e.clientY - drag.y
+      if (!drag.moved && Math.hypot(dx, dy) < 5) return
+      if (!drag.moved) { drag.moved = true; try { renderer.domElement.setPointerCapture(e.pointerId) } catch {} }
+      drag.x = e.clientX
+      drag.y = e.clientY
+      engine.yawTarget -= dx * 0.006
+      engine.pitchTarget = Math.min(PITCH_MAX, Math.max(PITCH_MIN, engine.pitchTarget - dy * 0.005))
+      renderer.domElement.style.cursor = 'grabbing'
+      kick()
+    }
+    const onPointerUp = (e) => {
+      if (drag?.moved) {
+        engine.suppressClick = true
+        setTimeout(() => { engine.suppressClick = false }, 0)
+      }
+      drag = null
+      renderer.domElement.style.cursor = ''
+      try { renderer.domElement.releasePointerCapture(e.pointerId) } catch {}
+    }
+    const onContext = (e) => e.preventDefault()
+    renderer.domElement.addEventListener('pointerdown', onPointerDown)
+    renderer.domElement.addEventListener('pointermove', onPointerMove)
+    renderer.domElement.addEventListener('pointerup', onPointerUp)
+    renderer.domElement.addEventListener('pointercancel', onPointerUp)
+    renderer.domElement.addEventListener('contextmenu', onContext)
+
     const raycaster = new Raycaster()
     const onClick = (e) => {
       host.focus()
+      if (engine.suppressClick) return
       if (!engine.layout || !engine.world || liveRef.current.focusTabId) return
       const rect = renderer.domElement.getBoundingClientRect()
       raycaster.setFromCamera(new Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera)
@@ -209,8 +342,16 @@ export default function SushOffice({
       if (!hit) return
       const target = nearestInteractable({ x: hit.point.x, z: hit.point.z + 0.6 }, engine.layout, 2.2)
       if (target) interact(target)
+      else { engine.goal = { x: hit.point.x, z: hit.point.z }; kick() } // click the floor to walk there
     }
     renderer.domElement.addEventListener('click', onClick)
+    const onWheel = (e) => {
+      if (liveRef.current.focusTabId) return
+      e.preventDefault()
+      engine.zoomTarget = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, engine.zoomTarget * (1 + Math.sign(e.deltaY) * 0.08)))
+      kick()
+    }
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false })
     const onLost = (e) => { e.preventDefault(); engine.lost = true }
     const onRestored = () => { engine.lost = false; engine.dirty = true; kick() }
     renderer.domElement.addEventListener('webglcontextlost', onLost)
@@ -238,6 +379,47 @@ export default function SushOffice({
       }
     }
 
+    // Corner minimap: layout, agents by state, you, and your click-to-walk goal.
+    const drawMap = (now, live) => {
+      const cv = mapRef.current
+      const lay = engine.layout
+      if (!cv || !lay || !engine.mapOn || now - engine.mapAt < 90) return
+      engine.mapAt = now
+      const b = lay.room || lay.floor
+      const ctx = cv.getContext('2d')
+      const pad = 8
+      const scale = Math.min((MAP_W - pad * 2) / (b.maxX - b.minX), (MAP_H - pad * 2) / (b.maxZ - b.minZ))
+      const ox = (MAP_W - (b.maxX - b.minX) * scale) / 2 - b.minX * scale
+      const oz = (MAP_H - (b.maxZ - b.minZ) * scale) / 2 - b.minZ * scale
+      engine.mapXf = { scale, ox, oz }
+      const X = x => x * scale + ox
+      const Z = z => z * scale + oz
+      ctx.clearRect(0, 0, MAP_W, MAP_H)
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'
+      ctx.fillRect(X(b.minX), Z(b.minZ), (b.maxX - b.minX) * scale, (b.maxZ - b.minZ) * scale)
+      if (lay.kind === 'campus') {
+        for (const bd of lay.buildings) {
+          const lit = bd.tabIds.some(id => ATTENTION.has(stateOf(id, live.states, live.limits, live.tabs)))
+          ctx.fillStyle = lit ? 'rgba(255,203,107,0.85)' : 'rgba(185,156,255,0.5)'
+          ctx.fillRect(X(bd.x - bd.w / 2), Z(bd.z - bd.d / 2), bd.w * scale, bd.d * scale)
+        }
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.18)'
+        ctx.beginPath(); ctx.arc(X(lay.meeting.x), Z(lay.meeting.z), lay.meeting.size * scale * 0.5, 0, Math.PI * 2); ctx.fill()
+        for (const d of lay.desks) {
+          ctx.fillStyle = d.tabId ? STATE_COLOR(stateOf(d.tabId, live.states, live.limits, live.tabs)) : 'rgba(255,255,255,0.25)'
+          ctx.fillRect(X(d.x) - 4, Z(d.z) - 3, 8, 6)
+        }
+      }
+      if (engine.goal) {
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5
+        ctx.beginPath(); ctx.arc(X(engine.goal.x), Z(engine.goal.z), 4, 0, Math.PI * 2); ctx.stroke()
+      }
+      ctx.fillStyle = accent
+      ctx.beginPath(); ctx.arc(X(engine.pos.x), Z(engine.pos.z), 3.6, 0, Math.PI * 2); ctx.fill()
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke()
+    }
+
     function frame(now) {
       raf = 0
       const dt = Math.min(0.05, (now - last) / 1000)
@@ -247,30 +429,60 @@ export default function SushOffice({
       let busy = false
       if (!hidden && layoutNow) {
         const live = liveRef.current
-        // ── movement ──
+        // ── movement: eased velocity, keys or a click-to-walk goal ──
         let mx = 0
         let mz = 0
+        let autoRun = false
         if (!live.focusTabId) {
           if (keys.has('w') || keys.has('arrowup')) mz -= 1
           if (keys.has('s') || keys.has('arrowdown')) mz += 1
           if (keys.has('a') || keys.has('arrowleft')) mx -= 1
           if (keys.has('d') || keys.has('arrowright')) mx += 1
         }
-        const moving = !!(mx || mz)
+        if (mx || mz) {
+          engine.goal = null
+          ;[mx, mz] = spin(mx, mz, engine.yaw) // W always walks away from the camera
+        }
+        else if (engine.goal && !live.focusTabId) {
+          const gx = engine.goal.x - engine.pos.x
+          const gz = engine.goal.z - engine.pos.z
+          const dist = Math.hypot(gx, gz)
+          if (dist < 0.14) engine.goal = null
+          else { mx = gx / dist; mz = gz / dist; autoRun = dist > 7 }
+        }
+        const input = Math.hypot(mx, mz)
+        const top = keys.has('shift') || autoRun ? RUN : WALK
+        const vel = engine.vel
+        const ease = reduceMotion ? 1 : 1 - Math.exp(-dt * (input ? 11 : 15))
+        vel.x += ((input ? (mx / input) * top : 0) - vel.x) * ease
+        vel.z += ((input ? (mz / input) * top : 0) - vel.z) * ease
+        const speed = Math.hypot(vel.x, vel.z)
+        const moving = speed > 0.05
         if (moving) {
-          const len = Math.hypot(mx, mz)
-          const speed = (keys.has('shift') ? RUN : WALK) * dt
-          engine.pos = moveWithCollisions(engine.pos, (mx / len) * speed, (mz / len) * speed, layoutNow.colliders)
-          engine.facing = Math.atan2(mx, mz)
-          engine.walkPhase += dt * (keys.has('shift') ? 14 : 10)
+          const before = engine.pos
+          engine.pos = moveWithCollisions(before, vel.x * dt, vel.z * dt, layoutNow.colliders)
+          if (engine.goal && Math.hypot(engine.pos.x - before.x, engine.pos.z - before.z) < speed * dt * 0.15) engine.goal = null // blocked
+          engine.facing = Math.atan2(vel.x, vel.z)
+          engine.walkPhase += dt * (4 + speed * 1.2)
           engine.dirty = true
         }
         const p = player.userData.parts
-        const swing = moving ? Math.sin(engine.walkPhase) * 0.6 : 0
+        const gait = Math.min(1, speed / WALK)
+        const swing = moving ? Math.sin(engine.walkPhase) * 0.6 * gait : 0
         p.legL.rotation.x = swing; p.legR.rotation.x = -swing
         p.armL.rotation.x = -swing; p.armR.rotation.x = swing
-        player.position.set(engine.pos.x, 0, engine.pos.z)
-        player.rotation.y += ((engine.facing - player.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(1, dt * 12)
+        // Idle life: a slow breath, and Q waves hello.
+        const clock = now / 1000
+        p.torso.scale.y = 1 + (moving ? 0 : Math.sin(clock * 2.1) * 0.025)
+        p.armR.rotation.z = 0
+        if (!moving && now - engine.wave < 1500 && !reduceMotion) {
+          p.armR.rotation.x = 0
+          p.armR.rotation.z = 2.5 + Math.sin(now / 85) * 0.35
+          engine.dirty = true
+          busy = true
+        }
+        player.position.set(engine.pos.x, moving && !reduceMotion ? Math.abs(Math.sin(engine.walkPhase)) * 0.05 * gait : 0, engine.pos.z)
+        player.rotation.y += ((engine.facing - player.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * (reduceMotion ? 1 : 1 - Math.exp(-dt * 14))
         player.visible = !live.focusTabId
 
         // ── camera: follow, or fly into a monitor ──
@@ -280,8 +492,8 @@ export default function SushOffice({
           look.copy(engine.camTarget.look)
         } else {
           if (campusCam) {
-            tmp.set(engine.pos.x, 15, engine.pos.z + 15)
-            look.set(engine.pos.x, 0.9, engine.pos.z - 7)
+            tmp.set(engine.pos.x + vel.x * 0.25, 15, engine.pos.z + 15)
+            look.set(engine.pos.x + vel.x * 0.25, 0.9, engine.pos.z - 7 + vel.z * 0.2)
           } else {
             // Frame the whole room: back off until its width fits the view.
             const room = layoutNow.room
@@ -292,12 +504,58 @@ export default function SushOffice({
             look.set(engine.pos.x * 0.25, 0.3, lz)
           }
         }
+        // Orbit (drag / , .) and zoom (wheel / + -) around what the camera looks at.
+        const camEase = reduceMotion ? 1 : 1 - Math.exp(-dt * 9)
+        engine.zoom += (engine.zoomTarget - engine.zoom) * camEase
+        engine.yaw += (engine.yawTarget - engine.yaw) * camEase
+        engine.pitch += (engine.pitchTarget - engine.pitch) * camEase
+        if (!live.focusTabId) {
+          if (campusCam) {
+            const [rx, rz] = spin(look.x - engine.pos.x, look.z - engine.pos.z, engine.yaw)
+            const [cx, cz] = spin(tmp.x - engine.pos.x, tmp.z - engine.pos.z, engine.yaw)
+            look.x = engine.pos.x + rx; look.z = engine.pos.z + rz
+            tmp.x = engine.pos.x + cx; tmp.z = engine.pos.z + cz
+          } else {
+            const [cx, cz] = spin(tmp.x - look.x, tmp.z - look.z, engine.yaw)
+            tmp.x = look.x + cx; tmp.z = look.z + cz
+          }
+          // Pitch: re-aim the offset's elevation, keeping its length and heading.
+          const ox = tmp.x - look.x
+          const oy = tmp.y - look.y
+          const oz = tmp.z - look.z
+          const flat = Math.hypot(ox, oz) || 1e-6
+          const dist = Math.hypot(flat, oy) * engine.zoom
+          const elev = Math.min(1.45, Math.max(0.18, Math.atan2(oy, flat) + engine.pitch))
+          tmp.set(look.x + (ox / flat) * Math.cos(elev) * dist, look.y + Math.sin(elev) * dist, look.z + (oz / flat) * Math.cos(elev) * dist)
+        }
         if (!engine.look) { engine.look = look.clone(); camera.position.copy(tmp) }
         const flying = camera.position.distanceTo(tmp) > 0.02 || engine.look.distanceTo(look) > 0.02
-        camera.position.lerp(tmp, reduceMotion ? 1 : Math.min(1, dt * (live.focusTabId ? 4 : moving ? 5 : 8)))
-        engine.look.lerp(look, reduceMotion ? 1 : Math.min(1, dt * 6))
+        camera.position.lerp(tmp, reduceMotion ? 1 : 1 - Math.exp(-dt * (live.focusTabId ? 4.5 : moving ? 6 : 7)))
+        engine.look.lerp(look, reduceMotion ? 1 : 1 - Math.exp(-dt * 7))
         camera.lookAt(engine.look)
         if (flying) { engine.dirty = true; busy = true }
+
+        // ── HD: shadows follow the focus; walls between you and the camera fade ──
+        if (engine.hd) {
+          const ext = engine.shadowExt || 20
+          const texel = (ext * 2) / 2048
+          const fx0 = Math.round(engine.look.x / texel) * texel
+          const fz0 = Math.round(engine.look.z / texel) * texel
+          sun.target.position.set(fx0, 0, fz0)
+          sun.position.set(fx0 + 7, 16, fz0 + 9)
+          for (const wall of engine.walls) {
+            const want = wall.hides(camera.position) ? 0.14 : 1
+            const m = wall.mesh.material
+            if (Math.abs(m.opacity - want) > 0.01) {
+              m.opacity += (want - m.opacity) * (reduceMotion ? 1 : 1 - Math.exp(-dt * 10))
+              m.transparent = m.opacity < 0.99
+              m.depthWrite = !m.transparent
+              wall.mesh.castShadow = !m.transparent
+              engine.dirty = true
+              busy = true
+            }
+          }
+        }
 
         // ── agents + windows reflect live state ──
         const t = now / 1000
@@ -359,7 +617,18 @@ export default function SushOffice({
             busy = true
             continue
           }
-          if (!reduceMotion && group.userData.atMeeting) {
+          if (reduceMotion) {
+            // No animation, but the pose still carries the state: a raised
+            // hand is how this view says "needs you", motion or not.
+            const parts = person.userData.parts
+            const at = !!group.userData.atMeeting
+            parts.armL.rotation.x = at ? 0 : -0.9
+            parts.armR.rotation.x = at ? 0 : -0.9
+            parts.armR.rotation.z = id === 'waiting' ? 2.6 : 0
+            parts.head.rotation.x = id === 'limit' ? 0.5 : id === 'error' ? -0.2 : 0
+            continue
+          }
+          if (group.userData.atMeeting) {
             // At the table: arms down, listening; a raised hand still means "needs you".
             const parts = person.userData.parts
             parts.armL.rotation.x = 0
@@ -368,7 +637,7 @@ export default function SushOffice({
             parts.head.rotation.x = Math.sin(t * 2 + desk.x) * 0.08
             continue
           }
-          if (!reduceMotion) {
+          {
             const parts = person.userData.parts
             const typing = id === 'working'
             parts.armL.rotation.x = typing ? -1.1 + Math.sin(t * 18 + desk.x) * 0.25 : -0.9
@@ -407,8 +676,9 @@ export default function SushOffice({
         })
 
         // ── live monitors (~1 Hz) ──
-        if (now - lastPaint > 1000 && engine.place?.kind === 'interior') {
+        if ((engine.paintNow || now - lastPaint > 1000) && engine.place?.kind === 'interior') {
           lastPaint = now
+          engine.paintNow = false
           for (const group of engine.desks) {
             const { desk, screen } = group.userData
             if (!screen) continue
@@ -431,7 +701,11 @@ export default function SushOffice({
           setHint(near ? { label: near.label, kind: near.kind } : null)
         }
 
-        const ambient = !reduceMotion && now - lastDraw > 1000 / IDLE_FPS
+        if (engine.fx && !reduceMotion) engine.fx.update(t, dt)
+        drawMap(now, live)
+
+        const fps = engine.fx && !reduceMotion ? FX_FPS : IDLE_FPS
+        const ambient = !reduceMotion && now - lastDraw > 1000 / fps
         if (!engine.lost && (engine.dirty || moving || ambient)) {
           renderer.render(scene, camera)
           placeOverlays()
@@ -440,7 +714,7 @@ export default function SushOffice({
         }
         busy = busy || moving
       }
-      const wait = hidden ? 500 : busy || keys.size ? 0 : reduceMotion ? 250 : 1000 / IDLE_FPS
+      const wait = hidden ? 500 : busy || keys.size ? 0 : reduceMotion ? 250 : 1000 / (engine.fx ? FX_FPS : IDLE_FPS)
       if (!wait) raf = requestAnimationFrame(frame)
       else timer = setTimeout(() => { raf = requestAnimationFrame(frame) }, wait)
     }
@@ -455,6 +729,12 @@ export default function SushOffice({
       host.removeEventListener('keyup', onKeyUp)
       host.removeEventListener('blur', onBlur)
       renderer.domElement.removeEventListener('click', onClick)
+      renderer.domElement.removeEventListener('wheel', onWheel)
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown)
+      renderer.domElement.removeEventListener('pointermove', onPointerMove)
+      renderer.domElement.removeEventListener('pointerup', onPointerUp)
+      renderer.domElement.removeEventListener('pointercancel', onPointerUp)
+      renderer.domElement.removeEventListener('contextmenu', onContext)
       renderer.domElement.removeEventListener('webglcontextlost', onLost)
       renderer.domElement.removeEventListener('webglcontextrestored', onRestored)
       disposeTree(scene)
@@ -465,7 +745,7 @@ export default function SushOffice({
       renderer.domElement.remove()
       engineRef.current = null
     }
-  }, [accent, reduceMotion])
+  }, [accent, reduceMotion, hd])
 
   // ── World: rebuilt when the place, its sessions or its theme change. ──
   useEffect(() => {
@@ -479,6 +759,8 @@ export default function SushOffice({
     engine.desks = []
     engine.windows = []
     engine.animations = []
+    engine.fx = null
+    engine.walls = []
     const now = performance.now()
 
     if (interior) {
@@ -499,9 +781,17 @@ export default function SushOffice({
       world.add(rug)
       const wall = new MeshLambertMaterial({ map: wallTexture(lift(t.wall, 0.12), w), flatShading: true })
       const trim = mat(t.trim === 'accent' ? accent : t.trim)
-      world.add(box(w, WALL_H, WALL_T, wall, 0, WALL_H / 2, room.minZ - WALL_T / 2))
-      world.add(box(WALL_T, WALL_H, d, wall, room.minX - WALL_T / 2, WALL_H / 2, 0))
-      world.add(box(WALL_T, WALL_H, d, wall, room.maxX + WALL_T / 2, WALL_H / 2, 0))
+      // Each wall gets its own material so it can fade when the orbit camera
+      // swings behind it.
+      const backWall = box(w, WALL_H, WALL_T, wall.clone(), 0, WALL_H / 2, room.minZ - WALL_T / 2)
+      const leftWall = box(WALL_T, WALL_H, d, wall.clone(), room.minX - WALL_T / 2, WALL_H / 2, 0)
+      const rightWall = box(WALL_T, WALL_H, d, wall.clone(), room.maxX + WALL_T / 2, WALL_H / 2, 0)
+      world.add(backWall, leftWall, rightWall)
+      engine.walls = [
+        { mesh: backWall, hides: c => c.z < room.minZ + 1 },
+        { mesh: leftWall, hides: c => c.x < room.minX + 1 },
+        { mesh: rightWall, hides: c => c.x > room.maxX - 1 }
+      ]
       const side = (w - interior.doorW) / 2
       world.add(box(side, 0.6, WALL_T, wall, room.minX + side / 2, 0.3, room.maxZ))
       world.add(box(side, 0.6, WALL_T, wall, room.maxX - side / 2, 0.3, room.maxZ))
@@ -548,18 +838,25 @@ export default function SushOffice({
       world.add(table)
       world.userData.meetingTable = table
       anchors.set('meeting', table.userData.anchors.label)
+      const fx = buildParticles(t.fxIn, { minX: room.minX + 0.4, maxX: room.maxX - 0.4, minZ: room.minZ + 0.4, maxZ: room.maxZ - 0.4, top: WALL_H + 0.6 })
+      if (fx) { world.add(fx.points); engine.fx = fx }
     } else {
-      engine.scene.background = skyTexture()
-      engine.scene.fog = new Fog('#1a1230', 34, 80)
-      engine.hemi.color.set('#c9d2ff')
+      // Night Loft keeps the original dusk plaza; every other look re-skins
+      // the sky, fog, ground, path, lamps and weather of the whole campus.
+      const ct = campusTheme
+      const classic = ct.id === 'loft'
+      engine.scene.background = classic ? skyTexture() : skyTexture(ct)
+      engine.scene.fog = new Fog(classic ? '#1a1230' : ct.fog, 34, 80)
+      engine.hemi.color.set(classic ? '#c9d2ff' : lift(ct.light, 0.1))
+      engine.hemi.groundColor.set(classic ? '#2a2030' : lift(ct.floorA, 0.05))
       const { floor } = campus
       const w = floor.maxX - floor.minX
       const d = floor.maxZ - floor.minZ
-      const ground = new Mesh(new PlaneGeometry(w, d), new MeshLambertMaterial({ map: checkerTexture('#1d1a28', '#221e30', w / 2, d / 2) }))
+      const ground = new Mesh(new PlaneGeometry(w, d), new MeshLambertMaterial({ map: classic ? checkerTexture('#1d1a28', '#221e30', w / 2, d / 2) : checkerTexture(lift(ct.floorA, 0.06), lift(ct.floorB, 0.06), w / 2, d / 2) }))
       ground.rotation.x = -Math.PI / 2
       ground.position.set((floor.minX + floor.maxX) / 2, 0, (floor.minZ + floor.maxZ) / 2)
       world.add(ground)
-      const path = new Mesh(new PlaneGeometry(3, d), new MeshLambertMaterial({ map: tileTexture('#2c2740', '#322c48', 1.5, d / 2) }))
+      const path = new Mesh(new PlaneGeometry(3, d), new MeshLambertMaterial({ map: classic ? tileTexture('#2c2740', '#322c48', 1.5, d / 2) : tileTexture(lift(ct.floorB, 0.18), lift(ct.floorB, 0.26), 1.5, d / 2) }))
       path.rotation.x = -Math.PI / 2
       path.position.set(0, 0.004, (floor.minZ + floor.maxZ) / 2)
       world.add(path)
@@ -596,7 +893,7 @@ export default function SushOffice({
       anchors.set('kiosk', kiosk.userData.anchors.label)
       anchors.set('seducia', statue.userData.anchors.label)
       anchors.set('board', board.userData.anchors.label)
-      const lampTheme = OFFICE_THEMES[0]
+      const lampTheme = ct
       for (let z = floor.maxZ - 3; z > campus.seducia.z - 14; z -= 6) {
         world.add(buildLampPost(-2.2, z, lampTheme), buildLampPost(2.2, z, lampTheme))
       }
@@ -605,8 +902,27 @@ export default function SushOffice({
       for (const [x, z] of [[floor.minX + 3, floor.maxZ - 3], [floor.maxX - 3, floor.maxZ - 3], [floor.minX + 3, campus.seducia.z], [floor.maxX - 3, campus.seducia.z]]) {
         world.add(buildTree(x, z))
       }
+      const fx = buildParticles(ct.fx, { minX: floor.minX, maxX: floor.maxX, minZ: floor.minZ, maxZ: floor.maxZ, top: 14 })
+      if (fx) { world.add(fx.points); engine.fx = fx }
     }
 
+    if (engine.hd) {
+      // Real shadows: solid shaded meshes cast and receive; flat planes
+      // (floors, rugs, screens) only receive; glows and particles do neither.
+      world.traverse(o => {
+        if (!o.isMesh || !o.material?.isMeshLambertMaterial) return
+        o.receiveShadow = true
+        o.castShadow = o.geometry?.type !== 'PlaneGeometry'
+      })
+      const span = interior
+        ? Math.max(interior.room.maxX - interior.room.minX, interior.room.maxZ - interior.room.minZ) / 2 + 3
+        : 26
+      const sc = engine.sun.shadow.camera
+      sc.left = sc.bottom = -span
+      sc.right = sc.top = span
+      sc.updateProjectionMatrix()
+      engine.shadowExt = span
+    }
     engine.scene.add(world)
     engine.world = world
     engine.anchors = anchors
@@ -622,9 +938,12 @@ export default function SushOffice({
       engine.pos = moveWithCollisions(engine.pos, 0, 0, layout.colliders)
     }
     engine.place = interior ? { kind: 'interior', key: interior.key } : { kind: 'campus' }
+    // Fresh monitors are blank canvases: paint them on the next frame rather
+    // than up to a second later.
+    engine.paintNow = true
     engine.dirty = true
     engine.kick?.()
-  }, [layout, interior, campus, theme, themes, accent, reduceMotion]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [layout, interior, campus, theme, campusTheme, themes, accent, reduceMotion, hd])  
 
   // Fly into a monitor when App focuses one; back out when it clears.
   useEffect(() => {
@@ -653,6 +972,9 @@ export default function SushOffice({
     const unsubs = bridged.map(tab => subscribeThreadFeed(tab.id, snapshot => {
       const items = Array.isArray(snapshot?.state?.items) ? snapshot.state.items : []
       const totals = transcriptTokens(items)
+      const peek = deskPeek({ items })
+      const reply = peek?.source === 'thread' ? peek.text : ''
+      setReplies(prev => (prev[tab.id] === reply ? prev : { ...prev, [tab.id]: reply }))
       setTokens(prev => (prev[tab.id]?.total === totals.total && prev[tab.id]?.context === totals.context ? prev : { ...prev, [tab.id]: totals }))
       if (totals.output) awardRef.current?.(tab, totals.output)
     }))
@@ -663,12 +985,18 @@ export default function SushOffice({
   // the office you're in; skipped when the app-wide attention chime is on so
   // one event never rings twice.
   const handsRef = useRef(null)
+  const handsScopeRef = useRef(null)
   useEffect(() => {
     const scope = interior ? officeTabs : tabs
-    const raised = new Set(scope.filter(t => stateOf(t.id, states, limits, tabs) === 'waiting').map(t => t.id))
+    const raised = new Set(scope.filter(t => officeState(t, states, limits) === 'waiting').map(t => t.id))
     const prev = handsRef.current
     handsRef.current = raised
-    if (!prev || !sound || globalChime) return
+    // Walking between campus and an office changes who is in earshot; hands
+    // that were already up elsewhere aren't new, so re-baseline silently.
+    const scopeKey = interior?.key || 'campus'
+    const moved = handsScopeRef.current !== scopeKey
+    handsScopeRef.current = scopeKey
+    if (!prev || moved || !sound || globalChime) return
     for (const id of raised) if (!prev.has(id)) { playChime(); break }
   }, [states, limits, tabs, officeTabs, interior, sound, globalChime])
   const toggleSound = () => setSound(prev => {
@@ -677,14 +1005,66 @@ export default function SushOffice({
     return next
   })
 
+  // Each office has its own look; the campus has one too (Night Loft by default).
+  const themeKey = officeKey || CAMPUS_THEME_KEY
   const setOfficeTheme = useCallback((id) => {
-    if (officeKey) setThemes(prev => saveOfficeTheme(prev, officeKey, id))
-  }, [officeKey])
+    setThemes(prev => saveOfficeTheme(prev, themeKey, id))
+  }, [themeKey])
+  const cycleTheme = () => {
+    const at = OFFICE_THEMES.findIndex(t => t.id === activeTheme.id)
+    const next = OFFICE_THEMES[(at + 1) % OFFICE_THEMES.length]
+    setOfficeTheme(next.id)
+    setToast({ text: next.label, at: Date.now() })
+  }
+  const toggleMap = () => setMapOn(prev => {
+    const next = !prev
+    try { localStorage.setItem(MAP_KEY, next ? 'on' : 'off') } catch {}
+    return next
+  })
+  liveRef.current.cycleTheme = cycleTheme
+  liveRef.current.toggleMap = toggleMap
+  const toggleRender = () => setRenderMode(prev => {
+    const next = prev === 'hd' ? 'pixel' : 'hd'
+    try { localStorage.setItem(RENDER_KEY, next) } catch {}
+    setToast({ text: next === 'hd' ? 'Full 3D · shadows on' : 'Retro pixel mode', at: Date.now() })
+    return next
+  })
+  liveRef.current.toggleRender = toggleRender
+  useEffect(() => {
+    if (!toast) return undefined
+    const id = setTimeout(() => setToast(null), 1800)
+    return () => clearTimeout(id)
+  }, [toast])
+  const walkToMap = (e) => {
+    const engine = engineRef.current
+    const xf = engine?.mapXf
+    if (!xf) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const px = ((e.clientX - rect.left) / rect.width) * MAP_W
+    const pz = ((e.clientY - rect.top) / rect.height) * MAP_H
+    engine.goal = { x: (px - xf.ox) / xf.scale, z: (pz - xf.oz) / xf.scale }
+    engine.kick?.()
+    hostRef.current?.focus()
+  }
+  const needYou = () => engineRef.current?.gotoNext?.()
 
   const totals = useMemo(() => officeHeadcount(tabs, states, limits), [tabs, states, limits])
   const officeCounts = useMemo(() => officeHeadcount(officeTabs, states, limits), [officeTabs, states, limits])
   const officeLevel = levelFor(officeKey ? ledger.offices?.[officeKey] : Object.values(ledger.offices || {}).reduce((a, b) => a + b, 0))
   const focusTab = focusTabId ? tabs.find(t => t.id === focusTabId) : null
+
+  // Hover card: refresh the terminal line while it's open (the registry is
+  // read directly, so this costs nothing when no card is showing).
+  const [peekTick, setPeekTick] = useState(0)
+  useEffect(() => {
+    if (!peekId) return undefined
+    const id = setInterval(() => setPeekTick(n => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [peekId])
+  const peek = useMemo(
+    () => (peekId ? deskPeek({ items: replies[peekId] ? [{ type: 'assistant', text: replies[peekId] }] : null, tail: terminalTail(peekId, 12) }) : null),
+    [peekId, replies, peekTick]
+  )
 
   if (failed) {
     return (
@@ -726,6 +1106,7 @@ export default function SushOffice({
                 {counts.working > 0 && <em className="is-working">{counts.working} working</em>}
                 {counts.waiting > 0 && <em className="is-waiting">{counts.waiting} need you</em>}
                 {counts.limit > 0 && <em className="is-limit">{counts.limit} at limit</em>}
+                {counts.error > 0 && <em className="is-limit">{counts.error} exited</em>}
                 {counts.idle > 0 && <em>{counts.idle} idle</em>}
               </div>
             </div>
@@ -760,12 +1141,23 @@ export default function SushOffice({
               tabIndex={-1}
               title={`Open ${desk.label}'s screen`}
               onClick={() => onFocusMonitor?.(desk.tabId)}
+              onMouseEnter={() => setPeekId(desk.tabId)}
+              onMouseLeave={() => setPeekId(prev => (prev === desk.tabId ? null : prev))}
             >
               <ProviderLogo provider={desk.agentId} size={12} />
               <span className="office-desk-name">{desk.label}</span>
               <span className="office-level">Lv {lvl.level}</span>
               {tk?.total ? <span className="office-desk-tokens" title={`${tk.total.toLocaleString()} tokens used · ${tk.context?.toLocaleString() || '—'} in context`}>{formatTokens(tk.total)}</span> : null}
               {(id === 'waiting' || id === 'limit' || id === 'error') && <i className="office-desk-alert">!</i>}
+              {peekId === desk.tabId && (
+                <div className="office-peek" role="tooltip">
+                  <div className="office-peek-head">
+                    <span className={`office-peek-state is-${id}`}>{id === 'limit' ? 'At limit' : STATES[id]?.label || id}</span>
+                    <span>{peek?.source === 'thread' ? 'Last reply' : 'Terminal'}</span>
+                  </div>
+                  <p>{peek?.text || 'Nothing on screen yet.'}</p>
+                </div>
+              )}
             </div>
           )
         })}
@@ -785,7 +1177,13 @@ export default function SushOffice({
               {!officeCounts.total && 'No agents yet'}
             </span>
             {officeCounts.working > 0 && <span className="office-chip is-working">{officeCounts.working} working</span>}
-            {officeCounts.waiting > 0 && <span className="office-chip is-waiting">{officeCounts.waiting} need you</span>}
+            {officeCounts.waiting > 0 && <button className="office-chip is-waiting is-button" onClick={needYou} title="Walk to the next agent that needs you (N)">{officeCounts.waiting} need you</button>}
+            {officeCounts.error > 0 && <span className="office-chip is-limit">{officeCounts.error} exited</span>}
+            {interior.overflow > 0 && (
+              <button className="office-chip is-button" onClick={() => onAgents?.()} title="This office seats 15. The rest are listed in Agents.">
+                +{interior.overflow} more in Agents
+              </button>
+            )}
             {meetingOn && (
               <span className="office-chip is-meeting">
                 Meeting · {meetingSet.size}
@@ -793,12 +1191,6 @@ export default function SushOffice({
                 <button onClick={() => onMeeting?.(interior, false)}>End</button>
               </span>
             )}
-            <label className="office-chip is-button office-theme">
-              <Icon name="palette" size={12} />
-              <select value={theme.id} onChange={e => setOfficeTheme(e.target.value)} aria-label="Office theme">
-                {OFFICE_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </label>
           </>
         ) : (
           <>
@@ -811,9 +1203,25 @@ export default function SushOffice({
               {!totals.total && 'No agents yet'}
             </span>
             {totals.working > 0 && <span className="office-chip is-working">{totals.working} working</span>}
-            {totals.waiting > 0 && <span className="office-chip is-waiting">{totals.waiting} need you</span>}
+            {totals.waiting > 0 && <button className="office-chip is-waiting is-button" onClick={needYou} title="Walk to the next office with an agent that needs you (N)">{totals.waiting} need you</button>}
+            {totals.error > 0 && <span className="office-chip is-limit">{totals.error} exited</span>}
           </>
         )}
+        <label className="office-chip is-button office-theme" title={interior ? 'Look of this office (T cycles)' : 'Look of the campus (T cycles)'}>
+          <Icon name="palette" size={12} />
+          <select value={activeTheme.id} onChange={e => setOfficeTheme(e.target.value)} aria-label={interior ? 'Office theme' : 'Campus theme'}>
+            {OFFICE_THEMES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </label>
+        <button className={`office-chip is-button office-mode${hd ? ' is-on' : ''}`} onClick={toggleRender} aria-pressed={hd} title={hd ? 'Full 3D with shadows — switch to retro pixels (V)' : 'Retro pixels — switch to full 3D (V)'}>
+          {hd ? '3D' : 'Pixel'}
+        </button>
+        <button className={`office-chip is-button${mapOn ? '' : ' is-muted'}`} onClick={toggleMap} aria-pressed={mapOn} title="Minimap (M)">
+          <Icon name="compass" size={12} />
+        </button>
+        <button className="office-chip is-button" onClick={() => engineRef.current?.snap?.()} title="Save a snapshot (P)">
+          <Icon name="download" size={12} />
+        </button>
         <button
           className={`office-chip is-button${sound ? '' : ' is-muted'}`}
           onClick={toggleSound}
@@ -827,7 +1235,12 @@ export default function SushOffice({
           <i><b style={{ width: `${Math.round(officeLevel.progress * 100)}%` }} /></i>
         </span>
       </div>
-      <div className={`office-keys${(hint && !focusTabId) || focusTabId ? ' is-hidden' : ''}`}>WASD move · Shift run · E use · click anything{interior ? ' · Esc campus' : ''}</div>
+      <div className={`office-keys${(hint && !focusTabId) || focusTabId ? ' is-hidden' : ''}`}>WASD / click to walk · drag to orbit · wheel zoom · R reset view · Shift run · E use · Q wave · N next · T look · M map · P snap{interior ? ' · Esc campus' : ''}</div>
+
+      {mapOn && !focusTabId && (
+        <canvas ref={mapRef} className="office-map" width={MAP_W} height={MAP_H} onClick={walkToMap} title="Click to walk there" aria-label="Minimap. Click to walk to a spot." />
+      )}
+      {toast && !focusTabId && <div key={toast.at} className="office-toast" role="status">{toast.text}</div>}
 
       {hint && !focusTabId && (
         <div className={`office-hint is-${hint.kind}`}>
@@ -863,8 +1276,13 @@ function HirePanel({ office, onClose, onHire }) {
   const [count, setCount] = useState(1)
   const models = useMemo(() => pickerRows({ section: agentId }), [agentId])
   useEffect(() => { setModel('') }, [agentId])
+  const panelRef = useRef(null)
+  useEffect(() => { panelRef.current?.querySelector('button.is-on')?.focus() }, [])
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose() }
+  }
   return (
-    <div className="office-hire" role="dialog" aria-label={`Hire an agent for ${office.label}`}>
+    <div ref={panelRef} className="office-hire" role="dialog" aria-modal="true" aria-label={`Hire an agent for ${office.label}`} onKeyDown={onKeyDown}>
       <header>
         <strong>Hire for {office.label}</strong>
         <button onClick={onClose} aria-label="Close"><Icon name="x" size={13} /></button>

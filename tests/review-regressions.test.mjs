@@ -83,3 +83,29 @@ it('supports all 50 advertised Enterprise slots and keeps a hard ceiling', () =>
   expect(listAccounts(user.id).providers.claude.slots).toHaveLength(50)
   expect(addAccount(user.id, 'claude', 'Overflow')).toMatchObject({ ok: false, error: 'Slot limit reached (50)' })
 })
+
+// Gemini and Grok both isolate through HOME. A launch must carry only the
+// overlay of the CLI being started, and a plain shell must not pick one
+// provider's HOME over the other.
+it('scopes account slot overlays to the provider being launched', async () => {
+  const { accountSlotEnv } = await import('../src/main/accounts.js')
+  const { user } = createUser({ name: 'Two homes', isolation: 'full' })
+  activateUser({ id: user.id })
+  const base = activeUserEnv({ includeAccounts: false })
+  addAccount(user.id, 'gemini', 'Gemini work')
+  addAccount(user.id, 'grok', 'Grok work')
+  addAccount(user.id, 'claude', 'Claude work')
+  const gemini = activeUserEnv({ provider: 'gemini' })
+  const grok = activeUserEnv({ provider: 'grok' })
+  expect(gemini.HOME).not.toBe(base.HOME)
+  expect(grok.HOME).not.toBe(base.HOME)
+  expect(gemini.HOME).not.toBe(grok.HOME)
+  // A Gemini tab doesn't inherit the Claude slot either.
+  expect(gemini.CLAUDE_CONFIG_DIR).toBe(base.CLAUDE_CONFIG_DIR)
+  // Shell: non-colliding overlays stay, the contested HOME falls back.
+  const shell = activeUserEnv()
+  expect(shell.HOME).toBe(base.HOME)
+  expect(shell.CLAUDE_CONFIG_DIR).toBe(accountSlotEnv(user.id, { provider: 'claude' }).CLAUDE_CONFIG_DIR)
+  // Custom agents aren't slot providers: they get the shell behaviour.
+  expect(activeUserEnv({ provider: 'custom-x' }).HOME).toBe(base.HOME)
+})

@@ -1,5 +1,5 @@
 // Extra built-in commands: filesystem ops, utilities, dev tools, quick queries.
-import { readFile, writeFile, copyFile, rename, rm, readdir, stat, mkdir } from 'fs/promises'
+import { readFile, writeFile, copyFile, rename, rm, readdir, mkdir } from 'fs/promises'
 import { existsSync, statSync, readFileSync } from 'fs'
 import { resolve, join } from 'path'
 import { createHash } from 'crypto'
@@ -269,7 +269,7 @@ export const calc = {
     if (!expr) return err('calc: missing expression')
     try {
       const safe = toSafeMathExpression(expr)
-      // eslint-disable-next-line no-new-func
+       
       const result = Function('Math', `"use strict"; return (${safe})`)(Math)
       return ok(`${ansi.dim(expr + ' =')} ${ansi.pink(String(result))}`)
     } catch (e) {

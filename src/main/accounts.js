@@ -353,16 +353,38 @@ export function slotEnv(userId, provider, slotId) {
   return envForSlot(userId, provider, slotId)
 }
 
-export function accountSlotEnv(userId) {
+// Overlays for the identity's selected (non-default) slots.
+//
+// A provider's agent tab gets that provider's overlay and nothing else.
+// Gemini and Grok both isolate through HOME, so merging every provider would
+// launch a Gemini tab with Grok's login whenever both had alternate slots.
+//
+// A plain shell (no provider) gets every overlay that doesn't collide. A key
+// two providers set to different paths is dropped, so the shell falls back
+// to the identity's own home rather than silently picking one account.
+export function accountSlotEnv(userId, { provider } = {}) {
   if (!userId) return {}
   const data = load(userId)
-  const env = {}
-  for (const [p] of Object.entries(SLOT_PROVIDERS)) {
+  const overlays = []
+  for (const p of Object.keys(SLOT_PROVIDERS)) {
+    if (provider && SLOT_PROVIDERS[provider] && p !== provider) continue
     const st = data.providers?.[p]
     if (!st || !st.active || st.active === 'default') continue
     if (!st.slots?.some(s => s.id === st.active)) continue
-    Object.assign(env, envForSlot(userId, p, st.active))
+    overlays.push(envForSlot(userId, p, st.active))
   }
-  return env
+  return mergeSlotOverlays(overlays)
 }
 
+export function mergeSlotOverlays(overlays) {
+  const env = {}
+  const clashed = new Set()
+  for (const overlay of overlays) {
+    for (const [key, value] of Object.entries(overlay)) {
+      if (key in env && env[key] !== value) clashed.add(key)
+      else env[key] = value
+    }
+  }
+  for (const key of clashed) delete env[key]
+  return env
+}

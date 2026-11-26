@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -9,6 +9,9 @@ import { terminalInputAllowed, terminalInputTargets } from '../lib/terminalInput
 import '@xterm/xterm/css/xterm.css'
 import { registerTerminal, unregisterTerminal } from '../lib/terminalRegistry'
 import { loadContextBudget } from '../lib/contextBudget'
+import { FONT_FALLBACKS, LINE_HEIGHT_DEFAULT } from '../lib/terminalPrefs'
+
+const motionReduced = () => document.documentElement.classList.contains('sush-motion-reduced')
 
 export function useTerminal({
   containerRef,
@@ -19,7 +22,8 @@ export function useTerminal({
   initialCwd,
   bootCommand,
   fontSize = 14,
-  fontFamily = "'Cascadia Code', 'Fira Code', Consolas, monospace",
+  fontFamily = FONT_FALLBACKS,
+  lineHeight = LINE_HEIGHT_DEFAULT,
   cursorStyle = 'block',
   broadcastTabIds,
   restoreKey,
@@ -144,8 +148,8 @@ export function useTerminal({
     const term = new Terminal({
       fontFamily,
       fontSize,
-      lineHeight: 1.4,
-      cursorBlink: true,
+      lineHeight,
+      cursorBlink: !motionReduced(),
       cursorStyle,
       theme: theme?.xterm,
       // 2000 lines, not 5000: the buffer is per terminal and up to 16 stay
@@ -209,6 +213,13 @@ export function useTerminal({
     })
 
     termRef.current = term
+    // A blinking caret is motion too: follow the app's reduced-motion policy
+    // (OS setting, user toggle, eco, saver) as it changes.
+    const motionObserver = new MutationObserver(() => {
+      const blink = !motionReduced()
+      if (term.options.cursorBlink !== blink) term.options.cursorBlink = blink
+    })
+    motionObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
     registerTerminal(tabId, term)
     fitAddonRef.current = fitAddon
     searchAddonRef.current = searchAddon
@@ -337,6 +348,7 @@ export function useTerminal({
     resizeObserver.observe(containerRef.current)
 
     return () => {
+      motionObserver.disconnect()
       cancelAnimationFrame(rafId)
       if (copyTimer) clearTimeout(copyTimer)
       if (longRunTimer) clearTimeout(longRunTimer)
@@ -383,6 +395,14 @@ export function useTerminal({
       resizePty()
     }
   }, [fontFamily, resizePty, safeFit])
+
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.lineHeight = lineHeight
+      safeFit()
+      resizePty()
+    }
+  }, [lineHeight, resizePty, safeFit])
 
   useEffect(() => {
     if (termRef.current) {

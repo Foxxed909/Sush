@@ -21,6 +21,7 @@ const STATIC_ACTIONS = [
   { id: 'new-session', label: 'New Session', description: 'Open the swarm launcher', icon: 'plus', action: 'new-session' },
   { id: 'open-seducia', label: 'Open Seducia', description: 'AI session orchestrator (Ctrl+K)', icon: 'sparkles', action: 'open-seducia' },
   { id: 'settings', label: 'Settings', description: 'Open settings panel', icon: 'settings', action: 'settings' },
+  { id: 'finance', label: 'Finance: this month', description: 'What your agents cost at API rates, against your plans', icon: 'chart', action: 'finance' },
   { id: 'plans', label: 'Plans & Billing', description: 'View plan tiers', icon: 'layers', action: 'plans' },
   { id: 'toggle-panel', label: 'Toggle Right Panel', description: 'Show/hide the right panel (Ctrl+B)', icon: 'panel', action: 'toggle-panel' },
   { id: 'zen', label: 'Toggle Zen Mode', description: 'Hide all panels for focus', icon: 'terminal', action: 'zen' },
@@ -139,13 +140,13 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
                 </span>
               </span>
               {item.type === 'command' && (
-                <span style={{ fontSize: 10, color: 'var(--text-5)', background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>cmd</span>
+                <span style={{ fontSize: 10, color: 'var(--text-3)', background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>cmd</span>
               )}
             </button>
           ))}
         </div>
 
-        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-5)' }}>
+        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-4)' }}>
           <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>↑↓</kbd> navigate</span>
           <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>↵</kbd> select</span>
           <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>Esc</kbd> close</span>

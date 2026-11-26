@@ -6,7 +6,6 @@ import NightlyAnchoredPopover from './NightlyAnchoredPopover'
 import { agentById } from '../lib/agents'
 
 // One answer to "which agent needs me?": a bell with a count, and the list.
-const KIND_COLOR = { limit: '#ff9f43', waiting: '#ffcb6b', error: '#ff6b81' }
 
 export default function NightlyAttention({ items = [], onFocus, onHandoff }) {
   const [open, setOpen] = useState(false)

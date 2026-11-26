@@ -47,11 +47,20 @@ export function agentIdFromToken(token) {
   const t = String(token || '').toLowerCase().trim()
   if (!t) return null
   if (['all', 'everyone', 'everybody', 'them', 'agents', 'team'].includes(t)) return 'all'
-  for (const agent of allAgents()) {
-    const names = wordsForAgent(agent)
-    if (names.some(n => t === n || t.startsWith(n))) return agent.id
+  const agents = allAgents().map(agent => ({ id: agent.id, names: wordsForAgent(agent) }))
+  // An exact name wins anywhere in the list, so "codex" is never caught by an
+  // earlier agent's prefix.
+  for (const { id, names } of agents) if (names.includes(t)) return id
+  // Prefix matches ("claudes", "geminis") use real names only: one- and
+  // two-letter monograms ("C", "G") would make every c- or g- word Claude or
+  // Gemini. The longest matching name wins.
+  let best = null
+  for (const { id, names } of agents) {
+    for (const n of names) {
+      if (n.length >= 3 && t.startsWith(n) && (!best || n.length > best.len)) best = { id, len: n.length }
+    }
   }
-  return null
+  return best?.id ?? null
 }
 
 // Target = 'all', an agent id (claude/codex/...), or a SESSION LABEL like

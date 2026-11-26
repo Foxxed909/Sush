@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { rgba } from '../../lib/ui'
 import { renderMarkdown } from '../../lib/markdown'
 import { PanelEmpty, TabHeader, fileName } from './shared'

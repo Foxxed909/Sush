@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import StatusIcon from '../StatusIcon'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'

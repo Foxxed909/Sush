@@ -1,7 +1,7 @@
 import { createPtyLaunchGate } from './pty-launch-gate'
 import { ipcMain, app, clipboard, Tray, Menu, nativeImage, powerMonitor } from 'electron'
 import { execFile, execFileSync, spawn } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, statSync, readdirSync, watch as fsWatch } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, statSync, readdirSync } from 'fs'
 import { dirname, isAbsolute, join, parse, resolve } from 'path'
 import { promisify } from 'util'
 import { fileURLToPath } from 'url'
@@ -13,7 +13,7 @@ import { registry } from './shell/registry'
 import { clearTabTimer, loadSnippets, saveSnippets } from './commands/extras'
 import { parseInput } from './shell/parser'
 import { ShellContext } from './shell/context'
-import { loadSushrc, readSushrcRaw, writeSushrcRaw, sushrcPath } from './shell/sushrc'
+import { loadSushrc, readSushrcRaw, writeSushrcRaw } from './shell/sushrc'
 import { ScrollbackStore } from './shell/scrollback'
 import { runtime } from './shell/runtime'
 import { homedir } from 'os'
@@ -24,15 +24,16 @@ import {
 } from './users'
 import {
   listAccounts, addAccount, switchAccount, removeAccount, renameAccount, nextAccount, peekNextAccount, markLimitHit,
-  getLimitPolicy, setLimitPolicy, setAccountUsage, slotEnv
+  getLimitPolicy, setLimitPolicy, setAccountUsage, slotEnv, getPoolStats
 } from './accounts'
+import { financeSummary, setFinanceSettings } from './finance'
 import {
   setClaudePanelSender, startClaudePanelRun, stopClaudePanelRun, stopAllClaudePanelRuns,
   getClaudeLimits, checkClaudeLimits, probeClaudeUsage
 } from './claudePanel'
 import { getTtsConfigPublic, setTtsConfig, synthesizeTts } from './tts'
 import { getSttConfigPublic, setSttConfig, transcribe } from './stt'
-import { getCredits, resetCredits } from './credits'
+import { getCredits } from './credits'
 import { licensePublic, redeemCode, clearLicense, featuresOf, can, setLicenseChangeSender } from './license'
 import { resolveExecutable, shimSpawnSpec } from './exec'
 import { createCapabilityCache } from './provider-capabilities'
@@ -47,8 +48,7 @@ import {
   augmentCodexCommand, codexConfigRoots, codexHome, ensureThreadSink, geminiConfigRoots,
   geminiThreadHooksEnabled, readGeminiSettings, setGeminiCompressionThreshold, setGeminiThreadHooks
 } from './thread-providers'
-import { setOauthConfig, publicOauthConfig } from './oauth/config'
-import { deleteToken, encryptionAvailable } from './oauth/tokenStore'
+import { deleteToken } from './oauth/tokenStore'
 import { startGitHubFlow, cancelGitHubFlow, persistGitHubLogin } from './oauth/github'
 import { startGoogleFlow, cancelGoogleFlow } from './oauth/google'
 import { startConnectFlow, cancelConnectFlow, finishConnectFlow, connectStatus, disconnectProvider, testProvider } from './oauth/connect'
@@ -85,16 +85,6 @@ function untrackAbort(tabId, controller) {
   if (!set.size) abortControllers.delete(tabId)
 }
 
-// Abort every in-flight command on a tab. Returns true if anything was aborted,
-// so the caller knows whether to fall through to the PTY's ^C.
-function abortTab(tabId) {
-  const set = abortControllers.get(tabId)
-  if (!set?.size) return false
-  for (const controller of set) {
-    try { controller.abort() } catch {}
-  }
-  return true
-}
 const cliEngineChildren = new Set()
 const ptySessions = new Map()
 
@@ -156,8 +146,6 @@ function gitOpts(cwd, extra = {}) {
     ...extra
   }
 }
-const fileWatchers = new Map()
-const tabMeta = new Map()   // pin/rename metadata; cleared when its tab closes
 const threadRoots = new Map() // tabId -> { provider, roots } its PTY env points at
 let scrollback = null  // ScrollbackStore, initialized in registerIpcHandlers
 let identityRuntimeGeneration = 0
@@ -226,27 +214,6 @@ function commandExists(file) {
   } catch {
     return false
   }
-}
-
-function launchDetached(file, args, options = {}) {
-  return new Promise(resolveLaunch => {
-    let child
-    try {
-      child = spawn(file, args, { ...options, detached: true, stdio: 'ignore' })
-    } catch (error) {
-      resolveLaunch({ ok: false, error: error.message })
-      return
-    }
-    let settled = false
-    const finish = result => {
-      if (settled) return
-      settled = true
-      if (result.ok) child.unref()
-      resolveLaunch(result)
-    }
-    child.once('spawn', () => finish({ ok: true }))
-    child.once('error', error => finish({ ok: false, error: error.message }))
-  })
 }
 
 // Non-interactive AI engines for Seducia. The entire prompt goes over STDIN
@@ -321,7 +288,7 @@ function runCliEngine(engine, { prompt, cwd }, generation = identityRuntimeGener
     try {
       // Identity env LAST so the active user's CLI login (CLAUDE_CONFIG_DIR,
       // CODEX_HOME, ...) wins over the host's — same rule as PTY spawns.
-      child = spawn(file, args, { cwd: dir, windowsHide: true, env: { ...process.env, ...activeUserEnv() } })
+      child = spawn(file, args, { cwd: dir, windowsHide: true, env: { ...process.env, ...activeUserEnv({ provider: engine }) } })
       cliEngineChildren.add(child)
     } catch (e) {
       return resolve({ ok: false, engine, error: e.message })
@@ -1048,7 +1015,7 @@ async function startPtySession({ tabId, cols, rows, cwd, shellId, profileId, res
   let threadSink = null
   let bridgedBootCommand = bootCommand
   const budget = cleanBudget(contextBudget)
-  const identityEnv = activeUserEnv()
+  const identityEnv = activeUserEnv({ provider: agentId })
   const cliEnv = { ...process.env, ...sushrcEnv, ...identityEnv }
   if (agentId === 'claude' && bootCommand) {
     try {
@@ -1266,13 +1233,6 @@ function closePtySession(tabId, { sync = false } = {}) {
   try { session.proc.kill() } catch {}
 }
 
-function closeAllFileWatchers() {
-  for (const watcher of fileWatchers.values()) {
-    try { watcher.close() } catch {}
-  }
-  fileWatchers.clear()
-}
-
 function closeAllPtySessions({ sync = false } = {}) {
   for (const tabId of [...ptySessions.keys()]) closePtySession(tabId, { sync })
 }
@@ -1289,10 +1249,8 @@ function stopIdentityRuntime({ sync = false, preserveOauthProvider = null } = {}
   for (const child of cliEngineChildren) killProcessTree(child)
   cliEngineChildren.clear()
   stopAllClaudePanelRuns()
-  closeAllFileWatchers()
   closeAllPtySessions({ sync })
   contexts.clear()
-  tabMeta.clear()
   clearGitHubCache()
   cancelConnectFlow()
   if (preserveOauthProvider !== 'github') cancelGitHubFlow()
@@ -1516,71 +1474,8 @@ export function registerIpcHandlers(win) {
     return runRegisteredCommand({ tabId, input, passthroughUnknown: true })
   })
 
-  ipcMain.handle('sush:run-command', async (event, { tabId, input, profileId }) => {
-    if (!getActiveUser()) return { type: 'error', output: 'Sign in to an identity first.' }
-    const ctx = getContext(tabId)
-    // Expand aliases before parsing so alias commands route correctly.
-    const expanded = ctx.expandAliases(String(input ?? '').trim())
-    const parsed = parseInput(expanded)
-    if (!parsed) return { output: '', type: 'empty' }
 
-    const { cmd, args } = parsed
-    const command = registry.get(cmd)
 
-    if (!command) {
-      // Passthrough — run as real system command (no shell: prevents injection via metacharacters)
-      // Resolve the binary first. On Windows most dev tools (npm, npx, code,
-      // claude) are .cmd shims, which Node refuses to execFile without a shell,
-      // so they all came back "command not found". Explicit paths skip lookup.
-      const hasPath = /[\\/]/.test(cmd)
-      const bin = hasPath ? cmd : resolveExecutable(cmd)
-      if (!bin) return { output: `\x1b[31msush: command not found: ${cmd}\x1b[0m`, type: 'error' }
-      const isShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin)
-      // A shim runs through cmd.exe, which re-parses its command line. Refuse
-      // metacharacters there rather than let them become shell syntax.
-      if (isShim && args.some(a => /[&|<>^%!"\r\n]/.test(String(a)))) {
-        return { output: `\x1b[33m${cmd} is a .cmd shim and these arguments contain characters cmd.exe would reinterpret. Run it in the terminal instead.\x1b[0m`, type: 'error' }
-      }
-      const spec = shimSpawnSpec(bin, args)
-      const ac = new AbortController()
-      trackAbort(tabId, ac)
-      try {
-        const { stdout, stderr } = await execFileAsync(spec.file, spec.args, {
-          cwd: ctx.cwd,
-          timeout: 30000,
-          signal: ac.signal,
-          encoding: 'utf8',
-          windowsHide: true,
-          // Same identity rule as PTYs: the signed-in user's CLI logins win.
-          env: { ...process.env, ...activeUserEnv() }
-        })
-        return { output: (stdout + stderr).trimEnd() || '\x1b[2m(no output)\x1b[0m', type: 'success' }
-      } catch (e) {
-        if (e.code === 'ABORT_ERR') return { output: '\x1b[33m^C\x1b[0m', type: 'cancelled' }
-        const out = ((e.stdout || '') + (e.stderr || '')).trimEnd()
-        if (!out && (e.message.includes('not recognized') || e.message.includes('not found') || e.code === 'ENOENT')) {
-          return { output: `\x1b[31msush: command not found: ${cmd}\x1b[0m`, type: 'error' }
-        }
-        return { output: out || `\x1b[31m${e.message}\x1b[0m`, type: 'error' }
-      } finally {
-        untrackAbort(tabId, ac)
-      }
-    }
-
-    return runRegisteredCommand({ tabId, input: expanded, passthroughUnknown: false })
-  })
-
-  ipcMain.handle('sush:cancel-command', (event, { tabId }) => {
-    // A registered command can be in flight even while a PTY exists for the
-    // tab (smart-bar built-ins) — abort it first; the old order wrote ^C to
-    // the PTY and left the built-in running to its timeout.
-    if (abortTab(tabId)) return
-    ptySessions.get(tabId)?.proc.write('\x03')
-  })
-
-  ipcMain.handle('sush:get-cwd', (event, { tabId }) => {
-    return ptySessions.get(tabId)?.cwd ?? contexts.get(tabId)?.cwd ?? homedir()
-  })
 
   ipcMain.handle('sush:new-tab', (event, { tabId, cwd, shellId }) => {
     if (!getActiveUser()) return { ok: false, error: 'no-user' }
@@ -1600,7 +1495,6 @@ export function registerIpcHandlers(win) {
     } finally {
       // Even if the PTY teardown throws, the per-tab maps must not leak.
       contexts.delete(tabId)
-      tabMeta.delete(tabId)
       threadRoots.delete(tabId)
       try { cleanupThreadEventFile(app.getPath('userData'), tabId) } catch {}
     }
@@ -1824,8 +1718,6 @@ export function registerIpcHandlers(win) {
   setOauthEventSender((payload) => {
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:oauth-event', payload)
   })
-  ipcMain.handle('sush:oauth-config-get', () => ({ ...publicOauthConfig(), safeStorage: encryptionAvailable() }))
-  ipcMain.handle('sush:oauth-config-set', (event, payload) => setOauthConfig(payload ?? {}))
   ipcMain.handle('sush:oauth-github-start', (event, payload) => {
     const checked = oauthStartPayload(payload)
     return checked.ok ? startGitHubFlow(checked.payload) : checked
@@ -1875,13 +1767,6 @@ export function registerIpcHandlers(win) {
     return result ? { ok: false, error: result } : { ok: true }
   })
 
-  ipcMain.handle('sush:open-in-editor', async (event, { cwd }) => {
-    const dir = resolveStartCwd(cwd)
-    const bin = resolveExecutable('code')
-    if (!bin) return { ok: false, error: 'VS Code (`code`) not found on PATH' }
-    const { file, args } = shimSpawnSpec(bin, ['.'])
-    return launchDetached(file, args, { cwd: dir, windowsHide: true })
-  })
 
   // ── Seducia via local agent CLIs (no API key) ─────────────────────────────
   ipcMain.handle('sush:seducia-cli', (event, { prompt, cwd, engine, limitPolicy }) => {
@@ -1912,6 +1797,10 @@ export function registerIpcHandlers(win) {
     return fn(user, payload)
   }
   ipcMain.handle('sush:accounts-list', requireUser((user) => listAccounts(user.id)))
+  ipcMain.handle('sush:accounts-pool-stats', requireUser((user, { provider } = {}) => getPoolStats(user.id, provider)))
+  // Sush Finance: local transcripts → API-equivalent spend, plans, advice.
+  ipcMain.handle('sush:finance-summary', requireUser((user) => financeSummary(user.id, activeUserEnv({ includeAccounts: false }))))
+  ipcMain.handle('sush:finance-set', requireUser((user, patch) => setFinanceSettings(user.id, patch || {})))
   ipcMain.handle('sush:accounts-add', requireUser((user, { provider, label }) => {
     // Tier gate: a plan caps how many account slots one CLI can hold. The
     // hard ceiling (MAX_SLOTS in accounts.js) still applies above this.
@@ -1974,7 +1863,6 @@ export function registerIpcHandlers(win) {
   ipcMain.handle('sush:stt-config-set', (event, payload = {}) => setSttConfig(payload))
   ipcMain.handle('sush:stt-transcribe', (event, payload = {}) => transcribe(payload))
   ipcMain.handle('sush:credits-get', () => getCredits())
-  ipcMain.handle('sush:credits-reset', () => resetCredits())
 
   // ── License / tiers (offline unlock codes) ────────────────────────────────
   // One broadcast path for every license change — redeemCode/clearLicense emit
@@ -2101,7 +1989,7 @@ export function registerIpcHandlers(win) {
   // Gemini Thread is opt-in: Sush adds one inert hook to the user's Gemini
   // settings (and removes exactly that hook again on opt-out).
   ipcMain.handle('sush:gemini-thread', (event, { enable } = {}) => {
-    const env = { ...process.env, ...activeUserEnv() }
+    const env = { ...process.env, ...activeUserEnv({ provider: 'gemini' }) }
     try {
       if (typeof enable === 'boolean') return { ok: true, enabled: setGeminiThreadHooks(env, enable, process.platform) }
       return { ok: true, enabled: geminiThreadHooksEnabled(readGeminiSettings(env).settings) }
@@ -2112,7 +2000,7 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:gemini-compression', (event, { threshold = null } = {}) => {
     try {
-      const env = { ...process.env, ...activeUserEnv() }
+      const env = { ...process.env, ...activeUserEnv({ provider: 'gemini' }) }
       return { ok: true, threshold: setGeminiCompressionThreshold(env, threshold) }
     } catch (e) {
       return { ok: false, error: e?.message || 'could not update Gemini settings' }
@@ -2168,7 +2056,6 @@ export function registerIpcHandlers(win) {
   // ── .sushrc profile ───────────────────────────────────────────────────────
   ipcMain.handle('sush:sushrc-read', () => readSushrcRaw())
   ipcMain.handle('sush:sushrc-write', (event, { content }) => writeSushrcRaw(content))
-  ipcMain.handle('sush:sushrc-path', () => ({ path: sushrcPath() }))
 
   // ── File operations ──────────────────────────────────────────────────────
   ipcMain.handle('sush:read-file', async (event, payload = {}) => {
@@ -2252,13 +2139,6 @@ export function registerIpcHandlers(win) {
     }))
   })
 
-  ipcMain.handle('sush:session-stats', () => {
-    return {
-      sessions: ptySessions.size,
-      uptime: Math.floor(process.uptime()),
-      memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024)
-    }
-  })
 
   ipcMain.handle('sush:get-system-stats', async () => {
     try {
@@ -2343,11 +2223,6 @@ export function registerIpcHandlers(win) {
   })
 
   // Pin/rename tab metadata (stored in main so it survives renderer reloads)
-  ipcMain.handle('sush:set-tab-meta', (event, { tabId, meta }) => {
-    tabMeta.set(tabId, { ...(tabMeta.get(tabId) ?? {}), ...meta })
-    return { ok: true }
-  })
-  ipcMain.handle('sush:get-tab-meta', (event, { tabId }) => tabMeta.get(tabId) ?? {})
 
   // ── Port Manager ─────────────────────────────────────────────────────────
   ipcMain.handle('sush:get-ports', async () => {
@@ -2599,40 +2474,6 @@ export function registerIpcHandlers(win) {
   })
 
   // ── File Watcher ──────────────────────────────────────────────────────────
-  ipcMain.handle('sush:watch-path', (event, { watchId, path: watchPath }) => {
-    if (!watchId || !watchPath) return { ok: false, error: 'Missing watchId or path' }
-    // Renderer bugs must not leak OS watcher handles forever.
-    if (!fileWatchers.has(watchId) && fileWatchers.size >= 64) {
-      return { ok: false, error: 'Too many active file watchers' }
-    }
-    if (fileWatchers.has(watchId)) {
-      try { fileWatchers.get(watchId).close() } catch {}
-      fileWatchers.delete(watchId)
-    }
-    try {
-      const watcher = fsWatch(watchPath, { recursive: false }, (eventType, filename) => {
-        if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:file-changed', { watchId, path: watchPath, filename, eventType })
-      })
-      // An FSWatcher with no 'error' listener throws in main when its target
-      // disappears (EPERM on Windows), taking every terminal down with it.
-      watcher.on('error', (err) => {
-        try { watcher.close() } catch {}
-        if (fileWatchers.get(watchId) === watcher) fileWatchers.delete(watchId)
-        if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('sush:file-changed', { watchId, path: watchPath, filename: null, eventType: 'error', error: err?.message || 'watch failed' })
-      })
-      fileWatchers.set(watchId, watcher)
-      return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e.message }
-    }
-  })
 
-  ipcMain.handle('sush:unwatch-path', (event, { watchId }) => {
-    if (fileWatchers.has(watchId)) {
-      try { fileWatchers.get(watchId).close() } catch {}
-      fileWatchers.delete(watchId)
-    }
-    return { ok: true }
-  })
 }
 

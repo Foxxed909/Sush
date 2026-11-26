@@ -166,7 +166,7 @@ describe('Office themes', () => {
   it('falls back to Night Loft for unknown ids', async () => {
     const { officeTheme, OFFICE_THEMES } = await import('../src/renderer/src/lib/officeThemes.js')
     expect(officeTheme('nope').id).toBe('loft')
-    expect(OFFICE_THEMES.map(t => t.id)).toEqual(['loft', 'neon', 'forest', 'space', 'sunset'])
+    expect(OFFICE_THEMES.map(t => t.id)).toEqual(['loft', 'neon', 'forest', 'space', 'sunset', 'ocean', 'desert', 'snow', 'sakura', 'aurora', 'day'])
   })
 })
 

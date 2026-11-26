@@ -4,8 +4,10 @@ node_modules/
 # Build output
 out/
 dist/
+dist-nightly/
 dist-electron/
 shots/
+shots-ci/
 *.local
 
 # Logs
@@ -34,7 +36,8 @@ release/
 
 # MCP / tooling artifacts
 .playwright-mcp/
-.claude/
+.claude/*
+!.claude/skills/
 
 .meetroom/
 electron.vite.config.*.mjs

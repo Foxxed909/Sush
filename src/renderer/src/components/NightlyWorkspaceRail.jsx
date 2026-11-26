@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import StatusIcon, { toneForState } from './StatusIcon'
 import Icon from './Icons'
 import { STATES } from '../lib/agentActivity'
-import { rgba } from '../lib/ui'
 import NightlyProfileMenu from './NightlyProfileMenu'
 import NightlyContextMenu from './NightlyContextMenu'
 import NightlyStatusStrip from './NightlyStatusStrip'
@@ -80,7 +79,9 @@ export default function NightlyWorkspaceRail({
   onOpenPane,
   pinnedProjects = [],
   onTogglePin,
-  status = {}
+  status = {},
+  renameRequestId = null,
+  onRenameRequestHandled
 }) {
   const pinnedKeys = useMemo(
     () => new Set((pinnedProjects || []).map(item => normalizePathKey(item?.cwd)).filter(Boolean)),
@@ -98,6 +99,12 @@ export default function NightlyWorkspaceRail({
 
   const [menu, setMenu] = useState(null)        // { x, y, items }
   const [editingId, setEditingId] = useState(null)
+  // F2 and the palette's "Rename session" ask from outside the rail.
+  useEffect(() => {
+    if (!renameRequestId) return
+    setEditingId(renameRequestId)
+    onRenameRequestHandled?.()
+  }, [renameRequestId, onRenameRequestHandled])
   const copyText = (text) => { if (text) window.sush?.copyText?.(text) }
   const reveal = (path) => { if (path) window.sush?.openPath?.({ path }) }
 

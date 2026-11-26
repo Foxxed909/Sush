@@ -15,7 +15,7 @@
  * Claude Code limits reset on a rolling ~5-hour block plus a weekly cap, so the
  * 5h window total is the number that matters most for "am I about to be cut off".
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 

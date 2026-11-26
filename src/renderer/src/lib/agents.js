@@ -49,7 +49,10 @@ export function loadCustomAgents() {
 }
 
 export function saveCustomAgents(list) {
-  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list.slice(0, MAX_CUSTOM_AGENTS))) } catch {}
+  try {
+    localStorage.setItem(CUSTOM_KEY, JSON.stringify(list.slice(0, MAX_CUSTOM_AGENTS)))
+    return true
+  } catch { return false }
 }
 
 export function addCustomAgent({ label, command, resumeCommand, color }) {
@@ -60,7 +63,7 @@ export function addCustomAgent({ label, command, resumeCommand, color }) {
   const id = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20)
   if (allAgents().some(a => a.id === id)) return { ok: false, error: 'An agent with that name already exists' }
   const next = [...loadCustomAgents(), { id, label: name, command: cmd, resumeCommand: String(resumeCommand ?? '').trim() || undefined, mono: name[0].toUpperCase(), color: color || '#8b9bb0', desc: 'Custom agent', custom: true }]
-  saveCustomAgents(next)
+  if (!saveCustomAgents(next)) return { ok: false, error: 'Could not save the custom agent' }
   return { ok: true, id }
 }
 

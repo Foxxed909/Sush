@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import Icon from '../Icons'
 import { rgba } from '../../lib/ui'
 import { usePolling } from '../../hooks/usePolling'

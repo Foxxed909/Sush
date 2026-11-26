@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { rgba } from '../lib/ui'
 import { POOL_PROVIDERS } from '../lib/agents'
+import { usePolling } from '../hooks/usePolling'
 
 // Account pool capacity for one provider: total remaining (sum across slots)
 // plus one row per account. Rendered always-expanded in Settings > Usage.
@@ -136,31 +137,31 @@ function PoolBreakdown({ pool, accent }) {
 }
 
 function usePoolData(providers) {
-  const list = Array.isArray(providers) ? providers : [providers || 'claude']
+  const key = (Array.isArray(providers) ? providers : [providers || 'claude']).join(',')
   const [pools, setPools] = useState({})
 
   const pull = useCallback(async () => {
     const next = {}
-    for (const provider of list) {
+    for (const provider of key.split(',')) {
+      // A failed pool read falls back to the account list instead of
+      // dropping the provider from the popover.
+      const r = await Promise.resolve(window.sush?.accountsPoolStats?.({ provider })).catch(() => null)
+      if (r?.ok) {
+        next[provider] = r
+        continue
+      }
       try {
-        const r = await window.sush?.accountsPoolStats?.({ provider })
-        if (r?.ok) {
-          next[provider] = r
-          continue
-        }
-        const accounts = await window.sush?.accountsList?.()
-        const derived = derivePoolFromList(accounts, provider)
+        const derived = derivePoolFromList(await window.sush?.accountsList?.(), provider)
         if (derived) next[provider] = derived
       } catch {}
     }
     setPools(next)
-  }, [list.join(',')])
+  }, [key])
 
-  useEffect(() => {
-    pull()
-    const id = setInterval(pull, 60000)
-    return () => clearInterval(id)
-  }, [pull])
+  // Read at once when the provider set changes (usePolling only re-reads on
+  // its next tick or on refocus), then focus-gated like every other poll.
+  useEffect(() => { pull() }, [pull])
+  usePolling(pull, 60000)
 
   return { pools, refresh: pull }
 }

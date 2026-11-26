@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, rmSync } from 'fs'
-import { isAbsolute, join, parse, relative, resolve } from 'path'
+import { isAbsolute, parse, relative, resolve } from 'path'
 
 const RESET_TARGETS = [
   'identities',

@@ -5,6 +5,7 @@ import autoprefixer from 'autoprefixer'
 
 export default defineConfig({
   main: {
+    define: { __SUSH_NIGHTLY__: JSON.stringify(process.env.SUSH_BUILD_CHANNEL === 'nightly') },
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
@@ -24,6 +25,9 @@ export default defineConfig({
         plugins: [tailwindcss(), autoprefixer()]
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    // electron-vite leaves the renderer unminified by default. Minifying it
+    // roughly halves what the window parses on every cold start.
+    build: { minify: 'esbuild' }
   }
 })

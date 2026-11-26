@@ -6,6 +6,7 @@ import TrafficLights from './shell/TrafficLights'
 import PlanSection from './settings/PlanSection'
 import AccountsSection from './settings/AccountsSection'
 import UsageSection from './settings/UsageSection'
+import FinanceSection from './settings/FinanceSection'
 import AgentsSection from './settings/AgentsSection'
 import VoiceSection from './settings/VoiceSection'
 import TerminalSection from './settings/TerminalSection'
@@ -27,6 +28,7 @@ const SETTINGS_NAV = [
   { id: 'Plan', label: 'Profile & plan', icon: 'star', group: 'You', tile: 'accent' },
   { id: 'Accounts', label: 'Accounts', icon: 'users', group: 'You', tile: '#0a84ff' },
   { id: 'Usage & Guard', label: 'Usage & limits', icon: 'activity', group: 'You', tile: '#30d158' },
+  { id: 'Finance', label: 'Finance', icon: 'chart', group: 'You', tile: '#32ade6' },
   { id: 'Agents & Seducia', label: 'Agents', icon: 'rocket', group: 'Agents', tile: '#bf5af2' },
   { id: 'Voice & Dictation', label: 'Voice', icon: 'mic', group: 'Agents', tile: '#ff453a' },
   { id: 'Appearance', label: 'Appearance', icon: 'palette', group: 'Workspace', tile: '#5e5ce6' },
@@ -45,7 +47,7 @@ const LAST_KEY = 'sush-settings-page'
 // One page at a time (the old single scroll ran nine sections and ~55
 // controls together). Searching renders every section and hides rows that
 // don't match, so a query still finds a control wherever it lives.
-export default function Settings({ settings, onChange, onClose, accent, onEditSushrc }) {
+export default function Settings({ settings, onChange, onClose, accent, onEditSushrc, initialPage }) {
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const ent = useEntitlements()
   const [voices, setVoices] = useState([])
@@ -60,6 +62,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
   const bodyRef = useRef(null)
   const searchRef = useRef(null)
   const [page, setPage] = useState(() => {
+    if (SETTINGS_NAV.some(i => i.id === initialPage)) return initialPage
     try {
       const saved = localStorage.getItem(LAST_KEY)
       if (SETTINGS_NAV.some(i => i.id === saved)) return saved
@@ -185,6 +188,7 @@ export default function Settings({ settings, onChange, onClose, accent, onEditSu
           {show('Plan') && <PlanSection accent={accent} ent={ent} settings={settings} onChange={onChange} />}
           {show('Accounts') && <AccountsSection accent={accent} />}
           {show('Usage & Guard') && <UsageSection accent={accent} settings={settings} set={set} />}
+          {show('Finance') && <FinanceSection />}
           {show('Agents & Seducia') && <AgentsSection accent={accent} ent={ent} settings={settings} set={set} />}
           {show('Voice & Dictation') && <VoiceSection accent={accent} settings={settings} set={set} voices={voices} ent={ent} />}
           {show('Appearance') && <AppearanceSection accent={accent} settings={settings} set={set} />}

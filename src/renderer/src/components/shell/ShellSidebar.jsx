@@ -236,7 +236,9 @@ export default function ShellSidebar({
   onOpenChat,
   onNewChat,
   chatOpen = false,
-  status = {}
+  status = {},
+  renameRequestId = null,
+  onRenameRequestHandled
 }) {
   const chats = useSeduciaThreads()
   const [pinned, setPinned] = useState(() => loadSet(PINNED_KEY))
@@ -247,6 +249,13 @@ export default function ShellSidebar({
   const [searching, setSearching] = useState(false)
   const [menu, setMenu] = useState(null)
   const [editingId, setEditingId] = useState(null)
+  // F2 and the palette's "Rename session" ask from outside the rail.
+  useEffect(() => {
+    if (!renameRequestId) return
+    setQuery('')
+    setEditingId(renameRequestId)
+    onRenameRequestHandled?.()
+  }, [renameRequestId, onRenameRequestHandled])
   const [now, setNow] = useState(() => Date.now())
   usePolling(useCallback(() => setNow(Date.now()), []), 30000, true)
 
@@ -335,6 +344,21 @@ export default function ShellSidebar({
       <StageBackdrop />
       <div className="ts-stage">
         <TrafficLights />
+        {/* T3 Code's top-left: wordmark plus channel badge. The badge is the
+            Nightly/Stable switch; nothing restarts. */}
+        <div className="ts-brand-row">
+          <button className="ts-brand" onClick={onHome} title="Home">
+            <span className="ts-brand-mark" style={{ background: accent }} aria-hidden />
+            <span className="ts-brand-word">Sush</span>
+          </button>
+          <button
+            className="ts-brand-channel"
+            onClick={() => onChannel?.('stable')}
+            title="You're on Sush Nightly. Click to switch to Stable. Nothing restarts."
+          >
+            Nightly
+          </button>
+        </div>
         <span className="ts-flex" />
         <button className="ts-icon" onClick={onNewSession} title="New thread (Ctrl+Shift+N)" aria-label="New thread">
           <Icon name="edit" size={15} />

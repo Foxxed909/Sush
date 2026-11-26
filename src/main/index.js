@@ -4,10 +4,12 @@ import { pathToFileURL } from 'url'
 import { existsSync } from 'fs'
 import { registerIpcHandlers } from './ipc'
 
-// Sush Air used to live in this process, behind a `--air` flag. It is its own
-// application now — see ../air. Nothing in this file knows about it, which is
-// the point: two products that can be built, shipped, installed and uninstalled
-// without reference to each other.
+// Set the Nightly profile before requesting the single-instance lock or
+// opening any stores. Stable keeps its existing userData path unchanged.
+if (__SUSH_NIGHTLY__) {
+  app.setName('Sush Nightly')
+  app.setPath('userData', join(app.getPath('appData'), 'Sush Nightly'))
+}
 
 const trustedRendererContents = new Set()
 // The in-app Browser's cookies, storage and cache live in their own session,
