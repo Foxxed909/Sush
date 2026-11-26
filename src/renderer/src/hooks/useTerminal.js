@@ -11,6 +11,8 @@ import { registerTerminal, unregisterTerminal } from '../lib/terminalRegistry'
 import { loadContextBudget } from '../lib/contextBudget'
 import { FONT_FALLBACKS, LINE_HEIGHT_DEFAULT } from '../lib/terminalPrefs'
 
+const motionReduced = () => document.documentElement.classList.contains('sush-motion-reduced')
+
 export function useTerminal({
   containerRef,
   tabId,
@@ -147,7 +149,7 @@ export function useTerminal({
       fontFamily,
       fontSize,
       lineHeight,
-      cursorBlink: true,
+      cursorBlink: !motionReduced(),
       cursorStyle,
       theme: theme?.xterm,
       // 2000 lines, not 5000: the buffer is per terminal and up to 16 stay
@@ -211,6 +213,13 @@ export function useTerminal({
     })
 
     termRef.current = term
+    // A blinking caret is motion too: follow the app's reduced-motion policy
+    // (OS setting, user toggle, eco, saver) as it changes.
+    const motionObserver = new MutationObserver(() => {
+      const blink = !motionReduced()
+      if (term.options.cursorBlink !== blink) term.options.cursorBlink = blink
+    })
+    motionObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
     registerTerminal(tabId, term)
     fitAddonRef.current = fitAddon
     searchAddonRef.current = searchAddon
@@ -339,6 +348,7 @@ export function useTerminal({
     resizeObserver.observe(containerRef.current)
 
     return () => {
+      motionObserver.disconnect()
       cancelAnimationFrame(rafId)
       if (copyTimer) clearTimeout(copyTimer)
       if (longRunTimer) clearTimeout(longRunTimer)

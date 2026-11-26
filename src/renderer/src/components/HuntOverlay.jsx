@@ -128,7 +128,7 @@ export default function HuntOverlay({ accent, tabs = [], onJump, onClose }) {
                 <span style={{ fontSize: 11, fontWeight: 800, color: row.saved ? 'var(--text-4)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {row.label}
                 </span>
-                {row.saved && <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.6, color: 'var(--text-5)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '1px 5px', flexShrink: 0 }}>SAVED</span>}
+                {row.saved && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: 'var(--text-3)', border: '1px solid var(--border-2)', borderRadius: 999, padding: '1px 5px', flexShrink: 0 }}>SAVED</span>}
               </span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontFamily: 'monospace', color: row.saved ? 'var(--text-4)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {mark(row.text)}
@@ -140,7 +140,7 @@ export default function HuntOverlay({ accent, tabs = [], onJump, onClose }) {
           ))}
         </div>
 
-        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-5)' }}>
+        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-4)' }}>
           <span><kbd style={kbd}>↑↓</kbd> hits</span>
           <span><kbd style={kbd}>↵</kbd> jump to session</span>
           <span><kbd style={kbd}>Esc</kbd> close</span>

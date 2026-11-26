@@ -140,13 +140,13 @@ export default function CommandPalette({ accent, onClose, onAction, onRun, dynam
                 </span>
               </span>
               {item.type === 'command' && (
-                <span style={{ fontSize: 10, color: 'var(--text-5)', background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>cmd</span>
+                <span style={{ fontSize: 10, color: 'var(--text-3)', background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>cmd</span>
               )}
             </button>
           ))}
         </div>
 
-        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-5)' }}>
+        <div style={{ padding: '8px 16px', borderTop: `1px solid ${rgba(accent, 0.08)}`, display: 'flex', gap: 14, fontSize: 11, color: 'var(--text-4)' }}>
           <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>↑↓</kbd> navigate</span>
           <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>↵</kbd> select</span>
           <span><kbd style={{ background: '#141a20', border: '1px solid #1d242b', borderRadius: 4, padding: '1px 5px' }}>Esc</kbd> close</span>

@@ -159,19 +159,24 @@ export default function NightlyOverview({
     return out
   }, [tabs, states, limits])
 
+  // One tally for the ring and the pills, so the headline total always equals
+  // the sum of what's listed. Sessions running in your own terminal count in
+  // the same buckets; a live external process is working, not idle.
+  const counts = useMemo(() => {
+    const ext = state => terminalSessions.filter(t => t.state === state).length
+    return {
+      waiting: columns.needs.length + ext('waiting'),
+      working: columns.working.length + ext('working') + ext('running'),
+      idle: columns.idle.length + terminalSessions.filter(t => !['waiting', 'working', 'running', 'done'].includes(t.state)).length,
+      done: ext('done')
+    }
+  }, [columns, terminalSessions])
+
   return (
     <div className="nightly-overview ag-board sush-scroll">
       <div className="ag-inner">
         <div className="ag-hero">
-          <CrewPulse
-            total={tabs.length + terminalSessions.length}
-            counts={{
-              waiting: columns.needs.length + terminalSessions.filter(t => t.state === 'waiting').length,
-              working: columns.working.length + terminalSessions.filter(t => t.state === 'working').length,
-              idle: columns.idle.length + terminalSessions.filter(t => t.state === 'idle' || t.state === 'running').length,
-              done: terminalSessions.filter(t => t.state === 'done').length
-            }}
-          />
+          <CrewPulse total={counts.waiting + counts.working + counts.idle + counts.done} counts={counts} />
           <div className="ag-hero-copy">
             <h1>Agents</h1>
             <p>
@@ -180,12 +185,13 @@ export default function NightlyOverview({
             </p>
             <div className="ag-stats">
               {[
-                ['needs', 'Needs you', columns.needs.length],
-                ['working', 'Working', columns.working.length],
-                ['idle', 'Idle', columns.idle.length]
+                ['needs', 'Needs you', counts.waiting],
+                ['working', 'Working', counts.working],
+                ['idle', 'Idle', counts.idle],
+                ...(counts.done ? [['done', 'Done', counts.done]] : [])
               ].map(([k, label, n]) => (
                 <span key={k} className={`ag-stat is-${k}${n ? ' has' : ''}`}>
-                  <StatusIcon tone={{ needs: 'attention', working: 'working', idle: 'idle' }[k]} size={14} /> <b>{n}</b> {label}
+                  <StatusIcon tone={{ needs: 'attention', working: 'working', idle: 'idle', done: 'ok' }[k]} size={14} /> <b>{n}</b> {label}
                 </span>
               ))}
             </div>

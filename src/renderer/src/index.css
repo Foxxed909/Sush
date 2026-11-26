@@ -60,7 +60,7 @@
   --text-3: #8a8f98;
   /* Hint text: lifted from #62666d (~3.5:1 on surface-0) to clear the 4.5:1
      body-contrast floor — light-gray "for elegance" is the #1 legibility sin. */
-  --text-4: #757a83;
+  --text-4: #838890;
   --text-5: #3a3f47;
 
   /* ---- Surface & border ramp (Linear-backbone) ----
@@ -592,9 +592,9 @@ body[data-sleeping] *:not(.sush-sleep-breathe) {
   .sush-sleep-breathe { animation: none; }
 }
 
-/* Explicit reduce-motion: user opt-in (Settings) OR the OS preference. Collapses
-   every animation/transition to an imperceptible tick — nothing is disabled
-   functionally, it just arrives instantly. */
+/* Explicit reduce-motion: the user toggle or eco mode (App.jsx). Collapses
+   every animation/transition to an imperceptible tick. Nothing is disabled
+   functionally; it just arrives instantly. */
 .sush-reduce-motion *,
 .sush-reduce-motion *::before,
 .sush-reduce-motion *::after {
@@ -604,6 +604,15 @@ body[data-sleeping] *:not(.sush-sleep-breathe) {
   transition-duration: 0.001ms !important;
   transition-delay: 0ms !important;
   scroll-behavior: auto !important;
+}
+
+/* Reduced motion from any source (OS, toggle, eco, saver; lib/motionPolicy.js):
+   no animation loops forever. Pulses, shimmers, blinks and orbits play once
+   and stop. Progress spinners are exempt: they are status, not ornament. */
+:root.sush-motion-reduced *:not(.sush-spinner):not(.sush-spin):not(.onb-spinner):not(.ts-row-badge.is-spinning),
+:root.sush-motion-reduced *::before,
+:root.sush-motion-reduced *::after {
+  animation-iteration-count: 1 !important;
 }
 
 /* ── Impeccable polish ───────────────────────────────────────────────────────
@@ -860,7 +869,7 @@ p { text-wrap: pretty; }
 }
 .nightly-model-pill:hover { background: rgba(255,255,255,.05); color: var(--text-1); }
 .nightly-context-note { color: var(--text-4); font-size: 11px; font-weight: 500; }
-.nightly-composer-hint { margin-left: auto; color: var(--text-5); font-size: 11px; white-space: nowrap; }
+.nightly-composer-hint { margin-left: auto; color: var(--text-4); font-size: 11px; white-space: nowrap; }
 .nightly-hush-slot { display: inline-flex; align-items: center; }
 .nightly-hush-slot:empty { display: none; }
 .nightly-send {
@@ -1073,7 +1082,7 @@ p { text-wrap: pretty; }
   background: var(--surface-2); color: var(--text-1); outline: none;
   font: 500 12.5px/1 var(--font-mono); transition: border-color .12s ease, background .12s ease;
 }
-.nightly-field-input::placeholder { color: var(--text-5); }
+.nightly-field-input::placeholder { color: var(--text-4); }
 .nightly-field-select {
   font-family: var(--font-ui); appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%238a8f98' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
@@ -1381,7 +1390,10 @@ p { text-wrap: pretty; }
   background: transparent; color: var(--text-2); font: 500 12.5px/1 var(--font-ui); cursor: pointer;
 }
 .seducia-approval-actions button:hover { background: rgba(255,255,255,.05); }
-.seducia-approval-actions button.is-primary { border-color: transparent; background: var(--accent); color: #0a0a0a; font-weight: 600; }
+/* Approval is amber, never accent (DESIGN.md): it is a caution, not a primary action. */
+.seducia-approval-actions button.is-approve { border-color: transparent; background: #ffcb6b; color: #1a1205; font-weight: 600; }
+.seducia-approval-actions button.is-approve:hover { background: #ffd788; }
+.seducia-approval-actions button:focus-visible { outline: 2px solid #ffcb6b; outline-offset: 2px; }
 
 /* Rail context menu -------------------------------------------------------- */
 .nightly-ctx {
@@ -2170,7 +2182,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
   --border-3: rgba(196, 178, 255, 0.18);
   --text-2: #d4d1e4;
   --text-3: #908ca6;
-  --text-4: #7a7690;
+  --text-4: #87849b;
   --text-5: #3f3a50;
 }
 .sush-t3 .sush-app-bg, .sush-t3.sush-app-bg { background-color: var(--surface-0); }
@@ -2451,7 +2463,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
   background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); color: var(--text-1); font: 500 17px/1 var(--font-ui);
   transition: border-color var(--dur-quick) ease, background-color var(--dur-quick) ease, box-shadow var(--dur-quick) ease;
 }
-.onb-input::placeholder { color: var(--text-5, #4a5258); }
+.onb-input::placeholder { color: var(--text-4); }
 .onb-input:focus { border-color: var(--onb-accent-line); background: rgba(255,255,255,.06); box-shadow: 0 0 0 4px var(--onb-accent-soft); }
 .onb-swatches { margin-top: 16px; display: flex; gap: 10px; justify-content: center; }
 .onb-swatch {
@@ -2720,7 +2732,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
   --mac-fill-2: rgba(226,206,255,0.11);
   --mac-fill-3: rgba(226,206,255,0.16);
   --mac-select: color-mix(in srgb, var(--accent) 17%, rgba(255,255,255,0.03));
-  --mac-accent-strong: color-mix(in srgb, var(--accent) 74%, #1a0610);
+  --mac-accent-strong: color-mix(in srgb, var(--accent) 68%, #1a0610);
   --mac-menu: rgba(30,23,40,0.84);
   --mac-shadow-menu: 0 0 0 0.5px rgba(0,0,0,.7), 0 14px 40px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3), 0 18px 60px -20px color-mix(in srgb, var(--accent) 30%, transparent);
   --mac-radius-control: 6px;
@@ -2748,7 +2760,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
   --text-1: #f5f1fb;
   --text-2: #d8d1e6;
   --text-3: #a79fb8;
-  --text-4: #9088a3;
+  --text-4: #928aa4;
   --text-5: #4f4762;
 }
 .sush-t3.sush-app-bg, .sush-t3 .sush-app-bg { background-color: var(--surface-0); }
@@ -3192,7 +3204,7 @@ h2.shell-header-title { margin: 0; font-size: 13.5px; font-weight: 600; }
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 26%, transparent), rgba(150,96,255,.12) 55%, transparent);
 }
 .st-nav > * { position: relative; }
-.st-nav-item.is-active { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #1a0610), var(--mac-accent-strong)); box-shadow: 0 4px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+.st-nav-item.is-active { background: var(--mac-accent-strong); box-shadow: none; }
 .st-hero .st-tile { box-shadow: inset 0 0.5px 0 rgba(255,255,255,.3), 0 8px 26px -6px var(--tile); }
 .st-section-body { background: rgba(214,190,255,.035); box-shadow: inset 0 0 0 0.5px rgba(214,190,255,.1); }
 .st-toggle.is-on .st-switch { background: var(--accent); box-shadow: 0 0 14px -2px color-mix(in srgb, var(--accent) 70%, transparent); }
@@ -3509,7 +3521,7 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
   width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: 7px; text-align: left; cursor: default;
   background: transparent; color: var(--text-1);
 }
-.mp-flyout-item:hover { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, #1a0610), var(--mac-accent-strong)); box-shadow: 0 2px 12px -4px color-mix(in srgb, var(--accent) 70%, transparent); }
+.mp-flyout-item:hover { background: var(--mac-accent-strong); }
 .mp-flyout-item:hover small { color: rgba(255,255,255,.75); }
 .mp-flyout-item.is-on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .mp-flyout-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
@@ -3677,8 +3689,8 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
 .sz-stop-square { width: 10px; height: 10px; border-radius: 2.5px; background: var(--text-1); }
 
 /* Approval banner, attached to the top of the composer. */
-.sz-banner { display: grid; gap: 6px; padding: 10px 10px 10px 12px; background: color-mix(in srgb, var(--accent) 10%, var(--surface-1)); box-shadow: inset 0 -10px 12px -12px rgba(0,0,0,.35), inset 0 -0.5px 0 var(--border-2); animation: sz-msg-in 180ms var(--ease-out) backwards; }
-.sz-banner-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--accent); }
+.sz-banner { display: grid; gap: 6px; padding: 10px 10px 10px 12px; background: color-mix(in srgb, #ffcb6b 8%, var(--surface-1)); box-shadow: inset 0 -10px 12px -12px rgba(0,0,0,.35), inset 0 -0.5px 0 var(--border-2); animation: sz-msg-in 180ms var(--ease-out) backwards; }
+.sz-banner-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: #ffcb6b; }
 .sz-banner-item { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .sz-banner-kind { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--mac-fill); }
 .sz-banner-kind.is-run, .sz-banner-kind.is-close-session, .sz-banner-kind.is-close-workspace { color: #ffb3c0; background: rgba(255,77,109,.12); }
@@ -3690,7 +3702,12 @@ button.sorb:focus-visible .sorb-core { box-shadow: 0 0 0 3px #fff, 0 0 30px var(
 .sz-btn:active { transform: scale(.97); }
 .sz-btn.is-quiet { color: var(--text-2); background: var(--mac-fill); }
 .sz-btn.is-quiet:hover { background: var(--mac-fill-2); }
-.sz-btn.is-primary { color: #fff; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent)); box-shadow: 0 4px 12px -4px var(--accent), inset 0 1px 0 rgba(255,255,255,.3); }
+.sz-btn.is-approve { color: #1a1205; background: #ffcb6b; }
+.sz-btn.is-approve:hover { background: #ffd788; }
+.sz-btn.is-approve .sz-kbd { background: rgba(0,0,0,.12); }
+.sz-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Near-black ink on the pink fill: white measured 2.7:1, this clears 7:1. */
+.sz-btn.is-primary { color: #1a0610; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent)); box-shadow: 0 4px 12px -4px var(--accent), inset 0 1px 0 rgba(255,255,255,.3); }
 .sz-kbd { padding: 0 5px; border-radius: 5px; font-size: 10.5px; font-variant-numeric: tabular-nums; background: rgba(0,0,0,.18); }
 :root.sush-motion-reduced .sz-msg, :root.sush-motion-reduced .sz-acts.is-live .sz-acts-title, :root.sush-motion-reduced .sz-thinking i, :root.sush-motion-reduced .sz-caret { animation: none; }
 :root.sush-motion-reduced .sz-acts.is-live .sz-acts-title { color: var(--text-3); background: none; }

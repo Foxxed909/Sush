@@ -80,7 +80,7 @@ function ApprovalBanner({ items, onResolve }) {
       })}
       <div className="sz-banner-actions">
         <button type="button" className="sz-btn is-quiet" onClick={() => onResolve(false)}>Skip</button>
-        <button type="button" className="sz-btn is-primary" onClick={() => onResolve(true)} title="Approve (Ctrl/⌘ Enter)">
+        <button type="button" className="sz-btn is-approve" onClick={() => onResolve(true)} title="Approve (Ctrl/⌘ Enter)">
           Approve{items.length > 1 ? ' all' : ''} <span className="sz-kbd">{/Mac/i.test(navigator.platform) ? '⌘↵' : 'Ctrl ↵'}</span>
         </button>
       </div>
