@@ -48,6 +48,27 @@ describe('transcript parsing', () => {
   })
 })
 
+describe('review regressions', () => {
+  it('skips <synthetic> placeholders and zero-token lines', () => {
+    const text = [
+      JSON.stringify({ timestamp: iso(day(1)), message: { id: 's', model: '<synthetic>', usage: { input_tokens: 0, output_tokens: 0 } } }),
+      claudeLine({ id: 'z', ts: day(1) })
+    ].join('\n')
+    expect(parseClaudeTranscript(text)).toEqual([])
+  })
+  it('counts a repeated Codex token_count once', () => {
+    const ev = { timestamp: iso(day(1)), type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 100 }, last_token_usage: { input_tokens: 100, output_tokens: 10 } } } }
+    expect(parseCodexRollout([ev, ev].map(o => JSON.stringify(o)).join('\n'))).toHaveLength(1)
+  })
+  it('keeps the most complete copy of a multi-line Claude message', () => {
+    const early = rec({ id: 'm', output: 5 })
+    const final = rec({ id: 'm', output: 1e6 })
+    const s = summarize([{ provider: 'claude', slotId: 'default', label: 'C', records: [early, final] }], {}, NOW)
+    expect(s.usd).toBe(20)
+    expect(s.accounts[0].requests).toBe(1)
+  })
+})
+
 describe('summary', () => {
   const acct = (records, over = {}) => ({ provider: 'claude', slotId: 'default', label: 'Claude · Default', records, ...over })
 

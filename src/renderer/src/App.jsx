@@ -367,6 +367,8 @@ export default function App() {
   const [showProfiles, setShowProfiles] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsPage, setSettingsPage] = useState(null)
+  // A one-off page request (palette ▸ Finance) ends with the sheet, however it closes.
+  useEffect(() => { if (!showSettings) setSettingsPage(null) }, [showSettings])
   const [showLauncher, setShowLauncher] = useState(false)
   const [rightOpen, setRightOpen] = useState(() => localStorage.getItem('sush-right-open') === '1')
   const [seduciaOpen, setSeduciaOpen] = useState(false)

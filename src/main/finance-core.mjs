@@ -61,73 +61,92 @@ export function costOf(record, overrides) {
     (record.cacheWrite || 0) * p.cacheWrite + (record.cacheRead || 0) * p.cacheRead) / 1e6
 }
 
-function parseLines(text, onObject) {
+function eachObject(text, onObject) {
   for (const line of String(text || '').split('\n')) {
-    if (!line || line[0] !== '{') continue
-    let obj
-    try { obj = JSON.parse(line) } catch { continue }
-    if (obj && typeof obj === 'object' && !Array.isArray(obj)) onObject(obj)
+    const obj = parseLine(line)
+    if (obj) onObject(obj)
   }
 }
+export function parseLine(line) {
+  if (!line || line[0] !== '{') return null
+  try {
+    const obj = JSON.parse(line)
+    return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : null
+  } catch { return null }
+}
+const tokenSum = r => r.input + r.output + r.cacheWrite + r.cacheRead
 
-// Claude Code: one JSON object per line; assistant entries carry message.usage.
-export function parseClaudeTranscript(text) {
-  const out = []
-  parseLines(text, obj => {
-    const msg = obj.message && typeof obj.message === 'object' ? obj.message : null
-    const u = msg?.usage
-    if (!u || typeof u !== 'object') return
-    const ts = Date.parse(obj.timestamp || '')
-    if (!Number.isFinite(ts)) return
-    out.push({
-      id: msg.id || obj.requestId || obj.uuid || null,
-      ts,
-      model: msg.model || 'unknown',
-      cwd: typeof obj.cwd === 'string' ? obj.cwd : null,
-      input: u.input_tokens || 0,
-      output: u.output_tokens || 0,
-      cacheWrite: u.cache_creation_input_tokens || 0,
-      cacheRead: u.cache_read_input_tokens || 0
-    })
-  })
-  return out
+// Line-at-a-time parsers, so the scanner can feed only the bytes appended
+// since its last read. Each returns a record or null.
+
+// Claude Code: assistant entries carry message.usage. One message can span
+// several lines (one per content block) under the same message.id; the
+// summary keeps the most complete copy. "<synthetic>" placeholders and
+// zero-token lines are not requests.
+export function createClaudeParser() {
+  return {
+    line(obj) {
+      const msg = obj.message && typeof obj.message === 'object' ? obj.message : null
+      const u = msg?.usage
+      if (!u || typeof u !== 'object' || msg.model === '<synthetic>') return null
+      const ts = Date.parse(obj.timestamp || '')
+      if (!Number.isFinite(ts)) return null
+      const rec = {
+        id: msg.id || obj.requestId || obj.uuid || null,
+        ts,
+        model: msg.model || 'unknown',
+        cwd: typeof obj.cwd === 'string' ? obj.cwd : null,
+        input: u.input_tokens || 0,
+        output: u.output_tokens || 0,
+        cacheWrite: u.cache_creation_input_tokens || 0,
+        cacheRead: u.cache_read_input_tokens || 0
+      }
+      return tokenSum(rec) > 0 ? rec : null
+    }
+  }
 }
 
 // Codex rollouts: session_meta (cwd), turn_context (model) and token_count
 // events. last_token_usage is the per-turn delta; its input_tokens already
-// include the cached share, which is split out here.
-export function parseCodexRollout(text, fileKey = 'codex') {
-  const out = []
+// include the cached share, which is split out here. Codex can repeat a
+// token_count (for example, to report new rate limits) with an unchanged
+// running total, so an event whose total_token_usage matches the previous
+// one is not a new turn.
+export function createCodexParser(fileKey = 'codex') {
   let model = 'unknown'
   let cwd = null
   let n = 0
-  parseLines(text, obj => {
-    const p = obj.payload && typeof obj.payload === 'object' ? obj.payload : null
-    if (!p) return
-    if (obj.type === 'session_meta' && typeof p.cwd === 'string') cwd = p.cwd
-    if (obj.type === 'turn_context') {
-      if (typeof p.model === 'string') model = p.model
-      if (typeof p.cwd === 'string') cwd = p.cwd
-    }
-    if (obj.type === 'event_msg' && p.type === 'token_count') {
+  let lastTotal = null
+  return {
+    line(obj) {
+      const p = obj.payload && typeof obj.payload === 'object' ? obj.payload : null
+      if (!p) return null
+      if (obj.type === 'session_meta' && typeof p.cwd === 'string') cwd = p.cwd
+      if (obj.type === 'turn_context') {
+        if (typeof p.model === 'string') model = p.model
+        if (typeof p.cwd === 'string') cwd = p.cwd
+      }
+      if (obj.type !== 'event_msg' || p.type !== 'token_count') return null
       const u = p.info?.last_token_usage
       const ts = Date.parse(obj.timestamp || '')
-      if (!u || !Number.isFinite(ts)) return
+      if (!u || !Number.isFinite(ts)) return null
+      const total = p.info?.total_token_usage ? JSON.stringify(p.info.total_token_usage) : null
+      if (total && total === lastTotal) return null
+      lastTotal = total
       const cached = u.cached_input_tokens || 0
-      out.push({
-        id: `${fileKey}#${n++}`,
-        ts,
-        model,
-        cwd,
-        input: Math.max(0, (u.input_tokens || 0) - cached),
-        output: u.output_tokens || 0,
-        cacheWrite: 0,
-        cacheRead: cached
-      })
+      const rec = { id: `${fileKey}#${n++}`, ts, model, cwd, input: Math.max(0, (u.input_tokens || 0) - cached), output: u.output_tokens || 0, cacheWrite: 0, cacheRead: cached }
+      return tokenSum(rec) > 0 ? rec : null
     }
-  })
+  }
+}
+
+function parseAll(text, parser) {
+  const out = []
+  eachObject(text, obj => { const r = parser.line(obj); if (r) out.push(r) })
   return out
 }
+export const parseClaudeTranscript = (text) => parseAll(text, createClaudeParser())
+export const parseCodexRollout = (text, fileKey = 'codex') => parseAll(text, createCodexParser(fileKey))
 
 export function monthKey(ts) {
   const d = new Date(ts)
@@ -175,17 +194,22 @@ export function summarize(accounts = [], settings = {}, now = Date.now()) {
 
   for (const acct of accounts) {
     const key = `${acct.provider}:${acct.slotId}`
-    const seen = new Set()
+    const byId = new Map()
+    for (const rec of acct.records || []) {
+      if (!rec.id) continue
+      const prev = byId.get(rec.id)
+      if (!prev || tokenSum(rec) > tokenSum(prev)) byId.set(rec.id, rec)
+    }
     const row = { key, provider: acct.provider, slotId: acct.slotId, label: acct.label || acct.slotId, usd: 0, tokens: 0, unpricedTokens: 0, requests: 0, lastUsedAt: null, planUsd: Number(plans[key]) > 0 ? Number(plans[key]) : 0, lastLimitAt: acct.lastLimitAt || null, weekPeak: 0 }
     for (const h of acct.usageHistory || []) {
       if (h && Number.isFinite(h.weekPct) && h.at >= weekAgo) row.weekPeak = Math.max(row.weekPeak, h.weekPct)
     }
     for (const rec of acct.records || []) {
-      if (rec.id) { if (seen.has(rec.id)) continue; seen.add(rec.id) }
+      if (rec.id && byId.get(rec.id) !== rec) continue
       if (!row.lastUsedAt || rec.ts > row.lastUsedAt) row.lastUsedAt = rec.ts
       if (monthKey(rec.ts) !== month) continue
       const cost = costOf(rec, prices)
-      const t = rec.input + rec.output + rec.cacheWrite + rec.cacheRead
+      const t = tokenSum(rec)
       if (cost == null) { unpricedModels.add(rec.model); row.unpricedTokens += t }
       else { row.usd += cost; usd += cost; if (rec.ts >= weekAgo) last7Usd += cost }
       row.tokens += t; tokens += t; row.requests += 1

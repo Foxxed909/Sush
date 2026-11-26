@@ -288,7 +288,7 @@ function runCliEngine(engine, { prompt, cwd }, generation = identityRuntimeGener
     try {
       // Identity env LAST so the active user's CLI login (CLAUDE_CONFIG_DIR,
       // CODEX_HOME, ...) wins over the host's — same rule as PTY spawns.
-      child = spawn(file, args, { cwd: dir, windowsHide: true, env: { ...process.env, ...activeUserEnv() } })
+      child = spawn(file, args, { cwd: dir, windowsHide: true, env: { ...process.env, ...activeUserEnv({ provider: engine }) } })
       cliEngineChildren.add(child)
     } catch (e) {
       return resolve({ ok: false, engine, error: e.message })
@@ -1989,7 +1989,7 @@ export function registerIpcHandlers(win) {
   // Gemini Thread is opt-in: Sush adds one inert hook to the user's Gemini
   // settings (and removes exactly that hook again on opt-out).
   ipcMain.handle('sush:gemini-thread', (event, { enable } = {}) => {
-    const env = { ...process.env, ...activeUserEnv() }
+    const env = { ...process.env, ...activeUserEnv({ provider: 'gemini' }) }
     try {
       if (typeof enable === 'boolean') return { ok: true, enabled: setGeminiThreadHooks(env, enable, process.platform) }
       return { ok: true, enabled: geminiThreadHooksEnabled(readGeminiSettings(env).settings) }
@@ -2000,7 +2000,7 @@ export function registerIpcHandlers(win) {
 
   ipcMain.handle('sush:gemini-compression', (event, { threshold = null } = {}) => {
     try {
-      const env = { ...process.env, ...activeUserEnv() }
+      const env = { ...process.env, ...activeUserEnv({ provider: 'gemini' }) }
       return { ok: true, threshold: setGeminiCompressionThreshold(env, threshold) }
     } catch (e) {
       return { ok: false, error: e?.message || 'could not update Gemini settings' }

@@ -1,10 +1,10 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync } from 'fs'
-import { readFile, readdir, stat } from 'fs/promises'
+import { open, readdir, stat } from 'fs/promises'
 import { atomicWriteJson, identityStoragePath } from './secure-storage'
 import { listAccounts, slotEnv } from './accounts'
-import { parseClaudeTranscript, parseCodexRollout, summarize } from './finance-core.mjs'
+import { createClaudeParser, createCodexParser, parseLine, summarize } from './finance-core.mjs'
 
 // Sush Finance: what the identity's agent sessions are worth at API rates,
 // what its plans cost, and where to save. Reads the transcripts Claude Code
@@ -12,15 +12,19 @@ import { parseClaudeTranscript, parseCodexRollout, summarize } from './finance-c
 // leaves the machine and nothing new is recorded.
 
 const SCAN_DAYS = 62              // this month plus a full previous one
-const MAX_FILE_BYTES = 64 * 1024 * 1024
+const CHUNK_BYTES = 4 * 1024 * 1024
 const METERED = {
-  claude: { envKey: 'CLAUDE_CONFIG_DIR', sub: 'projects', parse: (text) => parseClaudeTranscript(text) },
-  codex: { envKey: 'CODEX_HOME', sub: 'sessions', parse: (text, file) => parseCodexRollout(text, file) }
+  claude: { envKey: 'CLAUDE_CONFIG_DIR', sub: 'projects', parser: () => createClaudeParser() },
+  codex: { envKey: 'CODEX_HOME', sub: 'sessions', parser: (file) => createCodexParser(file) }
 }
 
-// file path -> { sig, records }. Transcripts are append-only, so a file whose
-// size and mtime are unchanged needs no re-read.
+// This runs in the main process, which also carries every terminal's output,
+// so it must never parse a large file in one go. Transcripts are append-only:
+// each file keeps its read offset and parser state, and a scan reads only the
+// new bytes, in chunks, yielding to the event loop between them.
+// file path -> { offset, mtimeMs, parser, records }
 const fileCache = new Map()
+const yieldToLoop = () => new Promise(resolve => setImmediate(resolve))
 
 async function walkJsonl(dir, since, out = []) {
   let entries
@@ -31,25 +35,68 @@ async function walkJsonl(dir, since, out = []) {
     else if (e.name.endsWith('.jsonl')) {
       try {
         const st = await stat(full)
-        if (st.mtimeMs >= since && st.size <= MAX_FILE_BYTES) out.push({ file: full, sig: `${st.size}:${st.mtimeMs}` })
+        if (st.mtimeMs >= since) out.push({ file: full, size: st.size, mtimeMs: st.mtimeMs })
       } catch {}
     }
   }
   return out
 }
 
-async function recordsIn(root, parse, since) {
+async function readAppended(file, entry, size) {
+  let handle
+  try {
+    handle = await open(file, 'r')
+    let carry = ''
+    while (entry.offset < size) {
+      const length = Math.min(CHUNK_BYTES, size - entry.offset)
+      const buf = Buffer.alloc(length)
+      const { bytesRead } = await handle.read(buf, 0, length, entry.offset)
+      if (!bytesRead) break
+      const text = carry + buf.toString('utf8', 0, bytesRead)
+      const lastNl = text.lastIndexOf('\n')
+      // Only whole lines are consumed; a line still being written is read
+      // again next time.
+      const whole = lastNl === -1 ? '' : text.slice(0, lastNl)
+      carry = lastNl === -1 ? text : text.slice(lastNl + 1)
+      entry.offset += bytesRead
+      for (const line of whole.split('\n')) {
+        const obj = parseLine(line)
+        const rec = obj && entry.parser.line(obj)
+        if (rec) entry.records.push(rec)
+      }
+      await yieldToLoop()
+    }
+    // A last line with no newline is consumed only if it is a complete JSON
+    // object; a line cut mid-write can't parse and is read again next scan.
+    const tail = carry && parseLine(carry)
+    if (tail) {
+      const rec = entry.parser.line(tail)
+      if (rec) entry.records.push(rec)
+    } else {
+      entry.offset -= Buffer.byteLength(carry, 'utf8')
+    }
+  } catch {
+    // Unreadable this time; keep what was read and try again next scan.
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
+async function recordsIn(root, makeParser, since) {
   const files = await walkJsonl(root, since)
   const records = []
-  for (const { file, sig } of files) {
-    let hit = fileCache.get(file)
-    if (!hit || hit.sig !== sig) {
-      let text = ''
-      try { text = await readFile(file, 'utf8') } catch { continue }
-      hit = { sig, records: parse(text, file) }
-      fileCache.set(file, hit)
+  for (const { file, size, mtimeMs } of files) {
+    let entry = fileCache.get(file)
+    // Shrunk or replaced: start over.
+    if (!entry || size < entry.offset) {
+      entry = { offset: 0, mtimeMs: 0, parser: makeParser(file), records: [] }
+      fileCache.set(file, entry)
     }
-    for (const r of hit.records) if (r.ts >= since) records.push(r)
+    if (size > entry.offset || mtimeMs !== entry.mtimeMs) {
+      await readAppended(file, entry, size)
+      entry.mtimeMs = mtimeMs
+    }
+    for (const r of entry.records) if (r.ts >= since) records.push(r)
   }
   return records
 }
@@ -63,7 +110,10 @@ export function getFinanceSettings(userId) {
   try {
     if (file && existsSync(file)) {
       const data = JSON.parse(readFileSync(file, 'utf8'))
-      if (data && typeof data === 'object') return { budgetUsd: null, plans: {}, prices: {}, ...data }
+      if (data && typeof data === 'object') {
+        const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {})
+        return { budgetUsd: Number(data.budgetUsd) > 0 ? Number(data.budgetUsd) : null, plans: obj(data.plans), prices: obj(data.prices) }
+      }
     }
   } catch {}
   return { budgetUsd: null, plans: {}, prices: {} }
@@ -80,13 +130,15 @@ export function setFinanceSettings(userId, patch = {}) {
   if (!file) return { ok: false, error: 'no-user' }
   const s = getFinanceSettings(userId)
   if ('budgetUsd' in patch) s.budgetUsd = money(patch.budgetUsd)
-  if (patch.plan && /^[a-z]+:[\w-]{1,64}$/.test(String(patch.plan.key || ''))) {
+  if (patch.plan) {
+    if (!/^[a-z]+:[\w-]{1,64}$/.test(String(patch.plan.key || ''))) return { ok: false, error: 'Unknown account' }
     const usd = money(patch.plan.usd)
     if (usd == null) delete s.plans[patch.plan.key]
     else s.plans[patch.plan.key] = usd
   }
-  if (patch.price && /^[\w.@[\]-]{2,80}$/.test(String(patch.price.model || ''))) {
-    const model = patch.price.model.toLowerCase()
+  if (patch.price) {
+    const model = String(patch.price.model || '').toLowerCase().trim()
+    if (!/^[\w.@[\]:/-]{2,80}$/.test(model)) return { ok: false, error: 'That model name has characters Sush does not accept' }
     if (patch.price.remove) delete s.prices[model]
     else {
       const p = {}
@@ -115,7 +167,7 @@ export async function financeSummary(userId, baseEnv, now = Date.now()) {
     for (const slot of st?.slots || []) {
       const env = slot.id === 'default' ? baseEnv : { ...baseEnv, ...slotEnv(userId, provider, slot.id) }
       const dir = env?.[spec.envKey]
-      const records = dir ? await recordsIn(join(dir, spec.sub), spec.parse, since) : []
+      const records = dir ? await recordsIn(join(dir, spec.sub), spec.parser, since) : []
       accounts.push({ provider, slotId: slot.id, label: `${provider === 'claude' ? 'Claude' : 'Codex'} · ${slot.label}`, records, lastLimitAt: slot.lastLimitAt, usageHistory: slot.usageHistory })
     }
   }

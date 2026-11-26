@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { rgba } from '../lib/ui'
 import { POOL_PROVIDERS } from '../lib/agents'
 import { usePolling } from '../hooks/usePolling'
@@ -158,7 +158,9 @@ function usePoolData(providers) {
     setPools(next)
   }, [key])
 
-  // Focus-gated like every other poll: nothing runs while Sush is in the background.
+  // Read at once when the provider set changes (usePolling only re-reads on
+  // its next tick or on refocus), then focus-gated like every other poll.
+  useEffect(() => { pull() }, [pull])
   usePolling(pull, 60000)
 
   return { pools, refresh: pull }

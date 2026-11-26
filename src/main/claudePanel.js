@@ -93,7 +93,7 @@ function probeStreamJson({ env, timeoutMsg, onLine, onClose }) {
 // Active probe for the ACTIVE account; feeds the shared lastLimits snapshot.
 export function checkClaudeLimits() {
   return probeStreamJson({
-    env: { ...process.env, ...activeUserEnv() },
+    env: { ...process.env, ...activeUserEnv({ provider: 'claude' }) },
     timeoutMsg: 'Timed out checking limits (60s).',
     onLine: (msg) => {
       captureLimits(msg)
@@ -207,7 +207,7 @@ export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissio
   // deliberate bypass setting stays scoped to one account slot.
   let configuredMode = null
   try {
-    const configDir = activeUserEnv().CLAUDE_CONFIG_DIR
+    const configDir = activeUserEnv({ provider: 'claude' }).CLAUDE_CONFIG_DIR
     if (configDir) configuredMode = JSON.parse(readFileSync(join(configDir, 'settings.json'), 'utf8'))?.permissions?.defaultMode
   } catch {}
   args.push('--permission-mode', resolvePanelPermissionMode(permissionMode, configuredMode))
@@ -218,7 +218,7 @@ export function startClaudePanelRun({ panelId, prompt, cwd, sessionId, permissio
     child = spawn(file, fullArgs, {
       cwd: cwd || undefined,
       windowsHide: true,
-      env: { ...process.env, ...activeUserEnv() }
+      env: { ...process.env, ...activeUserEnv({ provider: 'claude' }) }
     })
   } catch (e) {
     return { ok: false, error: e.message }

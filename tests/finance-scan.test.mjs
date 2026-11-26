@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 const state = vi.hoisted(() => ({ dir: '' }))
@@ -41,10 +41,25 @@ it('attributes transcripts to the slot whose config dir holds them, per identity
   expect(other.planUsd).toBe(0)
 })
 
-it('rejects malformed settings patches', () => {
+it('rejects malformed settings patches with an error, never a throw', () => {
   const { user } = createUser({ name: 'Cy' })
   expect(setFinanceSettings(user.id, { price: { model: 'x-model', input: 1 } }).ok).toBe(false)
-  const r = setFinanceSettings(user.id, { budgetUsd: '-5', plan: { key: '../etc', usd: 9 } })
-  expect(r.settings.budgetUsd).toBe(null)
-  expect(r.settings.plans).toEqual({})
+  expect(setFinanceSettings(user.id, { price: { model: 12345, input: 1, output: 2 } }).ok).toBe(true)
+  expect(setFinanceSettings(user.id, { price: { model: '<synthetic>', input: 1, output: 2 } }).ok).toBe(false)
+  expect(setFinanceSettings(user.id, { plan: { key: '../etc', usd: 9 } }).ok).toBe(false)
+  expect(setFinanceSettings(user.id, { budgetUsd: '-5' }).settings.budgetUsd).toBe(null)
+})
+
+it('reads only appended bytes, and waits for a half-written line', async () => {
+  const { user } = createUser({ name: 'Dee' })
+  activateUser({ id: user.id })
+  const base = activeUserEnv({ includeAccounts: false })
+  const dir = join(base.CLAUDE_CONFIG_DIR, 'projects', '-w-app')
+  mkdirSync(dir, { recursive: true })
+  const file = join(dir, 'live.jsonl')
+  const second = line('m2', 1e6)
+  writeFileSync(file, line('m1', 1e6) + '\n' + second.slice(0, 20))
+  expect((await financeSummary(user.id, base)).usd).toBe(10)
+  appendFileSync(file, second.slice(20) + '\n')
+  expect((await financeSummary(user.id, base)).usd).toBe(20)
 })
